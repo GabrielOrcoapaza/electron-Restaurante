@@ -1,5 +1,8 @@
-import { ApolloClient, InMemoryCache, createHttpLink } from "@apollo/client";
+import { ApolloClient, InMemoryCache, createHttpLink, split } from "@apollo/client";
 import { setContext } from '@apollo/client/link/context';
+import { createClient } from 'graphql-ws';
+import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
+import { getMainDefinition } from '@apollo/client/utilities';
 
 // URL de tu backend Django GraphQL (ajusta según tu configuración)
 const httpLink = createHttpLink({
@@ -19,9 +22,35 @@ const authLink = setContext((_, { headers }) => {
   }
 });
 
+// WebSocket link para suscripciones en tiempo real
+const wsClient = createClient({
+  url: 'ws://192.168.1.22:8000/ws/restaurant/',
+  connectionParams: () => {
+    const token = localStorage.getItem('token');
+    return {
+      authorization: token ? `JWT ${token}` : "",
+    };
+  },
+});
+
+const wsLink = new GraphQLWsLink(wsClient);
+
+// Split link: HTTP para queries/mutations, WebSocket para subscriptions
+const splitLink = split(
+  ({ query }) => {
+    const definition = getMainDefinition(query);
+    return (
+      definition.kind === 'OperationDefinition' &&
+      definition.operation === 'subscription'
+    );
+  },
+  wsLink,
+  authLink.concat(httpLink)
+);
+
 // Crear el cliente Apollo
 export const client = new ApolloClient({
-  link: authLink.concat(httpLink),
+  link: splitLink,
   cache: new InMemoryCache(),
   defaultOptions: {
     watchQuery: {

@@ -28,10 +28,16 @@ const LayoutDashboard: React.FC<LayoutDashboardProps> = ({ children }) => {
 
   return (
     <div style={{
-      display: 'flex',
-      minHeight: '100vh',
+      height: '100vh',
+      width: '100vw',
+      maxWidth: '100vw',
       backgroundColor: '#f8fafc',
-      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif'
+      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      overflow: 'hidden',
+      display: 'flex'
     }}>
       {/* Sidebar */}
       <div style={{
@@ -346,12 +352,13 @@ const LayoutDashboard: React.FC<LayoutDashboardProps> = ({ children }) => {
 
       {/* Contenido Principal */}
       <div style={{
-        flex: 1,
         marginLeft: sidebarOpen ? '280px' : '80px',
-        transition: 'margin-left 0.3s ease',
-        minHeight: '100vh',
+        width: `calc(100vw - ${sidebarOpen ? '280px' : '80px'})`,
+        height: '100vh',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        overflow: 'auto',
+        transition: 'margin-left 0.3s ease'
       }}>
         {/* Header Principal */}
         <header style={{
@@ -405,8 +412,11 @@ const LayoutDashboard: React.FC<LayoutDashboardProps> = ({ children }) => {
         {/* Contenido */}
         <main style={{
           flex: 1,
-          padding: '2rem',
-          backgroundColor: '#f8fafc'
+          padding: currentView === 'dashboard' ? '2rem' : '1rem',
+          backgroundColor: '#f8fafc',
+          overflow: 'auto',
+          width: '100%',
+          boxSizing: 'border-box'
         }}>
           {currentView === 'dashboard' ? children : <Floor />}
         </main>

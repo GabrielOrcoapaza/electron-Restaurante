@@ -55,3 +55,27 @@ export const USER_LOGIN = gql`
     }
   }
 `;
+
+// Mutación para actualizar el estado de una mesa
+export const UPDATE_TABLE_STATUS = gql`
+  mutation UpdateTableStatus($tableId: ID!, $status: String!, $userId: ID) {
+    updateTableStatus(tableId: $tableId, status: $status, userId: $userId) {
+      success
+      message
+      table {
+        id
+        name
+        status
+        statusColors
+        currentOperationId
+        occupiedById
+        userName
+        capacity
+        shape
+        positionX
+        positionY
+      }
+    }
+  }
+`;
+

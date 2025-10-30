@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
 import { gql } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import type { Table, ProcessedTableColors } from '../../types/table';
+import Order from './order';
 
 // Query para obtener pisos de la sucursal
 const GET_FLOORS_BY_BRANCH = gql`
@@ -36,9 +38,52 @@ const GET_TABLES_BY_FLOOR = gql`
 `;
 
 const Floor: React.FC = () => {
-  const { companyData } = useAuth();
+  const { companyData, user } = useAuth();
+  
+  // CSS para animación de pulso (adaptable a diferentes colores)
+  const pulseKeyframes = `
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+      }
+    }
+    
+    @keyframes pulseYellow {
+      0% {
+        box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 10px rgba(255, 193, 7, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+      }
+    }
+    
+    @keyframes pulseBlue {
+      0% {
+        box-shadow: 0 0 0 0 rgba(23, 162, 184, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 10px rgba(23, 162, 184, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(23, 162, 184, 0);
+      }
+    }
+  `;
   const [selectedFloorId, setSelectedFloorId] = useState<string>('');
   const [showTables, setShowTables] = useState(false);
+  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
+  const [showOrder, setShowOrder] = useState(false);
 
   // Obtener pisos de la sucursal
   const { data: floorsData, loading: floorsLoading, error: floorsError } = useQuery(GET_FLOORS_BY_BRANCH, {
@@ -47,10 +92,132 @@ const Floor: React.FC = () => {
   });
 
   // Obtener mesas del piso seleccionado
-  const { data: tablesData, loading: tablesLoading, error: tablesError } = useQuery(GET_TABLES_BY_FLOOR, {
+  const { data: tablesData, loading: tablesLoading, error: tablesError, refetch: refetchTables } = useQuery(GET_TABLES_BY_FLOOR, {
     variables: { floorId: selectedFloorId },
     skip: !selectedFloorId
   });
+
+  // (Sin mutación de estado de mesa en esta vista)
+
+  // WebSocket para cambios en tiempo real según tu RestaurantConsumer
+  useEffect(() => {
+    if (!companyData?.branch.id || !user?.id) {
+      console.log('⚠️ Faltan datos para WebSocket:', { branchId: companyData?.branch.id, userId: user?.id });
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.warn('⚠️ No hay token disponible para WebSocket');
+      return;
+    }
+
+    // URL del WebSocket según tu backend
+    const wsUrl = `ws://192.168.1.22:8000/ws/restaurant/${companyData.branch.id}/`;
+    
+    // Sistema de escritorio con Electron - siempre usar WebSocket con headers
+    console.log('✅ Electron detectado - usando WebSocket con headers');
+    
+    // En Electron, usar el WebSocket nativo de Node (ws package)
+    const WebSocketNode = (window as any).require('ws');
+    const ws = new WebSocketNode(wsUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    // Usar la API de eventos de ws (Node.js)
+    ws.on('open', () => {
+      console.log('✅ WebSocket conectado para branch:', companyData.branch.id);
+    });
+
+    ws.on('message', (data: any) => {
+      try {
+        const message = JSON.parse(data.toString());
+        console.log('🔄 Mensaje WebSocket recibido:', message);
+        
+        // Tipo: connection_established - cuando te conectas
+        if (message.type === 'connection_established') {
+          console.log('✅ Conexión establecida:', {
+            user: message.user,
+            branch: message.branch,
+            timestamp: message.timestamp
+          });
+        }
+        
+        // Tipo: tables_snapshot - estado inicial de todas las mesas
+        else if (message.type === 'tables_snapshot') {
+          console.log('📊 Snapshot de mesas recibido:', message.tables?.length, 'mesas');
+          refetchTables();
+        }
+        
+        // Tipo: table_update - actualización individual de mesa
+        else if (message.type === 'table_update') {
+          console.log(`🔄 Mesa ${message.table_id} actualizada:`, {
+            status: message.status,
+            operationId: message.current_operation_id,
+            userName: message.occupied_by_name,
+            timestamp: message.timestamp
+          });
+          refetchTables();
+        }
+        
+        // Tipo: error - errores del servidor
+        else if (message.type === 'error') {
+          console.error('❌ Error del WebSocket:', message.message);
+          setNotification({ type: 'error', message: message.message });
+          setTimeout(() => setNotification(null), 3000);
+        }
+        
+        // Tipo: pong - respuesta a ping
+        else if (message.type === 'pong') {
+          console.log('🏓 Pong recibido:', message.timestamp);
+        }
+        
+        else {
+          console.warn('⚠️ Tipo de mensaje desconocido:', message.type);
+        }
+        
+      } catch (error) {
+        console.error('❌ Error parseando mensaje WebSocket:', error);
+      }
+    });
+
+    ws.on('error', (error: any) => {
+      console.error('❌ Error WebSocket:', error);
+      setNotification({ type: 'error', message: 'Error de conexión en tiempo real' });
+      setTimeout(() => setNotification(null), 3000);
+    });
+
+    ws.on('close', (code: number, reason: any) => {
+      console.log('🔌 WebSocket desconectado:', code, reason.toString());
+      
+      // Reintentar conexión si no fue un cierre normal
+      if (code !== 1000) {
+        console.log('🔄 Intentando reconectar en 3 segundos...');
+        setTimeout(() => {
+          // Esto se manejará automáticamente por el useEffect al cambiar las dependencias
+        }, 3000);
+      }
+    });
+
+    // Enviar ping periódico para mantener la conexión viva
+    const pingInterval = setInterval(() => {
+      // ws package usa diferentes constantes para readyState
+      if (ws.readyState === 1) { // OPEN = 1
+        ws.send(JSON.stringify({ type: 'ping' }));
+        console.log('🏓 Ping enviado');
+      }
+    }, 30000); // Cada 30 segundos
+
+    // Cleanup
+    return () => {
+      clearInterval(pingInterval);
+      if (ws && ws.readyState === 1) { // OPEN = 1
+        ws.close(1000, 'Component unmount');
+      }
+    };
+  }, [companyData?.branch.id, user?.id, refetchTables]);
 
   const handleFloorSelect = (floorId: string) => {
     setSelectedFloorId(floorId);
@@ -60,6 +227,95 @@ const Floor: React.FC = () => {
   const handleBackToFloors = () => {
     setSelectedFloorId('');
     setShowTables(false);
+  };
+
+  const handleTableClick = (table: Table) => {
+    setSelectedTable(table);
+    setShowStatusModal(true);
+  };
+  
+
+  // Función para obtener los colores de la mesa según su estado
+  const getTableColors = (table: Table): ProcessedTableColors => {
+    // Debug: ver qué colores llegan del backend
+    console.log(`Mesa ${table.name} - Status: ${table.status} - StatusColors:`, table.statusColors);
+    
+    // Si tenemos statusColors del backend, los usamos
+    if (table.statusColors) {
+      try {
+        // Si es un string JSON, lo parseamos
+        const colors = typeof table.statusColors === 'string' 
+          ? JSON.parse(table.statusColors) 
+          : table.statusColors;
+        
+        console.log(`Mesa ${table.name} - Colores parseados:`, colors);
+        
+        if (colors && typeof colors === 'object') {
+          // Usar el formato exacto del método get_status_colors() del modelo Django
+          return {
+            backgroundColor: colors.background_color || colors.backgroundColor || '#f7fafc',
+            borderColor: colors.color || colors.borderColor || '#e2e8f0',
+            textColor: colors.text_color || colors.textColor || '#2d3748',
+            badgeColor: colors.background_color || colors.backgroundColor || '#667eea',
+            badgeTextColor: colors.text_color || colors.textColor || '#ffffff'
+          };
+        }
+      } catch (error) {
+        console.warn('Error parsing statusColors:', error);
+      }
+    }
+    
+    // Fallback a colores por defecto según el estado (usando los mismos colores del modelo Django)
+    switch (table.status) {
+      case 'AVAILABLE':
+        return {
+          backgroundColor: '#d4edda',
+          borderColor: '#28a745',
+          textColor: '#155724',
+          badgeColor: '#d4edda',
+          badgeTextColor: '#155724'
+        };
+      case 'OCCUPIED':
+        return {
+          backgroundColor: '#f8d7da',
+          borderColor: '#dc3545',
+          textColor: '#721c24',
+          badgeColor: '#f8d7da',
+          badgeTextColor: '#721c24'
+        };
+      case 'TO_PAY':
+        return {
+          backgroundColor: '#fff3cd',
+          borderColor: '#ffc107',
+          textColor: '#856404',
+          badgeColor: '#fff3cd',
+          badgeTextColor: '#856404'
+        };
+      case 'IN_PROCESS':
+        return {
+          backgroundColor: '#d1ecf1',
+          borderColor: '#17a2b8',
+          textColor: '#0c5460',
+          badgeColor: '#d1ecf1',
+          badgeTextColor: '#0c5460'
+        };
+      case 'MAINTENANCE':
+        return {
+          backgroundColor: '#e2e3e5',
+          borderColor: '#6c757d',
+          textColor: '#383d41',
+          badgeColor: '#e2e3e5',
+          badgeTextColor: '#383d41'
+        };
+      default:
+        return {
+          backgroundColor: '#e2e3e5',
+          borderColor: '#6c757d',
+          textColor: '#383d41',
+          badgeColor: '#e2e3e5',
+          badgeTextColor: '#383d41'
+        };
+    }
   };
 
   if (floorsLoading) {
@@ -94,11 +350,12 @@ const Floor: React.FC = () => {
 
   if (!showTables) {
     return (
-      <div style={{
-        maxWidth: '800px',
-        margin: '0 auto',
-        padding: '2rem'
-      }}>
+        <div style={{
+          height: '100%',
+          width: '100%',
+          padding: '1rem',
+          boxSizing: 'border-box'
+        }}>
         <div style={{
           backgroundColor: 'white',
           borderRadius: '12px',
@@ -224,11 +481,16 @@ const Floor: React.FC = () => {
   const selectedFloor = floorsData?.floorsByBranch?.find((floor: any) => floor.id === selectedFloorId);
 
   return (
-    <div style={{
-      maxWidth: '1200px',
-      margin: '0 auto',
-      padding: '2rem'
-    }}>
+    <>
+      {/* CSS para animaciones */}
+      <style>{pulseKeyframes}</style>
+      
+      <div style={{
+        height: '100%',
+        width: '100%',
+        padding: '1rem',
+        boxSizing: 'border-box'
+      }}>
       <div style={{
         backgroundColor: 'white',
         borderRadius: '12px',
@@ -329,86 +591,313 @@ const Floor: React.FC = () => {
         ) : (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: '1rem'
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: '2rem',
+            width: '100%'
           }}>
-            {tablesData?.tablesByFloor?.map((table: any) => (
-              <div
-                key={table.id}
-                style={{
-                  backgroundColor: '#f7fafc',
-                  border: '2px solid #e2e8f0',
-                  borderRadius: '12px',
-                  padding: '1.5rem',
-                  textAlign: 'center',
-                  transition: 'all 0.2s ease',
-                  cursor: 'pointer'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.borderColor = '#667eea';
-                  e.currentTarget.style.backgroundColor = '#f0f4ff';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = '#e2e8f0';
-                  e.currentTarget.style.backgroundColor = '#f7fafc';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-              >
+            {tablesData?.tablesByFloor?.map((table: Table) => {
+              const colors = getTableColors(table);
+              return (
+                <div
+                  key={table.id}
+                  onClick={() => handleTableClick(table)}
+                  style={{
+                    backgroundColor: colors.backgroundColor,
+                    border: `3px solid ${colors.borderColor}`,
+                    borderRadius: '16px',
+                    padding: '2.5rem',
+                    textAlign: 'center',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    animation: table.status === 'OCCUPIED' ? 'pulse 2s infinite' : 
+                               table.status === 'TO_PAY' ? 'pulseYellow 2s infinite' :
+                               table.status === 'IN_PROCESS' ? 'pulseBlue 2s infinite' : 'none',
+                    boxShadow: (table.status === 'OCCUPIED' || table.status === 'TO_PAY' || table.status === 'IN_PROCESS') 
+                               ? `0 0 0 0 ${colors.borderColor}` : '0 4px 12px rgba(0, 0, 0, 0.1)'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.borderColor = '#667eea';
+                    e.currentTarget.style.backgroundColor = '#f0f4ff';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.borderColor = colors.borderColor;
+                    e.currentTarget.style.backgroundColor = colors.backgroundColor;
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
                 <div style={{
-                  fontSize: '2rem',
-                  marginBottom: '0.75rem'
+                  fontSize: '3rem',
+                  marginBottom: '1.5rem',
+                  position: 'relative'
                 }}>
-                  {table.shape === 'CIRCLE' ? '⭕' : '🟦'}
+                  {/* Icono principal de la mesa */}
+                  <div style={{
+                    display: 'inline-block',
+                    transform: (table.status === 'OCCUPIED' || table.status === 'TO_PAY' || table.status === 'IN_PROCESS') 
+                              ? 'scale(1.1)' : 'scale(1)',
+                    transition: 'transform 0.2s ease'
+                  }}>
+                    {table.shape === 'CIRCLE' ? '⭕' : 
+                     table.shape === 'SQUARE' ? '⬜' : '🟦'}
+                  </div>
+                  
+                  {/* Indicador de estado con icono */}
+                  <div style={{
+                    position: 'absolute',
+                    top: '-0.5rem',
+                    right: '-0.5rem',
+                    fontSize: '1.25rem',
+                    backgroundColor: colors.badgeColor,
+                    borderRadius: '50%',
+                    width: '2rem',
+                    height: '2rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: colors.badgeTextColor,
+                    fontWeight: 'bold',
+                    border: `3px solid ${colors.borderColor}`
+                  }}>
+                    {table.status === 'AVAILABLE' ? '✓' : 
+                     table.status === 'OCCUPIED' ? '👤' : 
+                     table.status === 'TO_PAY' ? '💰' :
+                     table.status === 'IN_PROCESS' ? '⚙️' :
+                     table.status === 'MAINTENANCE' ? '🔧' : '❓'}
+                  </div>
                 </div>
                 
                 <h4 style={{
-                  fontSize: '1.125rem',
-                  fontWeight: '600',
-                  color: '#2d3748',
-                  margin: '0 0 0.5rem 0'
+                  fontSize: '1.5rem',
+                  fontWeight: '700',
+                  color: colors.textColor,
+                  margin: '0 0 1rem 0'
                 }}>
                   {table.name}
                 </h4>
                 
                 <div style={{
-                  fontSize: '0.875rem',
+                  fontSize: '1.125rem',
                   color: '#718096',
-                  marginBottom: '0.75rem'
+                  marginBottom: '1.5rem',
+                  fontWeight: '500'
                 }}>
                   Capacidad: {table.capacity}
                 </div>
                 
                 <div style={{
                   display: 'inline-block',
-                  padding: '0.25rem 0.75rem',
-                  borderRadius: '20px',
-                  fontSize: '0.75rem',
-                  fontWeight: '600',
-                  backgroundColor: table.status === 'AVAILABLE' ? '#c6f6d5' : 
-                                 table.status === 'OCCUPIED' ? '#fed7d7' : '#fef5e7',
-                  color: table.status === 'AVAILABLE' ? '#22543d' : 
-                         table.status === 'OCCUPIED' ? '#742a2a' : '#744210'
+                  padding: '0.5rem 1.25rem',
+                  borderRadius: '25px',
+                  fontSize: '1rem',
+                  fontWeight: '700',
+                  backgroundColor: colors.badgeColor,
+                  color: colors.badgeTextColor
                 }}>
                   {table.status === 'AVAILABLE' ? 'Disponible' : 
-                   table.status === 'OCCUPIED' ? 'Ocupada' : 'Reservada'}
+                   table.status === 'OCCUPIED' ? 'Ocupada' : 
+                   table.status === 'TO_PAY' ? 'Por Pagar' :
+                   table.status === 'IN_PROCESS' ? 'En Proceso' :
+                   table.status === 'MAINTENANCE' ? 'Mantenimiento' : 'Desconocido'}
                 </div>
                 
                 {table.userName && (
                   <div style={{
-                    fontSize: '0.75rem',
-                    color: '#718096',
-                    marginTop: '0.5rem'
+                    fontSize: '1rem',
+                    color: colors.textColor,
+                    marginTop: '1rem',
+                    backgroundColor: colors.badgeColor,
+                    padding: '0.5rem 1rem',
+                    borderRadius: '15px',
+                    fontWeight: '600',
+                    opacity: 0.9
                   }}>
-                    Ocupada por: {table.userName}
+                    👤 {table.userName}
                   </div>
                 )}
+                
+                {/* Indicador de que es clickeable */}
+                <div style={{
+                  position: 'absolute',
+                  top: '0.5rem',
+                  right: '0.5rem',
+                  fontSize: '0.75rem',
+                  color: '#667eea',
+                  fontWeight: '600'
+                }}>
+                  ✏️
+                </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
-    </div>
+
+      {/* Modal de opciones de mesa */}
+      {showStatusModal && selectedTable && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            padding: '2rem',
+            maxWidth: '420px',
+            width: '90%',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+          }}>
+            <h3 style={{
+              fontSize: '1.25rem',
+              fontWeight: '600',
+              color: '#2d3748',
+              marginBottom: '1rem',
+              textAlign: 'center'
+            }}>
+              Elige una opción
+            </h3>
+            
+            <div style={{
+              marginBottom: '1.5rem',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                fontSize: '2rem',
+                marginBottom: '0.5rem'
+              }}>
+                {selectedTable.shape === 'CIRCLE' ? '⭕' : 
+                 selectedTable.shape === 'SQUARE' ? '⬜' : '🟦'}
+              </div>
+              <h4 style={{
+                fontSize: '1.125rem',
+                fontWeight: '600',
+                color: '#2d3748',
+                margin: '0 0 0.25rem 0'
+              }}>
+                {selectedTable.name}
+              </h4>
+              <p style={{
+                fontSize: '0.875rem',
+                color: '#718096',
+                margin: 0
+              }}>
+                Capacidad: {selectedTable.capacity}
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              <button
+                onClick={() => {
+                  setShowStatusModal(false);
+                  setShowOrder(true);
+                }}
+                style={{
+                  padding: '0.9rem 1.25rem',
+                  backgroundColor: '#667eea',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  fontWeight: 600
+                }}
+              >
+                Orden
+              </button>
+              <button
+                onClick={() => {
+                  setShowStatusModal(false);
+                  setNotification({ type: 'success', message: 'Seleccionaste Caja' });
+                  setTimeout(() => setNotification(null), 2000);
+                }}
+                style={{
+                  padding: '0.9rem 1.25rem',
+                  backgroundColor: '#f7fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  color: '#2d3748',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  fontWeight: 600
+                }}
+              >
+                Caja
+              </button>
+              <button
+                onClick={() => {
+                  setShowStatusModal(false);
+                  setSelectedTable(null);
+                }}
+                style={{
+                  padding: '0.75rem 1.25rem',
+                  backgroundColor: '#fff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  color: '#4a5568',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: 500
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Orden */}
+      {showOrder && selectedTable && (
+        <Order
+          table={selectedTable}
+          onClose={() => {
+            setShowOrder(false);
+            setSelectedTable(null);
+          }}
+        />
+      )}
+
+      {/* Notificación de éxito/error */}
+      {notification && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          backgroundColor: notification.type === 'success' ? '#c6f6d5' : '#fed7d7',
+          color: notification.type === 'success' ? '#22543d' : '#742a2a',
+          padding: '1rem 1.5rem',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          zIndex: 1001,
+          maxWidth: '300px',
+          fontSize: '0.875rem',
+          fontWeight: '500',
+          border: `1px solid ${notification.type === 'success' ? '#9ae6b4' : '#feb2b2'}`
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <span style={{ fontSize: '1.25rem' }}>
+              {notification.type === 'success' ? '✅' : '❌'}
+            </span>
+            <span>{notification.message}</span>
+          </div>
+        </div>
+      )}
+      </div>
+    </>
   );
 };
 
