@@ -1,19 +1,24 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { WebSocketProvider, useWebSocket } from '../context/WebSocketContext';
 import Floor from '../modules/sales/floor';
 
 interface LayoutDashboardProps {
   children: React.ReactNode;
 }
 
-const LayoutDashboard: React.FC<LayoutDashboardProps> = ({ children }) => {
+// Componente interno que usa el WebSocket
+const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) => {
   const navigate = useNavigate();
   const { user, companyData, logout } = useAuth();
+  const { disconnect } = useWebSocket();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentView, setCurrentView] = useState<'dashboard' | 'floors'>('dashboard');
 
   const handleLogout = () => {
+    // Desconectar WebSocket antes de hacer logout
+    disconnect();
     logout();
     navigate('/login-company');
   };
@@ -28,17 +33,17 @@ const LayoutDashboard: React.FC<LayoutDashboardProps> = ({ children }) => {
 
   return (
     <div style={{
-      height: '100vh',
-      width: '100vw',
-      maxWidth: '100vw',
-      backgroundColor: '#f8fafc',
-      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      overflow: 'hidden',
-      display: 'flex'
-    }}>
+        height: '100vh',
+        width: '100vw',
+        maxWidth: '100vw',
+        backgroundColor: '#f8fafc',
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        overflow: 'hidden',
+        display: 'flex'
+      }}>
       {/* Sidebar */}
       <div style={{
         width: sidebarOpen ? '280px' : '80px',
@@ -422,6 +427,15 @@ const LayoutDashboard: React.FC<LayoutDashboardProps> = ({ children }) => {
         </main>
       </div>
     </div>
+  );
+};
+
+// Componente principal que envuelve con el WebSocketProvider
+const LayoutDashboard: React.FC<LayoutDashboardProps> = ({ children }) => {
+  return (
+    <WebSocketProvider>
+      <LayoutDashboardContent>{children}</LayoutDashboardContent>
+    </WebSocketProvider>
   );
 };
 

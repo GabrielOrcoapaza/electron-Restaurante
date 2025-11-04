@@ -1,12 +1,441 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useQuery, useMutation } from '@apollo/client';
+import { gql } from '@apollo/client';
+import { useAuth } from '../../hooks/useAuth';
 import type { Table } from '../../types/table';
+import { CREATE_OPERATION } from '../../graphql/mutations';
+
+// Query para obtener categorías de la sucursal
+const GET_CATEGORIES_BY_BRANCH = gql`
+	query GetCategoriesByBranch($branchId: ID!) {
+		categoriesByBranch(branchId: $branchId) {
+			id
+			name
+			description
+			icon
+			color
+			order
+			isActive
+		}
+	}
+`;
+
+// Query para obtener productos por categoría
+const GET_PRODUCTS_BY_CATEGORY = gql`
+	query GetProductsByCategory($categoryId: ID!) {
+		productsByCategory(categoryId: $categoryId) {
+			id
+			code
+			name
+			description
+			salePrice
+			imageBase64
+			preparationTime
+			isActive
+		}
+	}
+`;
+
+// Query para obtener todos los productos de la sucursal
+const GET_PRODUCTS_BY_BRANCH = gql`
+	query GetProductsByBranch($branchId: ID!) {
+		productsByBranch(branchId: $branchId) {
+			id
+			code
+			name
+			description
+			salePrice
+			imageBase64
+			preparationTime
+			isActive
+		}
+	}
+`;
+
+// Query para buscar productos
+const SEARCH_PRODUCTS = gql`
+	query SearchProducts($search: String!, $branchId: ID!, $limit: Int) {
+		searchProducts(search: $search, branchId: $branchId, limit: $limit) {
+			id
+			code
+			name
+			description
+			salePrice
+			imageBase64
+			preparationTime
+			isActive
+		}
+	}
+`;
 
 type OrderProps = {
 	table: Table;
 	onClose: () => void;
+	onSuccess?: () => void; // Callback opcional para cuando se guarde exitosamente
 };
 
-const Order: React.FC<OrderProps> = ({ table, onClose }) => {
+// Tipo para los ítems de la orden
+type OrderItem = {
+	id: string;
+	productId: string;
+	name: string;
+	price: number;
+	quantity: number;
+	total: number;
+};
+
+const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
+	const { companyData, user } = useAuth();
+	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+	const [searchTerm, setSearchTerm] = useState<string>('');
+	const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+	const [quantity, setQuantity] = useState<string>('1');
+	const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+	const [isSaving, setIsSaving] = useState(false);
+	const [saveError, setSaveError] = useState<string | null>(null);
+
+	// Mutación para crear la operación
+	const [createOperationMutation] = useMutation(CREATE_OPERATION);
+
+	// Obtener categorías de la sucursal
+	const { data: categoriesData, loading: categoriesLoading } = useQuery(GET_CATEGORIES_BY_BRANCH, {
+		variables: { branchId: companyData?.branch.id },
+		skip: !companyData?.branch.id
+	});
+
+	const categories = categoriesData?.categoriesByBranch || [];
+
+	// Búsqueda de productos (si hay término de búsqueda)
+	const { data: searchData, loading: searchLoading } = useQuery(SEARCH_PRODUCTS, {
+		variables: { search: searchTerm, branchId: companyData?.branch.id, limit: 50 },
+		skip: !companyData?.branch.id || searchTerm.length < 3,
+		errorPolicy: 'ignore'
+	});
+
+	// Obtener productos por categoría (si hay una seleccionada y no hay búsqueda)
+	const { data: productsByCategoryData, loading: productsByCategoryLoading } = useQuery(GET_PRODUCTS_BY_CATEGORY, {
+		variables: { categoryId: selectedCategory },
+		skip: !selectedCategory || searchTerm.length >= 3
+	});
+
+	// Obtener todos los productos de la sucursal (cargamos siempre para el fallback de búsqueda)
+	const { data: productsByBranchData, loading: productsByBranchLoading } = useQuery(GET_PRODUCTS_BY_BRANCH, {
+		variables: { branchId: companyData?.branch.id },
+		skip: !companyData?.branch.id
+	});
+
+	// Determinar qué productos mostrar según la selección
+	let products;
+	let productsLoading;
+	
+	if (searchTerm.length >= 3) {
+		// Prioridad 1: Búsqueda avanzada (del servidor)
+		products = searchData?.searchProducts;
+		productsLoading = searchLoading;
+		
+		// Fallback: Si la búsqueda del servidor falla, hacer búsqueda local simple
+		if (!products || products.length === 0) {
+			const allProducts = productsByBranchData?.productsByBranch || [];
+			const searchLower = searchTerm.toLowerCase();
+			products = allProducts.filter((p: any) => 
+				p.name?.toLowerCase().includes(searchLower) || 
+				p.code?.toLowerCase().includes(searchLower) ||
+				p.description?.toLowerCase().includes(searchLower)
+			);
+		}
+	} else if (selectedCategory) {
+		// Prioridad 2: Categoría seleccionada
+		products = productsByCategoryData?.productsByCategory;
+		productsLoading = productsByCategoryLoading;
+	} else {
+		// Prioridad 3: Todos los productos
+		products = productsByBranchData?.productsByBranch;
+		productsLoading = productsByBranchLoading;
+	}
+	
+	const productsList = products || [];
+
+	// Función para agregar producto a la orden
+	const handleAddProduct = (productIdToAdd?: string, qtyToAdd?: number) => {
+		const productId = productIdToAdd || selectedProduct;
+		if (!productId) return;
+		
+		const product = productsList.find((p: any) => p.id === productId);
+		if (!product) return;
+
+		// Validar que el precio sea un número válido
+		const productPrice = parseFloat(product.salePrice) || 0;
+		if (productPrice <= 0) {
+			setSaveError(`El producto "${product.name}" no tiene un precio válido`);
+			setTimeout(() => setSaveError(null), 3000);
+			return;
+		}
+
+		const qty = qtyToAdd || parseInt(quantity) || 1;
+		const newItem: OrderItem = {
+			id: `${product.id}-${Date.now()}`,
+			productId: product.id,
+			name: product.name,
+			price: productPrice,
+			quantity: qty,
+			total: productPrice * qty
+		};
+
+		// Verificar si el producto ya existe en la orden
+		const existingItemIndex = orderItems.findIndex(item => item.productId === product.id);
+		
+		if (existingItemIndex >= 0) {
+			// Si existe, actualizar cantidad
+			const updatedItems = [...orderItems];
+			const existingItem = updatedItems[existingItemIndex];
+			const validQuantity = Number(existingItem.quantity) + qty;
+			const validPrice = Number(existingItem.price) || productPrice;
+			updatedItems[existingItemIndex].quantity = validQuantity;
+			updatedItems[existingItemIndex].total = validPrice * validQuantity;
+			setOrderItems(updatedItems);
+		} else {
+			// Si no existe, agregarlo
+			setOrderItems([...orderItems, newItem]);
+		}
+
+		// Limpiar selección solo si fue agregado desde el botón
+		if (!productIdToAdd) {
+			setSelectedProduct(null);
+			setQuantity('1');
+		}
+	};
+
+	// Función para cambiar cantidad de un ítem
+	const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
+		if (newQuantity <= 0) {
+			handleRemoveItem(itemId);
+			return;
+		}
+		
+		const updatedItems = orderItems.map(item => {
+			if (item.id === itemId) {
+				const validQuantity = Number(newQuantity) || 1;
+				const validPrice = Number(item.price) || 0;
+				return {
+					...item,
+					quantity: validQuantity,
+					total: validPrice * validQuantity
+				};
+			}
+			return item;
+		});
+		setOrderItems(updatedItems);
+	};
+
+	// Función para eliminar ítem
+	const handleRemoveItem = (itemId: string) => {
+		setOrderItems(orderItems.filter(item => item.id !== itemId));
+	};
+
+	// Calcular totales
+	const subtotal = orderItems.reduce((sum, item) => {
+		const itemTotal = Number(item.total) || 0;
+		return sum + itemTotal;
+	}, 0);
+	const taxes = 0; // Por ahora sin impuestos
+	const total = subtotal + taxes;
+
+	// Función para guardar la orden
+	const handleSaveOrder = async (status: string = 'PROCESSING') => {
+		if (orderItems.length === 0) {
+			setSaveError('Debe agregar al menos un producto a la orden');
+			setTimeout(() => setSaveError(null), 3000);
+			return;
+		}
+
+		if (!companyData?.branch.id) {
+			setSaveError('No se encontró información de la sucursal');
+			setTimeout(() => setSaveError(null), 3000);
+			return;
+		}
+
+		setIsSaving(true);
+		setSaveError(null);
+
+		try {
+			// Validar que todos los ítems tengan valores válidos
+			const invalidItems = orderItems.filter(item => 
+				!item.price || isNaN(item.price) || item.price <= 0 || 
+				!item.quantity || isNaN(item.quantity) || item.quantity <= 0
+			);
+
+			if (invalidItems.length > 0) {
+				setSaveError('Algunos productos tienen valores inválidos. Por favor, verifique los precios y cantidades.');
+				setTimeout(() => setSaveError(null), 3000);
+				setIsSaving(false);
+				return;
+			}
+
+			// Preparar los detalles de la operación
+			const details = orderItems.map(item => {
+				// Convertir y validar unitPrice
+				const rawPrice = typeof item.price === 'number' ? item.price : parseFloat(String(item.price));
+				if (isNaN(rawPrice) || rawPrice <= 0) {
+					throw new Error(`Precio inválido para el producto: ${item.name}`);
+				}
+				const unitPrice = parseFloat((Math.round(rawPrice * 100) / 100).toFixed(2)); // Redondear a 2 decimales y convertir a número
+
+				// Calcular unitValue (precio sin IGV)
+				const unitValue = parseFloat((Math.round((unitPrice / 1.1) * 100) / 100).toFixed(2));
+
+				// Convertir y validar quantity
+				const rawQuantity = typeof item.quantity === 'number' ? item.quantity : parseInt(String(item.quantity), 10);
+				const quantity = (isNaN(rawQuantity) || rawQuantity <= 0) ? 1 : parseInt(String(rawQuantity), 10);
+
+				// Validación final estricta
+				if (isNaN(unitPrice) || unitPrice <= 0 || isNaN(unitValue) || unitValue <= 0 || isNaN(quantity) || quantity <= 0) {
+					throw new Error(`Valores inválidos para el producto: ${item.name}`);
+				}
+
+				// Asegurar que todos los valores numéricos sean números válidos (nunca null/undefined/NaN)
+				// Ya pasaron las validaciones, pero nos aseguramos de que sean números puros
+				const safeQuantity = Number(quantity);
+				const safeUnitValue = Number(unitValue);
+				const safeUnitPrice = Number(unitPrice);
+
+				// Validación final: asegurar que los números convertidos sean válidos
+				if (isNaN(safeQuantity) || isNaN(safeUnitValue) || isNaN(safeUnitPrice)) {
+					throw new Error(`Error al convertir valores numéricos para el producto: ${item.name}`);
+				}
+
+				return {
+					productId: String(item.productId),
+					quantity: safeQuantity,
+					unitMeasure: 'NIU',
+					unitValue: safeUnitValue,
+					unitPrice: safeUnitPrice,
+					notes: ''
+				};
+			});
+
+			// Calcular IGV (asumiendo 10%)
+			const igvPercentageDecimal = 0.10; // Para cálculos: 0.10 = 10%
+			const igvPercentage = 10; // Para enviar al backend: 10 = 10%
+			const validSubtotal = typeof subtotal === 'number' && !isNaN(subtotal) ? subtotal : 0;
+			const calculatedSubtotal = parseFloat((Math.round((validSubtotal / (1 + igvPercentageDecimal)) * 100) / 100).toFixed(2));
+			const calculatedIgvAmount = parseFloat((Math.round((validSubtotal - calculatedSubtotal) * 100) / 100).toFixed(2));
+			const validTotal = parseFloat((typeof total === 'number' && !isNaN(total) ? total : 0).toFixed(2));
+
+			// Validar que los valores calculados sean válidos
+			if (isNaN(calculatedSubtotal) || calculatedSubtotal < 0 || 
+				isNaN(calculatedIgvAmount) || calculatedIgvAmount < 0 || 
+				isNaN(validTotal) || validTotal <= 0) {
+				setSaveError('Error al calcular los totales. Por favor, intente nuevamente.');
+				setTimeout(() => setSaveError(null), 3000);
+				setIsSaving(false);
+				return;
+			}
+
+			// Construir las variables, asegurando que todos los valores numéricos sean números válidos (nunca null/undefined/NaN)
+			// Convertir valores numéricos con validación estricta
+			const safeSubtotal = (isNaN(calculatedSubtotal) || calculatedSubtotal === null || calculatedSubtotal === undefined) ? 0 : Number(calculatedSubtotal);
+			const safeIgvAmount = (isNaN(calculatedIgvAmount) || calculatedIgvAmount === null || calculatedIgvAmount === undefined) ? 0 : Number(calculatedIgvAmount);
+			const safeIgvPercentage = (isNaN(igvPercentage) || igvPercentage === null || igvPercentage === undefined) ? 10 : Number(igvPercentage);
+			const safeTotal = (isNaN(validTotal) || validTotal === null || validTotal === undefined) ? 0 : Number(validTotal);
+
+			const variables: any = {
+				branchId: companyData.branch.id,
+				operationType: 'SALE',
+				serviceType: 'RESTAURANT',
+				status: status,
+				notes: '',
+				details: details,
+				subtotal: safeSubtotal,
+				igvAmount: safeIgvAmount,
+				igvPercentage: safeIgvPercentage,
+				total: safeTotal,
+				operationDate: new Date().toISOString()
+			};
+
+			// Solo agregar campos opcionales si tienen valor válido
+			if (table?.id) {
+				variables.tableId = table.id;
+			}
+			if (user?.id) {
+				variables.userId = user.id;
+			}
+
+			// Limpiar variables: eliminar cualquier campo que sea null o undefined
+			// PERO asegurar que los campos numéricos siempre estén presentes (aunque sean 0)
+			const cleanVariables: any = {};
+			Object.keys(variables).forEach(key => {
+				const value = variables[key];
+				// Para campos numéricos requeridos, siempre incluirlos (incluso si son 0)
+				const numericRequiredFields = ['subtotal', 'igvAmount', 'igvPercentage', 'total'];
+				if (numericRequiredFields.includes(key)) {
+					// Asegurar que sea un número válido, nunca null/undefined
+					// Para igvPercentage, el default es 10 si es inválido
+					const defaultValue = key === 'igvPercentage' ? 10 : 0;
+					const numValue = (value === null || value === undefined || isNaN(value)) ? defaultValue : Number(value);
+					cleanVariables[key] = numValue;
+				} else {
+					// Para otros campos, solo incluir si no es null ni undefined
+					if (value !== null && value !== undefined) {
+						cleanVariables[key] = value;
+					}
+				}
+			});
+
+			// Debug: Verificar que todos los valores numéricos sean válidos
+			console.log('📊 Variables limpias a enviar:', JSON.stringify(cleanVariables, null, 2));
+			console.log('📊 Details:', JSON.stringify(details, null, 2));
+			
+			// Verificar que no haya valores null/undefined/NaN en los campos numéricos
+			const numericFields = ['subtotal', 'igvAmount', 'igvPercentage', 'total'];
+			for (const field of numericFields) {
+				const value = cleanVariables[field];
+				if (value === null || value === undefined || isNaN(value)) {
+					throw new Error(`Campo numérico inválido: ${field} = ${value}`);
+				}
+			}
+			
+			// Verificar detalles
+			details.forEach((detail, index) => {
+				if (detail.quantity === null || detail.quantity === undefined || isNaN(detail.quantity)) {
+					throw new Error(`Detalle ${index} tiene quantity inválido: ${detail.quantity}`);
+				}
+				if (detail.unitValue === null || detail.unitValue === undefined || isNaN(detail.unitValue)) {
+					throw new Error(`Detalle ${index} tiene unitValue inválido: ${detail.unitValue}`);
+				}
+				if (detail.unitPrice === null || detail.unitPrice === undefined || isNaN(detail.unitPrice)) {
+					throw new Error(`Detalle ${index} tiene unitPrice inválido: ${detail.unitPrice}`);
+				}
+			});
+
+			// Ejecutar la mutación con variables limpias
+			const result = await createOperationMutation({
+				variables: cleanVariables
+			});
+
+			if (result.data?.createOperation?.success) {
+				// Éxito: notificar y cerrar el modal
+				// El WebSocket en Floor.tsx detectará automáticamente el cambio de estado de la mesa
+				// y refrescará las mesas con sus nuevos colores
+				if (onSuccess) {
+					onSuccess();
+				}
+				// Pequeño delay para que se vea la notificación
+				setTimeout(() => {
+					onClose();
+				}, 500);
+			} else {
+				setSaveError(result.data?.createOperation?.message || 'Error al guardar la orden');
+				setTimeout(() => setSaveError(null), 3000);
+			}
+		} catch (error: any) {
+			console.error('Error al guardar la orden:', error);
+			setSaveError(error.message || 'Error al guardar la orden');
+			setTimeout(() => setSaveError(null), 3000);
+		} finally {
+			setIsSaving(false);
+		}
+	};
+
 	return (
 		<div style={{
 			position: 'fixed',
@@ -77,93 +506,399 @@ const Order: React.FC<OrderProps> = ({ table, onClose }) => {
 				</div>
 
 				{/* Body */}
-				<div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '1rem', padding: '1rem', flex: 1, overflow: 'auto' }}>
+				<div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '1rem', padding: '1rem', flex: 1, overflow: 'hidden' }}>
 					{/* Col izquierda: búsqueda y catálogo */}
-					<div style={{ display: 'grid', gap: '1rem' }}>
+					<div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflow: 'hidden' }}>
 						<div style={{
 							background: 'white',
 							border: '1px solid #e2e8f0',
 							borderRadius: 14,
-							padding: '0.85rem 0.9rem'
+							padding: '0.85rem 0.9rem',
+							flexShrink: 0
 						}}>
 							<div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: '0.75rem' }}>
 								<div style={{ position: 'relative' }}>
 									<span style={{ position: 'absolute', left: 10, top: 10, opacity: 0.6 }}>🔎</span>
-									<input placeholder="Buscar producto o escanear código" style={{
-										width: '100%', padding: '0.65rem 0.85rem 0.65rem 2rem',
-										border: '1px solid #e2e8f0', borderRadius: 10
-									}} />
+									<input 
+										type="text"
+										placeholder="Buscar producto o escanear código"
+										value={searchTerm}
+										onChange={(e) => setSearchTerm(e.target.value)}
+										style={{
+											width: '100%', padding: '0.65rem 0.85rem 0.65rem 2rem',
+											border: '1px solid #e2e8f0', borderRadius: 10
+										}} 
+									/>
 								</div>
 								<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-									<input type="number" placeholder="Cant." style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #e2e8f0', borderRadius: 10, padding: '0.65rem 0.75rem' }} />
-									<button style={{
-										background: '#667eea', color: 'white', border: 'none', borderRadius: 10,
-										fontWeight: 700, cursor: 'pointer'
-									}}>
+									<input 
+										type="number" 
+										placeholder="Cant." 
+										value={quantity}
+										onChange={(e) => setQuantity(e.target.value)}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter' && selectedProduct) {
+												handleAddProduct();
+											}
+										}}
+										min="1"
+										style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #e2e8f0', borderRadius: 10, padding: '0.65rem 0.75rem' }} 
+									/>
+									<button 
+										onClick={() => handleAddProduct()}
+										disabled={!selectedProduct}
+										style={{
+											background: selectedProduct ? '#667eea' : '#cbd5e0', 
+											color: 'white', 
+											border: 'none', 
+											borderRadius: 10,
+											fontWeight: 700, 
+											cursor: selectedProduct ? 'pointer' : 'not-allowed',
+											opacity: selectedProduct ? 1 : 0.6
+										}}
+									>
 										Agregar
 									</button>
 								</div>
 							</div>
 							<div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-								{['Todos','Bebidas','Platos','Entradas','Postres','Promos'].map((c) => (
-									<span key={c} style={{
-										padding: '0.35rem 0.7rem', border: '1px solid #e2e8f0', borderRadius: 9999,
-										background: '#f8fafc', fontSize: 12, fontWeight: 600, color: '#4a5568'
-									}}>{c}</span>
-								))}
+								{/* Opción "Todos" */}
+								<span 
+									onClick={() => {
+										setSelectedCategory(null);
+										setSearchTerm('');
+									}}
+									key="todos"
+									style={{
+										padding: '0.35rem 0.7rem',
+										border: '1px solid #e2e8f0',
+										borderRadius: 9999,
+										background: selectedCategory === null ? '#667eea' : '#f8fafc',
+										color: selectedCategory === null ? 'white' : '#4a5568',
+										fontSize: 12,
+										fontWeight: 600,
+										cursor: 'pointer',
+										transition: 'all 0.2s ease'
+									}}
+								>
+									Todos
+								</span>
+								{/* Categorías dinámicas */}
+								{categoriesLoading ? (
+									<span style={{ padding: '0.35rem 0.7rem', fontSize: 12, color: '#718096' }}>
+										Cargando categorías...
+									</span>
+								) : (
+									categories.map((category: any) => (
+										<span
+											key={category.id}
+											onClick={() => {
+												setSelectedCategory(category.id);
+												setSearchTerm('');
+											}}
+											style={{
+												padding: '0.35rem 0.7rem',
+												border: `1px solid ${selectedCategory === category.id ? category.color || '#667eea' : '#e2e8f0'}`,
+												borderRadius: 9999,
+												background: selectedCategory === category.id 
+													? category.color || '#667eea' 
+													: '#f8fafc',
+												color: selectedCategory === category.id ? 'white' : '#4a5568',
+												fontSize: 12,
+												fontWeight: 600,
+												cursor: 'pointer',
+												transition: 'all 0.2s ease',
+												display: 'flex',
+												alignItems: 'center',
+												gap: '0.3rem'
+											}}
+										>
+											{category.icon && <span>{category.icon}</span>}
+											{category.name}
+										</span>
+									))
+								)}
 							</div>
 						</div>
 
-						{/* Grid de productos (placeholder) */}
+						{/* Grid de productos */}
 						<div style={{
-							display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem'
+							display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem',
+							overflowY: 'auto', maxHeight: '100%'
 						}}>
-							{Array.from({ length: 8 }).map((_, i) => (
-								<div key={i} style={{
-									background: 'white', border: '1px solid #e2e8f0', borderRadius: 14,
-									padding: '0.75rem', cursor: 'pointer', transition: 'transform 120ms ease',
-									display: 'grid', gap: '0.35rem', textAlign: 'center'
+							{productsLoading ? (
+								<div style={{
+									gridColumn: '1 / -1',
+									textAlign: 'center',
+									padding: '2rem',
+									color: '#718096'
 								}}>
-									<div style={{ fontSize: '2rem' }}>{['🥤','🍔','🍟','🍕','🍰','🍺','🍜','🥗'][i % 8]}</div>
-									<div style={{ fontWeight: 700, color: '#2d3748' }}>Producto {i + 1}</div>
-									<div style={{ fontWeight: 700, color: '#667eea' }}>$ {(i + 1) * 3}.00</div>
+									Cargando productos...
 								</div>
-							))}
+							) : productsList.length === 0 ? (
+								<div style={{
+									gridColumn: '1 / -1',
+									textAlign: 'center',
+									padding: '2rem',
+									color: '#718096'
+								}}>
+									No hay productos disponibles
+								</div>
+							) : (
+								productsList.map((product: any) => (
+									<div
+										key={product.id}
+										onClick={() => handleAddProduct(product.id, 1)}
+										style={{
+											background: 'white',
+											border: '1px solid #e2e8f0',
+											borderRadius: 14,
+											padding: '0.75rem',
+											cursor: 'pointer',
+											transition: 'transform 120ms ease',
+											display: 'grid',
+											gap: '0.35rem',
+											textAlign: 'center'
+										}}
+										onMouseEnter={(e) => {
+											e.currentTarget.style.transform = 'scale(1.02)';
+											e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+										}}
+										onMouseLeave={(e) => {
+											e.currentTarget.style.transform = 'scale(1)';
+											e.currentTarget.style.boxShadow = 'none';
+										}}
+									>
+										{product.imageBase64 ? (
+											<img
+												src={`data:image/jpeg;base64,${product.imageBase64}`}
+												alt={product.name}
+												style={{
+													width: '100%',
+													height: '100px',
+													objectFit: 'cover',
+													borderRadius: '8px',
+													backgroundColor: '#f7fafc'
+												}}
+											/>
+										) : (
+											<div style={{
+												fontSize: '2rem',
+												height: '100px',
+												display: 'flex',
+												alignItems: 'center',
+												justifyContent: 'center',
+												backgroundColor: '#f7fafc',
+												borderRadius: '8px'
+											}}>
+												🍽️
+											</div>
+										)}
+										<div style={{ fontWeight: 700, color: '#2d3748', fontSize: '0.9rem' }}>
+											{product.name}
+										</div>
+										<div style={{ fontWeight: 700, color: '#667eea', fontSize: '1rem' }}>
+											$ {parseFloat(product.salePrice).toFixed(2)}
+										</div>
+										{product.preparationTime > 0 && (
+											<div style={{
+												fontSize: '0.75rem',
+												color: '#718096',
+												display: 'flex',
+												alignItems: 'center',
+												justifyContent: 'center',
+												gap: '0.25rem'
+											}}>
+												⏱️ {product.preparationTime} min
+											</div>
+										)}
+									</div>
+								))
+							)}
 						</div>
 					</div>
 
 					{/* Col derecha: resumen de orden */}
 					<div style={{ display: 'grid', gap: '1rem' }}>
-						<div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 14, padding: '1rem' }}>
+						<div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 14, padding: '1rem', maxHeight: '400px', overflowY: 'auto' }}>
 							<h4 style={{ margin: '0 0 0.75rem 0', color: '#2d3748' }}>Detalle</h4>
-							<div style={{
-								border: '1px dashed #cbd5e0', borderRadius: 12, padding: '1rem', textAlign: 'center', color: '#718096'
-							}}>
-								Aquí aparecerán los ítems agregados.
-							</div>
+							{orderItems.length === 0 ? (
+								<div style={{
+									border: '1px dashed #cbd5e0', borderRadius: 12, padding: '1rem', textAlign: 'center', color: '#718096'
+								}}>
+									Aquí aparecerán los ítems agregados.
+								</div>
+							) : (
+								<div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+									{orderItems.map((item) => (
+										<div key={item.id} style={{
+											border: '1px solid #e2e8f0',
+											borderRadius: 12,
+											padding: '0.75rem',
+											background: '#f7fafc'
+										}}>
+											<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
+												<div style={{ flex: 1 }}>
+													<div style={{ fontWeight: 700, color: '#2d3748', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
+														{item.name}
+													</div>
+													<div style={{ fontWeight: 700, color: '#667eea', fontSize: '0.9rem' }}>
+														$ {item.price.toFixed(2)}
+													</div>
+												</div>
+												<button
+													onClick={() => handleRemoveItem(item.id)}
+													style={{
+														background: 'transparent',
+														border: 'none',
+														color: '#dc2626',
+														cursor: 'pointer',
+														fontSize: '1.2rem',
+														padding: '0.25rem'
+													}}
+												>
+													🗑️
+												</button>
+											</div>
+											<div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'space-between' }}>
+												<button
+													onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+													style={{
+														width: '28px',
+														height: '28px',
+														borderRadius: '6px',
+														border: '1px solid #cbd5e0',
+														background: 'white',
+														cursor: 'pointer',
+														fontSize: '1.1rem',
+														display: 'flex',
+														alignItems: 'center',
+														justifyContent: 'center'
+													}}
+												>
+													−
+												</button>
+												<input
+													type="number"
+													value={item.quantity}
+													onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 0)}
+													min="0"
+													style={{
+														width: '60px',
+														textAlign: 'center',
+														border: '1px solid #cbd5e0',
+														borderRadius: '6px',
+														padding: '0.35rem',
+														fontWeight: 600
+													}}
+												/>
+												<button
+													onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+													style={{
+														width: '28px',
+														height: '28px',
+														borderRadius: '6px',
+														border: '1px solid #cbd5e0',
+														background: 'white',
+														cursor: 'pointer',
+														fontSize: '1.1rem',
+														display: 'flex',
+														alignItems: 'center',
+														justifyContent: 'center'
+													}}
+												>
+													+
+												</button>
+												<div style={{ marginLeft: 'auto', fontWeight: 700, color: '#2d3748', fontSize: '1rem' }}>
+													$ {item.total.toFixed(2)}
+												</div>
+											</div>
+										</div>
+									))}
+								</div>
+							)}
 						</div>
 
 						<div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 14, padding: '1rem', display: 'grid', gap: '0.5rem' }}>
 							<div style={{ display: 'flex', justifyContent: 'space-between', color: '#4a5568' }}>
 								<span>Subtotal</span>
-								<b>$ 0.00</b>
+								<b>$ {subtotal.toFixed(2)}</b>
 							</div>
 							<div style={{ display: 'flex', justifyContent: 'space-between', color: '#4a5568' }}>
 								<span>Impuestos</span>
-								<b>$ 0.00</b>
+								<b>$ {taxes.toFixed(2)}</b>
 							</div>
 							<div style={{ height: 1, background: '#e2e8f0', margin: '0.25rem 0' }} />
 							<div style={{ display: 'flex', justifyContent: 'space-between', color: '#2d3748', fontSize: 18, fontWeight: 800 }}>
 								<span>Total</span>
-								<span>$ 0.00</span>
+								<span>$ {total.toFixed(2)}</span>
 							</div>
 						</div>
 
 						<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
-							<button style={{ padding: '0.85rem', background: '#f7fafc', border: '1px solid #e2e8f0', borderRadius: 12, cursor: 'pointer', fontWeight: 700, color: '#4a5568' }}>Guardar borrador</button>
-							<button style={{ padding: '0.85rem', background: '#edf2ff', border: '1px solid #c3dafe', color: '#3730a3', borderRadius: 12, cursor: 'pointer', fontWeight: 800 }}>Enviar a cocina</button>
-							<button style={{ padding: '0.85rem', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', border: 'none', borderRadius: 12, cursor: 'pointer', fontWeight: 800 }}>Cobrar</button>
+							<button 
+								onClick={() => handleSaveOrder('PROCESSING')}
+								disabled={isSaving || orderItems.length === 0}
+								style={{ 
+									padding: '0.85rem', 
+									background: isSaving || orderItems.length === 0 ? '#cbd5e0' : '#f7fafc', 
+									border: '1px solid #e2e8f0', 
+									borderRadius: 12, 
+									cursor: isSaving || orderItems.length === 0 ? 'not-allowed' : 'pointer', 
+									fontWeight: 700, 
+									color: '#4a5568',
+									opacity: isSaving || orderItems.length === 0 ? 0.6 : 1
+								}}
+							>
+								{isSaving ? 'Guardando...' : 'Guardar borrador'}
+							</button>
+							<button 
+								onClick={() => handleSaveOrder('PROCESSING')}
+								disabled={isSaving || orderItems.length === 0}
+								style={{ 
+									padding: '0.85rem', 
+									background: isSaving || orderItems.length === 0 ? '#cbd5e0' : '#edf2ff', 
+									border: '1px solid #c3dafe', 
+									color: '#3730a3', 
+									borderRadius: 12, 
+									cursor: isSaving || orderItems.length === 0 ? 'not-allowed' : 'pointer', 
+									fontWeight: 800,
+									opacity: isSaving || orderItems.length === 0 ? 0.6 : 1
+								}}
+							>
+								{isSaving ? 'Guardando...' : 'Enviar a cocina'}
+							</button>
+							<button 
+								onClick={() => handleSaveOrder('TO_PAY')}
+								disabled={isSaving || orderItems.length === 0}
+								style={{ 
+									padding: '0.85rem', 
+									background: isSaving || orderItems.length === 0 ? '#cbd5e0' : 'linear-gradient(135deg,#667eea,#764ba2)', 
+									color: 'white', 
+									border: 'none', 
+									borderRadius: 12, 
+									cursor: isSaving || orderItems.length === 0 ? 'not-allowed' : 'pointer', 
+									fontWeight: 800,
+									opacity: isSaving || orderItems.length === 0 ? 0.6 : 1
+								}}
+							>
+								{isSaving ? 'Guardando...' : 'Cobrar'}
+							</button>
 						</div>
+						{saveError && (
+							<div style={{
+								marginTop: '0.5rem',
+								padding: '0.75rem',
+								background: '#fed7d7',
+								border: '1px solid #feb2b2',
+								borderRadius: 12,
+								color: '#742a2a',
+								fontSize: '0.875rem',
+								fontWeight: 600
+							}}>
+								❌ {saveError}
+							</div>
+						)}
 					</div>
 				</div>
 

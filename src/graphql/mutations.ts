@@ -79,3 +79,58 @@ export const UPDATE_TABLE_STATUS = gql`
   }
 `;
 
+// Mutación para crear una operación (orden)
+export const CREATE_OPERATION = gql`
+  mutation CreateOperation(
+    $branchId: ID!
+    $tableId: ID
+    $userId: ID
+    $personId: ID
+    $operationType: String!
+    $serviceType: String
+    $status: String
+    $notes: String
+    $details: [OperationDetailInput!]!
+    $deviceId: String
+    $subtotal: Float
+    $igvAmount: Float
+    $igvPercentage: Float
+    $total: Float
+    $deliveryAddress: String
+    $deliveryLatitude: Float
+    $deliveryLongitude: Float
+    $operationDate: String
+  ) {
+    createOperation(
+      branchId: $branchId
+      tableId: $tableId
+      userId: $userId
+      personId: $personId
+      operationType: $operationType
+      serviceType: $serviceType
+      status: $status
+      notes: $notes
+      details: $details
+      deviceId: $deviceId
+      subtotal: $subtotal
+      igvAmount: $igvAmount
+      igvPercentage: $igvPercentage
+      total: $total
+      deliveryAddress: $deliveryAddress
+      deliveryLatitude: $deliveryLatitude
+      deliveryLongitude: $deliveryLongitude
+      operationDate: $operationDate
+    ) {
+      success
+      message
+      operation {
+        id
+        order
+        status
+        total
+        operationDate
+      }
+    }
+  }
+`;
+

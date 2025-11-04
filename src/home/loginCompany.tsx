@@ -18,6 +18,13 @@ const LoginCompany: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Limpiar localStorage antes de intentar login para evitar tokens expirados
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('userData');
+    localStorage.removeItem('userPhoto');
+    console.log('🧹 localStorage limpiado antes del login');
+
     console.log('🚀 Intentando login de empresa con datos:', {
       ruc: formData.ruc,
       email: formData.email,
@@ -62,12 +69,17 @@ const LoginCompany: React.FC = () => {
       console.error('Mensaje de error:', err.message);
       console.error('Error completo:', err);
       
+      let errorMessage = 'Error al iniciar sesión';
+      
       // Error de GraphQL
       if (err.graphQLErrors && err.graphQLErrors.length > 0) {
         console.error('📋 Errores de GraphQL:');
         err.graphQLErrors.forEach((error: any, index: number) => {
           console.error(`  Error ${index + 1}:`, error.message);
           console.error('  Código:', error.extensions?.code);
+          
+          // Obtener mensaje de error específico
+          errorMessage = error.message || errorMessage;
         });
       }
       
@@ -78,9 +90,19 @@ const LoginCompany: React.FC = () => {
         if (err.networkError.result) {
           console.error('  Resultado:', err.networkError.result);
         }
+        
+        // Mensajes específicos para errores de red
+        if (err.networkError.message?.includes('Failed to fetch')) {
+          errorMessage = 'No se pudo conectar con el servidor. Verifica tu conexión a internet.';
+        } else {
+          errorMessage = 'Error de conexión con el servidor';
+        }
       }
       
       console.error('==============================');
+      
+      // Mostrar mensaje de error al usuario
+      alert(`❌ ${errorMessage}`);
     }
   };
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
 import { gql } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useWebSocket } from '../../context/WebSocketContext';
 import type { Table, ProcessedTableColors } from '../../types/table';
 import Order from './order';
 
@@ -38,7 +39,7 @@ const GET_TABLES_BY_FLOOR = gql`
 `;
 
 const Floor: React.FC = () => {
-  const { companyData, user } = useAuth();
+  const { companyData } = useAuth();
   
   // CSS para animación de pulso (adaptable a diferentes colores)
   const pulseKeyframes = `
@@ -97,127 +98,64 @@ const Floor: React.FC = () => {
     skip: !selectedFloorId
   });
 
-  // (Sin mutación de estado de mesa en esta vista)
+  // WebSocket para cambios en tiempo real usando el contexto
+  const { subscribe } = useWebSocket();
 
-  // WebSocket para cambios en tiempo real según tu RestaurantConsumer
+  // Suscribirse a eventos del WebSocket
   useEffect(() => {
-    if (!companyData?.branch.id || !user?.id) {
-      console.log('⚠️ Faltan datos para WebSocket:', { branchId: companyData?.branch.id, userId: user?.id });
-      return;
-    }
-
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.warn('⚠️ No hay token disponible para WebSocket');
-      return;
-    }
-
-    // URL del WebSocket según tu backend
-    const wsUrl = `ws://192.168.1.22:8000/ws/restaurant/${companyData.branch.id}/`;
-    
-    // Sistema de escritorio con Electron - siempre usar WebSocket con headers
-    console.log('✅ Electron detectado - usando WebSocket con headers');
-    
-    // En Electron, usar el WebSocket nativo de Node (ws package)
-    const WebSocketNode = (window as any).require('ws');
-    const ws = new WebSocketNode(wsUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+    // Suscribirse a connection_established
+    const unsubscribeConnection = subscribe('connection_established', (message) => {
+      console.log('✅ Conexión establecida:', {
+        user: message.user,
+        branch: message.branch,
+        timestamp: message.timestamp
+      });
     });
 
-    // Usar la API de eventos de ws (Node.js)
-    ws.on('open', () => {
-      console.log('✅ WebSocket conectado para branch:', companyData.branch.id);
+    // Suscribirse a tables_snapshot
+    const unsubscribeSnapshot = subscribe('tables_snapshot', (message) => {
+      console.log('📊 Snapshot de mesas recibido:', message.tables?.length, 'mesas');
+      refetchTables();
     });
 
-    ws.on('message', (data: any) => {
-      try {
-        const message = JSON.parse(data.toString());
-        console.log('🔄 Mensaje WebSocket recibido:', message);
-        
-        // Tipo: connection_established - cuando te conectas
-        if (message.type === 'connection_established') {
-          console.log('✅ Conexión establecida:', {
-            user: message.user,
-            branch: message.branch,
-            timestamp: message.timestamp
-          });
-        }
-        
-        // Tipo: tables_snapshot - estado inicial de todas las mesas
-        else if (message.type === 'tables_snapshot') {
-          console.log('📊 Snapshot de mesas recibido:', message.tables?.length, 'mesas');
-          refetchTables();
-        }
-        
-        // Tipo: table_update - actualización individual de mesa
-        else if (message.type === 'table_update') {
-          console.log(`🔄 Mesa ${message.table_id} actualizada:`, {
-            status: message.status,
-            operationId: message.current_operation_id,
-            userName: message.occupied_by_name,
-            timestamp: message.timestamp
-          });
-          refetchTables();
-        }
-        
-        // Tipo: error - errores del servidor
-        else if (message.type === 'error') {
-          console.error('❌ Error del WebSocket:', message.message);
-          setNotification({ type: 'error', message: message.message });
-          setTimeout(() => setNotification(null), 3000);
-        }
-        
-        // Tipo: pong - respuesta a ping
-        else if (message.type === 'pong') {
-          console.log('🏓 Pong recibido:', message.timestamp);
-        }
-        
-        else {
-          console.warn('⚠️ Tipo de mensaje desconocido:', message.type);
-        }
-        
-      } catch (error) {
-        console.error('❌ Error parseando mensaje WebSocket:', error);
-      }
+    // Suscribirse a table_update
+    const unsubscribeTableUpdate = subscribe('table_update', (message) => {
+      console.log(`🔄 Mesa ${message.table_id} actualizada:`, {
+        status: message.status,
+        operationId: message.current_operation_id,
+        userName: message.occupied_by_name,
+        timestamp: message.timestamp
+      });
+      
+      // Refetch inmediato para actualizar los colores de la mesa
+      refetchTables().then(() => {
+        console.log(`✅ Mesas actualizadas después de table_update para mesa ${message.table_id}`);
+      }).catch((error) => {
+        console.error('❌ Error al refetch mesas:', error);
+      });
     });
 
-    ws.on('error', (error: any) => {
-      console.error('❌ Error WebSocket:', error);
-      setNotification({ type: 'error', message: 'Error de conexión en tiempo real' });
+    // Suscribirse a errores
+    const unsubscribeError = subscribe('error', (message) => {
+      console.error('❌ Error del WebSocket:', message.message);
+      setNotification({ type: 'error', message: message.message });
       setTimeout(() => setNotification(null), 3000);
     });
 
-    ws.on('close', (code: number, reason: any) => {
-      console.log('🔌 WebSocket desconectado:', code, reason.toString());
-      
-      // Reintentar conexión si no fue un cierre normal
-      if (code !== 1000) {
-        console.log('🔄 Intentando reconectar en 3 segundos...');
-        setTimeout(() => {
-          // Esto se manejará automáticamente por el useEffect al cambiar las dependencias
-        }, 3000);
-      }
+    // Suscribirse a pong
+    const unsubscribePong = subscribe('pong', (message) => {
+      console.log('🏓 Pong recibido:', message.timestamp);
     });
 
-    // Enviar ping periódico para mantener la conexión viva
-    const pingInterval = setInterval(() => {
-      // ws package usa diferentes constantes para readyState
-      if (ws.readyState === 1) { // OPEN = 1
-        ws.send(JSON.stringify({ type: 'ping' }));
-        console.log('🏓 Ping enviado');
-      }
-    }, 30000); // Cada 30 segundos
-
-    // Cleanup
+    // Cleanup: desuscribirse de todos los eventos
     return () => {
-      clearInterval(pingInterval);
-      if (ws && ws.readyState === 1) { // OPEN = 1
-        ws.close(1000, 'Component unmount');
-      }
+      unsubscribeConnection();
+      unsubscribeSnapshot();
+      unsubscribeTableUpdate();
+      unsubscribeError();
+      unsubscribePong();
     };
-  }, [companyData?.branch.id, user?.id, refetchTables]);
+  }, [subscribe, refetchTables]);
 
   const handleFloorSelect = (floorId: string) => {
     setSelectedFloorId(floorId);
@@ -863,6 +801,21 @@ const Floor: React.FC = () => {
           onClose={() => {
             setShowOrder(false);
             setSelectedTable(null);
+          }}
+          onSuccess={() => {
+            // Mostrar notificación de éxito cuando se guarde la orden
+            setNotification({ 
+              type: 'success', 
+              message: `Orden guardada exitosamente. La mesa ${selectedTable.name} ha sido actualizada.` 
+            });
+            setTimeout(() => setNotification(null), 4000);
+            
+            // Forzar actualización inmediata de las mesas (además del WebSocket)
+            // Esto asegura que las mesas se actualicen incluso si hay un pequeño delay en el WebSocket
+            setTimeout(() => {
+              refetchTables();
+              console.log('🔄 Refetch manual de mesas después de guardar orden');
+            }, 500);
           }}
         />
       )}
