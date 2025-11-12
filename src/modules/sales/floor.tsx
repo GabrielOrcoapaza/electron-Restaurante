@@ -6,6 +6,10 @@ import { useWebSocket } from '../../context/WebSocketContext';
 import type { Table, ProcessedTableColors } from '../../types/table';
 import Order from './order';
 
+type FloorProps = {
+  onOpenCash?: (table: Table) => void;
+};
+
 // Query para obtener pisos de la sucursal
 const GET_FLOORS_BY_BRANCH = gql`
   query GetFloorsByBranch($branchId: ID!) {
@@ -38,7 +42,7 @@ const GET_TABLES_BY_FLOOR = gql`
   }
 `;
 
-const Floor: React.FC = () => {
+const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   const { companyData } = useAuth();
   
   // CSS para animación de pulso (adaptable a diferentes colores)
@@ -169,6 +173,7 @@ const Floor: React.FC = () => {
 
   const handleTableClick = (table: Table) => {
     setSelectedTable(table);
+    setShowOrder(false);
     setShowStatusModal(true);
   };
   
@@ -486,6 +491,7 @@ const Floor: React.FC = () => {
             onMouseOut={(e) => {
               e.currentTarget.style.backgroundColor = '#f7fafc';
               e.currentTarget.style.borderColor = '#e2e8f0';
+              
             }}
           >
             ← Volver a pisos
@@ -754,9 +760,16 @@ const Floor: React.FC = () => {
               </button>
               <button
                 onClick={() => {
+                  const tableForCash = selectedTable;
+                  if (!tableForCash?.currentOperationId) {
+                    setNotification({ type: 'error', message: 'Esta mesa no tiene una orden activa para cobrar.' });
+                    setTimeout(() => setNotification(null), 3000);
+                    return;
+                  }
                   setShowStatusModal(false);
-                  setNotification({ type: 'success', message: 'Seleccionaste Caja' });
-                  setTimeout(() => setNotification(null), 2000);
+                  setShowOrder(false);
+                  onOpenCash?.(tableForCash);
+                  setSelectedTable(null);
                 }}
                 style={{
                   padding: '0.9rem 1.25rem',

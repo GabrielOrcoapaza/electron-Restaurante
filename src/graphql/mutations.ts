@@ -134,3 +134,19 @@ export const CREATE_OPERATION = gql`
   }
 `;
 
+export const ADD_ITEMS_TO_OPERATION = gql`
+  mutation AddItemsToOperation($operationId: ID!, $details: [OperationDetailInput!]!, $deviceId: String!) {
+    addItemsToOperation(operationId: $operationId, details: $details, deviceId: $deviceId) {
+      success
+      message
+      newDetailIds
+      operation {
+        id
+        order
+        status
+        total
+      }
+    }
+  }
+`;
+

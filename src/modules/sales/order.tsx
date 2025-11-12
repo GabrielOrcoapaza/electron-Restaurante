@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { gql } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import type { Table } from '../../types/table';
-import { CREATE_OPERATION } from '../../graphql/mutations';
+import { CREATE_OPERATION, ADD_ITEMS_TO_OPERATION } from '../../graphql/mutations';
 
 // Query para obtener categorías de la sucursal
 const GET_CATEGORIES_BY_BRANCH = gql`
@@ -52,6 +52,33 @@ const GET_PRODUCTS_BY_BRANCH = gql`
 	}
 `;
 
+// Query para obtener la operación activa de una mesa
+const GET_OPERATION_BY_TABLE = gql`
+	query GetOperationByTable($tableId: ID!, $branchId: ID!) {
+		operationByTable(tableId: $tableId, branchId: $branchId) {
+			id
+			order
+			status
+			total
+			subtotal
+			igvAmount
+			igvPercentage
+			operationDate
+			details {
+				id
+				productId
+				productCode
+				productName
+				productDescription
+				quantity
+				unitPrice
+				total
+				notes
+			}
+		}
+	}
+`;
+
 // Query para buscar productos
 const SEARCH_PRODUCTS = gql`
 	query SearchProducts($search: String!, $branchId: ID!, $limit: Int) {
@@ -82,20 +109,26 @@ type OrderItem = {
 	price: number;
 	quantity: number;
 	total: number;
+	isNew: boolean;
+	notes: string;
 };
 
 const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
-	const { companyData, user } = useAuth();
+	const { companyData, user, deviceId, getDeviceId } = useAuth();
+	const isExistingOrder = Boolean(table?.currentOperationId);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchTerm, setSearchTerm] = useState<string>('');
 	const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 	const [quantity, setQuantity] = useState<string>('1');
 	const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+	const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
+	const [initializedFromExistingOrder, setInitializedFromExistingOrder] = useState(false);
 	const [isSaving, setIsSaving] = useState(false);
 	const [saveError, setSaveError] = useState<string | null>(null);
 
 	// Mutación para crear la operación
 	const [createOperationMutation] = useMutation(CREATE_OPERATION);
+	const [addItemsToOperationMutation] = useMutation(ADD_ITEMS_TO_OPERATION);
 
 	// Obtener categorías de la sucursal
 	const { data: categoriesData, loading: categoriesLoading } = useQuery(GET_CATEGORIES_BY_BRANCH, {
@@ -122,6 +155,18 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const { data: productsByBranchData, loading: productsByBranchLoading } = useQuery(GET_PRODUCTS_BY_BRANCH, {
 		variables: { branchId: companyData?.branch.id },
 		skip: !companyData?.branch.id
+	});
+
+	const shouldFetchExistingOrder = Boolean(isExistingOrder && table?.id && companyData?.branch.id);
+	const {
+		data: existingOperationData,
+		loading: existingOperationLoading,
+		error: existingOperationError,
+		refetch: refetchExistingOperation
+	} = useQuery(GET_OPERATION_BY_TABLE, {
+		variables: { tableId: table?.id, branchId: companyData?.branch.id || '' },
+		skip: !shouldFetchExistingOrder,
+		fetchPolicy: 'network-only'
 	});
 
 	// Determinar qué productos mostrar según la selección
@@ -155,6 +200,65 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	
 	const productsList = products || [];
 
+	useEffect(() => {
+		setOrderItems([]);
+		setExpandedNotes({});
+		setInitializedFromExistingOrder(false);
+		// Reiniciar bandera de modificación cuando cambiamos de mesa
+	}, [table?.id]);
+
+	useEffect(() => {
+		if (!shouldFetchExistingOrder || initializedFromExistingOrder) {
+			return;
+		}
+
+		if (existingOperationLoading) {
+			return;
+		}
+
+		const operation = existingOperationData?.operationByTable;
+
+		if (!operation) {
+			setInitializedFromExistingOrder(true);
+			return;
+		}
+
+		const mappedItems: OrderItem[] = (operation.details || []).map((detail: any) => {
+			const rawQuantity = Number(detail.quantity) || 0;
+			const safeQuantity = rawQuantity > 0 ? rawQuantity : 1;
+			const rawTotal = Number(detail.total) || 0;
+			let unitPrice = Number(detail.unitPrice);
+			if (!unitPrice && rawTotal && safeQuantity) {
+				unitPrice = rawTotal / safeQuantity;
+			}
+			const safeUnitPrice = unitPrice || 0;
+			const computedTotal = rawTotal || safeUnitPrice * safeQuantity;
+
+			return {
+				id: String(detail.id ?? `${detail.productId}-${Date.now()}-${Math.random()}`),
+				productId: String(detail.productId ?? ''),
+				name: detail.productName || 'Producto sin nombre',
+				price: safeUnitPrice,
+				quantity: safeQuantity,
+				total: computedTotal,
+				isNew: false,
+				notes: typeof detail.notes === 'string' ? detail.notes : ''
+			};
+		});
+
+		setOrderItems(mappedItems);
+		setExpandedNotes({});
+		setInitializedFromExistingOrder(true);
+	}, [
+		shouldFetchExistingOrder,
+		existingOperationData,
+		existingOperationLoading,
+		initializedFromExistingOrder
+	]);
+
+	const existingOperation = existingOperationData?.operationByTable;
+	const isLoadingExistingOrder = shouldFetchExistingOrder && existingOperationLoading && !initializedFromExistingOrder;
+
 	// Función para agregar producto a la orden
 	const handleAddProduct = (productIdToAdd?: string, qtyToAdd?: number) => {
 		const productId = productIdToAdd || selectedProduct;
@@ -178,24 +282,30 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			name: product.name,
 			price: productPrice,
 			quantity: qty,
-			total: productPrice * qty
+			total: productPrice * qty,
+			isNew: true,
+			notes: ''
 		};
 
-		// Verificar si el producto ya existe en la orden
-		const existingItemIndex = orderItems.findIndex(item => item.productId === product.id);
-		
-		if (existingItemIndex >= 0) {
-			// Si existe, actualizar cantidad
-			const updatedItems = [...orderItems];
-			const existingItem = updatedItems[existingItemIndex];
-			const validQuantity = Number(existingItem.quantity) + qty;
-			const validPrice = Number(existingItem.price) || productPrice;
-			updatedItems[existingItemIndex].quantity = validQuantity;
-			updatedItems[existingItemIndex].total = validPrice * validQuantity;
-			setOrderItems(updatedItems);
-		} else {
-			// Si no existe, agregarlo
+		if (isExistingOrder) {
+			// En órdenes existentes, siempre agregamos como una nueva fila
 			setOrderItems([...orderItems, newItem]);
+		} else {
+			// Para nuevas órdenes, mantener el comportamiento de agrupar
+			const existingItemIndex = orderItems.findIndex(item => item.productId === product.id);
+			
+			if (existingItemIndex >= 0) {
+				const updatedItems = [...orderItems];
+				const existingItem = updatedItems[existingItemIndex];
+				const validQuantity = Number(existingItem.quantity) + qty;
+				const validPrice = Number(existingItem.price) || productPrice;
+				updatedItems[existingItemIndex].quantity = validQuantity;
+				updatedItems[existingItemIndex].total = validPrice * validQuantity;
+				updatedItems[existingItemIndex].isNew = true;
+				setOrderItems(updatedItems);
+			} else {
+				setOrderItems([...orderItems, newItem]);
+			}
 		}
 
 		// Limpiar selección solo si fue agregado desde el botón
@@ -207,6 +317,15 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 
 	// Función para cambiar cantidad de un ítem
 	const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
+		const targetItem = orderItems.find(item => item.id === itemId);
+		if (!targetItem) {
+			return;
+		}
+
+		if (isExistingOrder && !targetItem.isNew) {
+			return;
+		}
+
 		if (newQuantity <= 0) {
 			handleRemoveItem(itemId);
 			return;
@@ -229,21 +348,77 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 
 	// Función para eliminar ítem
 	const handleRemoveItem = (itemId: string) => {
+		const targetItem = orderItems.find(item => item.id === itemId);
+		if (!targetItem) {
+			return;
+		}
+
+		if (isExistingOrder && !targetItem.isNew) {
+			return;
+		}
+
 		setOrderItems(orderItems.filter(item => item.id !== itemId));
+		setExpandedNotes(prev => {
+			if (!prev[itemId]) {
+				return prev;
+			}
+			const updated = { ...prev };
+			delete updated[itemId];
+			return updated;
+		});
+	};
+
+	const handleToggleNotes = (itemId: string) => {
+		setExpandedNotes(prev => ({
+			...prev,
+			[itemId]: !prev[itemId]
+		}));
+	};
+
+	const handleUpdateNotes = (itemId: string, notes: string) => {
+		setOrderItems(items =>
+			items.map(item => {
+				if (item.id !== itemId) {
+					return item;
+				}
+				if (isExistingOrder && !item.isNew) {
+					return item;
+				}
+				return {
+					...item,
+					notes
+				};
+			})
+		);
 	};
 
 	// Calcular totales
-	const subtotal = orderItems.reduce((sum, item) => {
+	const orderItemsTotal = orderItems.reduce((sum, item) => {
 		const itemTotal = Number(item.total) || 0;
 		return sum + itemTotal;
 	}, 0);
-	const taxes = 0; // Por ahora sin impuestos
-	const total = subtotal + taxes;
+	const subtotal =
+		isExistingOrder && existingOperation && existingOperation.subtotal !== undefined && existingOperation.subtotal !== null
+			? Number(existingOperation.subtotal)
+			: orderItemsTotal;
+	const taxes =
+		isExistingOrder && existingOperation && existingOperation.igvAmount !== undefined && existingOperation.igvAmount !== null
+			? Number(existingOperation.igvAmount)
+			: 0; // Para nuevas órdenes seguimos mostrando 0 hasta calcular
+	const total =
+		isExistingOrder && existingOperation && existingOperation.total !== undefined && existingOperation.total !== null
+			? Number(existingOperation.total)
+			: subtotal + taxes;
 
 	// Función para guardar la orden
 	const handleSaveOrder = async (status: string = 'PROCESSING') => {
-		if (orderItems.length === 0) {
-			setSaveError('Debe agregar al menos un producto a la orden');
+		const itemsToProcess = isExistingOrder ? orderItems.filter(item => item.isNew) : orderItems;
+
+		if (itemsToProcess.length === 0) {
+			const message = isExistingOrder
+				? 'Debe agregar al menos un producto nuevo a la orden'
+				: 'Debe agregar al menos un producto a la orden';
+			setSaveError(message);
 			setTimeout(() => setSaveError(null), 3000);
 			return;
 		}
@@ -258,50 +433,105 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 		setSaveError(null);
 
 		try {
-			// Validar que todos los ítems tengan valores válidos
-			const invalidItems = orderItems.filter(item => 
-				!item.price || isNaN(item.price) || item.price <= 0 || 
+			const invalidItems = itemsToProcess.filter(item =>
+				!item.price || isNaN(item.price) || item.price <= 0 ||
 				!item.quantity || isNaN(item.quantity) || item.quantity <= 0
 			);
 
 			if (invalidItems.length > 0) {
 				setSaveError('Algunos productos tienen valores inválidos. Por favor, verifique los precios y cantidades.');
 				setTimeout(() => setSaveError(null), 3000);
-				setIsSaving(false);
 				return;
 			}
 
-			// Preparar los detalles de la operación
-			const details = orderItems.map(item => {
-				// Convertir y validar unitPrice
+			if (isExistingOrder) {
+				const operationId = existingOperation?.id || table?.currentOperationId;
+				if (!operationId) {
+					setSaveError('No se encontró la operación activa para esta mesa.');
+					setTimeout(() => setSaveError(null), 3000);
+					return;
+				}
+
+				const igvPercentageValue = typeof existingOperation?.igvPercentage === 'number'
+					? existingOperation.igvPercentage
+					: 10;
+				const igvRate = igvPercentageValue > 0 ? igvPercentageValue / 100 : 0;
+
+				const details = itemsToProcess.map(item => {
+					const unitPrice = parseFloat((Math.round(item.price * 100) / 100).toFixed(2));
+					const quantity = Math.max(1, Number(item.quantity) || 1);
+					const unitValue = igvRate > 0
+						? parseFloat((Math.round((unitPrice / (1 + igvRate)) * 100) / 100).toFixed(2))
+						: unitPrice;
+					const notes = typeof item.notes === 'string' ? item.notes.trim() : '';
+
+					return {
+						productId: String(item.productId),
+						quantity,
+						unitMeasure: 'NIU',
+						unitValue,
+						unitPrice,
+						notes
+					};
+				});
+
+				const resolvedDeviceId = deviceId || getDeviceId();
+
+				const result = await addItemsToOperationMutation({
+					variables: {
+						operationId,
+						details,
+						deviceId: resolvedDeviceId
+					}
+				});
+
+				if (result.data?.addItemsToOperation?.success) {
+					if (onSuccess) {
+						onSuccess();
+					}
+
+					setInitializedFromExistingOrder(false);
+					try {
+						await refetchExistingOperation();
+					} catch (refetchError) {
+						console.error('Error al refrescar la operación después de agregar ítems:', refetchError);
+					}
+
+					setTimeout(() => {
+						onClose();
+					}, 500);
+				} else {
+					throw new Error(result.data?.addItemsToOperation?.message || 'Error al agregar los productos a la orden existente');
+				}
+
+				return;
+			}
+
+			// Preparar los detalles de la operación para una nueva orden
+			const details = itemsToProcess.map(item => {
 				const rawPrice = typeof item.price === 'number' ? item.price : parseFloat(String(item.price));
 				if (isNaN(rawPrice) || rawPrice <= 0) {
 					throw new Error(`Precio inválido para el producto: ${item.name}`);
 				}
-				const unitPrice = parseFloat((Math.round(rawPrice * 100) / 100).toFixed(2)); // Redondear a 2 decimales y convertir a número
+				const unitPrice = parseFloat((Math.round(rawPrice * 100) / 100).toFixed(2));
 
-				// Calcular unitValue (precio sin IGV)
 				const unitValue = parseFloat((Math.round((unitPrice / 1.1) * 100) / 100).toFixed(2));
 
-				// Convertir y validar quantity
 				const rawQuantity = typeof item.quantity === 'number' ? item.quantity : parseInt(String(item.quantity), 10);
 				const quantity = (isNaN(rawQuantity) || rawQuantity <= 0) ? 1 : parseInt(String(rawQuantity), 10);
 
-				// Validación final estricta
 				if (isNaN(unitPrice) || unitPrice <= 0 || isNaN(unitValue) || unitValue <= 0 || isNaN(quantity) || quantity <= 0) {
 					throw new Error(`Valores inválidos para el producto: ${item.name}`);
 				}
 
-				// Asegurar que todos los valores numéricos sean números válidos (nunca null/undefined/NaN)
-				// Ya pasaron las validaciones, pero nos aseguramos de que sean números puros
 				const safeQuantity = Number(quantity);
 				const safeUnitValue = Number(unitValue);
 				const safeUnitPrice = Number(unitPrice);
 
-				// Validación final: asegurar que los números convertidos sean válidos
 				if (isNaN(safeQuantity) || isNaN(safeUnitValue) || isNaN(safeUnitPrice)) {
 					throw new Error(`Error al convertir valores numéricos para el producto: ${item.name}`);
 				}
+				const notes = typeof item.notes === 'string' ? item.notes.trim() : '';
 
 				return {
 					productId: String(item.productId),
@@ -309,34 +539,29 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					unitMeasure: 'NIU',
 					unitValue: safeUnitValue,
 					unitPrice: safeUnitPrice,
-					notes: ''
+					notes
 				};
 			});
 
-			// Calcular IGV (asumiendo 10%)
-			const igvPercentageDecimal = 0.10; // Para cálculos: 0.10 = 10%
-			const igvPercentage = 10; // Para enviar al backend: 10 = 10%
-			const validSubtotal = typeof subtotal === 'number' && !isNaN(subtotal) ? subtotal : 0;
-			const calculatedSubtotal = parseFloat((Math.round((validSubtotal / (1 + igvPercentageDecimal)) * 100) / 100).toFixed(2));
-			const calculatedIgvAmount = parseFloat((Math.round((validSubtotal - calculatedSubtotal) * 100) / 100).toFixed(2));
-			const validTotal = parseFloat((typeof total === 'number' && !isNaN(total) ? total : 0).toFixed(2));
+			const itemsTotal = itemsToProcess.reduce((sum, item) => {
+				const itemTotal = Number(item.price) * Number(item.quantity);
+				return sum + (isNaN(itemTotal) ? 0 : itemTotal);
+			}, 0);
 
-			// Validar que los valores calculados sean válidos
-			if (isNaN(calculatedSubtotal) || calculatedSubtotal < 0 || 
-				isNaN(calculatedIgvAmount) || calculatedIgvAmount < 0 || 
+			const igvPercentageDecimal = 0.10;
+			const igvPercentage = 10;
+			const grossAmount = typeof itemsTotal === 'number' && !isNaN(itemsTotal) ? itemsTotal : 0;
+			const calculatedSubtotal = parseFloat((Math.round((grossAmount / (1 + igvPercentageDecimal)) * 100) / 100).toFixed(2));
+			const calculatedIgvAmount = parseFloat((Math.round((grossAmount - calculatedSubtotal) * 100) / 100).toFixed(2));
+			const validTotal = parseFloat((Math.round(grossAmount * 100) / 100).toFixed(2));
+
+			if (isNaN(calculatedSubtotal) || calculatedSubtotal < 0 ||
+				isNaN(calculatedIgvAmount) || calculatedIgvAmount < 0 ||
 				isNaN(validTotal) || validTotal <= 0) {
 				setSaveError('Error al calcular los totales. Por favor, intente nuevamente.');
 				setTimeout(() => setSaveError(null), 3000);
-				setIsSaving(false);
 				return;
 			}
-
-			// Construir las variables, asegurando que todos los valores numéricos sean números válidos (nunca null/undefined/NaN)
-			// Convertir valores numéricos con validación estricta
-			const safeSubtotal = (isNaN(calculatedSubtotal) || calculatedSubtotal === null || calculatedSubtotal === undefined) ? 0 : Number(calculatedSubtotal);
-			const safeIgvAmount = (isNaN(calculatedIgvAmount) || calculatedIgvAmount === null || calculatedIgvAmount === undefined) ? 0 : Number(calculatedIgvAmount);
-			const safeIgvPercentage = (isNaN(igvPercentage) || igvPercentage === null || igvPercentage === undefined) ? 10 : Number(igvPercentage);
-			const safeTotal = (isNaN(validTotal) || validTotal === null || validTotal === undefined) ? 0 : Number(validTotal);
 
 			const variables: any = {
 				branchId: companyData.branch.id,
@@ -345,14 +570,13 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				status: status,
 				notes: '',
 				details: details,
-				subtotal: safeSubtotal,
-				igvAmount: safeIgvAmount,
-				igvPercentage: safeIgvPercentage,
-				total: safeTotal,
+				subtotal: calculatedSubtotal,
+				igvAmount: calculatedIgvAmount,
+				igvPercentage: igvPercentage,
+				total: validTotal,
 				operationDate: new Date().toISOString()
 			};
 
-			// Solo agregar campos opcionales si tienen valor válido
 			if (table?.id) {
 				variables.tableId = table.id;
 			}
@@ -360,32 +584,24 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				variables.userId = user.id;
 			}
 
-			// Limpiar variables: eliminar cualquier campo que sea null o undefined
-			// PERO asegurar que los campos numéricos siempre estén presentes (aunque sean 0)
 			const cleanVariables: any = {};
 			Object.keys(variables).forEach(key => {
 				const value = variables[key];
-				// Para campos numéricos requeridos, siempre incluirlos (incluso si son 0)
 				const numericRequiredFields = ['subtotal', 'igvAmount', 'igvPercentage', 'total'];
 				if (numericRequiredFields.includes(key)) {
-					// Asegurar que sea un número válido, nunca null/undefined
-					// Para igvPercentage, el default es 10 si es inválido
 					const defaultValue = key === 'igvPercentage' ? 10 : 0;
 					const numValue = (value === null || value === undefined || isNaN(value)) ? defaultValue : Number(value);
 					cleanVariables[key] = numValue;
 				} else {
-					// Para otros campos, solo incluir si no es null ni undefined
 					if (value !== null && value !== undefined) {
 						cleanVariables[key] = value;
 					}
 				}
 			});
 
-			// Debug: Verificar que todos los valores numéricos sean válidos
 			console.log('📊 Variables limpias a enviar:', JSON.stringify(cleanVariables, null, 2));
 			console.log('📊 Details:', JSON.stringify(details, null, 2));
-			
-			// Verificar que no haya valores null/undefined/NaN en los campos numéricos
+
 			const numericFields = ['subtotal', 'igvAmount', 'igvPercentage', 'total'];
 			for (const field of numericFields) {
 				const value = cleanVariables[field];
@@ -393,8 +609,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					throw new Error(`Campo numérico inválido: ${field} = ${value}`);
 				}
 			}
-			
-			// Verificar detalles
+
 			details.forEach((detail, index) => {
 				if (detail.quantity === null || detail.quantity === undefined || isNaN(detail.quantity)) {
 					throw new Error(`Detalle ${index} tiene quantity inválido: ${detail.quantity}`);
@@ -407,19 +622,14 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				}
 			});
 
-			// Ejecutar la mutación con variables limpias
 			const result = await createOperationMutation({
 				variables: cleanVariables
 			});
 
 			if (result.data?.createOperation?.success) {
-				// Éxito: notificar y cerrar el modal
-				// El WebSocket en Floor.tsx detectará automáticamente el cambio de estado de la mesa
-				// y refrescará las mesas con sus nuevos colores
 				if (onSuccess) {
 					onSuccess();
 				}
-				// Pequeño delay para que se vea la notificación
 				setTimeout(() => {
 					onClose();
 				}, 500);
@@ -479,7 +689,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							padding: '0.35rem 0.6rem',
 							fontWeight: 700
 						}}>
-							🍽️ Nueva Orden
+							{isExistingOrder ? '🍽️ Orden Actual' : '🍽️ Nueva Orden'}
 						</div>
 						<h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Mesa {table.name.replace('MESA ','')}</h3>
 						<span style={{ opacity: 0.9 }}>•</span>
@@ -491,6 +701,28 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 						}}>
 							Capacidad {table.capacity}
 						</div>
+						{isExistingOrder && (
+							<>
+								<span style={{ opacity: 0.9 }}>•</span>
+								<div style={{
+									backgroundColor: 'rgba(255,255,255,0.15)',
+									borderRadius: 12,
+									padding: '0.35rem 0.6rem',
+									fontWeight: 600
+								}}>
+									Orden #{existingOperation?.order ?? (isLoadingExistingOrder ? '...' : '—')}
+								</div>
+								<span style={{ opacity: 0.9 }}>•</span>
+								<div style={{
+									backgroundColor: 'rgba(255,255,255,0.15)',
+									borderRadius: 12,
+									padding: '0.35rem 0.6rem',
+									fontWeight: 600
+								}}>
+									Estado {existingOperation?.status ?? (isLoadingExistingOrder ? '...' : '—')}
+								</div>
+							</>
+						)}
 					</div>
 					<button onClick={onClose} style={{
 						background: 'rgba(255,255,255,0.15)',
@@ -722,7 +954,28 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					<div style={{ display: 'grid', gap: '1rem' }}>
 						<div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 14, padding: '1rem', maxHeight: '400px', overflowY: 'auto' }}>
 							<h4 style={{ margin: '0 0 0.75rem 0', color: '#2d3748' }}>Detalle</h4>
-							{orderItems.length === 0 ? (
+							{isLoadingExistingOrder ? (
+								<div style={{
+									border: '1px dashed #cbd5e0',
+									borderRadius: 12,
+									padding: '1.25rem',
+									textAlign: 'center',
+									color: '#718096'
+								}}>
+									Cargando orden actual...
+								</div>
+							) : existingOperationError ? (
+								<div style={{
+									border: '1px solid #fed7d7',
+									background: '#fff5f5',
+									borderRadius: 12,
+									padding: '1.25rem',
+									textAlign: 'center',
+									color: '#c53030'
+								}}>
+									Error al cargar la orden activa: {existingOperationError.message}
+								</div>
+							) : orderItems.length === 0 ? (
 								<div style={{
 									border: '1px dashed #cbd5e0', borderRadius: 12, padding: '1rem', textAlign: 'center', color: '#718096'
 								}}>
@@ -730,7 +983,10 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 								</div>
 							) : (
 								<div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-									{orderItems.map((item) => (
+									{orderItems.map((item) => {
+										const isEditable = !isExistingOrder || item.isNew;
+										const canEditNotes = !isExistingOrder || item.isNew;
+										return (
 										<div key={item.id} style={{
 											border: '1px solid #e2e8f0',
 											borderRadius: 12,
@@ -745,14 +1001,92 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 													<div style={{ fontWeight: 700, color: '#667eea', fontSize: '0.9rem' }}>
 														$ {item.price.toFixed(2)}
 													</div>
+													<div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+														<button
+															type="button"
+															onClick={() => handleToggleNotes(item.id)}
+															style={{
+																padding: '0.25rem 0.65rem',
+																borderRadius: 999,
+																border: '1px solid #cbd5e0',
+																background: expandedNotes[item.id]
+																	? '#e0e7ff'
+																	: canEditNotes
+																		? '#edf2f7'
+																		: '#f1f5f9',
+																color: canEditNotes ? '#3730a3' : '#64748b',
+																fontSize: '0.75rem',
+																fontWeight: 600,
+																cursor: 'pointer'
+															}}
+														>
+															Notas {item.notes ? '•' : ''}
+														</button>
+														{item.notes && !expandedNotes[item.id] && (
+															<span style={{
+																fontSize: '0.75rem',
+																color: '#4a5568',
+																background: '#e2e8f0',
+																padding: '0.2rem 0.5rem',
+																borderRadius: 999,
+																maxWidth: '220px',
+																whiteSpace: 'nowrap',
+																overflow: 'hidden',
+																textOverflow: 'ellipsis'
+															}}>
+																{item.notes}
+															</span>
+														)}
+													</div>
+													{expandedNotes[item.id] && (
+														<div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+															<textarea
+																value={item.notes}
+																onChange={(e) => handleUpdateNotes(item.id, e.target.value)}
+																disabled={!canEditNotes}
+																placeholder="Agregar nota u observación (ej: sin ají, bien cocido)"
+																style={{
+																	width: '100%',
+																	minHeight: '60px',
+																	borderRadius: 8,
+																	border: '1px solid #cbd5e0',
+																	padding: '0.5rem',
+																	fontSize: '0.85rem',
+																	resize: 'vertical',
+																	background: canEditNotes ? 'white' : '#edf2f7',
+																	color: canEditNotes ? '#1a202c' : '#718096'
+																}}
+															/>
+															{!canEditNotes && item.notes && (
+																<span style={{ fontSize: '0.7rem', color: '#a0aec0' }}>
+																	Notas registradas anteriormente
+																</span>
+															)}
+														</div>
+													)}
+													{isExistingOrder && (
+														<div style={{ marginTop: '0.35rem' }}>
+															<span style={{
+																padding: '0.2rem 0.6rem',
+																borderRadius: '999px',
+																fontSize: '0.7rem',
+																fontWeight: 600,
+																backgroundColor: item.isNew ? '#c6f6d5' : '#e2e8f0',
+																color: item.isNew ? '#22543d' : '#4a5568'
+															}}>
+																{item.isNew ? 'Nuevo (sin guardar)' : 'Registrado'}
+															</span>
+														</div>
+													)}
 												</div>
 												<button
 													onClick={() => handleRemoveItem(item.id)}
+													disabled={!isEditable}
 													style={{
 														background: 'transparent',
 														border: 'none',
-														color: '#dc2626',
-														cursor: 'pointer',
+														color: isEditable ? '#dc2626' : '#cbd5e0',
+														cursor: isEditable ? 'pointer' : 'not-allowed',
 														fontSize: '1.2rem',
 														padding: '0.25rem'
 													}}
@@ -763,13 +1097,14 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 											<div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'space-between' }}>
 												<button
 													onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+													disabled={!isEditable}
 													style={{
 														width: '28px',
 														height: '28px',
 														borderRadius: '6px',
 														border: '1px solid #cbd5e0',
-														background: 'white',
-														cursor: 'pointer',
+														background: isEditable ? 'white' : '#edf2f7',
+														cursor: isEditable ? 'pointer' : 'not-allowed',
 														fontSize: '1.1rem',
 														display: 'flex',
 														alignItems: 'center',
@@ -782,6 +1117,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 													type="number"
 													value={item.quantity}
 													onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 0)}
+													disabled={!isEditable}
 													min="0"
 													style={{
 														width: '60px',
@@ -789,18 +1125,21 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 														border: '1px solid #cbd5e0',
 														borderRadius: '6px',
 														padding: '0.35rem',
-														fontWeight: 600
+														fontWeight: 600,
+														background: isEditable ? 'white' : '#edf2f7',
+														color: isEditable ? '#1a202c' : '#a0aec0'
 													}}
 												/>
 												<button
 													onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+													disabled={!isEditable}
 													style={{
 														width: '28px',
 														height: '28px',
 														borderRadius: '6px',
 														border: '1px solid #cbd5e0',
-														background: 'white',
-														cursor: 'pointer',
+														background: isEditable ? 'white' : '#edf2f7',
+														cursor: isEditable ? 'pointer' : 'not-allowed',
 														fontSize: '1.1rem',
 														display: 'flex',
 														alignItems: 'center',
@@ -814,7 +1153,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 												</div>
 											</div>
 										</div>
-									))}
+									)})}
 								</div>
 							)}
 						</div>

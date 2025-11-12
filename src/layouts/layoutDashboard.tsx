@@ -1,8 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, gql } from '@apollo/client';
 import { useAuth } from '../hooks/useAuth';
 import { WebSocketProvider, useWebSocket } from '../context/WebSocketContext';
 import Floor from '../modules/sales/floor';
+import CashPay from '../modules/cash/cashPay';
+import type { Table } from '../types/table';
+
+const GET_MY_KITCHEN_NOTIFICATIONS = gql`
+  query GetMyKitchenNotifications($limit: Int) {
+    myKitchenNotifications(limit: $limit) {
+      id
+      message
+      isRead
+      createdAt
+      operation {
+        id
+        table {
+          id
+          name
+        }
+      }
+      operationDetail {
+        id
+        productName
+        quantity
+      }
+      preparedBy {
+        id
+        fullName
+      }
+    }
+  }
+`;
+
+const formatRelativeTime = (dateString?: string | null) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '';
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 0) return 'Hace un momento';
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 1) return 'Hace un momento';
+  if (diffMinutes < 60) return `Hace ${diffMinutes} min`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `Hace ${diffHours} h`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `Hace ${diffDays} d`;
+};
 
 interface LayoutDashboardProps {
   children: React.ReactNode;
@@ -12,9 +57,59 @@ interface LayoutDashboardProps {
 const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) => {
   const navigate = useNavigate();
   const { user, companyData, logout } = useAuth();
-  const { disconnect } = useWebSocket();
+  const { disconnect, subscribe } = useWebSocket();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'floors'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash'>('dashboard');
+  const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notificationsRef = useRef<HTMLDivElement | null>(null);
+
+  const {
+    data: notificationsData,
+    loading: notificationsLoading,
+    error: notificationsError,
+    refetch: refetchKitchenNotifications
+  } = useQuery(GET_MY_KITCHEN_NOTIFICATIONS, {
+    variables: { limit: 20 },
+    skip: !user?.id,
+    pollInterval: 30000
+  });
+
+  useEffect(() => {
+    if (notificationsError) {
+      console.error('❌ Error al obtener notificaciones de cocina:', notificationsError);
+    }
+  }, [notificationsError]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+    const unsubscribe = subscribe('kitchen_notification', () => {
+      refetchKitchenNotifications();
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [subscribe, refetchKitchenNotifications, user?.id]);
+
+  useEffect(() => {
+    if (!showNotifications) {
+      return;
+    }
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showNotifications]);
+
+  const notifications = notificationsData?.myKitchenNotifications ?? [];
+  const unreadCount = notifications.length;
 
   const handleLogout = () => {
     // Desconectar WebSocket antes de hacer logout
@@ -29,7 +124,36 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
 
   const handleMenuClick = (view: 'dashboard' | 'floors') => {
     setCurrentView(view);
+    setSelectedCashTable(null);
   };
+
+  const handleOpenCash = (table: Table) => {
+    setSelectedCashTable(table);
+    setCurrentView('cash');
+  };
+
+  const handleBackFromCash = () => {
+    setCurrentView('floors');
+    setSelectedCashTable(null);
+  };
+
+  const headerTitle =
+    currentView === 'dashboard'
+      ? 'Dashboard'
+      : currentView === 'floors'
+      ? 'Mesas'
+      : 'Caja';
+
+  const headerSubtitle =
+    currentView === 'dashboard'
+      ? `Bienvenido de vuelta, ${user?.firstName}`
+      : currentView === 'floors'
+      ? 'Gestiona la ocupación y las órdenes de tus mesas.'
+      : selectedCashTable
+      ? `Procesa el pago de ${selectedCashTable.name}.`
+      : 'Selecciona una mesa para revisar su orden.';
+
+  const isFloorsSection = currentView === 'floors' || currentView === 'cash';
 
   return (
     <div style={{
@@ -232,9 +356,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                 alignItems: 'center',
                 gap: '0.75rem',
                 padding: '0.75rem 1.5rem',
-                background: currentView === 'floors' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                background: isFloorsSection ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
                 border: 'none',
-                color: currentView === 'floors' ? '#667eea' : '#a0aec0',
+                color: isFloorsSection ? '#667eea' : '#a0aec0',
                 cursor: 'pointer',
                 fontSize: '0.875rem',
                 fontWeight: '500',
@@ -243,13 +367,13 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                 width: '100%'
               }}
               onMouseOver={(e) => {
-                if (currentView !== 'floors') {
+                if (!isFloorsSection) {
                   e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
                   e.currentTarget.style.color = 'white';
                 }
               }}
               onMouseOut={(e) => {
-                if (currentView !== 'floors') {
+                if (!isFloorsSection) {
                   e.currentTarget.style.background = 'transparent';
                   e.currentTarget.style.color = '#a0aec0';
                 }
@@ -382,14 +506,14 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               color: '#2d3748',
               margin: 0
             }}>
-              Dashboard
+              {headerTitle}
             </h1>
             <p style={{
               fontSize: '0.875rem',
               color: '#718096',
               margin: '0.25rem 0 0'
             }}>
-              Bienvenido de vuelta, {user?.firstName}
+              {headerSubtitle}
             </p>
           </div>
           
@@ -411,6 +535,228 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               <span>🏢</span>
               <span>{companyData?.branch.name}</span>
             </div>
+            <div
+              ref={notificationsRef}
+              style={{ position: 'relative' }}
+            >
+              <button
+                type="button"
+                aria-label="Notificaciones de cocina"
+                onClick={() => setShowNotifications((prev) => !prev)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '9999px',
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: showNotifications ? '#edf2f7' : '#f8fafc',
+                  color: '#4a5568',
+                  fontSize: '1.1rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  position: 'relative'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#edf2f7';
+                  e.currentTarget.style.borderColor = '#cbd5e0';
+                }}
+                onMouseOut={(e) => {
+                  if (!showNotifications) {
+                    e.currentTarget.style.backgroundColor = '#f8fafc';
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                  }
+                }}
+              >
+                🔔
+                {unreadCount > 0 && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '4px',
+                      right: '4px',
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '9999px',
+                      backgroundColor: '#f56565',
+                      color: 'white',
+                      fontSize: '0.7rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700
+                    }}
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              {showNotifications && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '110%',
+                    right: 0,
+                    width: '320px',
+                    maxHeight: '420px',
+                    overflowY: 'auto',
+                    backgroundColor: 'white',
+                    borderRadius: '12px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 12px 30px rgba(15, 23, 42, 0.18)',
+                    padding: '0.75rem',
+                    zIndex: 1200
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '0.5rem'
+                    }}
+                  >
+                    <div>
+                      <h3
+                        style={{
+                          margin: 0,
+                          fontSize: '0.95rem',
+                          fontWeight: 600,
+                          color: '#2d3748'
+                        }}
+                      >
+                        Notificaciones de cocina
+                      </h3>
+                      <p
+                        style={{
+                          margin: '0.15rem 0 0',
+                          fontSize: '0.75rem',
+                          color: '#718096'
+                        }}
+                      >
+                        Últimos mensajes de los cocineros
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => refetchKitchenNotifications()}
+                      style={{
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        color: '#4a5568',
+                        cursor: 'pointer',
+                        fontSize: '1rem'
+                      }}
+                      title="Actualizar"
+                    >
+                      ⟳
+                    </button>
+                  </div>
+                  {notificationsLoading ? (
+                    <div
+                      style={{
+                        padding: '1rem',
+                        textAlign: 'center',
+                        color: '#4a5568',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      Cargando notificaciones...
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <div
+                      style={{
+                        padding: '1rem',
+                        textAlign: 'center',
+                        color: '#4a5568',
+                        fontSize: '0.85rem',
+                        backgroundColor: '#f7fafc',
+                        borderRadius: '10px'
+                      }}
+                    >
+                      No tienes notificaciones pendientes.
+                    </div>
+                  ) : (
+                    notifications.map((notification: any) => {
+                      const chefName = notification?.preparedBy?.fullName || 'Cocina';
+                      const tableName = notification?.operation?.table?.name || 'Sin mesa';
+                      const productName = notification?.operationDetail?.productName;
+                      const quantity = notification?.operationDetail?.quantity;
+                      return (
+                        <div
+                          key={notification.id}
+                          style={{
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '10px',
+                            padding: '0.75rem',
+                            marginBottom: '0.5rem',
+                            backgroundColor: '#fdf2f8'
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '0.75rem'
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '9999px',
+                                backgroundColor: '#fbb6ce',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '1.1rem'
+                              }}
+                            >
+                              🍽️
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <p
+                                style={{
+                                  margin: 0,
+                                  fontSize: '0.9rem',
+                                  fontWeight: 600,
+                                  color: '#2d3748'
+                                }}
+                              >
+                                {notification.message}
+                              </p>
+                              <div
+                                style={{
+                                  marginTop: '0.35rem',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.25rem',
+                                  fontSize: '0.75rem',
+                                  color: '#4a5568'
+                                }}
+                              >
+                                <span>👨‍🍳 {chefName}</span>
+                                <span>🪑 Mesa {tableName}</span>
+                                {productName && (
+                                  <span>
+                                    🧾 {quantity ? `${quantity}× ` : ''}
+                                    {productName}
+                                  </span>
+                                )}
+                                <span style={{ color: '#a0aec0' }}>
+                                  {formatRelativeTime(notification?.createdAt)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -423,7 +769,14 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
           width: '100%',
           boxSizing: 'border-box'
         }}>
-          {currentView === 'dashboard' ? children : <Floor />}
+          {currentView === 'dashboard' && children}
+          {currentView === 'floors' && <Floor onOpenCash={handleOpenCash} />}
+          {currentView === 'cash' && (
+            <CashPay
+              table={selectedCashTable}
+              onBack={handleBackFromCash}
+            />
+          )}
         </main>
       </div>
     </div>
