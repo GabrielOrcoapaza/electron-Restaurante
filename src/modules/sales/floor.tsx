@@ -1,46 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
-import { gql } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useWebSocket } from '../../context/WebSocketContext';
 import type { Table, ProcessedTableColors } from '../../types/table';
+import { GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries';
 import Order from './order';
 
 type FloorProps = {
   onOpenCash?: (table: Table) => void;
 };
-
-// Query para obtener pisos de la sucursal
-const GET_FLOORS_BY_BRANCH = gql`
-  query GetFloorsByBranch($branchId: ID!) {
-    floorsByBranch(branchId: $branchId) {
-      id
-      name
-      capacity
-      order
-      floorImageBase64
-    }
-  }
-`;
-
-// Query para obtener mesas de un piso específico
-const GET_TABLES_BY_FLOOR = gql`
-  query GetTablesByFloor($floorId: ID!) {
-    tablesByFloor(floorId: $floorId) {
-      id
-      name
-      shape
-      positionX
-      positionY
-      capacity
-      status
-      statusColors
-      currentOperationId
-      occupiedById
-      userName
-    }
-  }
-`;
 
 const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   const { companyData } = useAuth();

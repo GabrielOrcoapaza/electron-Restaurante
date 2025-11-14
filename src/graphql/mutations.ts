@@ -150,3 +150,85 @@ export const ADD_ITEMS_TO_OPERATION = gql`
   }
 `;
 
+// Mutación para crear documento emitido (pago)
+export const CREATE_ISSUED_DOCUMENT = gql`
+  mutation CreateIssuedDocument(
+    $operationId: ID!
+    $branchId: ID!
+    $documentId: ID!
+    $serial: String!
+    $personId: ID
+    $userId: ID!
+    $emissionDate: Date!
+    $emissionTime: Time!
+    $currency: String!
+    $exchangeRate: Float!
+    $itemsTotalDiscount: Float!
+    $globalDiscount: Float!
+    $globalDiscountPercent: Float!
+    $totalDiscount: Float!
+    $igvPercent: Float!
+    $igvAmount: Float!
+    $totalTaxable: Float!
+    $totalUnaffected: Float!
+    $totalExempt: Float!
+    $totalFree: Float!
+    $totalAmount: Float!
+    $items: [IssuedDocumentItemInput!]!
+    $payments: [PaymentInput!]!
+    $notes: String
+    $tableId: ID
+    $deviceId: String
+    $printerId: ID
+  ) {
+    createIssuedDocument(
+      operationId: $operationId
+      branchId: $branchId
+      documentId: $documentId
+      serial: $serial
+      personId: $personId
+      userId: $userId
+      emissionDate: $emissionDate
+      emissionTime: $emissionTime
+      currency: $currency
+      exchangeRate: $exchangeRate
+      itemsTotalDiscount: $itemsTotalDiscount
+      globalDiscount: $globalDiscount
+      globalDiscountPercent: $globalDiscountPercent
+      totalDiscount: $totalDiscount
+      igvPercent: $igvPercent
+      igvAmount: $igvAmount
+      totalTaxable: $totalTaxable
+      totalUnaffected: $totalUnaffected
+      totalExempt: $totalExempt
+      totalFree: $totalFree
+      totalAmount: $totalAmount
+      items: $items
+      payments: $payments
+      notes: $notes
+      tableId: $tableId
+      deviceId: $deviceId
+      printerId: $printerId
+    ) {
+      success
+      message
+      wasCompleted
+      wasTableFreed
+      issuedDocument {
+        id
+        serial
+        number
+      }
+      operation {
+        id
+        status
+      }
+      table {
+        id
+        status
+        statusColors
+      }
+    }
+  }
+`;
+

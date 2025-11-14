@@ -1,37 +1,14 @@
-import React from 'react';
-import { gql, useQuery } from '@apollo/client';
+import React, { useState } from 'react';
+import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import type { Table } from '../../types/table';
-
-const GET_OPERATION_BY_TABLE = gql`
-  query GetOperationByTableForCash($tableId: ID!, $branchId: ID!) {
-    operationByTable(tableId: $tableId, branchId: $branchId) {
-      id
-      order
-      status
-      total
-      subtotal
-      igvAmount
-      igvPercentage
-      operationDate
-      details {
-        id
-        productId
-        productCode
-        productName
-        productDescription
-        quantity
-        unitPrice
-        total
-        notes
-      }
-    }
-  }
-`;
+import { CREATE_ISSUED_DOCUMENT } from '../../graphql/mutations';
+import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE } from '../../graphql/queries';
 
 type CashPayProps = {
   table: Table | null;
   onBack: () => void;
+  onPaymentSuccess?: () => void;
 };
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
@@ -40,9 +17,16 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
   minimumFractionDigits: 2
 });
 
-const CashPay: React.FC<CashPayProps> = ({ table, onBack }) => {
-  const { companyData } = useAuth();
+const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) => {
+  const { companyData, user, deviceId } = useAuth();
   const hasSelection = Boolean(table?.id && companyData?.branch.id);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
+  const [selectedSerialId, setSelectedSerialId] = useState<string>('');
+  const [selectedCashRegisterId, setSelectedCashRegisterId] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
+  const [referenceNumber, setReferenceNumber] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const {
     data,
@@ -58,7 +42,50 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack }) => {
     fetchPolicy: 'network-only'
   });
 
+  // Obtener documentos disponibles
+  const { data: documentsData, loading: documentsLoading, error: documentsError } = useQuery(GET_DOCUMENTS, {
+    variables: { branchId: companyData?.branch.id || '' },
+    skip: !companyData?.branch.id,
+    fetchPolicy: 'no-cache', // Cambiar a no-cache para evitar problemas de caché
+    notifyOnNetworkStatusChange: true,
+    onError: (error) => {
+      console.error('❌ Error al cargar documentos:', error);
+      console.error('❌ Error details:', JSON.stringify(error, null, 2));
+    },
+    onCompleted: (data) => {
+      console.log('✅ Documentos cargados:', data);
+      console.log('✅ Documents by branch:', data?.documentsByBranch);
+    }
+  });
+
+  // Obtener series del documento seleccionado
+  const { data: serialsData, loading: serialsLoading } = useQuery(GET_SERIALS_BY_DOCUMENT, {
+    variables: { documentId: selectedDocumentId },
+    skip: !selectedDocumentId
+  });
+
+  // Obtener cajas registradoras
+  const { data: cashRegistersData, loading: cashRegistersLoading } = useQuery(GET_CASH_REGISTERS, {
+    variables: { branchId: companyData?.branch.id || '' },
+    skip: !companyData?.branch.id
+  });
+
+  const [createIssuedDocumentMutation] = useMutation(CREATE_ISSUED_DOCUMENT);
+
   const operation = data?.operationByTable;
+  // Filtrar solo documentos y series activos (aunque el backend ya debería filtrarlos)
+  const documents = (documentsData?.documentsByBranch || []).filter((doc: any) => doc.isActive !== false);
+  const serials = (serialsData?.serialsByDocument || []).filter((ser: any) => ser.isActive !== false);
+  const cashRegisters = cashRegistersData?.cashRegistersByBranch || [];
+
+  // Debug: Log para verificar datos
+  React.useEffect(() => {
+    console.log('📄 Documents Data:', documentsData);
+    console.log('📄 Documents:', documents);
+    console.log('📄 Documents Loading:', documentsLoading);
+    console.log('📄 Documents Error:', documentsError);
+    console.log('📄 Branch ID:', companyData?.branch.id);
+  }, [documentsData, documents, documentsLoading, documentsError, companyData?.branch.id]);
 
   if (!table) {
     return (
@@ -124,6 +151,142 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack }) => {
   const subtotal = Number(operation?.subtotal) || 0;
   const igvAmount = Number(operation?.igvAmount) || 0;
   const total = Number(operation?.total) || 0;
+  const igvPercentage = Number(operation?.igvPercentage) || 18;
+
+  // Inicializar valores por defecto cuando se cargan los datos
+  React.useEffect(() => {
+    if (documents.length > 0 && !selectedDocumentId) {
+      console.log('📄 Inicializando documento por defecto:', documents[0]);
+      setSelectedDocumentId(documents[0].id);
+    }
+    if (cashRegisters.length > 0 && !selectedCashRegisterId) {
+      setSelectedCashRegisterId(cashRegisters[0].id);
+    }
+  }, [documents, cashRegisters, selectedDocumentId, selectedCashRegisterId]);
+
+
+  // Inicializar serie cuando se carga un documento o cambia el documento seleccionado
+  React.useEffect(() => {
+    if (serials.length > 0 && !selectedSerialId) {
+      setSelectedSerialId(serials[0].id);
+    } else if (serials.length === 0) {
+      setSelectedSerialId('');
+    }
+  }, [serials, selectedSerialId]);
+
+  // Resetear serie cuando cambia el documento
+  React.useEffect(() => {
+    setSelectedSerialId('');
+  }, [selectedDocumentId]);
+
+  const handleProcessPayment = async () => {
+    if (!operation || !selectedDocumentId || !selectedSerialId || !user?.id) {
+      setPaymentError('Por favor completa todos los campos requeridos');
+      return;
+    }
+    
+    // Si no hay caja seleccionada, usar la primera disponible
+    const cashRegisterIdToUse = selectedCashRegisterId || (cashRegisters.length > 0 ? cashRegisters[0].id : null);
+    
+    if (!cashRegisterIdToUse) {
+      setPaymentError('No hay cajas registradoras disponibles');
+      return;
+    }
+
+    setIsProcessing(true);
+    setPaymentError(null);
+
+    try {
+      const now = new Date();
+      const emissionDate = now.toISOString().split('T')[0];
+      const emissionTime = now.toTimeString().split(' ')[0].substring(0, 5);
+
+      // Preparar items del documento
+      const items = (operation.details || []).map((detail: any) => ({
+        operationDetailId: detail.id,
+        quantity: Number(detail.quantity) || 0,
+        unitValue: Number(detail.unitPrice) || 0,
+        unitPrice: Number(detail.unitPrice) || 0,
+        discount: 0,
+        notes: detail.notes || ''
+      }));
+
+      // Preparar pagos
+      const payments = [{
+        cashRegisterId: cashRegisterIdToUse,
+        paymentType: 'CASH',
+        paymentMethod: paymentMethod,
+        transactionType: 'INCOME',
+        totalAmount: total,
+        paidAmount: total,
+        paymentDate: now.toISOString(),
+        dueDate: null,
+        referenceNumber: referenceNumber || null,
+        notes: null
+      }];
+
+      const selectedSerial = serials.find((ser: any) => ser.id === selectedSerialId);
+      const serial = selectedSerial?.serial || '';
+
+      const variables = {
+        operationId: operation.id,
+        branchId: companyData?.branch.id,
+        documentId: selectedDocumentId,
+        serial: serial,
+        personId: null,
+        userId: user.id,
+        emissionDate: emissionDate,
+        emissionTime: emissionTime,
+        currency: 'PEN',
+        exchangeRate: 1.0,
+        itemsTotalDiscount: 0.0,
+        globalDiscount: 0.0,
+        globalDiscountPercent: 0.0,
+        totalDiscount: 0.0,
+        igvPercent: igvPercentage,
+        igvAmount: igvAmount,
+        totalTaxable: subtotal,
+        totalUnaffected: 0.0,
+        totalExempt: 0.0,
+        totalFree: 0.0,
+        totalAmount: total,
+        items: items,
+        payments: payments,
+        notes: null,
+        tableId: table?.id || null,
+        deviceId: deviceId || null,
+        printerId: null
+      };
+
+      const result = await createIssuedDocumentMutation({
+        variables
+      });
+
+      if (result.data?.createIssuedDocument?.success) {
+        // Refetch la operación para actualizar el estado
+        await refetch();
+        // Llamar callback de éxito si existe
+        if (onPaymentSuccess) {
+          onPaymentSuccess();
+        }
+        // Si la mesa fue liberada, volver a la vista de mesas
+        if (result.data?.createIssuedDocument?.wasTableFreed) {
+          setTimeout(() => {
+            onBack();
+          }, 2000);
+        }
+        // Limpiar errores
+        setPaymentError(null);
+      } else {
+        setPaymentError(result.data?.createIssuedDocument?.message || 'Error al procesar el pago');
+      }
+    } catch (err: any) {
+      console.error('Error procesando pago:', err);
+      setPaymentError(err.message || 'Error al procesar el pago');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <div
@@ -435,163 +598,333 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack }) => {
           <>
             <div
               style={{
-                border: '1px solid rgba(226,232,240,0.9)',
-                borderRadius: '18px',
-                overflow: 'hidden',
-                background: 'linear-gradient(145deg, rgba(255,255,255,0.95), rgba(248,250,252,0.95))',
-                boxShadow: '0 18px 28px -14px rgba(15,23,42,0.22)'
+                display: 'flex',
+                gap: '2rem',
+                alignItems: 'flex-start'
               }}
             >
+              {/* Tabla de productos */}
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1.2fr 0.4fr 0.6fr 0.6fr',
-                  background: 'linear-gradient(135deg, rgba(102,126,234,0.12), rgba(129,140,248,0.12))',
-                  padding: '0.9rem 1.2rem',
-                  fontWeight: 700,
-                  color: '#2d3748',
-                  fontSize: '0.92rem',
-                  letterSpacing: '0.01em'
+                  flex: '1 1 60%',
+                  border: '1px solid rgba(226,232,240,0.9)',
+                  borderRadius: '18px',
+                  overflow: 'hidden',
+                  background: 'linear-gradient(145deg, rgba(255,255,255,0.95), rgba(248,250,252,0.95))',
+                  boxShadow: '0 18px 28px -14px rgba(15,23,42,0.22)'
                 }}
               >
-                <span>Producto</span>
-                <span style={{ textAlign: 'center' }}>Cant.</span>
-                <span style={{ textAlign: 'right' }}>P. Unit.</span>
-                <span style={{ textAlign: 'right' }}>Total</span>
-              </div>
-
-              {(operation.details || []).map((detail: any, index: number) => {
-                const quantity = Number(detail.quantity) || 0;
-                const unitPrice = Number(detail.unitPrice) || 0;
-                const lineTotal =
-                  Number(detail.total) || unitPrice * quantity || 0;
-
-                const isEvenRow = index % 2 === 0;
-
-                return (
-                  <div
-                    key={detail.id || `${detail.productId}-${detail.productCode}`}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1.2fr 0.4fr 0.6fr 0.6fr',
-                      padding: '1rem 1.2rem',
-                      fontSize: '0.9rem',
-                      alignItems: 'center',
-                      color: '#1a202c',
-                      backgroundColor: isEvenRow ? 'rgba(247,250,252,0.85)' : 'rgba(255,255,255,0.92)',
-                      borderTop: '1px solid rgba(226,232,240,0.7)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                        {detail.productName || 'Producto'}
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8rem' }}>
-                        {detail.productCode && (
-                          <span
-                            style={{
-                              backgroundColor: 'rgba(237,242,247,0.9)',
-                              color: '#4a5568',
-                              padding: '0.25rem 0.55rem',
-                              borderRadius: '999px',
-                              fontWeight: 600
-                            }}
-                          >
-                            Código {detail.productCode}
-                          </span>
-                        )}
-                        {detail.notes && (
-                          <span
-                            style={{
-                              backgroundColor: 'rgba(255,255,255,0.85)',
-                              border: '1px dashed rgba(102,126,234,0.5)',
-                              color: '#434190',
-                              padding: '0.3rem 0.55rem',
-                              borderRadius: '10px'
-                            }}
-                          >
-                            Nota: {detail.notes}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <span
-                      style={{
-                        textAlign: 'center',
-                        fontWeight: 700,
-                        color: '#4c51bf',
-                        fontSize: '1.05rem'
-                      }}
-                    >
-                      {quantity}
-                    </span>
-                    <span
-                      style={{
-                        textAlign: 'right',
-                        color: '#2d3748'
-                      }}
-                    >
-                      {currencyFormatter.format(unitPrice)}
-                    </span>
-                    <span
-                      style={{
-                        textAlign: 'right',
-                        fontWeight: 700,
-                        fontSize: '1.05rem',
-                        color: '#1a202c'
-                      }}
-                    >
-                      {currencyFormatter.format(lineTotal)}
-                    </span>
-                  </div>
-                );
-              })}
-
-              {operation.details?.length === 0 && (
                 <div
                   style={{
-                    padding: '1.75rem',
-                    textAlign: 'center',
-                    color: '#4a5568'
+                    display: 'grid',
+                    gridTemplateColumns: '1.2fr 0.4fr 0.6fr 0.6fr',
+                    background: 'linear-gradient(135deg, rgba(102,126,234,0.12), rgba(129,140,248,0.12))',
+                    padding: '0.9rem 1.2rem',
+                    fontWeight: 700,
+                    color: '#2d3748',
+                    fontSize: '0.92rem',
+                    letterSpacing: '0.01em'
                   }}
                 >
-                  No hay ítems registrados en esta orden.
+                  <span>Producto</span>
+                  <span style={{ textAlign: 'center' }}>Cant.</span>
+                  <span style={{ textAlign: 'right' }}>P. Unit.</span>
+                  <span style={{ textAlign: 'right' }}>Total</span>
+                </div>
+
+                {(operation.details || []).map((detail: any, index: number) => {
+                  const quantity = Number(detail.quantity) || 0;
+                  const unitPrice = Number(detail.unitPrice) || 0;
+                  const lineTotal =
+                    Number(detail.total) || unitPrice * quantity || 0;
+
+                  const isEvenRow = index % 2 === 0;
+
+                  return (
+                    <div
+                      key={detail.id || `${detail.productId}-${detail.productCode}`}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1.2fr 0.4fr 0.6fr 0.6fr',
+                        padding: '1rem 1.2rem',
+                        fontSize: '0.9rem',
+                        alignItems: 'center',
+                        color: '#1a202c',
+                        backgroundColor: isEvenRow ? 'rgba(247,250,252,0.85)' : 'rgba(255,255,255,0.92)',
+                        borderTop: '1px solid rgba(226,232,240,0.7)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                          {detail.productName || 'Producto'}
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8rem' }}>
+                          {detail.productCode && (
+                            <span
+                              style={{
+                                backgroundColor: 'rgba(237,242,247,0.9)',
+                                color: '#4a5568',
+                                padding: '0.25rem 0.55rem',
+                                borderRadius: '999px',
+                                fontWeight: 600
+                              }}
+                            >
+                              Código {detail.productCode}
+                            </span>
+                          )}
+                          {detail.notes && (
+                            <span
+                              style={{
+                                backgroundColor: 'rgba(255,255,255,0.85)',
+                                border: '1px dashed rgba(102,126,234,0.5)',
+                                color: '#434190',
+                                padding: '0.3rem 0.55rem',
+                                borderRadius: '10px'
+                              }}
+                            >
+                              Nota: {detail.notes}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          textAlign: 'center',
+                          fontWeight: 700,
+                          color: '#4c51bf',
+                          fontSize: '1.05rem'
+                        }}
+                      >
+                        {quantity}
+                      </span>
+                      <span
+                        style={{
+                          textAlign: 'right',
+                          color: '#2d3748'
+                        }}
+                      >
+                        {currencyFormatter.format(unitPrice)}
+                      </span>
+                      <span
+                        style={{
+                          textAlign: 'right',
+                          fontWeight: 700,
+                          fontSize: '1.05rem',
+                          color: '#1a202c'
+                        }}
+                      >
+                        {currencyFormatter.format(lineTotal)}
+                      </span>
+                    </div>
+                  );
+                })}
+
+                {operation.details?.length === 0 && (
+                  <div
+                    style={{
+                      padding: '1.75rem',
+                      textAlign: 'center',
+                      color: '#4a5568'
+                    }}
+                  >
+                    No hay ítems registrados en esta orden.
+                  </div>
+                )}
+              </div>
+
+              {/* Selectores de Documento, Serie, Caja Registradora y Método de Pago */}
+              <div
+                style={{
+                  flex: '1 1 40%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1.5rem'
+                }}
+              >
+                {/* Documento */}
+                <div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    color: '#2d3748',
+                    marginBottom: '0.4rem'
+                  }}
+                >
+                  Documento *
+                </label>
+                {documentsError && (
+                  <div
+                    style={{
+                      backgroundColor: '#fed7d7',
+                      border: '1px solid #feb2b2',
+                      color: '#742a2a',
+                      padding: '0.5rem',
+                      borderRadius: '8px',
+                      marginBottom: '0.4rem',
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    Error al cargar documentos: {documentsError.message}
+                  </div>
+                )}
+                <select
+                  value={selectedDocumentId}
+                  onChange={(e) => setSelectedDocumentId(e.target.value)}
+                  disabled={documentsLoading}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e0',
+                    fontSize: '0.85rem',
+                    backgroundColor: 'white',
+                    cursor: documentsLoading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {documentsLoading ? (
+                    <option value="">Cargando documentos...</option>
+                  ) : documentsError ? (
+                    <option value="">Error al cargar documentos</option>
+                  ) : documents.length === 0 ? (
+                    <option value="">No hay documentos disponibles</option>
+                  ) : (
+                    <>
+                      <option value="">Seleccione un documento</option>
+                      {documents.map((doc: any) => (
+                        <option key={doc.id} value={doc.id}>
+                          {doc.code || 'Sin código'} - {doc.description || 'Sin descripción'}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </div>
+
+              {/* Serie */}
+              {selectedDocumentId && (
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      color: '#2d3748',
+                      marginBottom: '0.4rem'
+                    }}
+                  >
+                    Serie *
+                  </label>
+                  <select
+                    value={selectedSerialId}
+                    onChange={(e) => setSelectedSerialId(e.target.value)}
+                    disabled={serialsLoading || !selectedDocumentId}
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e0',
+                      fontSize: '0.85rem',
+                      backgroundColor: 'white',
+                      cursor: serialsLoading || !selectedDocumentId ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {serialsLoading ? (
+                      <option value="">Cargando series...</option>
+                    ) : serials.length === 0 ? (
+                      <option value="">No hay series disponibles para este documento</option>
+                    ) : (
+                      <>
+                        <option value="">Seleccione una serie</option>
+                        {serials.map((ser: any) => (
+                          <option key={ser.id} value={ser.id}>
+                            {ser.serial || 'Sin serie'}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
                 </div>
               )}
-            </div>
 
-            <div
-              style={{
-                marginTop: '2rem',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                position: 'relative'
-              }}
-            >
+              {/* Método de Pago */}
+              <div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    color: '#2d3748',
+                    marginBottom: '0.4rem'
+                  }}
+                >
+                  Método de Pago *
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  disabled={isProcessing}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e0',
+                    fontSize: '0.85rem',
+                    backgroundColor: 'white',
+                    cursor: isProcessing ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <option value="CASH">Efectivo</option>
+                  <option value="YAPE">Yape</option>
+                  <option value="PLIN">Plin</option>
+                  <option value="CARD">Tarjeta</option>
+                  <option value="TRANSFER">Transferencia Bancaria</option>
+                </select>
+              </div>
+
+              {/* Número de Referencia (para Yape, Plin, etc.) */}
+              {(paymentMethod === 'YAPE' || paymentMethod === 'PLIN' || paymentMethod === 'TRANSFER') && (
+                <div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    color: '#2d3748',
+                    marginBottom: '0.4rem'
+                  }}
+                >
+                  Número de Operación
+                </label>
+                <input
+                  type="text"
+                  value={referenceNumber}
+                  onChange={(e) => setReferenceNumber(e.target.value)}
+                  disabled={isProcessing}
+                  placeholder="Ingrese el número de operación"
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e0',
+                    fontSize: '0.85rem'
+                  }}
+                />
+              </div>
+              )}
+
+              {/* Resumen de Totales */}
               <div
                 style={{
-                  position: 'absolute',
-                  right: '18%',
-                  top: '-40px',
-                  width: '160px',
-                  height: '160px',
-                  borderRadius: '50%',
-                  background: 'radial-gradient(circle at center, rgba(72,219,251,0.18), transparent 70%)',
-                  filter: 'blur(8px)',
-                  zIndex: 0
-                }}
-              />
-              <div
-                style={{
-                  minWidth: '320px',
+                  marginTop: '1rem',
                   borderRadius: '18px',
-                  padding: '1.75rem',
+                  padding: '1.5rem',
                   background: 'linear-gradient(145deg, rgba(102,126,234,0.16), rgba(79,209,197,0.16))',
                   border: '1px solid rgba(102,126,234,0.28)',
                   boxShadow: '0 22px 35px -15px rgba(79,209,197,0.35)',
                   backdropFilter: 'blur(14px)',
-                  position: 'relative',
-                  zIndex: 1
+                  position: 'relative'
                 }}
               >
                 <div
@@ -637,31 +970,54 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack }) => {
                   <span>{currencyFormatter.format(total)}</span>
                 </div>
                 <button
+                  onClick={handleProcessPayment}
+                  disabled={!operation || operation.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing}
                   style={{
                     width: '100%',
                     marginTop: '1.35rem',
                     padding: '0.95rem 1.25rem',
                     borderRadius: '12px',
                     border: 'none',
-                    background: 'linear-gradient(130deg, #4fd1c5, #63b3ed)',
+                    background: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId
+                      ? '#cbd5e0' 
+                      : 'linear-gradient(130deg, #4fd1c5, #63b3ed)',
                     color: 'white',
                     fontWeight: 700,
                     fontSize: '0.95rem',
-                    cursor: 'pointer',
+                    cursor: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing ? 'not-allowed' : 'pointer',
                     boxShadow: '0 16px 28px -12px rgba(79,209,197,0.55)',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    opacity: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId ? 0.6 : 1
                   }}
                   onMouseOver={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-3px)';
-                    e.currentTarget.style.boxShadow = '0 20px 32px -10px rgba(79,209,197,0.6)';
+                    if (operation?.status !== 'COMPLETED' && selectedDocumentId && selectedSerialId && !isProcessing) {
+                      e.currentTarget.style.transform = 'translateY(-3px)';
+                      e.currentTarget.style.boxShadow = '0 20px 32px -10px rgba(79,209,197,0.6)';
+                    }
                   }}
                   onMouseOut={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)';
                     e.currentTarget.style.boxShadow = '0 16px 28px -12px rgba(79,209,197,0.55)';
                   }}
                 >
-                  Procesar pago
+                  {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Orden ya pagada' : 'Procesar pago'}
                 </button>
+                {paymentError && (
+                  <div
+                    style={{
+                      marginTop: '1rem',
+                      backgroundColor: '#fed7d7',
+                      border: '1px solid #feb2b2',
+                      color: '#742a2a',
+                      padding: '0.75rem',
+                      borderRadius: '8px',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    {paymentError}
+                  </div>
+                )}
+              </div>
               </div>
             </div>
           </>

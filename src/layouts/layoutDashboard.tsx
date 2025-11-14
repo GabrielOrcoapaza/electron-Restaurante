@@ -12,7 +12,6 @@ const GET_MY_KITCHEN_NOTIFICATIONS = gql`
     myKitchenNotifications(limit: $limit) {
       id
       message
-      isRead
       createdAt
       operation {
         id
@@ -63,6 +62,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
+  const [hiddenNotificationIds, setHiddenNotificationIds] = useState<string[]>([]);
 
   const {
     data: notificationsData,
@@ -109,7 +109,25 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   }, [showNotifications]);
 
   const notifications = notificationsData?.myKitchenNotifications ?? [];
-  const unreadCount = notifications.length;
+  const unreadNotifications = notifications.filter((notification: any) => !notification?.isRead);
+  const visibleNotifications = unreadNotifications.filter(
+    (notification: any) => !hiddenNotificationIds.includes(notification?.id)
+  );
+  const unreadCount = visibleNotifications.length;
+
+  useEffect(() => {
+    if (!notifications.length) {
+      setHiddenNotificationIds([]);
+      return;
+    }
+    setHiddenNotificationIds((prev) =>
+      prev.filter((hiddenId) => notifications.some((notification: any) => notification?.id === hiddenId))
+    );
+  }, [notifications]);
+
+  const handleDismissNotification = (notificationId: string) => {
+    setHiddenNotificationIds((prev) => (prev.includes(notificationId) ? prev : [...prev, notificationId]));
+  };
 
   const handleLogout = () => {
     // Desconectar WebSocket antes de hacer logout
@@ -664,7 +682,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                     >
                       Cargando notificaciones...
                     </div>
-                  ) : notifications.length === 0 ? (
+                  ) : visibleNotifications.length === 0 ? (
                     <div
                       style={{
                         padding: '1rem',
@@ -678,7 +696,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                       No tienes notificaciones pendientes.
                     </div>
                   ) : (
-                    notifications.map((notification: any) => {
+                    visibleNotifications.map((notification: any) => {
                       const chefName = notification?.preparedBy?.fullName || 'Cocina';
                       const tableName = notification?.operation?.table?.name || 'Sin mesa';
                       const productName = notification?.operationDetail?.productName;
@@ -691,9 +709,30 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                             borderRadius: '10px',
                             padding: '0.75rem',
                             marginBottom: '0.5rem',
-                            backgroundColor: '#fdf2f8'
+                            backgroundColor: '#fdf2f8',
+                            position: 'relative'
                           }}
                         >
+                          <button
+                            type="button"
+                            onClick={() => handleDismissNotification(notification.id)}
+                            style={{
+                              position: 'absolute',
+                              top: '8px',
+                              right: '8px',
+                              border: 'none',
+                              backgroundColor: 'transparent',
+                              color: '#a0aec0',
+                              cursor: 'pointer',
+                              fontSize: '1rem',
+                              fontWeight: 700,
+                              lineHeight: 1
+                            }}
+                            aria-label="Ocultar notificación"
+                            title="Ocultar notificación"
+                          >
+                            ×
+                          </button>
                           <div
                             style={{
                               display: 'flex',
@@ -775,6 +814,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
             <CashPay
               table={selectedCashTable}
               onBack={handleBackFromCash}
+              onPaymentSuccess={() => {
+                // El WebSocket debería actualizar automáticamente las mesas
+                // pero podemos forzar un refetch si es necesario
+                console.log('✅ Pago procesado exitosamente');
+              }}
             />
           )}
         </main>
