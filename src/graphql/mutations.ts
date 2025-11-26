@@ -11,22 +11,85 @@ export const COMPANY_LOGIN = gql`
         id
         ruc
         denomination
+        commercialName
+        address
+        phone
         email
+        logo
+        isActive
       }
       branch {
         id
+        serial
         name
         address
+        phone
+        logo
+        latitude
+        longitude
+        igvPercentage
+        pdfSize
+        pdfColor
+        isActive
+        isPayment
+        isBilling
+        isDelivery
+        isMultiWaiterEnabled
+        isCommandItemMode
+        isKitchenPrint
+        isKitchenDisplay
         users {
           id
           firstName
           lastName 
           dni
         }
+        floors {
+          id
+          name
+          capacity
+          floorImage
+          isActive
+          order
+          tables {
+            id
+            name
+            shape
+            positionX
+            positionY
+            capacity
+            status
+            isActive
+            statusColors
+            currentOperationId
+            occupiedById
+            userName
+          }
+        }
+        categories {
+          id
+          name
+          description
+          icon
+          color
+          order
+          isActive
+          subcategories {
+            id
+            name
+            description
+            order
+            isActive
+            notes {
+              id
+              note
+              isActive
+            }
+          }
+        }
       }
       companyLogoBase64
       branchLogoBase64
-    
     }
   }
 `;
@@ -228,6 +291,46 @@ export const CREATE_ISSUED_DOCUMENT = gql`
         status
         statusColors
       }
+    }
+  }
+`;
+
+// Mutación para enviar mensaje broadcast
+export const SEND_BROADCAST_MESSAGE = gql`
+  mutation SendBroadcastMessage(
+    $branchId: ID!
+    $senderId: ID!
+    $message: String!
+    $recipients: String!
+  ) {
+    sendBroadcastMessage(
+      branchId: $branchId
+      senderId: $senderId
+      message: $message
+      recipients: $recipients
+    ) {
+      success
+      message
+      broadcastMessage {
+        id
+        message
+        recipients
+        createdAt
+        sender {
+          id
+          fullName
+        }
+      }
+    }
+  }
+`;
+
+// Mutación para marcar mensaje broadcast como leído
+export const MARK_MESSAGE_READ = gql`
+  mutation MarkMessageRead($messageId: ID!) {
+    markMessageRead(messageId: $messageId) {
+      success
+      message
     }
   }
 `;

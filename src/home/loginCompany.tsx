@@ -46,13 +46,28 @@ const LoginCompany: React.FC = () => {
 
       if (data?.companyLogin?.success) {
         console.log('✅ Empleados de la sucursal:', data.companyLogin.branch.users);
+        console.log('🏢 Pisos de la sucursal:', data.companyLogin.branch.floors);
+        console.log('📦 Categorías de la sucursal:', data.companyLogin.branch.categories);
+        
+        // Extraer todas las mesas de todos los pisos con su información de piso
+        const allTables = (data.companyLogin.branch.floors || []).flatMap((floor: any) => 
+          (floor.tables || []).map((table: any) => ({
+            ...table,
+            floorId: floor.id,
+            floorName: floor.name
+          }))
+        );
+        console.log('🪑 Todas las mesas de la sucursal:', allTables);
         
         // Usar el hook useAuth para guardar datos
         loginCompany({
           company: data.companyLogin.company,
           branch: {
             ...data.companyLogin.branch,
-            users: data.companyLogin.branch.users || []
+            users: data.companyLogin.branch.users || [],
+            floors: data.companyLogin.branch.floors || [],
+            categories: data.companyLogin.branch.categories || [],
+            tables: allTables
           },
           companyLogo: data.companyLogin.companyLogoBase64,
           branchLogo: data.companyLogin.branchLogoBase64,

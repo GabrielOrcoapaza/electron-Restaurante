@@ -17,11 +17,14 @@ export interface ProcessedTableColors {
 // Tipos de estado de mesa (coinciden con TABLE_STATUS del modelo Django)
 export type TableStatus = 'AVAILABLE' | 'OCCUPIED' | 'TO_PAY' | 'IN_PROCESS' | 'MAINTENANCE';
 
+// Tipos para las formas de mesa (coinciden con TABLE_SHAPES del modelo Django)
+export  type TableShape = 'ROUND' | 'SQUARE' | 'CIRCLE' | 'RECTANGLE'; 
+
 // Tipos para las mesas
 export interface Table {
   id: string;
   name: string;
-  shape: 'CIRCLE' | 'RECTANGLE' | 'SQUARE'; // Incluye SQUARE del modelo Django
+  shape: TableShape; // ROUND y SQUARE del modelo Django, CIRCLE y RECTANGLE para compatibilidad
   positionX: number;
   positionY: number;
   capacity: number;

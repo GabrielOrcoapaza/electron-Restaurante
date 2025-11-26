@@ -27,6 +27,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
   const [referenceNumber, setReferenceNumber] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [isSplitMode, setIsSplitMode] = useState(false);
+  const [itemAssignments, setItemAssignments] = useState<Record<string, boolean>>({});
+  const [modifiedDetails, setModifiedDetails] = useState<any[]>([]);
 
   const {
     data,
@@ -148,10 +151,17 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
     );
   }
 
-  const subtotal = Number(operation?.subtotal) || 0;
-  const igvAmount = Number(operation?.igvAmount) || 0;
-  const total = Number(operation?.total) || 0;
   const igvPercentage = Number(operation?.igvPercentage) || 18;
+  
+  // Calcular totales basados en los detalles modificados
+  const detailsToUse = modifiedDetails.length > 0 ? modifiedDetails : (operation?.details || []);
+  const subtotal = detailsToUse.reduce((sum: number, detail: any) => {
+    const quantity = Number(detail.quantity) || 0;
+    const unitPrice = Number(detail.unitPrice) || 0;
+    return sum + (quantity * unitPrice);
+  }, 0);
+  const igvAmount = subtotal * (igvPercentage / 100);
+  const total = subtotal + igvAmount;
 
   // Inicializar valores por defecto cuando se cargan los datos
   React.useEffect(() => {
@@ -179,6 +189,101 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
     setSelectedSerialId('');
   }, [selectedDocumentId]);
 
+  // Inicializar detalles modificados cuando se carga la operación
+  React.useEffect(() => {
+    if (operation?.details) {
+      setModifiedDetails([...operation.details]);
+    }
+  }, [operation?.details]);
+
+  const handleSplitBill = () => {
+    setIsSplitMode(!isSplitMode);
+    if (!isSplitMode) {
+      // No inicializar asignaciones, el usuario las hará manualmente
+    } else {
+      // Limpiar asignaciones y restaurar detalles originales cuando se desactiva
+      setItemAssignments({});
+      if (operation?.details) {
+        setModifiedDetails([...operation.details]);
+      }
+    }
+  };
+
+  const handleSplitItem = (detailId: string) => {
+    setModifiedDetails(prevDetails => {
+      const detailIndex = prevDetails.findIndex((d: any) => d.id === detailId);
+      if (detailIndex === -1) return prevDetails;
+
+      const detail = prevDetails[detailIndex];
+      const quantity = Number(detail.quantity) || 0;
+
+      // Solo dividir si la cantidad es mayor a 1
+      if (quantity <= 1) {
+        return prevDetails;
+      }
+
+      // Verificar si ya está dividido
+      const isAlreadySplit = itemAssignments[detailId];
+
+      if (isAlreadySplit) {
+        // Si ya está dividido, revertir: encontrar y eliminar la copia, restaurar cantidad original
+        const originalDetail = operation?.details?.find((d: any) => d.id === detailId);
+        if (originalDetail) {
+          const newDetails = [...prevDetails];
+          // Eliminar todas las copias de este detalle (las que tienen id que empieza con detailId-split)
+          const filteredDetails = newDetails.filter((d: any) => {
+            if (d.id === detailId) {
+              // Restaurar cantidad original
+              d.quantity = originalDetail.quantity;
+              return true;
+            }
+            // Eliminar copias (identificadas por tener un id que incluye el detailId original)
+            return !d.id?.includes(`${detailId}-split`);
+          });
+          return filteredDetails;
+        }
+        return prevDetails;
+      } else {
+        // Dividir: reducir cantidad del original y crear copia con cantidad 1
+        const newDetails = [...prevDetails];
+        const originalDetail = { ...detail };
+        
+        // Reducir cantidad del original
+        newDetails[detailIndex] = {
+          ...originalDetail,
+          quantity: quantity - 1,
+          total: (quantity - 1) * Number(originalDetail.unitPrice)
+        };
+
+        // Crear copia con cantidad 1
+        const splitDetail = {
+          ...originalDetail,
+          id: `${detailId}-split-${Date.now()}`, // ID único para la copia
+          quantity: 1,
+          total: Number(originalDetail.unitPrice)
+        };
+
+        // Insertar la copia después del original
+        newDetails.splice(detailIndex + 1, 0, splitDetail);
+        return newDetails;
+      }
+    });
+
+    // Actualizar asignaciones
+    setItemAssignments(prev => {
+      if (prev[detailId]) {
+        const newAssignments = { ...prev };
+        delete newAssignments[detailId];
+        return newAssignments;
+      } else {
+        return {
+          ...prev,
+          [detailId]: true
+        };
+      }
+    });
+  };
+
   const handleProcessPayment = async () => {
     if (!operation || !selectedDocumentId || !selectedSerialId || !user?.id) {
       setPaymentError('Por favor completa todos los campos requeridos');
@@ -201,15 +306,38 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
       const emissionDate = now.toISOString().split('T')[0];
       const emissionTime = now.toTimeString().split(' ')[0].substring(0, 5);
 
-      // Preparar items del documento
-      const items = (operation.details || []).map((detail: any) => ({
-        operationDetailId: detail.id,
-        quantity: Number(detail.quantity) || 0,
-        unitValue: Number(detail.unitPrice) || 0,
-        unitPrice: Number(detail.unitPrice) || 0,
-        discount: 0,
-        notes: detail.notes || ''
-      }));
+      // Preparar items del documento usando los detalles modificados
+      // Agrupar detalles originales y sus copias
+      const detailsToProcess = modifiedDetails.length > 0 ? modifiedDetails : (operation.details || []);
+      
+      // Agrupar por ID original (sin el sufijo -split)
+      const groupedDetails: Record<string, any[]> = {};
+      detailsToProcess.forEach((detail: any) => {
+        const originalId = detail.id?.includes('-split') 
+          ? detail.id.split('-split')[0] 
+          : detail.id;
+        
+        if (!groupedDetails[originalId]) {
+          groupedDetails[originalId] = [];
+        }
+        groupedDetails[originalId].push(detail);
+      });
+      
+      // Crear items agrupados
+      const items = Object.entries(groupedDetails).map(([originalId, details]) => {
+        // Sumar cantidades de todos los detalles (original + copias)
+        const totalQuantity = details.reduce((sum, d) => sum + (Number(d.quantity) || 0), 0);
+        const firstDetail = details[0];
+        
+        return {
+          operationDetailId: originalId,
+          quantity: totalQuantity,
+          unitValue: Number(firstDetail.unitPrice) || 0,
+          unitPrice: Number(firstDetail.unitPrice) || 0,
+          discount: 0,
+          notes: firstDetail.notes || ''
+        };
+      });
 
       // Preparar pagos
       const payments = [{
@@ -617,7 +745,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '1.2fr 0.4fr 0.6fr 0.6fr',
+                    gridTemplateColumns: isSplitMode ? '1.2fr 0.4fr 0.6fr 0.6fr 1fr' : '1.2fr 0.4fr 0.6fr 0.6fr',
                     background: 'linear-gradient(135deg, rgba(102,126,234,0.12), rgba(129,140,248,0.12))',
                     padding: '0.9rem 1.2rem',
                     fontWeight: 700,
@@ -630,9 +758,10 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
                   <span style={{ textAlign: 'center' }}>Cant.</span>
                   <span style={{ textAlign: 'right' }}>P. Unit.</span>
                   <span style={{ textAlign: 'right' }}>Total</span>
+                  {isSplitMode && <span style={{ textAlign: 'center' }}>Dividir</span>}
                 </div>
 
-                {(operation.details || []).map((detail: any, index: number) => {
+                {(detailsToUse || []).map((detail: any, index: number) => {
                   const quantity = Number(detail.quantity) || 0;
                   const unitPrice = Number(detail.unitPrice) || 0;
                   const lineTotal =
@@ -645,7 +774,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
                       key={detail.id || `${detail.productId}-${detail.productCode}`}
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '1.2fr 0.4fr 0.6fr 0.6fr',
+                        gridTemplateColumns: isSplitMode ? '1.2fr 0.4fr 0.6fr 0.6fr 1fr' : '1.2fr 0.4fr 0.6fr 0.6fr',
                         padding: '1rem 1.2rem',
                         fontSize: '0.9rem',
                         alignItems: 'center',
@@ -715,11 +844,57 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
                       >
                         {currencyFormatter.format(lineTotal)}
                       </span>
+                      {isSplitMode && !detail.id?.includes('-split') && quantity > 1 && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <button
+                            onClick={() => handleSplitItem(detail.id)}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              background: itemAssignments[detail.id]
+                                ? 'linear-gradient(130deg, #a78bfa, #8b5cf6)'
+                                : 'rgba(139, 92, 246, 0.15)',
+                              color: itemAssignments[detail.id] ? 'white' : '#8b5cf6',
+                              fontWeight: 700,
+                              fontSize: '0.85rem',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem'
+                            }}
+                            onMouseOver={(e) => {
+                              if (!itemAssignments[detail.id]) {
+                                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.25)';
+                              }
+                            }}
+                            onMouseOut={(e) => {
+                              if (!itemAssignments[detail.id]) {
+                                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)';
+                              }
+                            }}
+                          >
+                            {itemAssignments[detail.id] ? '✓ Dividido' : '✂️ Dividir'}
+                          </button>
+                        </div>
+                      )}
+                      {isSplitMode && (detail.id?.includes('-split') || quantity <= 1) && (
+                        <div style={{ textAlign: 'center', color: '#9ca3af', fontSize: '0.8rem' }}>
+                          {detail.id?.includes('-split') ? 'Copia' : '—'}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
 
-                {operation.details?.length === 0 && (
+                {detailsToUse?.length === 0 && (
                   <div
                     style={{
                       padding: '1.75rem',
@@ -970,11 +1145,56 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
                   <span>{currencyFormatter.format(total)}</span>
                 </div>
                 <button
+                  onClick={handleSplitBill}
+                  disabled={!operation || operation.status === 'COMPLETED' || !operation.details || operation.details.length === 0 || isProcessing}
+                  style={{
+                    width: '100%',
+                    marginTop: '1.35rem',
+                    padding: '0.85rem 1.25rem',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: operation?.status === 'COMPLETED' || !operation?.details || operation.details.length === 0
+                      ? '#cbd5e0' 
+                      : isSplitMode
+                      ? 'linear-gradient(130deg, #f59e0b, #d97706)'
+                      : 'linear-gradient(130deg, #a78bfa, #8b5cf6)',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.95rem',
+                    cursor: operation?.status === 'COMPLETED' || !operation?.details || operation.details.length === 0 || isProcessing ? 'not-allowed' : 'pointer',
+                    boxShadow: isSplitMode 
+                      ? '0 12px 24px -8px rgba(245, 158, 11, 0.4)'
+                      : '0 12px 24px -8px rgba(139, 92, 246, 0.4)',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    opacity: operation?.status === 'COMPLETED' || !operation?.details || operation.details.length === 0 ? 0.6 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem'
+                  }}
+                  onMouseOver={(e) => {
+                    if (operation?.status !== 'COMPLETED' && operation?.details && operation.details.length > 0 && !isProcessing) {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = isSplitMode
+                        ? '0 16px 28px -10px rgba(245, 158, 11, 0.5)'
+                        : '0 16px 28px -10px rgba(139, 92, 246, 0.5)';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = isSplitMode
+                      ? '0 12px 24px -8px rgba(245, 158, 11, 0.4)'
+                      : '0 12px 24px -8px rgba(139, 92, 246, 0.4)';
+                  }}
+                >
+                  {isSplitMode ? '✓ Finalizar División' : '✂️ Dividir Cuenta'}
+                </button>
+                <button
                   onClick={handleProcessPayment}
                   disabled={!operation || operation.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing}
                   style={{
                     width: '100%',
-                    marginTop: '1.35rem',
+                    marginTop: '0.75rem',
                     padding: '0.95rem 1.25rem',
                     borderRadius: '12px',
                     border: 'none',
@@ -1023,6 +1243,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
           </>
         )}
       </div>
+
     </div>
   );
 };

@@ -158,3 +158,20 @@ export const SEARCH_PRODUCTS = gql`
   }
 `;
 
+// Query para obtener mensajes broadcast no leídos del usuario actual
+export const GET_MY_UNREAD_MESSAGES = gql`
+  query GetMyUnreadMessages {
+    myUnreadMessages {
+      id
+      message
+      recipients
+      createdAt
+      sender {
+        id
+        fullName
+        role
+      }
+    }
+  }
+`;
+

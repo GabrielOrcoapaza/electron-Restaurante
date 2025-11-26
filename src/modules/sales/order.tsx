@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import type { Table } from '../../types/table';
-import { CREATE_OPERATION, ADD_ITEMS_TO_OPERATION } from '../../graphql/mutations';
+import { CREATE_OPERATION, ADD_ITEMS_TO_OPERATION, UPDATE_TABLE_STATUS } from '../../graphql/mutations';
 import { GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS_BY_CATEGORY, GET_PRODUCTS_BY_BRANCH, GET_OPERATION_BY_TABLE, SEARCH_PRODUCTS } from '../../graphql/queries';
 
 type OrderProps = {
@@ -24,7 +24,7 @@ type OrderItem = {
 };
 
 const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
-	const { companyData, user, deviceId, getDeviceId } = useAuth();
+	const { companyData, user, deviceId, getDeviceId, updateTableInContext } = useAuth();
 	const isExistingOrder = Boolean(table?.currentOperationId);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchTerm, setSearchTerm] = useState<string>('');
@@ -39,6 +39,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	// Mutación para crear la operación
 	const [createOperationMutation] = useMutation(CREATE_OPERATION);
 	const [addItemsToOperationMutation] = useMutation(ADD_ITEMS_TO_OPERATION);
+	const [updateTableStatusMutation] = useMutation(UPDATE_TABLE_STATUS);
 
 	// Obtener categorías de la sucursal
 	const { data: categoriesData, loading: categoriesLoading } = useQuery(GET_CATEGORIES_BY_BRANCH, {
@@ -537,6 +538,34 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			});
 
 			if (result.data?.createOperation?.success) {
+				// Actualizar el estado de la mesa a OCCUPIED
+				try {
+					const tableResult = await updateTableStatusMutation({
+						variables: {
+							tableId: table.id,
+							status: 'OCCUPIED',
+							userId: user?.id
+						}
+					});
+
+					if (tableResult.data?.updateTableStatus?.success) {
+						// Actualizar la mesa en el contexto local
+						const updatedTable = tableResult.data.updateTableStatus.table;
+						updateTableInContext({
+							id: updatedTable.id,
+							status: updatedTable.status,
+							statusColors: updatedTable.statusColors,
+							currentOperationId: result.data.createOperation.operation?.id || updatedTable.currentOperationId,
+							occupiedById: updatedTable.occupiedById,
+							userName: updatedTable.userName
+						});
+						console.log('✅ Estado de mesa actualizado a OCCUPIED');
+					}
+				} catch (tableError) {
+					console.error('⚠️ Error al actualizar estado de mesa:', tableError);
+					// Continuar aunque falle la actualización de la mesa
+				}
+
 				if (onSuccess) {
 					onSuccess();
 				}
@@ -1099,7 +1128,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 									opacity: isSaving || orderItems.length === 0 ? 0.6 : 1
 								}}
 							>
-								{isSaving ? 'Guardando...' : 'Guardar borrador'}
+								{isSaving ? 'Cambiando...' : 'Cambiar de mesa'}
 							</button>
 							<button 
 								onClick={() => handleSaveOrder('PROCESSING')}
@@ -1131,7 +1160,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 									opacity: isSaving || orderItems.length === 0 ? 0.6 : 1
 								}}
 							>
-								{isSaving ? 'Guardando...' : 'Cobrar'}
+								{isSaving ? 'Cancelando...' : 'Cancelar Orden'}
 							</button>
 						</div>
 						{saveError && (

@@ -146,87 +146,84 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   };
   
 
+  // Colores por defecto según el estado (del modelo Django TableStatusColor)
+  const DEFAULT_STATUS_COLORS: Record<string, ProcessedTableColors> = {
+    'AVAILABLE': {
+      backgroundColor: '#d4edda',
+      borderColor: '#28a745',
+      textColor: '#155724',
+      badgeColor: '#28a745',
+      badgeTextColor: '#ffffff'
+    },
+    'OCCUPIED': {
+      backgroundColor: '#f8d7da',
+      borderColor: '#dc3545',
+      textColor: '#721c24',
+      badgeColor: '#dc3545',
+      badgeTextColor: '#ffffff'
+    },
+    'TO_PAY': {
+      backgroundColor: '#fff3cd',
+      borderColor: '#ffc107',
+      textColor: '#856404',
+      badgeColor: '#ffc107',
+      badgeTextColor: '#856404'
+    },
+    'IN_PROCESS': {
+      backgroundColor: '#d1ecf1',
+      borderColor: '#17a2b8',
+      textColor: '#0c5460',
+      badgeColor: '#17a2b8',
+      badgeTextColor: '#ffffff'
+    },
+    'MAINTENANCE': {
+      backgroundColor: '#e2e3e5',
+      borderColor: '#6c757d',
+      textColor: '#383d41',
+      badgeColor: '#6c757d',
+      badgeTextColor: '#ffffff'
+    }
+  };
+
   // Función para obtener los colores de la mesa según su estado
   const getTableColors = (table: Table): ProcessedTableColors => {
-    // Debug: ver qué colores llegan del backend
-    console.log(`Mesa ${table.name} - Status: ${table.status} - StatusColors:`, table.statusColors);
+    // Primero intentamos obtener los colores por defecto del estado
+    const defaultColors = DEFAULT_STATUS_COLORS[table.status] || DEFAULT_STATUS_COLORS['MAINTENANCE'];
     
-    // Si tenemos statusColors del backend, los usamos
+    // Si tenemos statusColors del backend, intentamos usarlos
     if (table.statusColors) {
       try {
         // Si es un string JSON, lo parseamos
-        const colors = typeof table.statusColors === 'string' 
-          ? JSON.parse(table.statusColors) 
-          : table.statusColors;
+        let colors: any;
+        if (typeof table.statusColors === 'string') {
+          // Verificar que sea un JSON válido
+          if (table.statusColors.startsWith('{')) {
+            colors = JSON.parse(table.statusColors);
+          } else {
+            console.warn(`Mesa ${table.name} - statusColors no es JSON válido:`, table.statusColors);
+            return defaultColors;
+          }
+        } else {
+          colors = table.statusColors;
+        }
         
-        console.log(`Mesa ${table.name} - Colores parseados:`, colors);
-        
-        if (colors && typeof colors === 'object') {
-          // Usar el formato exacto del método get_status_colors() del modelo Django
+        // Solo usamos los colores del backend si tienen los campos requeridos
+        if (colors && typeof colors === 'object' && (colors.color || colors.background_color)) {
           return {
-            backgroundColor: colors.background_color || colors.backgroundColor || '#f7fafc',
-            borderColor: colors.color || colors.borderColor || '#e2e8f0',
-            textColor: colors.text_color || colors.textColor || '#2d3748',
-            badgeColor: colors.background_color || colors.backgroundColor || '#667eea',
-            badgeTextColor: colors.text_color || colors.textColor || '#ffffff'
+            backgroundColor: colors.background_color || defaultColors.backgroundColor,
+            borderColor: colors.color || defaultColors.borderColor,
+            textColor: colors.text_color || defaultColors.textColor,
+            badgeColor: colors.color || defaultColors.badgeColor,
+            badgeTextColor: '#ffffff'
           };
         }
       } catch (error) {
-        console.warn('Error parsing statusColors:', error);
+        console.warn(`Mesa ${table.name} - Error parsing statusColors:`, error);
       }
     }
     
-    // Fallback a colores por defecto según el estado (usando los mismos colores del modelo Django)
-    switch (table.status) {
-      case 'AVAILABLE':
-        return {
-          backgroundColor: '#d4edda',
-          borderColor: '#28a745',
-          textColor: '#155724',
-          badgeColor: '#d4edda',
-          badgeTextColor: '#155724'
-        };
-      case 'OCCUPIED':
-        return {
-          backgroundColor: '#f8d7da',
-          borderColor: '#dc3545',
-          textColor: '#721c24',
-          badgeColor: '#f8d7da',
-          badgeTextColor: '#721c24'
-        };
-      case 'TO_PAY':
-        return {
-          backgroundColor: '#fff3cd',
-          borderColor: '#ffc107',
-          textColor: '#856404',
-          badgeColor: '#fff3cd',
-          badgeTextColor: '#856404'
-        };
-      case 'IN_PROCESS':
-        return {
-          backgroundColor: '#d1ecf1',
-          borderColor: '#17a2b8',
-          textColor: '#0c5460',
-          badgeColor: '#d1ecf1',
-          badgeTextColor: '#0c5460'
-        };
-      case 'MAINTENANCE':
-        return {
-          backgroundColor: '#e2e3e5',
-          borderColor: '#6c757d',
-          textColor: '#383d41',
-          badgeColor: '#e2e3e5',
-          badgeTextColor: '#383d41'
-        };
-      default:
-        return {
-          backgroundColor: '#e2e3e5',
-          borderColor: '#6c757d',
-          textColor: '#383d41',
-          badgeColor: '#e2e3e5',
-          badgeTextColor: '#383d41'
-        };
-    }
+    // Usar colores por defecto del estado
+    return defaultColors;
   };
 
   if (floorsLoading) {
@@ -509,6 +506,9 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
           }}>
             {tablesData?.tablesByFloor?.map((table: Table) => {
               const colors = getTableColors(table);
+              // Determinar si la mesa es redonda (ROUND del backend o CIRCLE)
+              const tableShape = table.shape as string;
+              const isRoundTable = tableShape === 'ROUND' || tableShape === 'CIRCLE';
               return (
                 <div
                   key={table.id}
@@ -516,12 +516,18 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                   style={{
                     backgroundColor: colors.backgroundColor,
                     border: `3px solid ${colors.borderColor}`,
-                    borderRadius: '16px',
+                    borderRadius: isRoundTable ? '50%' : '16px',
                     padding: '2.5rem',
                     textAlign: 'center',
                     transition: 'all 0.2s ease',
                     cursor: 'pointer',
                     position: 'relative',
+                    // Para mesas redondas, hacer el contenedor cuadrado para que el 50% funcione
+                    aspectRatio: isRoundTable ? '1 / 1' : 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     animation: table.status === 'OCCUPIED' ? 'pulse 2s infinite' : 
                                table.status === 'TO_PAY' ? 'pulseYellow 2s infinite' :
                                table.status === 'IN_PROCESS' ? 'pulseBlue 2s infinite' : 'none',
@@ -541,7 +547,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 >
                 <div style={{
                   fontSize: '3rem',
-                  marginBottom: '1.5rem',
+                  marginBottom: '1rem',
                   position: 'relative'
                 }}>
                   {/* Icono principal de la mesa */}
@@ -551,8 +557,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                               ? 'scale(1.1)' : 'scale(1)',
                     transition: 'transform 0.2s ease'
                   }}>
-                    {table.shape === 'CIRCLE' ? '⭕' : 
-                     table.shape === 'SQUARE' ? '⬜' : '🟦'}
+                    {isRoundTable ? '⭕' : '🟦'}
                   </div>
                   
                   {/* Indicador de estado con icono */}
@@ -783,7 +788,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             setShowOrder(false);
             setSelectedTable(null);
           }}
-          onSuccess={() => {
+          onSuccess={async () => {
             // Mostrar notificación de éxito cuando se guarde la orden
             setNotification({ 
               type: 'success', 
@@ -791,12 +796,14 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             });
             setTimeout(() => setNotification(null), 4000);
             
-            // Forzar actualización inmediata de las mesas (además del WebSocket)
-            // Esto asegura que las mesas se actualicen incluso si hay un pequeño delay en el WebSocket
-            setTimeout(() => {
-              refetchTables();
-              console.log('🔄 Refetch manual de mesas después de guardar orden');
-            }, 500);
+            // Refetch inmediato de las mesas para actualizar colores
+            console.log('🔄 Refetch inmediato de mesas después de guardar orden');
+            try {
+              await refetchTables();
+              console.log('✅ Mesas actualizadas correctamente');
+            } catch (error) {
+              console.error('❌ Error al actualizar mesas:', error);
+            }
           }}
         />
       )}

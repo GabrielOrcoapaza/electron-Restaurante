@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { loginUser, companyData, getMacAddress } = useAuth();
+  const { loginUser, companyData, getMacAddress, clearCompanyData } = useAuth();
   const [formData, setFormData] = useState({
     selectedEmployee: '',
     password: ''
@@ -18,7 +18,7 @@ const Login: React.FC = () => {
   // Obtener empleados directamente de los datos de la sucursal
   const allEmployees = companyData?.branch?.users || [];
   const employeesLoading = false;
-
+  
   // Filtrar empleados por término de búsqueda
   const filteredEmployees = allEmployees.filter((employee: any) => {
     const fullName = `${employee.firstName} ${employee.lastName}`.toLowerCase();
@@ -106,7 +106,16 @@ const Login: React.FC = () => {
   };
 
   const handleBackToCompany = () => {
-    navigate('/login-company');
+    // Limpiar datos de la compañía usando el método del contexto
+    clearCompanyData();
+    // Limpiar también tokens y datos de usuario por si acaso
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('userData');
+    localStorage.removeItem('userPhoto');
+    console.log('🧹 Datos de compañía limpiados, redirigiendo a login de compañía...');
+    // Navegar al login de compañía
+    navigate('/login-company', { replace: true });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {

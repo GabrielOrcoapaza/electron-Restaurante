@@ -7,7 +7,9 @@ import { getMainDefinition } from '@apollo/client/utilities';
 
 // URL de tu backend Django GraphQL (ajusta según tu configuración)
 const httpLink = createHttpLink({
-  uri: 'http://192.168.1.22:8000/graphql', // Puerto 8000 según tu settings
+  /*uri: 'http://192.168.1.22:8000/graphql', // Puerto 8000 según tu settings */
+  uri: 'http://159.223.194.41:3500/graphql', // Puerto 8000 según tu settings
+
 });
 
 // Link para manejar errores de autenticación

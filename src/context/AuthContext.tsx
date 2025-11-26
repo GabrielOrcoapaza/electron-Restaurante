@@ -1,7 +1,51 @@
 import React, { createContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import type { Table } from '../types/table';
 
 // Tipos para los datos de autenticación
+
+// Tipo para notas de subcategorías
+export interface Note {
+  id: string;
+  note: string;
+  isActive: boolean;
+}
+
+// Tipo para subcategorías
+export interface Subcategory {
+  id: string;
+  name: string;
+  description?: string;
+  order: number;
+  isActive: boolean;
+  notes?: Note[];
+}
+
+// Tipo para categorías
+export interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  order: number;
+  isActive: boolean;
+  subcategories?: Subcategory[];
+}
+
+// Tipo para pisos con sus mesas
+export interface Floor {
+  id: string;
+  name: string;
+  capacity: number;
+  floorImage?: string;
+  isActive: boolean;
+  order: number;
+  tables?: Array<Table & {
+    floorId?: string;
+    floorName?: string;
+  }>;
+}
 
 // Datos de la empresa y sucursal (primer login)
 export interface CompanyData {
@@ -9,17 +53,44 @@ export interface CompanyData {
     id: string;
     ruc: string;
     denomination: string;
+    commercialName?: string;
+    address?: string;
+    phone?: string;
     email: string;
+    logo?: string;
+    isActive: boolean;
   };
   branch: {
     id: string;
+    serial?: string;
     name: string;
-    address: string;
+    address?: string;
+    phone?: string;
+    logo?: string;
+    latitude?: number;
+    longitude?: number;
+    igvPercentage?: number;
+    pdfSize?: string;
+    pdfColor?: string;
+    isActive: boolean;
+    isPayment?: boolean;
+    isBilling?: boolean;
+    isDelivery?: boolean;
+    isMultiWaiterEnabled?: boolean;
+    isCommandItemMode?: boolean;
+    isKitchenPrint?: boolean;
+    isKitchenDisplay?: boolean;
     users?: Array<{
       id: string;
       firstName: string;
       lastName: string;
       dni: string;
+    }>;
+    floors?: Floor[];
+    categories?: Category[];
+    tables?: Array<Table & {
+      floorId?: string;
+      floorName?: string;
     }>;
   };
   companyLogo?: string;
@@ -37,6 +108,16 @@ export interface UserData {
   role: string;
 }
 
+// Tipo para actualizar una mesa
+export interface UpdatedTable {
+  id: string;
+  status: string;
+  statusColors?: any;
+  currentOperationId?: number | null;
+  occupiedById?: number | null;
+  userName?: string | null;
+}
+
 // Tipo del contexto de autenticación
 export interface AuthContextType {
   // Estado
@@ -50,6 +131,10 @@ export interface AuthContextType {
   loginCompany: (data: CompanyData) => void;
   loginUser: (token: string, refreshToken: string, userData: UserData, userPhoto?: string) => void;
   logout: () => void;
+  clearCompanyData: () => void; // Limpiar solo los datos de la compañía
+  
+  // Métodos para mesas
+  updateTableInContext: (updatedTable: UpdatedTable) => void;
   
   // Utilidades
   getDeviceId: () => string;
@@ -204,22 +289,78 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsAuthenticated(true);
   };
 
-  // Logout
+  // Limpiar solo los datos de la compañía (para cambiar de compañía)
+  const clearCompanyData = () => {
+    console.log('🧹 Limpiando datos de compañía...');
+    localStorage.removeItem('companyData');
+    setCompanyData(null);
+  };
+
+  // Actualizar el estado de una mesa en el contexto
+  const updateTableInContext = (updatedTable: UpdatedTable) => {
+    if (!companyData) return;
+
+    console.log('🪑 Actualizando mesa en contexto:', updatedTable);
+
+    const newCompanyData: CompanyData = {
+      ...companyData,
+      branch: {
+        ...companyData.branch,
+        // Actualizar en floors
+        floors: companyData.branch.floors?.map(floor => ({
+          ...floor,
+          tables: floor.tables?.map(table => 
+            table.id === updatedTable.id 
+              ? { 
+                  ...table, 
+                  status: updatedTable.status as Table['status'],
+                  statusColors: updatedTable.statusColors ?? table.statusColors,
+                  currentOperationId: updatedTable.currentOperationId ?? table.currentOperationId,
+                  occupiedById: updatedTable.occupiedById ?? table.occupiedById,
+                  userName: updatedTable.userName ?? table.userName
+                }
+              : table
+          )
+        })),
+        // Actualizar en tables (lista plana)
+        tables: companyData.branch.tables?.map(table =>
+          table.id === updatedTable.id
+            ? { 
+                ...table, 
+                status: updatedTable.status as Table['status'],
+                statusColors: updatedTable.statusColors ?? table.statusColors,
+                currentOperationId: updatedTable.currentOperationId ?? table.currentOperationId,
+                occupiedById: updatedTable.occupiedById ?? table.occupiedById,
+                userName: updatedTable.userName ?? table.userName
+              }
+            : table
+        )
+      }
+    };
+
+    // Actualizar estado y localStorage
+    setCompanyData(newCompanyData);
+    localStorage.setItem('companyData', JSON.stringify(newCompanyData));
+    console.log('✅ Mesa actualizada en contexto');
+  };
+
+  // Logout - Solo limpia datos del usuario, mantiene datos de la empresa
   const logout = () => {
-    console.log('🚪 Cerrando sesión...');
+    console.log('🚪 Cerrando sesión de usuario...');
     
-    // Limpiar localStorage
+    // Limpiar localStorage - Solo datos del usuario
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('userData');
     localStorage.removeItem('userPhoto');
-    localStorage.removeItem('companyData');
+    // Mantener companyData para no tener que volver a iniciar sesión como empresa
+    // Usar clearCompanyData() si se quiere cambiar de empresa
     // Mantener device_id para futuros logins
 
-    // Limpiar estado
+    // Limpiar estado del usuario
     setToken(null);
     setUser(null);
-    setCompanyData(null);
+    // Mantener companyData
     setIsAuthenticated(false);
   };
 
@@ -232,6 +373,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loginCompany,
     loginUser,
     logout,
+    clearCompanyData,
+    updateTableInContext,
     getDeviceId,
     getMacAddress,
   };

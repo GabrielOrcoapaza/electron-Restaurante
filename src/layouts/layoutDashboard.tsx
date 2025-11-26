@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, gql } from '@apollo/client';
+import { useQuery, useMutation, gql } from '@apollo/client';
 import { useAuth } from '../hooks/useAuth';
 import { WebSocketProvider, useWebSocket } from '../context/WebSocketContext';
 import Floor from '../modules/sales/floor';
 import CashPay from '../modules/cash/cashPay';
+import Message from '../modules/cash/message';
+import { GET_MY_UNREAD_MESSAGES } from '../graphql/queries';
+import { MARK_MESSAGE_READ } from '../graphql/mutations';
 import type { Table } from '../types/table';
 
 const GET_MY_KITCHEN_NOTIFICATIONS = gql`
@@ -58,7 +61,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const { user, companyData, logout } = useAuth();
   const { disconnect, subscribe } = useWebSocket();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'messages'>('dashboard');
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
@@ -75,6 +78,18 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     pollInterval: 30000
   });
 
+  const {
+    data: broadcastMessagesData,
+    loading: broadcastMessagesLoading,
+    error: broadcastMessagesError,
+    refetch: refetchBroadcastMessages
+  } = useQuery(GET_MY_UNREAD_MESSAGES, {
+    skip: !user?.id,
+    pollInterval: 30000
+  });
+
+  const [markMessageReadMutation] = useMutation(MARK_MESSAGE_READ);
+
   useEffect(() => {
     if (notificationsError) {
       console.error('❌ Error al obtener notificaciones de cocina:', notificationsError);
@@ -82,16 +97,30 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   }, [notificationsError]);
 
   useEffect(() => {
+    if (broadcastMessagesError) {
+      console.error('❌ Error al obtener mensajes broadcast:', broadcastMessagesError);
+    }
+  }, [broadcastMessagesError]);
+
+  useEffect(() => {
     if (!user?.id) {
       return;
     }
-    const unsubscribe = subscribe('kitchen_notification', () => {
+    const unsubscribeKitchen = subscribe('kitchen_notification', () => {
       refetchKitchenNotifications();
     });
+    const unsubscribeBroadcast = subscribe('broadcast_message', (message: any) => {
+      // Verificar si el mensaje es para este usuario
+      if (message.target_user_id && user.id && String(message.target_user_id) === String(user.id)) {
+        console.log('📬 Mensaje broadcast recibido para este usuario:', message);
+        refetchBroadcastMessages();
+      }
+    });
     return () => {
-      unsubscribe();
+      unsubscribeKitchen();
+      unsubscribeBroadcast();
     };
-  }, [subscribe, refetchKitchenNotifications, user?.id]);
+  }, [subscribe, refetchKitchenNotifications, refetchBroadcastMessages, user?.id]);
 
   useEffect(() => {
     if (!showNotifications) {
@@ -108,39 +137,95 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     };
   }, [showNotifications]);
 
-  const notifications = notificationsData?.myKitchenNotifications ?? [];
-  const unreadNotifications = notifications.filter((notification: any) => !notification?.isRead);
-  const visibleNotifications = unreadNotifications.filter(
+  // Función para verificar si el usuario debe ver un mensaje broadcast según su rol
+  const shouldUserSeeMessage = (messageRecipients: string, userRole: string | undefined): boolean => {
+    if (!userRole) return false;
+    
+    // Si el mensaje es para todos, todos lo ven
+    if (messageRecipients === 'ALL') return true;
+    
+    // Mapear roles del usuario a los valores de recipients
+    const roleMapping: Record<string, string> = {
+      'WAITER': 'WAITERS',
+      'COOK': 'COOKS',
+      'CASHIER': 'CASHIERS',
+      'ADMIN': 'ADMINS',
+    };
+    
+    // Verificar si el rol del usuario coincide con el destinatario del mensaje
+    const userRecipientGroup = roleMapping[userRole.toUpperCase()];
+    return userRecipientGroup === messageRecipients;
+  };
+
+  // Notificaciones de cocina
+  const kitchenNotifications = notificationsData?.myKitchenNotifications ?? [];
+  const unreadKitchenNotifications = useMemo(() => 
+    kitchenNotifications.filter((notification: any) => !notification?.isRead),
+    [kitchenNotifications]
+  );
+  
+  // Mensajes broadcast - filtrar solo los que corresponden al rol del usuario
+  const broadcastMessages = useMemo(() => {
+    const allMessages = broadcastMessagesData?.myUnreadMessages ?? [];
+    return allMessages.filter((message: any) => 
+      shouldUserSeeMessage(message.recipients, user?.role)
+    );
+  }, [broadcastMessagesData?.myUnreadMessages, user?.role]);
+  
+  // Combinar ambas notificaciones
+  const allNotifications = useMemo(() => [
+    ...unreadKitchenNotifications.map((n: any) => ({ ...n, type: 'kitchen' })),
+    ...broadcastMessages.map((m: any) => ({ ...m, type: 'broadcast' }))
+  ].sort((a: any, b: any) => {
+    // Ordenar por fecha, más recientes primero
+    const dateA = new Date(a.createdAt || 0).getTime();
+    const dateB = new Date(b.createdAt || 0).getTime();
+    return dateB - dateA;
+  }), [unreadKitchenNotifications, broadcastMessages]);
+
+  const visibleNotifications = allNotifications.filter(
     (notification: any) => !hiddenNotificationIds.includes(notification?.id)
   );
   const unreadCount = visibleNotifications.length;
 
   useEffect(() => {
-    if (!notifications.length) {
+    if (!allNotifications.length) {
       setHiddenNotificationIds([]);
       return;
     }
     setHiddenNotificationIds((prev) =>
-      prev.filter((hiddenId) => notifications.some((notification: any) => notification?.id === hiddenId))
+      prev.filter((hiddenId) => allNotifications.some((notification: any) => notification?.id === hiddenId))
     );
-  }, [notifications]);
+  }, [allNotifications]);
 
   const handleDismissNotification = (notificationId: string) => {
     setHiddenNotificationIds((prev) => (prev.includes(notificationId) ? prev : [...prev, notificationId]));
+  };
+
+  const handleMarkMessageRead = async (messageId: string) => {
+    try {
+      await markMessageReadMutation({
+        variables: { messageId },
+      });
+      refetchBroadcastMessages();
+    } catch (error) {
+      console.error('Error marcando mensaje como leído:', error);
+    }
   };
 
   const handleLogout = () => {
     // Desconectar WebSocket antes de hacer logout
     disconnect();
     logout();
-    navigate('/login-company');
+    // Navegar al login de empleado (los datos de la empresa se mantienen)
+    navigate('/login-employee');
   };
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
-  const handleMenuClick = (view: 'dashboard' | 'floors') => {
+  const handleMenuClick = (view: 'dashboard' | 'floors' | 'messages') => {
     setCurrentView(view);
     setSelectedCashTable(null);
   };
@@ -160,6 +245,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       ? 'Dashboard'
       : currentView === 'floors'
       ? 'Mesas'
+      : currentView === 'messages'
+      ? 'Mensajes'
       : 'Caja';
 
   const headerSubtitle =
@@ -167,6 +254,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       ? `Bienvenido de vuelta, ${user?.firstName}`
       : currentView === 'floors'
       ? 'Gestiona la ocupación y las órdenes de tus mesas.'
+      : currentView === 'messages'
+      ? 'Envía mensajes a cocina, mozos u otros usuarios.'
       : selectedCashTable
       ? `Procesa el pago de ${selectedCashTable.name}.`
       : 'Selecciona una mesa para revisar su orden.';
@@ -431,14 +520,15 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
             </button>
 
             <button
+              onClick={() => handleMenuClick('messages')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.75rem',
                 padding: '0.75rem 1.5rem',
-                background: 'transparent',
+                background: currentView === 'messages' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
                 border: 'none',
-                color: '#a0aec0',
+                color: currentView === 'messages' ? '#667eea' : '#a0aec0',
                 cursor: 'pointer',
                 fontSize: '0.875rem',
                 fontWeight: '500',
@@ -447,16 +537,20 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                 width: '100%'
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                e.currentTarget.style.color = 'white';
+                if (currentView !== 'messages') {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.color = 'white';
+                }
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#a0aec0';
+                if (currentView !== 'messages') {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#a0aec0';
+                }
               }}
             >
-              <span style={{ fontSize: '1.25rem' }}>⚙️</span>
-              {sidebarOpen && 'Configuración'}
+              <span style={{ fontSize: '1.25rem' }}>💬</span>
+              {sidebarOpen && 'Mensajes'}
             </button>
           </div>
         </nav>
@@ -644,7 +738,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                           color: '#2d3748'
                         }}
                       >
-                        Notificaciones de cocina
+                        Notificaciones
                       </h3>
                       <p
                         style={{
@@ -653,12 +747,15 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                           color: '#718096'
                         }}
                       >
-                        Últimos mensajes de los cocineros
+                        Mensajes y notificaciones de cocina
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => refetchKitchenNotifications()}
+                      onClick={() => {
+                        refetchKitchenNotifications();
+                        refetchBroadcastMessages();
+                      }}
                       style={{
                         border: 'none',
                         backgroundColor: 'transparent',
@@ -671,7 +768,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                       ⟳
                     </button>
                   </div>
-                  {notificationsLoading ? (
+                  {(notificationsLoading || broadcastMessagesLoading) ? (
                     <div
                       style={{
                         padding: '1rem',
@@ -697,10 +794,18 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                     </div>
                   ) : (
                     visibleNotifications.map((notification: any) => {
+                      const isBroadcast = notification.type === 'broadcast';
                       const chefName = notification?.preparedBy?.fullName || 'Cocina';
                       const tableName = notification?.operation?.table?.name || 'Sin mesa';
                       const productName = notification?.operationDetail?.productName;
                       const quantity = notification?.operationDetail?.quantity;
+                      const senderName = notification?.sender?.fullName || 'Usuario';
+                      const recipientsLabel = notification?.recipients === 'ALL' ? 'Todos' :
+                        notification?.recipients === 'WAITERS' ? 'Mozos' :
+                        notification?.recipients === 'COOKS' ? 'Cocineros' :
+                        notification?.recipients === 'CASHIERS' ? 'Cajeros' :
+                        notification?.recipients === 'ADMINS' ? 'Administradores' : notification?.recipients;
+
                       return (
                         <div
                           key={notification.id}
@@ -709,13 +814,18 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                             borderRadius: '10px',
                             padding: '0.75rem',
                             marginBottom: '0.5rem',
-                            backgroundColor: '#fdf2f8',
+                            backgroundColor: isBroadcast ? '#eff6ff' : '#fdf2f8',
                             position: 'relative'
                           }}
                         >
                           <button
                             type="button"
-                            onClick={() => handleDismissNotification(notification.id)}
+                            onClick={() => {
+                              if (isBroadcast) {
+                                handleMarkMessageRead(notification.id);
+                              }
+                              handleDismissNotification(notification.id);
+                            }}
                             style={{
                               position: 'absolute',
                               top: '8px',
@@ -728,8 +838,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                               fontWeight: 700,
                               lineHeight: 1
                             }}
-                            aria-label="Ocultar notificación"
-                            title="Ocultar notificación"
+                            aria-label={isBroadcast ? "Marcar como leído y ocultar" : "Ocultar notificación"}
+                            title={isBroadcast ? "Marcar como leído y ocultar" : "Ocultar notificación"}
                           >
                             ×
                           </button>
@@ -745,14 +855,14 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                                 width: '36px',
                                 height: '36px',
                                 borderRadius: '9999px',
-                                backgroundColor: '#fbb6ce',
+                                backgroundColor: isBroadcast ? '#bfdbfe' : '#fbb6ce',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 fontSize: '1.1rem'
                               }}
                             >
-                              🍽️
+                              {isBroadcast ? '💬' : '🍽️'}
                             </div>
                             <div style={{ flex: 1 }}>
                               <p
@@ -775,13 +885,22 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                                   color: '#4a5568'
                                 }}
                               >
-                                <span>👨‍🍳 {chefName}</span>
-                                <span>🪑 Mesa {tableName}</span>
-                                {productName && (
-                                  <span>
-                                    🧾 {quantity ? `${quantity}× ` : ''}
-                                    {productName}
-                                  </span>
+                                {isBroadcast ? (
+                                  <>
+                                    <span>👤 De: {senderName}</span>
+                                    <span>📢 Para: {recipientsLabel}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>👨‍🍳 {chefName}</span>
+                                    <span>🪑 Mesa {tableName}</span>
+                                    {productName && (
+                                      <span>
+                                        🧾 {quantity ? `${quantity}× ` : ''}
+                                        {productName}
+                                      </span>
+                                    )}
+                                  </>
                                 )}
                                 <span style={{ color: '#a0aec0' }}>
                                   {formatRelativeTime(notification?.createdAt)}
@@ -818,6 +937,15 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                 // El WebSocket debería actualizar automáticamente las mesas
                 // pero podemos forzar un refetch si es necesario
                 console.log('✅ Pago procesado exitosamente');
+              }}
+            />
+          )}
+          {currentView === 'messages' && (
+            <Message
+              onBack={() => handleMenuClick('dashboard')}
+              onSuccess={() => {
+                // Opcional: puedes agregar lógica aquí después de enviar un mensaje exitosamente
+                console.log('✅ Mensaje enviado exitosamente');
               }}
             />
           )}

@@ -33,6 +33,10 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<any>(null);
   const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 10;
+  const isManualDisconnectRef = useRef(false);
   const subscribersRef = useRef<Map<string, Set<(message: WebSocketMessage) => void>>>(new Map());
 
   // Función para suscribirse a eventos
@@ -65,6 +69,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Función para desconectar el WebSocket
   const disconnect = useCallback(() => {
+    isManualDisconnectRef.current = true; // Marcar como desconexión manual
+    
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
     if (pingIntervalRef.current) {
       clearInterval(pingIntervalRef.current);
       pingIntervalRef.current = null;
@@ -75,6 +85,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       wsRef.current = null;
       setIsConnected(false);
     }
+    reconnectAttemptsRef.current = 0;
   }, []);
 
   // Notificar a los suscriptores
@@ -90,8 +101,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, []);
 
-  // Efecto para manejar la conexión del WebSocket
-  useEffect(() => {
+  // Función para crear y conectar el WebSocket
+  const connectWebSocket = useCallback(() => {
     if (!companyData?.branch.id || !user?.id) {
       console.log('⚠️ Faltan datos para WebSocket:', { 
         branchId: companyData?.branch.id, 
@@ -107,86 +118,141 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
+    // Si ya hay una conexión activa, no crear otra
+    if (wsRef.current && wsRef.current.readyState === 1) {
+      console.log('ℹ️ WebSocket ya está conectado');
+      return;
+    }
+
+    // Resetear flag de desconexión manual al intentar conectar
+    isManualDisconnectRef.current = false;
+
     // URL del WebSocket según tu backend
-    const wsUrl = `ws://192.168.1.22:8000/ws/restaurant/${companyData.branch.id}/`;
+    /*const wsUrl = `ws://192.168.1.22:8000/ws/restaurant/${companyData.branch.id}/`;*/
+    const wsUrl = `ws://159.223.194.41:3500/ws/restaurant/${companyData.branch.id}/`;
     
-    console.log('🔌 Intentando conectar WebSocket...');
+    console.log('🔌 Intentando conectar WebSocket... (intento', reconnectAttemptsRef.current + 1, ')');
     
-    // Sistema de escritorio con Electron - usar WebSocket con headers
-    const WebSocketNode = (window as any).require('ws');
-    const ws = new WebSocketNode(wsUrl, {
-      headers: {
-        'Authorization': `Bearer ${tokenFromStorage}`
-      }
-    });
+    try {
+      // Sistema de escritorio con Electron - usar WebSocket con headers
+      const WebSocketNode = (window as any).require('ws');
+      const ws = new WebSocketNode(wsUrl, {
+        headers: {
+          'Authorization': `Bearer ${tokenFromStorage}`
+        }
+      });
 
-    wsRef.current = ws;
+      wsRef.current = ws;
 
-    // Usar la API de eventos de ws (Node.js)
-    ws.on('open', () => {
-      console.log('✅ WebSocket conectado para branch:', companyData.branch.id);
-      setIsConnected(true);
-    });
-
-    ws.on('message', (data: any) => {
-      try {
-        const message = JSON.parse(data.toString());
-        console.log('🔄 Mensaje WebSocket recibido:', message);
+      // Usar la API de eventos de ws (Node.js)
+      ws.on('open', () => {
+        console.log('✅ WebSocket conectado para branch:', companyData.branch.id);
+        setIsConnected(true);
+        reconnectAttemptsRef.current = 0; // Resetear contador de intentos al conectar exitosamente
         
-        // Notificar a los suscriptores
-        notifySubscribers(message);
+        // Notificar reconexión exitosa
+        notifySubscribers({ type: 'connected', message: 'Conexión establecida' });
+      });
+
+      ws.on('message', (data: any) => {
+        try {
+          const message = JSON.parse(data.toString());
+          console.log('🔄 Mensaje WebSocket recibido:', message);
+          
+          // Notificar a los suscriptores
+          notifySubscribers(message);
+          
+        } catch (error) {
+          console.error('❌ Error parseando mensaje WebSocket:', error);
+        }
+      });
+
+      ws.on('error', (error: any) => {
+        console.error('❌ Error WebSocket:', error);
+        setIsConnected(false);
+        notifySubscribers({ type: 'error', message: 'Error de conexión en tiempo real' });
+      });
+
+      ws.on('close', (code: number, reason: any) => {
+        console.log('🔌 WebSocket desconectado:', code, reason?.toString?.() || 'Sin razón');
+        setIsConnected(false);
         
-      } catch (error) {
-        console.error('❌ Error parseando mensaje WebSocket:', error);
-      }
-    });
+        // Limpiar el ping interval
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+          pingIntervalRef.current = null;
+        }
+        
+        // No reintentar si fue desconexión manual o cierre normal
+        if (isManualDisconnectRef.current || code === 1000) {
+          console.log('✅ Cierre normal del WebSocket, no se reintentará');
+          return;
+        }
+        
+        // Reintentar conexión con backoff exponencial
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000); // Max 30 segundos
+          reconnectAttemptsRef.current++;
+          
+          console.log(`🔄 Reintentando conexión en ${delay / 1000} segundos... (intento ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connectWebSocket();
+          }, delay);
+        } else {
+          console.error('❌ Se alcanzó el máximo de intentos de reconexión');
+          notifySubscribers({ 
+            type: 'reconnect_failed', 
+            message: 'No se pudo reconectar después de varios intentos' 
+          });
+        }
+      });
 
-    ws.on('error', (error: any) => {
-      console.error('❌ Error WebSocket:', error);
-      setIsConnected(false);
-      notifySubscribers({ type: 'error', message: 'Error de conexión en tiempo real' });
-    });
+      // Enviar ping periódico para mantener la conexión viva
+      pingIntervalRef.current = setInterval(() => {
+        if (ws.readyState === 1) { // OPEN = 1
+          ws.send(JSON.stringify({ type: 'ping' }));
+          console.log('🏓 Ping enviado');
+        }
+      }, 25000); // Cada 25 segundos (un poco más frecuente para mayor seguridad)
 
-    ws.on('close', (code: number, reason: any) => {
-      console.log('🔌 WebSocket desconectado:', code, reason.toString());
-      setIsConnected(false);
+    } catch (error) {
+      console.error('❌ Error creando WebSocket:', error);
       
-      // No reintentar automáticamente si fue un cierre normal (logout)
-      if (code === 1000) {
-        console.log('✅ Cierre normal del WebSocket');
-        return;
+      // Reintentar si falló la creación
+      if (reconnectAttemptsRef.current < maxReconnectAttempts && !isManualDisconnectRef.current) {
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+        reconnectAttemptsRef.current++;
+        
+        console.log(`🔄 Reintentando en ${delay / 1000} segundos...`);
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectWebSocket();
+        }, delay);
       }
-      
-      // Reintentar conexión si no fue un cierre normal
-      if (code !== 1000) {
-        console.log('🔄 Reintentando conexión en 3 segundos...');
-        setTimeout(() => {
-          // La reconexión se manejará automáticamente por el useEffect
-        }, 3000);
-      }
-    });
+    }
+  }, [companyData?.branch.id, user?.id, notifySubscribers]);
 
-    // Enviar ping periódico para mantener la conexión viva
-    pingIntervalRef.current = setInterval(() => {
-      if (ws.readyState === 1) { // OPEN = 1
-        ws.send(JSON.stringify({ type: 'ping' }));
-        console.log('🏓 Ping enviado');
-      }
-    }, 30000); // Cada 30 segundos
+  // Efecto para manejar la conexión del WebSocket
+  useEffect(() => {
+    connectWebSocket();
 
     // Cleanup
     return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
       if (pingIntervalRef.current) {
         clearInterval(pingIntervalRef.current);
         pingIntervalRef.current = null;
       }
-      if (ws && ws.readyState === 1) { // OPEN = 1
-        ws.close(1000, 'Component unmount');
+      if (wsRef.current && wsRef.current.readyState === 1) { // OPEN = 1
+        wsRef.current.close(1000, 'Component unmount');
       }
       wsRef.current = null;
       setIsConnected(false);
     };
-  }, [companyData?.branch.id, user?.id, notifySubscribers]);
+  }, [connectWebSocket]);
 
   const value: WebSocketContextType = {
     isConnected,
