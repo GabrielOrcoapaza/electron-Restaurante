@@ -938,6 +938,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                 // pero podemos forzar un refetch si es necesario
                 console.log('✅ Pago procesado exitosamente');
               }}
+              onTableChange={(newTable) => {
+                // Actualizar la mesa seleccionada cuando se cambia la mesa
+                console.log('🔄 Mesa cambiada a:', newTable.name);
+                setSelectedCashTable(newTable);
+              }}
             />
           )}
           {currentView === 'messages' && (

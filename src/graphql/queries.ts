@@ -48,6 +48,13 @@ export const GET_OPERATION_BY_TABLE = gql`
       igvAmount
       igvPercentage
       operationDate
+      user {
+        id
+        firstName
+        lastName
+        fullName
+        dni
+      }
       details {
         id
         productId
@@ -58,6 +65,7 @@ export const GET_OPERATION_BY_TABLE = gql`
         unitPrice
         total
         notes
+        isCanceled
       }
     }
   }

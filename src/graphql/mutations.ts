@@ -335,3 +335,112 @@ export const MARK_MESSAGE_READ = gql`
   }
 `;
 
+// Mutación para cambiar la mesa de una operación
+export const CHANGE_OPERATION_TABLE = gql`
+  mutation ChangeOperationTable($operationId: ID!, $newTableId: ID!, $branchId: ID!) {
+    changeOperationTable(operationId: $operationId, newTableId: $newTableId, branchId: $branchId) {
+      success
+      message
+      operation {
+        id
+        order
+        status
+      }
+      oldTable {
+        id
+        name
+        status
+      }
+      newTable {
+        id
+        name
+        status
+        occupiedById
+        userName
+        currentOperationId
+      }
+    }
+  }
+`;
+
+// Mutación para cambiar el mozo de una operación
+export const CHANGE_OPERATION_USER = gql`
+  mutation ChangeOperationUser($operationId: ID!, $newUserId: ID!, $branchId: ID!) {
+    changeOperationUser(operationId: $operationId, newUserId: $newUserId, branchId: $branchId) {
+      success
+      message
+      operation {
+        id
+        order
+        status
+      }
+      table {
+        id
+        name
+        status
+        occupiedById
+        userName
+        currentOperationId
+      }
+    }
+  }
+`; 
+
+
+// Mutación para transferir items (platos) entre mesas
+export const TRANSFER_ITEMS = gql`
+  mutation TransferItems($fromOperationId: ID!, $toTableId: ID!, $detailIds: [ID!]!, $branchId: ID!, $createNewOperation: Boolean) {
+    transferItems(
+      fromOperationId: $fromOperationId
+      toTableId: $toTableId
+      detailIds: $detailIds
+      branchId: $branchId
+      createNewOperation: $createNewOperation
+    ) {
+      success
+      message
+      fromOperation {
+        id
+        order
+        status
+      }
+      toOperation {
+        id
+        order
+        status
+      }
+      oldTable {
+        id
+        name
+        status
+        occupiedById
+        userName
+        currentOperationId
+      }
+      newTable {
+        id
+        name
+        status
+        occupiedById
+        userName
+        currentOperationId
+      }
+    }
+  }
+`; 
+
+// Mutación para cancelar un detalle de operación
+export const CANCEL_OPERATION_DETAIL = gql`
+  mutation CancelOperationDetail($detailId: ID!, $quantity: Float, $userId: ID) {
+    cancelOperationDetail(detailId: $detailId, quantity: $quantity, userId: $userId) {
+      success
+      message
+      detail {
+        id
+        quantity
+        isCanceled
+      }
+    }
+  }
+`;
+

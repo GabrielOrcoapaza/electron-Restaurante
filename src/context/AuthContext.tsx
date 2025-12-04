@@ -314,10 +314,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               ? { 
                   ...table, 
                   status: updatedTable.status as Table['status'],
-                  statusColors: updatedTable.statusColors ?? table.statusColors,
-                  currentOperationId: updatedTable.currentOperationId ?? table.currentOperationId,
-                  occupiedById: updatedTable.occupiedById ?? table.occupiedById,
-                  userName: updatedTable.userName ?? table.userName
+                  statusColors: updatedTable.statusColors !== undefined ? updatedTable.statusColors : table.statusColors,
+                  currentOperationId: updatedTable.currentOperationId !== undefined ? (updatedTable.currentOperationId ?? undefined) : table.currentOperationId,
+                  occupiedById: updatedTable.occupiedById !== undefined ? (updatedTable.occupiedById ?? undefined) : table.occupiedById,
+                  userName: updatedTable.userName !== undefined ? (updatedTable.userName ?? undefined) : table.userName
                 }
               : table
           )
@@ -328,10 +328,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             ? { 
                 ...table, 
                 status: updatedTable.status as Table['status'],
-                statusColors: updatedTable.statusColors ?? table.statusColors,
-                currentOperationId: updatedTable.currentOperationId ?? table.currentOperationId,
-                occupiedById: updatedTable.occupiedById ?? table.occupiedById,
-                userName: updatedTable.userName ?? table.userName
+                statusColors: updatedTable.statusColors !== undefined ? updatedTable.statusColors : table.statusColors,
+                currentOperationId: updatedTable.currentOperationId !== undefined ? (updatedTable.currentOperationId ?? undefined) : table.currentOperationId,
+                occupiedById: updatedTable.occupiedById !== undefined ? (updatedTable.occupiedById ?? undefined) : table.occupiedById,
+                userName: updatedTable.userName !== undefined ? (updatedTable.userName ?? undefined) : table.userName
               }
             : table
         )

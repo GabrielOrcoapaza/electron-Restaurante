@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import type { Table } from '../../types/table';
-import { CREATE_ISSUED_DOCUMENT } from '../../graphql/mutations';
-import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE } from '../../graphql/queries';
+import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CREATE_OPERATION, CANCEL_OPERATION_DETAIL } from '../../graphql/mutations';
+import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries';
 
 type CashPayProps = {
   table: Table | null;
   onBack: () => void;
   onPaymentSuccess?: () => void;
+  onTableChange?: (newTable: Table) => void;
 };
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
@@ -17,8 +18,8 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
   minimumFractionDigits: 2
 });
 
-const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) => {
-  const { companyData, user, deviceId } = useAuth();
+const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTableChange }) => {
+  const { companyData, user, deviceId, getMacAddress, updateTableInContext } = useAuth();
   const hasSelection = Boolean(table?.id && companyData?.branch.id);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
   const [selectedSerialId, setSelectedSerialId] = useState<string>('');
@@ -30,6 +31,14 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
   const [isSplitMode, setIsSplitMode] = useState(false);
   const [itemAssignments, setItemAssignments] = useState<Record<string, boolean>>({});
   const [modifiedDetails, setModifiedDetails] = useState<any[]>([]);
+  const [showChangeTableModal, setShowChangeTableModal] = useState(false);
+  const [selectedFloorId, setSelectedFloorId] = useState<string>('');
+  const [selectedTableId, setSelectedTableId] = useState<string>('');
+  const [showChangeUserModal, setShowChangeUserModal] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [showTransferPlatesModal, setShowTransferPlatesModal] = useState(false);
+  const [selectedTransferFloorId, setSelectedTransferFloorId] = useState<string>('');
+  const [selectedTransferTableId, setSelectedTransferTableId] = useState<string>('');
 
   const {
     data,
@@ -73,7 +82,36 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
     skip: !companyData?.branch.id
   });
 
+  // Obtener pisos para el modal de cambio de mesa
+  const { data: floorsData, loading: floorsLoading } = useQuery(GET_FLOORS_BY_BRANCH, {
+    variables: { branchId: companyData?.branch.id || '' },
+    skip: !companyData?.branch.id || !showChangeTableModal
+  });
+
+  // Obtener mesas del piso seleccionado
+  const { data: tablesData, loading: tablesLoading, refetch: refetchTables } = useQuery(GET_TABLES_BY_FLOOR, {
+    variables: { floorId: selectedFloorId },
+    skip: !selectedFloorId
+  });
+
+  // Obtener pisos para el modal de transferir platos
+  const { data: transferFloorsData, loading: transferFloorsLoading } = useQuery(GET_FLOORS_BY_BRANCH, {
+    variables: { branchId: companyData?.branch.id || '' },
+    skip: !companyData?.branch.id || !showTransferPlatesModal
+  });
+
+  // Obtener mesas del piso seleccionado para transferir
+  const { data: transferTablesData, loading: transferTablesLoading } = useQuery(GET_TABLES_BY_FLOOR, {
+    variables: { floorId: selectedTransferFloorId },
+    skip: !selectedTransferFloorId
+  });
+
   const [createIssuedDocumentMutation] = useMutation(CREATE_ISSUED_DOCUMENT);
+  const [changeOperationTableMutation] = useMutation(CHANGE_OPERATION_TABLE);
+  const [changeOperationUserMutation] = useMutation(CHANGE_OPERATION_USER);
+  const [transferItemsMutation] = useMutation(TRANSFER_ITEMS);
+  const [createOperationMutation] = useMutation(CREATE_OPERATION);
+  const [cancelOperationDetailMutation] = useMutation(CANCEL_OPERATION_DETAIL);
 
   const operation = data?.operationByTable;
   // Filtrar solo documentos y series activos (aunque el backend ya debería filtrarlos)
@@ -153,8 +191,26 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
 
   const igvPercentage = Number(operation?.igvPercentage) || 18;
   
-  // Calcular totales basados en los detalles modificados
-  const detailsToUse = modifiedDetails.length > 0 ? modifiedDetails : (operation?.details || []);
+  // Función helper para filtrar productos cancelados
+  const filterCanceledDetails = (details: any[]) => {
+    if (!details || !Array.isArray(details)) return [];
+    return details.filter((detail: any) => {
+      // Filtrar productos cancelados (isCanceled puede ser true, "true", 1, etc.)
+      // Si isCanceled es undefined, null, false, 0, o "", el producto NO está cancelado
+      if (detail.isCanceled === undefined || detail.isCanceled === null || detail.isCanceled === false) {
+        return true; // No está cancelado, incluirlo
+      }
+      // Si isCanceled es true, 1, "true", "True", etc., está cancelado, excluirlo
+      const isCanceled = detail.isCanceled === true || detail.isCanceled === 1 || 
+                        detail.isCanceled === "true" || detail.isCanceled === "True" ||
+                        String(detail.isCanceled).toLowerCase() === "true";
+      return !isCanceled;
+    });
+  };
+
+  // Calcular totales basados en los detalles modificados (filtrar cancelados)
+  const allDetails = modifiedDetails.length > 0 ? modifiedDetails : (operation?.details || []);
+  const detailsToUse = filterCanceledDetails(allDetails);
   const subtotal = detailsToUse.reduce((sum: number, detail: any) => {
     const quantity = Number(detail.quantity) || 0;
     const unitPrice = Number(detail.unitPrice) || 0;
@@ -189,27 +245,80 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
     setSelectedSerialId('');
   }, [selectedDocumentId]);
 
-  // Inicializar detalles modificados cuando se carga la operación
+  // Inicializar detalles modificados cuando se carga la operación (filtrar cancelados)
   React.useEffect(() => {
     if (operation?.details) {
-      setModifiedDetails([...operation.details]);
+      const nonCanceledDetails = filterCanceledDetails(operation.details);
+      setModifiedDetails([...nonCanceledDetails]);
+      // Si estamos en modo de división, marcar todos los productos como seleccionados
+      if (isSplitMode) {
+        const initialAssignments: Record<string, boolean> = {};
+        nonCanceledDetails.forEach((detail: any) => {
+          if (detail.id) {
+            initialAssignments[detail.id] = true;
+          }
+        });
+        setItemAssignments(prev => ({ ...prev, ...initialAssignments }));
+      }
     }
-  }, [operation?.details]);
+  }, [operation?.details, isSplitMode]);
+
+  // Refetch automático cuando cambia la mesa
+  React.useEffect(() => {
+    if (table?.id && companyData?.branch.id) {
+      console.log('🔄 Mesa cambiada, refetching operación para mesa:', table.id);
+      
+      // Pequeño delay para asegurar que el backend haya procesado el cambio
+      const timer = setTimeout(() => {
+        refetch({
+          tableId: table.id,
+          branchId: companyData.branch.id
+        }).then((result) => {
+          console.log('✅ Operación refetched exitosamente para mesa:', table.id);
+          // Reinicializar detalles después del refetch (filtrar cancelados)
+          if (result.data?.operationByTable?.details) {
+            const nonCanceledDetails = filterCanceledDetails(result.data.operationByTable.details);
+            setModifiedDetails([...nonCanceledDetails]);
+          }
+        }).catch((error) => {
+          console.error('❌ Error al refetch operación:', error);
+        });
+      }, 500);
+      
+      // Limpiar estado de división cuando cambia la mesa
+      setIsSplitMode(false);
+      setItemAssignments({});
+      
+      return () => clearTimeout(timer);
+    }
+  }, [table?.id, companyData?.branch.id, refetch]);
 
   const handleSplitBill = () => {
     setIsSplitMode(!isSplitMode);
     if (!isSplitMode) {
-      // No inicializar asignaciones, el usuario las hará manualmente
+      // Al activar el modo de división, marcar todos los productos como seleccionados
+      const detailsToMark = modifiedDetails.length > 0 ? modifiedDetails : (operation?.details || []);
+      const initialAssignments: Record<string, boolean> = {};
+      detailsToMark.forEach((detail: any) => {
+        if (detail.id) {
+          initialAssignments[detail.id] = true;
+        }
+      });
+      setItemAssignments(initialAssignments);
     } else {
-      // Limpiar asignaciones y restaurar detalles originales cuando se desactiva
+      // Limpiar asignaciones y restaurar detalles originales cuando se desactiva (filtrar cancelados)
       setItemAssignments({});
       if (operation?.details) {
-        setModifiedDetails([...operation.details]);
+        const nonCanceledDetails = filterCanceledDetails(operation.details);
+        setModifiedDetails([...nonCanceledDetails]);
       }
     }
   };
 
   const handleSplitItem = (detailId: string) => {
+    const splitTimestamp = Date.now();
+    const splitDetailId = `${detailId}-split-${splitTimestamp}`;
+    
     setModifiedDetails(prevDetails => {
       const detailIndex = prevDetails.findIndex((d: any) => d.id === detailId);
       if (detailIndex === -1) return prevDetails;
@@ -222,71 +331,358 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
         return prevDetails;
       }
 
-      // Verificar si ya está dividido
-      const isAlreadySplit = itemAssignments[detailId];
+      // Dividir: reducir cantidad del original y crear copia con cantidad 1
+      const newDetails = [...prevDetails];
+      const originalDetail = { ...detail };
+      
+      // Reducir cantidad del original en 1
+      newDetails[detailIndex] = {
+        ...originalDetail,
+        quantity: quantity - 1,
+        total: (quantity - 1) * Number(originalDetail.unitPrice)
+      };
 
-      if (isAlreadySplit) {
-        // Si ya está dividido, revertir: encontrar y eliminar la copia, restaurar cantidad original
-        const originalDetail = operation?.details?.find((d: any) => d.id === detailId);
-        if (originalDetail) {
-          const newDetails = [...prevDetails];
-          // Eliminar todas las copias de este detalle (las que tienen id que empieza con detailId-split)
-          const filteredDetails = newDetails.filter((d: any) => {
-            if (d.id === detailId) {
-              // Restaurar cantidad original
-              d.quantity = originalDetail.quantity;
-              return true;
-            }
-            // Eliminar copias (identificadas por tener un id que incluye el detailId original)
-            return !d.id?.includes(`${detailId}-split`);
-          });
-          return filteredDetails;
-        }
-        return prevDetails;
-      } else {
-        // Dividir: reducir cantidad del original y crear copia con cantidad 1
-        const newDetails = [...prevDetails];
-        const originalDetail = { ...detail };
-        
-        // Reducir cantidad del original
-        newDetails[detailIndex] = {
-          ...originalDetail,
-          quantity: quantity - 1,
-          total: (quantity - 1) * Number(originalDetail.unitPrice)
+      // Crear copia con cantidad 1
+      const splitDetail = {
+        ...originalDetail,
+        id: splitDetailId, // ID único para la copia
+        quantity: 1,
+        total: Number(originalDetail.unitPrice)
+      };
+
+      // Insertar la copia después del original
+      newDetails.splice(detailIndex + 1, 0, splitDetail);
+      
+      // Marcar la copia recién creada como seleccionada
+      setItemAssignments(prev => {
+        return {
+          ...prev,
+          [detailId]: true, // Marcar el original como dividido
+          [splitDetailId]: true // Marcar la copia como seleccionada
         };
+      });
+      
+      return newDetails;
+    });
+  };
 
-        // Crear copia con cantidad 1
-        const splitDetail = {
-          ...originalDetail,
-          id: `${detailId}-split-${Date.now()}`, // ID único para la copia
-          quantity: 1,
-          total: Number(originalDetail.unitPrice)
-        };
-
-        // Insertar la copia después del original
-        newDetails.splice(detailIndex + 1, 0, splitDetail);
-        return newDetails;
-      }
+  const handleMergeItem = (splitDetailId: string) => {
+    // Extraer el ID original del producto dividido
+    const originalId = splitDetailId.split('-split')[0];
+    
+    setModifiedDetails(prevDetails => {
+      const newDetails = [...prevDetails];
+      
+      // Encontrar el índice de la copia
+      const splitIndex = newDetails.findIndex((d: any) => d.id === splitDetailId);
+      if (splitIndex === -1) return prevDetails;
+      
+      // Encontrar el producto original
+      const originalIndex = newDetails.findIndex((d: any) => d.id === originalId);
+      if (originalIndex === -1) return prevDetails;
+      
+      const splitDetail = newDetails[splitIndex];
+      const originalDetail = newDetails[originalIndex];
+      
+      // Sumar la cantidad de la copia al original
+      const splitQuantity = Number(splitDetail.quantity) || 0;
+      const originalQuantity = Number(originalDetail.quantity) || 0;
+      
+      newDetails[originalIndex] = {
+        ...originalDetail,
+        quantity: originalQuantity + splitQuantity,
+        total: (originalQuantity + splitQuantity) * Number(originalDetail.unitPrice)
+      };
+      
+      // Eliminar la copia
+      newDetails.splice(splitIndex, 1);
+      
+      return newDetails;
     });
 
-    // Actualizar asignaciones
+    // Verificar si quedan más copias del mismo producto original
     setItemAssignments(prev => {
-      if (prev[detailId]) {
+      const remainingSplits = modifiedDetails.filter((d: any) => 
+        d.id?.includes(`${originalId}-split`) && d.id !== splitDetailId
+      );
+      
+      // Si no quedan más copias, remover la marca de dividido
+      if (remainingSplits.length === 0) {
+        const newAssignments = { ...prev };
+        delete newAssignments[originalId];
+        return newAssignments;
+      }
+      return prev;
+    });
+  };
+
+  const handleToggleItemSelection = (detailId: string) => {
+    setItemAssignments(prev => {
+      const newAssignments = { ...prev };
+      if (newAssignments[detailId]) {
+        delete newAssignments[detailId];
+      } else {
+        newAssignments[detailId] = true;
+      }
+      return newAssignments;
+    });
+  };
+
+  const handleDeleteItem = async (detailId: string) => {
+    // Si es un item dividido (split), cancelar parcialmente el producto original
+    if (detailId?.includes('-split')) {
+      // Extraer el ID original del producto (todo antes de '-split')
+      const originalDetailId = detailId.split('-split')[0];
+      
+      // Guardar splits restantes antes de eliminar (para preservarlos después del refetch)
+      let remainingSplits: any[] = [];
+      setModifiedDetails(prevDetails => {
+        // Guardar splits restantes del mismo producto original
+        remainingSplits = prevDetails.filter((d: any) => 
+          d.id?.includes('-split') && 
+          d.id !== detailId && 
+          d.id.startsWith(`${originalDetailId}-split`)
+        );
+        // Eliminar el split seleccionado
+        return prevDetails.filter((d: any) => d.id !== detailId);
+      });
+      
+      // Limpiar las asignaciones del split eliminado
+      setItemAssignments(prev => {
         const newAssignments = { ...prev };
         delete newAssignments[detailId];
         return newAssignments;
-      } else {
-        return {
-          ...prev,
-          [detailId]: true
-        };
+      });
+      
+      try {
+        // Llamar a la mutación con cancelación parcial (quantity: 1)
+        const result = await cancelOperationDetailMutation({
+          variables: {
+            detailId: originalDetailId,
+            quantity: 1,
+            userId: user?.id || null
+          }
+        });
+
+        if (result.data?.cancelOperationDetail?.success) {
+          // Refetch la operación para obtener los datos actualizados
+          const refetchResult = await refetch();
+          // Actualizar modifiedDetails filtrando cancelados y preservando splits restantes
+          if (refetchResult.data?.operationByTable?.details) {
+            const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationByTable.details);
+            // Combinar detalles del backend con splits restantes
+            const allDetails = [...nonCanceledDetails, ...remainingSplits];
+            setModifiedDetails(allDetails);
+            
+            // Si no hay detalles (ni del backend ni splits), la mesa queda libre
+            if (allDetails.length === 0 && table?.id && updateTableInContext) {
+              updateTableInContext({
+                id: table.id,
+                status: 'AVAILABLE',
+                statusColors: null, // Limpiar colores para usar los por defecto (verde)
+                currentOperationId: null,
+                occupiedById: null,
+                userName: null
+              });
+              // Notificar al componente padre para que actualice las mesas
+              if (onPaymentSuccess) {
+                onPaymentSuccess();
+              }
+              // Volver atrás después de un breve delay
+              setTimeout(() => {
+                onBack();
+              }, 500);
+            }
+          } else if (!refetchResult.data?.operationByTable && table?.id && updateTableInContext) {
+            // Si la operación ya no existe, la mesa queda libre
+            updateTableInContext({
+              id: table.id,
+              status: 'AVAILABLE',
+              statusColors: null, // Limpiar colores para usar los por defecto (verde)
+              currentOperationId: null,
+              occupiedById: null,
+              userName: null
+            });
+            setModifiedDetails([]);
+            // Notificar al componente padre para que actualice las mesas
+            if (onPaymentSuccess) {
+              onPaymentSuccess();
+            }
+            // Volver atrás después de un breve delay
+            setTimeout(() => {
+              onBack();
+            }, 500);
+          }
+        } else {
+          const errorMessage = result.data?.cancelOperationDetail?.message || 'Error al cancelar el item';
+          alert(errorMessage);
+          // Si falla, hacer refetch para restaurar el estado
+          await refetch();
+        }
+      } catch (error: any) {
+        console.error('Error cancelando item:', error);
+        alert(error.message || 'Error al cancelar el item');
+        // Si falla, hacer refetch para restaurar el estado
+        await refetch();
       }
+      return;
+    }
+
+    // Para items reales (no splits), usar la mutación de cancelación completa
+    try {
+      // Primero eliminar todos los splits relacionados del estado local si existen
+      setModifiedDetails(prevDetails => {
+        return prevDetails.filter((d: any) => !d.id?.includes(`${detailId}-split`));
+      });
+      
+      // Limpiar asignaciones de splits relacionados
+      setItemAssignments(prev => {
+        const newAssignments = { ...prev };
+        Object.keys(newAssignments).forEach(key => {
+          if (key.includes(`${detailId}-split`)) {
+            delete newAssignments[key];
+          }
+        });
+        return newAssignments;
+      });
+
+      const result = await cancelOperationDetailMutation({
+        variables: {
+          detailId: detailId,
+          userId: user?.id || null
+        }
+      });
+
+      if (result.data?.cancelOperationDetail?.success) {
+        // Refetch la operación para obtener los datos actualizados
+        const refetchResult = await refetch();
+        // Actualizar modifiedDetails filtrando cancelados
+        if (refetchResult.data?.operationByTable?.details) {
+          const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationByTable.details);
+          setModifiedDetails([...nonCanceledDetails]);
+          
+          // Si no hay detalles, la mesa queda libre
+          if (nonCanceledDetails.length === 0 && table?.id && updateTableInContext) {
+            updateTableInContext({
+              id: table.id,
+              status: 'AVAILABLE',
+              statusColors: null, // Limpiar colores para usar los por defecto (verde)
+              currentOperationId: null,
+              occupiedById: null,
+              userName: null
+            });
+            // Notificar al componente padre para que actualice las mesas
+            if (onPaymentSuccess) {
+              onPaymentSuccess();
+            }
+            // Volver atrás después de un breve delay
+            setTimeout(() => {
+              onBack();
+            }, 500);
+          }
+        } else if (!refetchResult.data?.operationByTable && table?.id && updateTableInContext) {
+          // Si la operación ya no existe, la mesa queda libre
+          updateTableInContext({
+            id: table.id,
+            status: 'AVAILABLE',
+            statusColors: null, // Limpiar colores para usar los por defecto (verde)
+            currentOperationId: null,
+            occupiedById: null,
+            userName: null
+          });
+          setModifiedDetails([]);
+          // Notificar al componente padre para que actualice las mesas
+          if (onPaymentSuccess) {
+            onPaymentSuccess();
+          }
+          // Volver atrás después de un breve delay
+          setTimeout(() => {
+            onBack();
+          }, 500);
+        }
+        // Limpiar la selección del item original si estaba seleccionado
+        setItemAssignments(prev => {
+          const newAssignments = { ...prev };
+          delete newAssignments[detailId];
+          return newAssignments;
+        });
+      } else {
+        const errorMessage = result.data?.cancelOperationDetail?.message || 'Error al cancelar el item';
+        alert(errorMessage);
+      }
+    } catch (error: any) {
+      console.error('Error cancelando item:', error);
+      alert(error.message || 'Error al cancelar el item');
+    }
+  };
+
+  const handleMergeAll = (originalDetailId: string) => {
+    setModifiedDetails(prevDetails => {
+      const newDetails = [...prevDetails];
+      
+      // Encontrar el producto original
+      const originalIndex = newDetails.findIndex((d: any) => d.id === originalDetailId);
+      if (originalIndex === -1) return prevDetails;
+      
+      const originalDetail = newDetails[originalIndex];
+      let totalQuantityToAdd = 0;
+      
+      // Encontrar todas las copias y sumar sus cantidades
+      const indicesToRemove: number[] = [];
+      newDetails.forEach((d: any, index: number) => {
+        if (d.id?.includes(`${originalDetailId}-split`)) {
+          totalQuantityToAdd += Number(d.quantity) || 0;
+          indicesToRemove.push(index);
+        }
+      });
+      
+      // Actualizar la cantidad del original
+      const originalQuantity = Number(originalDetail.quantity) || 0;
+      newDetails[originalIndex] = {
+        ...originalDetail,
+        quantity: originalQuantity + totalQuantityToAdd,
+        total: (originalQuantity + totalQuantityToAdd) * Number(originalDetail.unitPrice)
+      };
+      
+      // Eliminar las copias (de mayor a menor índice para no alterar los índices)
+      indicesToRemove.sort((a, b) => b - a).forEach(index => {
+        newDetails.splice(index, 1);
+      });
+      
+      return newDetails;
     });
+
+    // Remover la marca de dividido
+    setItemAssignments(prev => {
+      const newAssignments = { ...prev };
+      delete newAssignments[originalDetailId];
+      return newAssignments;
+    });
+  };
+
+  // Función helper para obtener deviceId o MAC address
+  const getDeviceIdOrMac = async (): Promise<string | null> => {
+    if (deviceId) {
+      return deviceId;
+    }
+    try {
+      const macAddress = await getMacAddress();
+      return macAddress;
+    } catch (error) {
+      console.error('Error al obtener MAC address:', error);
+      return null;
+    }
   };
 
   const handleProcessPayment = async () => {
     if (!operation || !selectedDocumentId || !selectedSerialId || !user?.id) {
       setPaymentError('Por favor completa todos los campos requeridos');
+      return;
+    }
+    
+    // Validar que se haya seleccionado un documento (boleta o factura)
+    if (!selectedDocumentId) {
+      setPaymentError('Por favor selecciona un documento (Boleta o Factura)');
       return;
     }
     
@@ -296,6 +692,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
     if (!cashRegisterIdToUse) {
       setPaymentError('No hay cajas registradoras disponibles');
       return;
+    }
+    
+    // Obtener deviceId o MAC address
+    const resolvedDeviceId = await getDeviceIdOrMac();
+    if (!resolvedDeviceId) {
+      console.warn('⚠️ No se pudo obtener deviceId ni MAC address. La impresión puede no funcionar.');
     }
 
     setIsProcessing(true);
@@ -307,37 +709,158 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
       const emissionTime = now.toTimeString().split(' ')[0].substring(0, 5);
 
       // Preparar items del documento usando los detalles modificados
-      // Agrupar detalles originales y sus copias
       const detailsToProcess = modifiedDetails.length > 0 ? modifiedDetails : (operation.details || []);
       
-      // Agrupar por ID original (sin el sufijo -split)
-      const groupedDetails: Record<string, any[]> = {};
-      detailsToProcess.forEach((detail: any) => {
-        const originalId = detail.id?.includes('-split') 
-          ? detail.id.split('-split')[0] 
-          : detail.id;
-        
-        if (!groupedDetails[originalId]) {
-          groupedDetails[originalId] = [];
-        }
-        groupedDetails[originalId].push(detail);
-      });
+      // Obtener los IDs de los productos seleccionados (checkboxes marcados)
+      const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
       
-      // Crear items agrupados
-      const items = Object.entries(groupedDetails).map(([originalId, details]) => {
-        // Sumar cantidades de todos los detalles (original + copias)
-        const totalQuantity = details.reduce((sum, d) => sum + (Number(d.quantity) || 0), 0);
-        const firstDetail = details[0];
+      // Si hay productos seleccionados, filtrar solo esos
+      let detailsToPay = detailsToProcess;
+      if (selectedDetailIds.length > 0) {
+        detailsToPay = detailsToProcess.filter((detail: any) => {
+          // Verificar si el detail.id está en los seleccionados
+          return selectedDetailIds.includes(detail.id);
+        });
         
-        return {
-          operationDetailId: originalId,
-          quantity: totalQuantity,
-          unitValue: Number(firstDetail.unitPrice) || 0,
-          unitPrice: Number(firstDetail.unitPrice) || 0,
+        if (detailsToPay.length === 0) {
+          setPaymentError('No hay productos seleccionados para pagar');
+          setIsProcessing(false);
+          return;
+        }
+      }
+      
+      // Si hay productos seleccionados, crear una nueva operación solo con esos productos
+      let operationToPay = operation;
+      let newOperationDetails: any[] = [];
+      
+      if (selectedDetailIds.length > 0) {
+        // Calcular totales solo de los productos seleccionados
+        const selectedSubtotal = detailsToPay.reduce((sum: number, detail: any) => {
+          const quantity = Number(detail.quantity) || 0;
+          const unitPrice = Number(detail.unitPrice) || 0;
+          return sum + (quantity * unitPrice);
+        }, 0);
+        const selectedIgvAmount = selectedSubtotal * (igvPercentage / 100);
+        const selectedTotal = selectedSubtotal + selectedIgvAmount;
+        
+        // Preparar detalles para la nueva operación (agrupar por producto)
+        const productMap: Record<string, { quantity: number; unitPrice: number; notes: string }> = {};
+        detailsToPay.forEach((detail: any) => {
+          const productId = detail.productId;
+          if (!productMap[productId]) {
+            productMap[productId] = {
+              quantity: 0,
+              unitPrice: Number(detail.unitPrice) || 0,
+              notes: detail.notes || ''
+            };
+          }
+          productMap[productId].quantity += Number(detail.quantity) || 0;
+        });
+        
+        const operationDetails = Object.entries(productMap).map(([productId, data]) => ({
+          productId: productId,
+          quantity: data.quantity,
+          unitMeasure: 'NIU',
+          unitValue: data.unitPrice,
+          unitPrice: data.unitPrice,
+          notes: data.notes
+        }));
+        
+        // Crear nueva operación con solo los productos seleccionados (asociada temporalmente a la mesa)
+        // para poder obtener los detalles con sus IDs reales
+        const createOperationResult = await createOperationMutation({
+          variables: {
+            branchId: companyData?.branch.id,
+            tableId: table?.id || null, // Asociar temporalmente para obtener detalles
+            userId: user.id,
+            operationType: 'SALE',
+            serviceType: operation.serviceType || 'RESTAURANT',
+            status: 'PROCESSING',
+            notes: operation.notes || null,
+            details: operationDetails,
+            deviceId: resolvedDeviceId,
+            subtotal: selectedSubtotal,
+            igvAmount: selectedIgvAmount,
+            igvPercentage: igvPercentage,
+            total: selectedTotal,
+            operationDate: now.toISOString()
+          }
+        });
+        
+        if (!createOperationResult.data?.createOperation?.success) {
+          setPaymentError(createOperationResult.data?.createOperation?.message || 'Error al crear la operación');
+          setIsProcessing(false);
+          return;
+        }
+        
+        operationToPay = createOperationResult.data.createOperation.operation;
+        
+        // Obtener los detalles reales de la nueva operación mediante refetch
+        // La nueva operación está asociada a la mesa, así que podemos obtenerla
+        const refetchResult = await refetch();
+        if (refetchResult.data?.operationByTable?.id === operationToPay.id) {
+          const allDetails = refetchResult.data.operationByTable.details || [];
+          newOperationDetails = filterCanceledDetails(allDetails);
+        } else {
+          // Fallback: usar los detalles originales (esto no debería pasar)
+          setPaymentError('No se pudieron obtener los detalles de la nueva operación');
+          setIsProcessing(false);
+          return;
+        }
+      }
+      
+      // Preparar items para el documento
+      let items: any[] = [];
+      
+      if (selectedDetailIds.length > 0 && newOperationDetails.length > 0) {
+        // Usar los detalles reales de la nueva operación (con IDs reales de la base de datos)
+        items = newOperationDetails.map((detail: any) => ({
+          operationDetailId: detail.id, // ID real del detalle
+          quantity: Number(detail.quantity) || 0,
+          unitValue: Number(detail.unitPrice) || 0,
+          unitPrice: Number(detail.unitPrice) || 0,
           discount: 0,
-          notes: firstDetail.notes || ''
-        };
-      });
+          notes: detail.notes || ''
+        }));
+      } else {
+        // Si no hay productos seleccionados, usar toda la operación (comportamiento original)
+        // Agrupar detalles por ID original (sin el sufijo -split)
+        const groupedDetails: Record<string, any[]> = {};
+        detailsToPay.forEach((detail: any) => {
+          const originalId = detail.id?.includes('-split') 
+            ? detail.id.split('-split')[0] 
+            : detail.id;
+          
+          if (!groupedDetails[originalId]) {
+            groupedDetails[originalId] = [];
+          }
+          groupedDetails[originalId].push(detail);
+        });
+        
+        // Crear items agrupados
+        items = Object.entries(groupedDetails).map(([originalId, details]) => {
+          const totalQuantity = details.reduce((sum, d) => sum + (Number(d.quantity) || 0), 0);
+          const firstDetail = details[0];
+          
+          return {
+            operationDetailId: originalId,
+            quantity: totalQuantity,
+            unitValue: Number(firstDetail.unitPrice) || 0,
+            unitPrice: Number(firstDetail.unitPrice) || 0,
+            discount: 0,
+            notes: firstDetail.notes || ''
+          };
+        });
+      }
+      
+      // Calcular totales para el pago
+      const paymentSubtotal = detailsToPay.reduce((sum: number, detail: any) => {
+        const quantity = Number(detail.quantity) || 0;
+        const unitPrice = Number(detail.unitPrice) || 0;
+        return sum + (quantity * unitPrice);
+      }, 0);
+      const paymentIgvAmount = paymentSubtotal * (igvPercentage / 100);
+      const paymentTotal = paymentSubtotal + paymentIgvAmount;
 
       // Preparar pagos
       const payments = [{
@@ -345,8 +868,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
         paymentType: 'CASH',
         paymentMethod: paymentMethod,
         transactionType: 'INCOME',
-        totalAmount: total,
-        paidAmount: total,
+        totalAmount: paymentTotal,
+        paidAmount: paymentTotal,
         paymentDate: now.toISOString(),
         dueDate: null,
         referenceNumber: referenceNumber || null,
@@ -357,7 +880,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
       const serial = selectedSerial?.serial || '';
 
       const variables = {
-        operationId: operation.id,
+        operationId: operationToPay.id,
         branchId: companyData?.branch.id,
         documentId: selectedDocumentId,
         serial: serial,
@@ -372,18 +895,21 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
         globalDiscountPercent: 0.0,
         totalDiscount: 0.0,
         igvPercent: igvPercentage,
-        igvAmount: igvAmount,
-        totalTaxable: subtotal,
+        igvAmount: paymentIgvAmount,
+        totalTaxable: paymentSubtotal,
         totalUnaffected: 0.0,
         totalExempt: 0.0,
         totalFree: 0.0,
-        totalAmount: total,
+        totalAmount: paymentTotal,
         items: items,
         payments: payments,
         notes: null,
-        tableId: table?.id || null,
-        deviceId: deviceId || null,
-        printerId: null
+        // Para pagos parciales: pasar table_id para que el backend imprima el documento
+        // La nueva operación (solo productos seleccionados) está completamente pagada, así que se imprimirá
+        // Luego crearemos una nueva operación con los productos restantes para mantener la mesa ocupada
+        tableId: selectedDetailIds.length > 0 ? (table?.id || null) : (table?.id || null),
+        deviceId: resolvedDeviceId, // Siempre pasar deviceId o MAC para que el backend pueda imprimir el documento (boleta/factura)
+        printerId: null // Opcional: se puede agregar selección de impresora si es necesario
       };
 
       const result = await createIssuedDocumentMutation({
@@ -391,18 +917,95 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
       });
 
       if (result.data?.createIssuedDocument?.success) {
-        // Refetch la operación para actualizar el estado
-        await refetch();
+        // El documento (boleta/factura) se ha creado exitosamente
+        // El backend debería haber impreso el documento si deviceId estaba disponible
+        // y la operación estaba completamente pagada (lo cual es cierto para la nueva operación con productos seleccionados)
+        
+        if (selectedDetailIds.length > 0) {
+          // Se pagaron solo algunos productos
+          // La nueva operación (solo productos seleccionados) está completamente pagada,
+          // así que el backend ya imprimió el documento y puede haber liberado la mesa temporalmente
+          // Necesitamos restaurar la operación original con los productos restantes
+          
+          // Obtener los productos restantes de la operación original
+          const remainingDetails = detailsToProcess.filter((detail: any) => 
+            !selectedDetailIds.includes(detail.id)
+          );
+          
+          if (remainingDetails.length > 0) {
+            // Crear una nueva operación con los productos restantes y asociarla a la mesa
+            // Esto restaurará la operación original en la mesa
+            const remainingProductMap: Record<string, { quantity: number; unitPrice: number; notes: string }> = {};
+            remainingDetails.forEach((detail: any) => {
+              const productId = detail.productId;
+              if (!remainingProductMap[productId]) {
+                remainingProductMap[productId] = {
+                  quantity: 0,
+                  unitPrice: Number(detail.unitPrice) || 0,
+                  notes: detail.notes || ''
+                };
+              }
+              remainingProductMap[productId].quantity += Number(detail.quantity) || 0;
+            });
+            
+            const remainingOperationDetails = Object.entries(remainingProductMap).map(([productId, data]) => ({
+              productId: productId,
+              quantity: data.quantity,
+              unitMeasure: 'NIU',
+              unitValue: data.unitPrice,
+              unitPrice: data.unitPrice,
+              notes: data.notes
+            }));
+            
+            const remainingSubtotal = remainingDetails.reduce((sum: number, detail: any) => {
+              const quantity = Number(detail.quantity) || 0;
+              const unitPrice = Number(detail.unitPrice) || 0;
+              return sum + (quantity * unitPrice);
+            }, 0);
+            const remainingIgvAmount = remainingSubtotal * (igvPercentage / 100);
+            const remainingTotal = remainingSubtotal + remainingIgvAmount;
+            
+            // Crear operación con productos restantes y asociarla a la mesa
+            await createOperationMutation({
+              variables: {
+                branchId: companyData?.branch.id,
+                tableId: table?.id || null,
+                userId: user.id,
+                operationType: 'SALE',
+                serviceType: operation.serviceType || 'RESTAURANT',
+                status: 'PROCESSING',
+                notes: operation.notes || null,
+                details: remainingOperationDetails,
+                deviceId: resolvedDeviceId,
+                subtotal: remainingSubtotal,
+                igvAmount: remainingIgvAmount,
+                igvPercentage: igvPercentage,
+                total: remainingTotal,
+                operationDate: now.toISOString()
+              }
+            });
+          }
+          
+          // Refetch para obtener la operación restaurada
+          await refetch();
+          
+          // Limpiar selecciones después del pago
+          setItemAssignments({});
+        } else {
+          // Si se pagó toda la operación, refetch y verificar si la mesa fue liberada
+          await refetch();
+          if (result.data?.createIssuedDocument?.wasTableFreed) {
+            setTimeout(() => {
+              onBack();
+            }, 2000);
+          }
+        }
+        
         // Llamar callback de éxito si existe
         if (onPaymentSuccess) {
           onPaymentSuccess();
         }
-        // Si la mesa fue liberada, volver a la vista de mesas
-        if (result.data?.createIssuedDocument?.wasTableFreed) {
-          setTimeout(() => {
-            onBack();
-          }, 2000);
-        }
+        
         // Limpiar errores
         setPaymentError(null);
       } else {
@@ -411,6 +1014,294 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
     } catch (err: any) {
       console.error('Error procesando pago:', err);
       setPaymentError(err.message || 'Error al procesar el pago');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePrecuenta = async () => {
+    if (!operation) {
+      alert('No hay una orden disponible para imprimir precuenta');
+      return;
+    }
+
+    if (operation.status === 'COMPLETED') {
+      alert('Esta orden ya ha sido completada');
+      return;
+    }
+
+    try {
+      // TODO: Implementar lógica de impresión de precuenta
+      // Por ahora, mostramos un mensaje informativo
+      console.log('🧾 Imprimiendo precuenta para operación:', operation.id);
+      alert(`Precuenta para ${table?.name}\nTotal: ${currencyFormatter.format(total)}\n\nLa funcionalidad de impresión se implementará próximamente.`);
+    } catch (err: any) {
+      console.error('Error al imprimir precuenta:', err);
+      alert('Error al imprimir la precuenta: ' + (err.message || 'Error desconocido'));
+    }
+  };
+
+  const handleChangeTable = async () => {
+    if (!operation || !selectedTableId || !companyData?.branch.id) {
+      setPaymentError('Por favor selecciona una mesa');
+      return;
+    }
+
+    if (selectedTableId === table?.id) {
+      setPaymentError('La mesa seleccionada es la misma que la actual');
+      return;
+    }
+
+    setIsProcessing(true);
+    setPaymentError(null);
+
+    try {
+      const result = await changeOperationTableMutation({
+        variables: {
+          operationId: operation.id,
+          newTableId: selectedTableId,
+          branchId: companyData.branch.id
+        }
+      });
+
+      if (result.data?.changeOperationTable?.success) {
+        // Obtener datos de la mesa antigua y nueva
+        const oldTableData = result.data.changeOperationTable.oldTable;
+        const resultNewTable = result.data.changeOperationTable.newTable;
+        
+        // IMPORTANTE: Actualizar la mesa antigua - limpiar el nombre del mozo
+        // Usamos el ID de la mesa actual (table.id) que es la mesa antigua
+        if (table?.id && updateTableInContext) {
+          updateTableInContext({
+            id: table.id,
+            status: oldTableData?.status || 'AVAILABLE',
+            currentOperationId: null,
+            occupiedById: null,
+            userName: null  // ← ESTO LIMPIA EL NOMBRE DEL MOZO
+          });
+          console.log('✅ Mesa antigua actualizada - nombre del mozo limpiado para mesa:', table.id);
+        }
+        
+        // Buscar la mesa completa en los datos de las mesas del piso
+        const newTableData = tablesData?.tablesByFloor?.find((t: any) => t.id === selectedTableId);
+        
+        // Obtener el userName del resultado de la mutación, mesa original, o usuario actual
+        const currentUserName = resultNewTable?.userName || table?.userName || user?.fullName || '';
+        const currentOccupiedById = resultNewTable?.occupiedById || table?.occupiedById || (user?.id ? parseInt(user.id) : undefined);
+        const currentOperationId = resultNewTable?.currentOperationId || operation.id;
+        
+        // Actualizar también la nueva mesa en el contexto
+        if (resultNewTable?.id && updateTableInContext) {
+          updateTableInContext({
+            id: resultNewTable.id,
+            status: resultNewTable.status || 'OCCUPIED',
+            currentOperationId: currentOperationId,
+            occupiedById: currentOccupiedById,
+            userName: currentUserName
+          });
+          console.log('✅ Mesa nueva actualizada en contexto para mesa:', resultNewTable.id);
+        }
+        
+        if (newTableData && onTableChange) {
+          // Crear objeto mesa completo con los datos disponibles
+          const newTable: Table = {
+            id: newTableData.id,
+            name: newTableData.name || resultNewTable?.name || '',
+            capacity: newTableData.capacity || 0,
+            shape: newTableData.shape || 'RECTANGLE',
+            positionX: newTableData.positionX || 0,
+            positionY: newTableData.positionY || 0,
+            status: resultNewTable?.status || 'OCCUPIED',
+            statusColors: newTableData.statusColors || {},
+            currentOperationId: currentOperationId,
+            occupiedById: currentOccupiedById,
+            userName: currentUserName
+          };
+          
+          // Notificar al componente padre sobre el cambio de mesa
+          onTableChange(newTable);
+        }
+        
+        // Cerrar modal
+        setShowChangeTableModal(false);
+        setSelectedFloorId('');
+        setSelectedTableId('');
+        
+        // El useEffect detectará el cambio de mesa y hará el refetch automáticamente
+        // Llamar callback de éxito si existe (para que el padre pueda refetch las mesas)
+        if (onPaymentSuccess) {
+          onPaymentSuccess();
+        }
+        setPaymentError(null);
+      } else {
+        setPaymentError(result.data?.changeOperationTable?.message || 'Error al cambiar la mesa');
+      }
+    } catch (err: any) {
+      console.error('Error cambiando mesa:', err);
+      setPaymentError(err.message || 'Error al cambiar la mesa');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleChangeUser = async () => {
+    if (!operation || !selectedUserId || !companyData?.branch.id) {
+      setPaymentError('Por favor selecciona un mozo');
+      return;
+    }
+
+    if (selectedUserId === operation.user?.id) {
+      setPaymentError('El mozo seleccionado es el mismo que el actual');
+      return;
+    }
+
+    setIsProcessing(true);
+    setPaymentError(null);
+
+    try {
+      const result = await changeOperationUserMutation({
+        variables: {
+          operationId: operation.id,
+          newUserId: selectedUserId,
+          branchId: companyData.branch.id
+        }
+      });
+
+      if (result.data?.changeOperationUser?.success) {
+        const resultTable = result.data.changeOperationUser.table;
+        
+        // Actualizar la mesa en el contexto con el nuevo mozo
+        if (resultTable && updateTableInContext) {
+          updateTableInContext({
+            id: resultTable.id,
+            status: resultTable.status || table?.status || 'OCCUPIED',
+            currentOperationId: resultTable.currentOperationId ?? table?.currentOperationId,
+            occupiedById: resultTable.occupiedById ?? table?.occupiedById,
+            userName: resultTable.userName ?? table?.userName
+          });
+          console.log('✅ Mesa actualizada con nuevo mozo:', resultTable.userName);
+        }
+        
+        // Cerrar modal
+        setShowChangeUserModal(false);
+        setSelectedUserId('');
+        
+        // Refetch la operación para obtener los datos actualizados
+        await refetch();
+        
+        // Llamar callback de éxito si existe (para que el padre pueda refetch las mesas)
+        if (onPaymentSuccess) {
+          onPaymentSuccess();
+        }
+        setPaymentError(null);
+      } else {
+        setPaymentError(result.data?.changeOperationUser?.message || 'Error al cambiar el mozo');
+      }
+    } catch (err: any) {
+      console.error('Error cambiando mozo:', err);
+      setPaymentError(err.message || 'Error al cambiar el mozo');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Obtener lista de mozos disponibles (usuarios activos de la sucursal)
+  const availableUsers = (companyData?.branch?.users || []).filter((u: any) => u.isActive !== false);
+
+  const handleTransferPlates = async () => {
+    if (!operation || !selectedTransferTableId || !companyData?.branch.id) {
+      setPaymentError('Por favor selecciona una mesa de destino');
+      return;
+    }
+
+    // Obtener los IDs de los productos seleccionados (los que tienen checkbox marcado)
+    const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
+    
+    if (selectedDetailIds.length === 0) {
+      setPaymentError('Por favor selecciona al menos un plato para transferir');
+      return;
+    }
+
+    if (selectedTransferTableId === table?.id) {
+      setPaymentError('No puedes transferir platos a la misma mesa');
+      return;
+    }
+
+    setIsProcessing(true);
+    setPaymentError(null);
+
+    try {
+      const result = await transferItemsMutation({
+        variables: {
+          fromOperationId: operation.id,
+          toTableId: selectedTransferTableId,
+          detailIds: selectedDetailIds,
+          branchId: companyData.branch.id,
+          createNewOperation: false // Por defecto usa la operación existente o crea una nueva si no existe
+        }
+      });
+
+      if (result.data?.transferItems?.success) {
+        const resultOldTable = result.data.transferItems.oldTable;
+        const resultNewTable = result.data.transferItems.newTable;
+        
+        // Actualizar las mesas en el contexto
+        if (resultOldTable && updateTableInContext) {
+          updateTableInContext({
+            id: resultOldTable.id,
+            status: resultOldTable.status || 'AVAILABLE',
+            currentOperationId: resultOldTable.currentOperationId ?? null,
+            occupiedById: resultOldTable.occupiedById ?? null,
+            userName: resultOldTable.userName ?? null
+          });
+          console.log('✅ Mesa origen actualizada después de transferir');
+        }
+        
+        if (resultNewTable && updateTableInContext) {
+          updateTableInContext({
+            id: resultNewTable.id,
+            status: resultNewTable.status || 'OCCUPIED',
+            currentOperationId: resultNewTable.currentOperationId ?? null,
+            occupiedById: resultNewTable.occupiedById ?? null,
+            userName: resultNewTable.userName ?? null
+          });
+          console.log('✅ Mesa destino actualizada después de transferir');
+        }
+        
+        // Cerrar modal
+        setShowTransferPlatesModal(false);
+        setSelectedTransferFloorId('');
+        setSelectedTransferTableId('');
+        
+        // Limpiar selecciones
+        setItemAssignments({});
+        
+        // Refetch la operación para obtener los datos actualizados
+        const refetchResult = await refetch();
+        
+        // Actualizar explícitamente los detalles modificados con los datos actualizados
+        // Esto asegura que los platos trasladados desaparezcan de la mesa original (filtrar cancelados)
+        if (refetchResult.data?.operationByTable?.details) {
+          const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationByTable.details);
+          setModifiedDetails([...nonCanceledDetails]);
+          console.log('✅ Detalles actualizados después del traslado:', nonCanceledDetails);
+        } else if (refetchResult.data?.operationByTable === null) {
+          // Si la operación ya no existe (todos los platos fueron trasladados), limpiar los detalles
+          setModifiedDetails([]);
+          console.log('✅ Todos los platos fueron trasladados, limpiando detalles');
+        }
+        
+        // Llamar callback de éxito si existe
+        if (onPaymentSuccess) {
+          onPaymentSuccess();
+        }
+        setPaymentError(null);
+      } else {
+        setPaymentError(result.data?.transferItems?.message || 'Error al transferir los platos');
+      }
+    } catch (err: any) {
+      console.error('Error transfiriendo platos:', err);
+      setPaymentError(err.message || 'Error al transferir los platos');
     } finally {
       setIsProcessing(false);
     }
@@ -604,6 +1495,41 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
               {loading ? 'Actualizando...' : 'Actualizar'}
             </button>
             <button
+              onClick={handlePrecuenta}
+              disabled={!operation || operation.status === 'COMPLETED' || loading}
+              style={{
+                padding: '0.85rem 1.45rem',
+                borderRadius: '999px',
+                border: 'none',
+                background: !operation || operation.status === 'COMPLETED' || loading
+                  ? 'rgba(255,255,255,0.08)'
+                  : 'linear-gradient(135deg, rgba(245,158,11,0.9), rgba(217,119,6,0.9))',
+                color: 'white',
+                cursor: !operation || operation.status === 'COMPLETED' || loading ? 'not-allowed' : 'pointer',
+                fontWeight: 700,
+                fontSize: '0.92rem',
+                boxShadow: !operation || operation.status === 'COMPLETED' || loading
+                  ? '0 8px 16px rgba(0,0,0,0.1)'
+                  : '0 12px 24px rgba(245,158,11,0.3)',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                opacity: !operation || operation.status === 'COMPLETED' || loading ? 0.6 : 1
+              }}
+              onMouseOver={(e) => {
+                if (operation && operation.status !== 'COMPLETED' && !loading) {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 16px 28px rgba(245,158,11,0.4)';
+                }
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = !operation || operation.status === 'COMPLETED' || loading
+                  ? '0 8px 16px rgba(0,0,0,0.1)'
+                  : '0 12px 24px rgba(245,158,11,0.3)';
+              }}
+            >
+              🧾 Precuenta
+            </button>
+            <button
               onClick={onBack}
               style={{
                 padding: '0.85rem 1.45rem',
@@ -745,7 +1671,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: isSplitMode ? '1.2fr 0.4fr 0.6fr 0.6fr 1fr' : '1.2fr 0.4fr 0.6fr 0.6fr',
+                    gridTemplateColumns: '0.3fr 1.2fr 0.4fr 0.6fr 0.6fr 1fr',
                     background: 'linear-gradient(135deg, rgba(102,126,234,0.12), rgba(129,140,248,0.12))',
                     padding: '0.9rem 1.2rem',
                     fontWeight: 700,
@@ -754,11 +1680,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
                     letterSpacing: '0.01em'
                   }}
                 >
+                  <span style={{ textAlign: 'center' }}>Sel.</span>
                   <span>Producto</span>
                   <span style={{ textAlign: 'center' }}>Cant.</span>
                   <span style={{ textAlign: 'right' }}>P. Unit.</span>
                   <span style={{ textAlign: 'right' }}>Total</span>
-                  {isSplitMode && <span style={{ textAlign: 'center' }}>Dividir</span>}
+                  <span style={{ textAlign: 'center' }}>Dividir</span>
                 </div>
 
                 {(detailsToUse || []).map((detail: any, index: number) => {
@@ -768,21 +1695,41 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
                     Number(detail.total) || unitPrice * quantity || 0;
 
                   const isEvenRow = index % 2 === 0;
+                  const isSelected = itemAssignments[detail.id || ''];
 
                   return (
                     <div
                       key={detail.id || `${detail.productId}-${detail.productCode}`}
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: isSplitMode ? '1.2fr 0.4fr 0.6fr 0.6fr 1fr' : '1.2fr 0.4fr 0.6fr 0.6fr',
+                        gridTemplateColumns: '0.3fr 1.2fr 0.4fr 0.6fr 0.6fr 1fr',
                         padding: '1rem 1.2rem',
                         fontSize: '0.9rem',
                         alignItems: 'center',
                         color: '#1a202c',
-                        backgroundColor: isEvenRow ? 'rgba(247,250,252,0.85)' : 'rgba(255,255,255,0.92)',
-                        borderTop: '1px solid rgba(226,232,240,0.7)'
+                        backgroundColor: isSelected 
+                          ? 'rgba(139, 92, 246, 0.1)' 
+                          : isEvenRow 
+                          ? 'rgba(247,250,252,0.85)' 
+                          : 'rgba(255,255,255,0.92)',
+                        borderTop: '1px solid rgba(226,232,240,0.7)',
+                        borderLeft: isSelected ? '3px solid #8b5cf6' : 'none',
+                        transition: 'all 0.2s ease'
                       }}
                     >
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected || false}
+                          onChange={() => handleToggleItemSelection(detail.id || '')}
+                          style={{
+                            width: '1.25rem',
+                            height: '1.25rem',
+                            cursor: 'pointer',
+                            accentColor: '#8b5cf6'
+                          }}
+                        />
+                      </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                         <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
                           {detail.productName || 'Producto'}
@@ -844,24 +1791,24 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
                       >
                         {currencyFormatter.format(lineTotal)}
                       </span>
-                      {isSplitMode && !detail.id?.includes('-split') && quantity > 1 && (
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center'
-                          }}
-                        >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          flexWrap: 'wrap'
+                        }}
+                      >
+                        {!detail.id?.includes('-split') && quantity > 1 && (
                           <button
                             onClick={() => handleSplitItem(detail.id)}
                             style={{
                               padding: '0.5rem 1rem',
                               borderRadius: '8px',
                               border: 'none',
-                              background: itemAssignments[detail.id]
-                                ? 'linear-gradient(130deg, #a78bfa, #8b5cf6)'
-                                : 'rgba(139, 92, 246, 0.15)',
-                              color: itemAssignments[detail.id] ? 'white' : '#8b5cf6',
+                              background: 'rgba(139, 92, 246, 0.15)',
+                              color: '#8b5cf6',
                               fontWeight: 700,
                               fontSize: '0.85rem',
                               cursor: 'pointer',
@@ -871,25 +1818,95 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
                               gap: '0.35rem'
                             }}
                             onMouseOver={(e) => {
-                              if (!itemAssignments[detail.id]) {
-                                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.25)';
-                              }
+                              e.currentTarget.style.background = 'rgba(139, 92, 246, 0.25)';
                             }}
                             onMouseOut={(e) => {
-                              if (!itemAssignments[detail.id]) {
-                                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)';
-                              }
+                              e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)';
                             }}
                           >
-                            {itemAssignments[detail.id] ? '✓ Dividido' : '✂️ Dividir'}
+                            ✂️ Dividir
                           </button>
-                        </div>
-                      )}
-                      {isSplitMode && (detail.id?.includes('-split') || quantity <= 1) && (
-                        <div style={{ textAlign: 'center', color: '#9ca3af', fontSize: '0.8rem' }}>
-                          {detail.id?.includes('-split') ? 'Copia' : '—'}
-                        </div>
-                      )}
+                        )}
+                        {detail.id?.includes('-split') && (
+                          <button
+                            onClick={() => handleMergeItem(detail.id)}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              background: 'linear-gradient(130deg, #10b981, #059669)',
+                              color: 'white',
+                              fontWeight: 700,
+                              fontSize: '0.85rem',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem'
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(130deg, #059669, #047857)';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(130deg, #10b981, #059669)';
+                            }}
+                          >
+                            🔗 Unir
+                          </button>
+                        )}
+                        {!detail.id?.includes('-split') && quantity <= 1 && modifiedDetails.some((d: any) => d.id?.includes(`${detail.id}-split`)) && (
+                          <button
+                            onClick={() => handleMergeAll(detail.id)}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              background: 'linear-gradient(130deg, #f59e0b, #d97706)',
+                              color: 'white',
+                              fontWeight: 700,
+                              fontSize: '0.85rem',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem'
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(130deg, #d97706, #b45309)';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(130deg, #f59e0b, #d97706)';
+                            }}
+                          >
+                            🔗 Unir todo
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteItem(detail.id)}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            borderRadius: '8px',
+                            border: 'none',
+                            background: 'linear-gradient(130deg, #ef4444, #dc2626)',
+                            color: 'white',
+                            fontWeight: 700,
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(130deg, #dc2626, #b91c1c)';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(130deg, #ef4444, #dc2626)';
+                          }}
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -1145,49 +2162,103 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
                   <span>{currencyFormatter.format(total)}</span>
                 </div>
                 <button
-                  onClick={handleSplitBill}
-                  disabled={!operation || operation.status === 'COMPLETED' || !operation.details || operation.details.length === 0 || isProcessing}
+                  onClick={() => setShowChangeTableModal(true)}
+                  disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
                   style={{
                     width: '100%',
-                    marginTop: '1.35rem',
-                    padding: '0.85rem 1.25rem',
+                    marginTop: '0.75rem',
+                    padding: '0.95rem 1.25rem',
                     borderRadius: '12px',
                     border: 'none',
-                    background: operation?.status === 'COMPLETED' || !operation?.details || operation.details.length === 0
+                    background: operation?.status === 'COMPLETED'
                       ? '#cbd5e0' 
-                      : isSplitMode
-                      ? 'linear-gradient(130deg, #f59e0b, #d97706)'
-                      : 'linear-gradient(130deg, #a78bfa, #8b5cf6)',
+                      : 'linear-gradient(130deg, #10b981, #059669)',
                     color: 'white',
                     fontWeight: 700,
                     fontSize: '0.95rem',
-                    cursor: operation?.status === 'COMPLETED' || !operation?.details || operation.details.length === 0 || isProcessing ? 'not-allowed' : 'pointer',
-                    boxShadow: isSplitMode 
-                      ? '0 12px 24px -8px rgba(245, 158, 11, 0.4)'
-                      : '0 12px 24px -8px rgba(139, 92, 246, 0.4)',
+                    cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 16px 28px -12px rgba(16,185,129,0.55)',
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                    opacity: operation?.status === 'COMPLETED' || !operation?.details || operation.details.length === 0 ? 0.6 : 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem'
+                    opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
                   }}
                   onMouseOver={(e) => {
-                    if (operation?.status !== 'COMPLETED' && operation?.details && operation.details.length > 0 && !isProcessing) {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = isSplitMode
-                        ? '0 16px 28px -10px rgba(245, 158, 11, 0.5)'
-                        : '0 16px 28px -10px rgba(139, 92, 246, 0.5)';
+                    if (operation?.status !== 'COMPLETED' && !isProcessing) {
+                      e.currentTarget.style.transform = 'translateY(-3px)';
+                      e.currentTarget.style.boxShadow = '0 20px 32px -10px rgba(16,185,129,0.6)';
                     }
                   }}
                   onMouseOut={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = isSplitMode
-                      ? '0 12px 24px -8px rgba(245, 158, 11, 0.4)'
-                      : '0 12px 24px -8px rgba(139, 92, 246, 0.4)';
+                    e.currentTarget.style.boxShadow = '0 16px 28px -12px rgba(16,185,129,0.55)';
                   }}
                 >
-                  {isSplitMode ? '✓ Finalizar División' : '✂️ Dividir Cuenta'}
+                  {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Cambio de mesa' : 'Cambiar Mesa'}
+                </button>
+                <button
+                  onClick={() => setShowTransferPlatesModal(true)}
+                  disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
+                  style={{
+                    width: '100%',
+                    marginTop: '0.75rem',
+                    padding: '0.95rem 1.25rem',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: operation?.status === 'COMPLETED'
+                      ? '#cbd5e0' 
+                      : 'linear-gradient(130deg, #3b82f6, #2563eb)',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.95rem',
+                    cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 16px 28px -12px rgba(59,130,246,0.55)',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
+                  }}
+                  onMouseOver={(e) => {
+                    if (operation?.status !== 'COMPLETED' && !isProcessing) {
+                      e.currentTarget.style.transform = 'translateY(-3px)';
+                      e.currentTarget.style.boxShadow = '0 20px 32px -10px rgba(59,130,246,0.6)';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 16px 28px -12px rgba(59,130,246,0.55)';
+                  }}
+                >
+                  Transferir Platos
+                </button>
+                <button
+                  onClick={() => setShowChangeUserModal(true)}
+                  disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
+                  style={{
+                    width: '100%',
+                    marginTop: '0.75rem',
+                    padding: '0.95rem 1.25rem',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: operation?.status === 'COMPLETED'
+                      ? '#cbd5e0' 
+                      : 'linear-gradient(130deg, #8b5cf6, #7c3aed)',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.95rem',
+                    cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 16px 28px -12px rgba(139,92,246,0.55)',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
+                  }}
+                  onMouseOver={(e) => {
+                    if (operation?.status !== 'COMPLETED' && !isProcessing) {
+                      e.currentTarget.style.transform = 'translateY(-3px)';
+                      e.currentTarget.style.boxShadow = '0 20px 32px -10px rgba(139,92,246,0.6)';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 16px 28px -12px rgba(139,92,246,0.55)';
+                  }}
+                >
+                  {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Cambio de mozo' : 'Cambiar Mozo'}
                 </button>
                 <button
                   onClick={handleProcessPayment}
@@ -1244,9 +2315,1016 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess }) =>
         )}
       </div>
 
+      {/* Modal para cambiar mesa */}
+      {showChangeTableModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem'
+          }}
+          onClick={() => {
+            if (!isProcessing) {
+              setShowChangeTableModal(false);
+              setSelectedFloorId('');
+              setSelectedTableId('');
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '20px',
+              padding: '2rem',
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: '1.5rem',
+                  fontWeight: 700,
+                  color: '#1a202c',
+                  margin: 0
+                }}
+              >
+                Cambiar Mesa
+              </h2>
+              <button
+                onClick={() => {
+                  if (!isProcessing) {
+                    setShowChangeTableModal(false);
+                    setSelectedFloorId('');
+                    setSelectedTableId('');
+                  }
+                }}
+                disabled={isProcessing}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  color: '#4a5568',
+                  padding: '0.5rem',
+                  lineHeight: 1
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Selección de piso */}
+            <div style={{ marginBottom: '2rem' }}>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#2d3748',
+                  marginBottom: '0.75rem'
+                }}
+              >
+                Seleccionar Piso
+              </label>
+              {floorsLoading ? (
+                <div style={{ padding: '1rem', textAlign: 'center', color: '#4a5568' }}>
+                  Cargando pisos...
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                    gap: '0.75rem'
+                  }}
+                >
+                  {floorsData?.floorsByBranch?.map((floor: any) => (
+                    <button
+                      key={floor.id}
+                      onClick={() => {
+                        setSelectedFloorId(floor.id);
+                        setSelectedTableId('');
+                      }}
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '12px',
+                        border: selectedFloorId === floor.id ? '2px solid #10b981' : '2px solid #e2e8f0',
+                        background: selectedFloorId === floor.id
+                          ? 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(5,150,105,0.1))'
+                          : 'white',
+                        color: selectedFloorId === floor.id ? '#10b981' : '#2d3748',
+                        fontWeight: selectedFloorId === floor.id ? 700 : 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        fontSize: '0.95rem'
+                      }}
+                      onMouseOver={(e) => {
+                        if (selectedFloorId !== floor.id) {
+                          e.currentTarget.style.borderColor = '#10b981';
+                          e.currentTarget.style.backgroundColor = 'rgba(16,185,129,0.05)';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (selectedFloorId !== floor.id) {
+                          e.currentTarget.style.borderColor = '#e2e8f0';
+                          e.currentTarget.style.backgroundColor = 'white';
+                        }
+                      }}
+                    >
+                      {floor.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Selección de mesa */}
+            {selectedFloorId && (
+              <div style={{ marginBottom: '2rem' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                    color: '#2d3748',
+                    marginBottom: '0.75rem'
+                  }}
+                >
+                  Seleccionar Mesa
+                </label>
+                {tablesLoading ? (
+                  <div style={{ padding: '1rem', textAlign: 'center', color: '#4a5568' }}>
+                    Cargando mesas...
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                      gap: '0.75rem',
+                      maxHeight: '300px',
+                      overflowY: 'auto',
+                      padding: '0.5rem'
+                    }}
+                  >
+                    {tablesData?.tablesByFloor?.map((tableItem: any) => {
+                      const isSelected = selectedTableId === tableItem.id;
+                      const isCurrentTable = tableItem.id === table?.id;
+                      const isOccupied = tableItem.status === 'OCCUPIED' && !isCurrentTable;
+                      
+                      return (
+                        <button
+                          key={tableItem.id}
+                          onClick={() => {
+                            if (!isOccupied && !isCurrentTable) {
+                              setSelectedTableId(tableItem.id);
+                            }
+                          }}
+                          disabled={isOccupied || isCurrentTable}
+                          style={{
+                            padding: '1rem',
+                            borderRadius: '12px',
+                            border: isSelected
+                              ? '2px solid #10b981'
+                              : isCurrentTable
+                              ? '2px solid #f59e0b'
+                              : isOccupied
+                              ? '2px solid #e2e8f0'
+                              : '2px solid #e2e8f0',
+                            background: isSelected
+                              ? 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(5,150,105,0.1))'
+                              : isCurrentTable
+                              ? 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.1))'
+                              : isOccupied
+                              ? '#f7fafc'
+                              : 'white',
+                            color: isSelected
+                              ? '#10b981'
+                              : isCurrentTable
+                              ? '#f59e0b'
+                              : isOccupied
+                              ? '#a0aec0'
+                              : '#2d3748',
+                            fontWeight: isSelected ? 700 : 600,
+                            cursor: isOccupied || isCurrentTable ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.2s',
+                            fontSize: '0.9rem',
+                            opacity: isOccupied || isCurrentTable ? 0.6 : 1,
+                            position: 'relative'
+                          }}
+                          onMouseOver={(e) => {
+                            if (!isOccupied && !isCurrentTable && !isSelected) {
+                              e.currentTarget.style.borderColor = '#10b981';
+                              e.currentTarget.style.backgroundColor = 'rgba(16,185,129,0.05)';
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (!isOccupied && !isCurrentTable && !isSelected) {
+                              e.currentTarget.style.borderColor = '#e2e8f0';
+                              e.currentTarget.style.backgroundColor = 'white';
+                            }
+                          }}
+                        >
+                          {isCurrentTable && (
+                            <span
+                              style={{
+                                position: 'absolute',
+                                top: '0.25rem',
+                                right: '0.25rem',
+                                fontSize: '0.75rem',
+                                background: '#f59e0b',
+                                color: 'white',
+                                padding: '0.15rem 0.4rem',
+                                borderRadius: '4px',
+                                fontWeight: 700
+                              }}
+                            >
+                              Actual
+                            </span>
+                          )}
+                          {isOccupied && (
+                            <span
+                              style={{
+                                position: 'absolute',
+                                top: '0.25rem',
+                                right: '0.25rem',
+                                fontSize: '0.75rem',
+                                background: '#e2e8f0',
+                                color: '#4a5568',
+                                padding: '0.15rem 0.4rem',
+                                borderRadius: '4px',
+                                fontWeight: 700
+                              }}
+                            >
+                              Ocupada
+                            </span>
+                          )}
+                          <div style={{ marginTop: isCurrentTable || isOccupied ? '1rem' : '0' }}>
+                            {tableItem.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '0.75rem',
+                              color: isOccupied || isCurrentTable ? '#a0aec0' : '#718096',
+                              marginTop: '0.25rem'
+                            }}
+                          >
+                            {tableItem.capacity} plazas
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Botones de acción */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '1rem',
+                justifyContent: 'flex-end',
+                marginTop: '2rem'
+              }}
+            >
+              <button
+                onClick={() => {
+                  if (!isProcessing) {
+                    setShowChangeTableModal(false);
+                    setSelectedFloorId('');
+                    setSelectedTableId('');
+                  }
+                }}
+                disabled={isProcessing}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  border: '2px solid #e2e8f0',
+                  background: 'white',
+                  color: '#4a5568',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (!isProcessing) {
+                    e.currentTarget.style.borderColor = '#cbd5e0';
+                    e.currentTarget.style.backgroundColor = '#f7fafc';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                  e.currentTarget.style.backgroundColor = 'white';
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleChangeTable}
+                disabled={!selectedTableId || isProcessing || selectedTableId === table?.id}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: !selectedTableId || isProcessing || selectedTableId === table?.id
+                    ? '#cbd5e0'
+                    : 'linear-gradient(130deg, #10b981, #059669)',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: !selectedTableId || isProcessing || selectedTableId === table?.id
+                    ? 'not-allowed'
+                    : 'pointer',
+                  boxShadow: !selectedTableId || isProcessing || selectedTableId === table?.id
+                    ? 'none'
+                    : '0 12px 24px -8px rgba(16,185,129,0.4)',
+                  transition: 'all 0.2s',
+                  opacity: !selectedTableId || isProcessing || selectedTableId === table?.id ? 0.6 : 1
+                }}
+                onMouseOver={(e) => {
+                  if (selectedTableId && !isProcessing && selectedTableId !== table?.id) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 16px 28px -10px rgba(16,185,129,0.5)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = !selectedTableId || isProcessing || selectedTableId === table?.id
+                    ? 'none'
+                    : '0 12px 24px -8px rgba(16,185,129,0.4)';
+                }}
+              >
+                {isProcessing ? 'Cambiando...' : 'Cambiar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para cambiar mozo */}
+      {showChangeUserModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem'
+          }}
+          onClick={() => {
+            if (!isProcessing) {
+              setShowChangeUserModal(false);
+              setSelectedUserId('');
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '20px',
+              padding: '2rem',
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: '1.5rem',
+                  fontWeight: 700,
+                  color: '#1a202c',
+                  margin: 0
+                }}
+              >
+                Cambiar Mozo
+              </h2>
+              <button
+                onClick={() => {
+                  if (!isProcessing) {
+                    setShowChangeUserModal(false);
+                    setSelectedUserId('');
+                  }
+                }}
+                disabled={isProcessing}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  color: '#4a5568',
+                  padding: '0.5rem',
+                  lineHeight: 1
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Lista de mozos */}
+            <div style={{ marginBottom: '2rem' }}>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#2d3748',
+                  marginBottom: '0.75rem'
+                }}
+              >
+                Seleccionar Mozo
+              </label>
+              {availableUsers.length === 0 ? (
+                <div style={{ padding: '1rem', textAlign: 'center', color: '#4a5568' }}>
+                  No hay mozos disponibles
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                    gap: '0.75rem',
+                    maxHeight: '400px',
+                    overflowY: 'auto',
+                    padding: '0.5rem'
+                  }}
+                >
+                  {availableUsers.map((userItem: any) => {
+                    const isSelected = selectedUserId === userItem.id;
+                    const isCurrentUser = userItem.id === operation?.user?.id;
+                    
+                    return (
+                      <button
+                        key={userItem.id}
+                        onClick={() => {
+                          if (!isCurrentUser && !isProcessing) {
+                            setSelectedUserId(userItem.id);
+                          }
+                        }}
+                        disabled={isCurrentUser || isProcessing}
+                        style={{
+                          padding: '1rem',
+                          borderRadius: '12px',
+                          border: isSelected
+                            ? '2px solid #8b5cf6'
+                            : isCurrentUser
+                            ? '2px solid #f59e0b'
+                            : '2px solid #e2e8f0',
+                          background: isSelected
+                            ? 'linear-gradient(135deg, rgba(139,92,246,0.1), rgba(124,58,237,0.1))'
+                            : isCurrentUser
+                            ? 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.1))'
+                            : 'white',
+                          color: isSelected
+                            ? '#8b5cf6'
+                            : isCurrentUser
+                            ? '#f59e0b'
+                            : '#2d3748',
+                          fontWeight: isSelected ? 700 : 600,
+                          cursor: isCurrentUser || isProcessing ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.2s',
+                          fontSize: '0.9rem',
+                          opacity: isCurrentUser || isProcessing ? 0.6 : 1,
+                          position: 'relative',
+                          textAlign: 'left'
+                        }}
+                        onMouseOver={(e) => {
+                          if (!isCurrentUser && !isProcessing && !isSelected) {
+                            e.currentTarget.style.borderColor = '#8b5cf6';
+                            e.currentTarget.style.backgroundColor = 'rgba(139,92,246,0.05)';
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (!isCurrentUser && !isProcessing && !isSelected) {
+                            e.currentTarget.style.borderColor = '#e2e8f0';
+                            e.currentTarget.style.backgroundColor = 'white';
+                          }
+                        }}
+                      >
+                        {isCurrentUser && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: '0.25rem',
+                              right: '0.25rem',
+                              fontSize: '0.75rem',
+                              background: '#f59e0b',
+                              color: 'white',
+                              padding: '0.15rem 0.4rem',
+                              borderRadius: '4px',
+                              fontWeight: 700
+                            }}
+                          >
+                            Actual
+                          </span>
+                        )}
+                        <div style={{ marginTop: isCurrentUser ? '1rem' : '0' }}>
+                          <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>
+                            {userItem.firstName} {userItem.lastName}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '0.75rem',
+                              color: isCurrentUser ? '#a0aec0' : '#718096',
+                              marginTop: '0.25rem'
+                            }}
+                          >
+                            DNI: {userItem.dni}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Botones de acción */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '1rem',
+                justifyContent: 'flex-end',
+                marginTop: '2rem'
+              }}
+            >
+              <button
+                onClick={() => {
+                  if (!isProcessing) {
+                    setShowChangeUserModal(false);
+                    setSelectedUserId('');
+                  }
+                }}
+                disabled={isProcessing}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  border: '2px solid #e2e8f0',
+                  background: 'white',
+                  color: '#4a5568',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (!isProcessing) {
+                    e.currentTarget.style.borderColor = '#cbd5e0';
+                    e.currentTarget.style.backgroundColor = '#f7fafc';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                  e.currentTarget.style.backgroundColor = 'white';
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleChangeUser}
+                disabled={!selectedUserId || isProcessing || selectedUserId === operation?.user?.id}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: !selectedUserId || isProcessing || selectedUserId === operation?.user?.id
+                    ? '#cbd5e0'
+                    : 'linear-gradient(130deg, #8b5cf6, #7c3aed)',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: !selectedUserId || isProcessing || selectedUserId === operation?.user?.id
+                    ? 'not-allowed'
+                    : 'pointer',
+                  boxShadow: !selectedUserId || isProcessing || selectedUserId === operation?.user?.id
+                    ? 'none'
+                    : '0 12px 24px -8px rgba(139,92,246,0.4)',
+                  transition: 'all 0.2s',
+                  opacity: !selectedUserId || isProcessing || selectedUserId === operation?.user?.id ? 0.6 : 1
+                }}
+                onMouseOver={(e) => {
+                  if (selectedUserId && !isProcessing && selectedUserId !== operation?.user?.id) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 16px 28px -10px rgba(139,92,246,0.5)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = !selectedUserId || isProcessing || selectedUserId === operation?.user?.id
+                    ? 'none'
+                    : '0 12px 24px -8px rgba(139,92,246,0.4)';
+                }}
+              >
+                {isProcessing ? 'Cambiando...' : 'Cambiar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para transferir platos */}
+      {showTransferPlatesModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem'
+          }}
+          onClick={() => {
+            if (!isProcessing) {
+              setShowTransferPlatesModal(false);
+              setSelectedTransferFloorId('');
+              setSelectedTransferTableId('');
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '20px',
+              padding: '2rem',
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: '1.5rem',
+                  fontWeight: 700,
+                  color: '#1a202c',
+                  margin: 0
+                }}
+              >
+                Transferir Platos
+              </h2>
+              <button
+                onClick={() => {
+                  if (!isProcessing) {
+                    setShowTransferPlatesModal(false);
+                    setSelectedTransferFloorId('');
+                    setSelectedTransferTableId('');
+                  }
+                }}
+                disabled={isProcessing}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  color: '#4a5568',
+                  padding: '0.5rem',
+                  lineHeight: 1
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Mostrar productos seleccionados */}
+            <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: '#f7fafc', borderRadius: '12px' }}>
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#2d3748', marginBottom: '0.5rem' }}>
+                Platos seleccionados para transferir:
+              </div>
+              <div style={{ fontSize: '0.85rem', color: '#4a5568' }}>
+                {Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0 ? (
+                  <span style={{ color: '#a0aec0' }}>No hay platos seleccionados</span>
+                ) : (
+                  <span style={{ fontWeight: 700, color: '#3b82f6' }}>
+                    {Object.keys(itemAssignments).filter(id => itemAssignments[id]).length} plato(s) seleccionado(s)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Selección de piso */}
+            <div style={{ marginBottom: '2rem' }}>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#2d3748',
+                  marginBottom: '0.75rem'
+                }}
+              >
+                Seleccionar Piso
+              </label>
+              {transferFloorsLoading ? (
+                <div style={{ padding: '1rem', textAlign: 'center', color: '#4a5568' }}>
+                  Cargando pisos...
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                    gap: '0.75rem'
+                  }}
+                >
+                  {transferFloorsData?.floorsByBranch?.map((floor: any) => (
+                    <button
+                      key={floor.id}
+                      onClick={() => {
+                        setSelectedTransferFloorId(floor.id);
+                        setSelectedTransferTableId('');
+                      }}
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '12px',
+                        border: selectedTransferFloorId === floor.id ? '2px solid #3b82f6' : '2px solid #e2e8f0',
+                        background: selectedTransferFloorId === floor.id
+                          ? 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(37,99,235,0.1))'
+                          : 'white',
+                        color: selectedTransferFloorId === floor.id ? '#3b82f6' : '#2d3748',
+                        fontWeight: selectedTransferFloorId === floor.id ? 700 : 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        fontSize: '0.95rem'
+                      }}
+                      onMouseOver={(e) => {
+                        if (selectedTransferFloorId !== floor.id) {
+                          e.currentTarget.style.borderColor = '#3b82f6';
+                          e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.05)';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (selectedTransferFloorId !== floor.id) {
+                          e.currentTarget.style.borderColor = '#e2e8f0';
+                          e.currentTarget.style.backgroundColor = 'white';
+                        }
+                      }}
+                    >
+                      {floor.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Selección de mesa */}
+            {selectedTransferFloorId && (
+              <div style={{ marginBottom: '2rem' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                    color: '#2d3748',
+                    marginBottom: '0.75rem'
+                  }}
+                >
+                  Seleccionar Mesa
+                </label>
+                {transferTablesLoading ? (
+                  <div style={{ padding: '1rem', textAlign: 'center', color: '#4a5568' }}>
+                    Cargando mesas...
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                      gap: '0.75rem',
+                      maxHeight: '300px',
+                      overflowY: 'auto',
+                      padding: '0.5rem'
+                    }}
+                  >
+                    {transferTablesData?.tablesByFloor?.map((tableItem: any) => {
+                      const isSelected = selectedTransferTableId === tableItem.id;
+                      const isCurrentTable = tableItem.id === table?.id;
+                      
+                      return (
+                        <button
+                          key={tableItem.id}
+                          onClick={() => {
+                            if (!isCurrentTable && !isProcessing) {
+                              setSelectedTransferTableId(tableItem.id);
+                            }
+                          }}
+                          disabled={isCurrentTable || isProcessing}
+                          style={{
+                            padding: '1rem',
+                            borderRadius: '12px',
+                            border: isSelected
+                              ? '2px solid #3b82f6'
+                              : isCurrentTable
+                              ? '2px solid #f59e0b'
+                              : '2px solid #e2e8f0',
+                            background: isSelected
+                              ? 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(37,99,235,0.1))'
+                              : isCurrentTable
+                              ? 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.1))'
+                              : 'white',
+                            color: isSelected
+                              ? '#3b82f6'
+                              : isCurrentTable
+                              ? '#f59e0b'
+                              : '#2d3748',
+                            fontWeight: isSelected ? 700 : 600,
+                            cursor: isCurrentTable || isProcessing ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.2s',
+                            fontSize: '0.9rem',
+                            opacity: isCurrentTable || isProcessing ? 0.6 : 1,
+                            position: 'relative'
+                          }}
+                          onMouseOver={(e) => {
+                            if (!isCurrentTable && !isProcessing && !isSelected) {
+                              e.currentTarget.style.borderColor = '#3b82f6';
+                              e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.05)';
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (!isCurrentTable && !isProcessing && !isSelected) {
+                              e.currentTarget.style.borderColor = '#e2e8f0';
+                              e.currentTarget.style.backgroundColor = 'white';
+                            }
+                          }}
+                        >
+                          {isCurrentTable && (
+                            <span
+                              style={{
+                                position: 'absolute',
+                                top: '0.25rem',
+                                right: '0.25rem',
+                                fontSize: '0.75rem',
+                                background: '#f59e0b',
+                                color: 'white',
+                                padding: '0.15rem 0.4rem',
+                                borderRadius: '4px',
+                                fontWeight: 700
+                              }}
+                            >
+                              Actual
+                            </span>
+                          )}
+                          <div style={{ marginTop: isCurrentTable ? '1rem' : '0' }}>
+                            {tableItem.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '0.75rem',
+                              color: isCurrentTable ? '#a0aec0' : '#718096',
+                              marginTop: '0.25rem'
+                            }}
+                          >
+                            {tableItem.capacity} plazas
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Botones de acción */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '1rem',
+                justifyContent: 'flex-end',
+                marginTop: '2rem'
+              }}
+            >
+              <button
+                onClick={() => {
+                  if (!isProcessing) {
+                    setShowTransferPlatesModal(false);
+                    setSelectedTransferFloorId('');
+                    setSelectedTransferTableId('');
+                  }
+                }}
+                disabled={isProcessing}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  border: '2px solid #e2e8f0',
+                  background: 'white',
+                  color: '#4a5568',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (!isProcessing) {
+                    e.currentTarget.style.borderColor = '#cbd5e0';
+                    e.currentTarget.style.backgroundColor = '#f7fafc';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                  e.currentTarget.style.backgroundColor = 'white';
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleTransferPlates}
+                disabled={!selectedTransferTableId || isProcessing || selectedTransferTableId === table?.id || Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: !selectedTransferTableId || isProcessing || selectedTransferTableId === table?.id || Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0
+                    ? '#cbd5e0'
+                    : 'linear-gradient(130deg, #3b82f6, #2563eb)',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: !selectedTransferTableId || isProcessing || selectedTransferTableId === table?.id || Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0
+                    ? 'not-allowed'
+                    : 'pointer',
+                  boxShadow: !selectedTransferTableId || isProcessing || selectedTransferTableId === table?.id || Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0
+                    ? 'none'
+                    : '0 12px 24px -8px rgba(59,130,246,0.4)',
+                  transition: 'all 0.2s',
+                  opacity: !selectedTransferTableId || isProcessing || selectedTransferTableId === table?.id || Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0 ? 0.6 : 1
+                }}
+                onMouseOver={(e) => {
+                  if (selectedTransferTableId && !isProcessing && selectedTransferTableId !== table?.id && Object.keys(itemAssignments).filter(id => itemAssignments[id]).length > 0) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 16px 28px -10px rgba(59,130,246,0.5)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = !selectedTransferTableId || isProcessing || selectedTransferTableId === table?.id || Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0
+                    ? 'none'
+                    : '0 12px 24px -8px rgba(59,130,246,0.4)';
+                }}
+              >
+                {isProcessing ? 'Transfiriendo...' : 'Transferir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
 
 export default CashPay;
-

@@ -24,7 +24,7 @@ type OrderItem = {
 };
 
 const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
-	const { companyData, user, deviceId, getDeviceId, updateTableInContext } = useAuth();
+	const { companyData, user, deviceId, getDeviceId, getMacAddress, updateTableInContext } = useAuth();
 	const isExistingOrder = Boolean(table?.currentOperationId);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchTerm, setSearchTerm] = useState<string>('');
@@ -199,13 +199,32 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 		};
 
 		if (isExistingOrder) {
-			// En órdenes existentes, siempre agregamos como una nueva fila
-			setOrderItems([...orderItems, newItem]);
+			// En órdenes existentes:
+			// - Si hay un item nuevo (sin guardar) con el mismo producto, aumentar su cantidad
+			// - Si solo hay items guardados o no existe, crear una nueva fila
+			const existingNewItemIndex = orderItems.findIndex(
+				item => item.productId === product.id && item.isNew === true
+			);
+			
+			if (existingNewItemIndex >= 0) {
+				// Si existe un item nuevo con el mismo producto, aumentar su cantidad
+				const updatedItems = [...orderItems];
+				const existingItem = updatedItems[existingNewItemIndex];
+				const validQuantity = Number(existingItem.quantity) + qty;
+				const validPrice = Number(existingItem.price) || productPrice;
+				updatedItems[existingNewItemIndex].quantity = validQuantity;
+				updatedItems[existingNewItemIndex].total = validPrice * validQuantity;
+				setOrderItems(updatedItems);
+			} else {
+				// Si no hay un item nuevo, crear una nueva fila (no afecta items guardados)
+				setOrderItems([...orderItems, newItem]);
+			}
 		} else {
-			// Para nuevas órdenes, mantener el comportamiento de agrupar
+			// Para nuevas órdenes, agrupar productos por productId (aumentar cantidad si existe)
 			const existingItemIndex = orderItems.findIndex(item => item.productId === product.id);
 			
 			if (existingItemIndex >= 0) {
+				// Si el producto ya existe, aumentar la cantidad
 				const updatedItems = [...orderItems];
 				const existingItem = updatedItems[existingItemIndex];
 				const validQuantity = Number(existingItem.quantity) + qty;
@@ -215,6 +234,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				updatedItems[existingItemIndex].isNew = true;
 				setOrderItems(updatedItems);
 			} else {
+				// Si el producto no existe, agregarlo como nueva fila
 				setOrderItems([...orderItems, newItem]);
 			}
 		}
@@ -386,7 +406,20 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					};
 				});
 
-				const resolvedDeviceId = deviceId || getDeviceId();
+				// Obtener deviceId o MAC address
+				let resolvedDeviceId: string;
+				if (deviceId) {
+					resolvedDeviceId = deviceId;
+				} else {
+					// Si deviceId es null, obtener la MAC address
+					try {
+						resolvedDeviceId = await getMacAddress();
+					} catch (error) {
+						console.error('Error al obtener MAC address:', error);
+						// Fallback a getDeviceId si falla
+						resolvedDeviceId = getDeviceId();
+					}
+				}
 
 				const result = await addItemsToOperationMutation({
 					variables: {
@@ -493,6 +526,20 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			}
 			if (user?.id) {
 				variables.userId = user.id;
+			}
+			// Obtener deviceId o MAC address
+			if (deviceId) {
+				variables.deviceId = deviceId;
+			} else {
+				// Si deviceId es null, obtener la MAC address
+				try {
+					const macAddress = await getMacAddress();
+					variables.deviceId = macAddress;
+				} catch (error) {
+					console.error('Error al obtener MAC address:', error);
+					// Fallback a getDeviceId si falla
+					variables.deviceId = getDeviceId();
+				}
 			}
 
 			const cleanVariables: any = {};
