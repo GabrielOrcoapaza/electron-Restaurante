@@ -619,7 +619,8 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                    table.status === 'MAINTENANCE' ? 'Mantenimiento' : 'Desconocido'}
                 </div>
                 
-                {table.userName && (
+                {/* Solo mostrar el nombre del mozo si la mesa NO está disponible */}
+                {table.userName && table.status !== 'AVAILABLE' && (
                   <div style={{
                     fontSize: '1rem',
                     color: colors.textColor,

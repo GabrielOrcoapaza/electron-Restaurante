@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useWebSocket } from '../../context/WebSocketContext';
 import type { Table } from '../../types/table';
-import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CREATE_OPERATION, CANCEL_OPERATION_DETAIL } from '../../graphql/mutations';
+import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CREATE_OPERATION, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS } from '../../graphql/mutations';
 import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries';
 
 type CashPayProps = {
@@ -20,6 +21,7 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 
 const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTableChange }) => {
   const { companyData, user, deviceId, getMacAddress, updateTableInContext } = useAuth();
+  const { sendMessage } = useWebSocket();
   const hasSelection = Boolean(table?.id && companyData?.branch.id);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
   const [selectedSerialId, setSelectedSerialId] = useState<string>('');
@@ -112,6 +114,32 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [transferItemsMutation] = useMutation(TRANSFER_ITEMS);
   const [createOperationMutation] = useMutation(CREATE_OPERATION);
   const [cancelOperationDetailMutation] = useMutation(CANCEL_OPERATION_DETAIL);
+  const [updateTableStatusMutation] = useMutation(UPDATE_TABLE_STATUS);
+
+  // Función auxiliar para enviar notificación WebSocket de actualización de mesa
+  const notifyTableUpdate = (tableId: string, status: string, currentOperationId?: string | number | null, occupiedById?: string | number | null, waiterName?: string | null) => {
+    // Pequeño delay para asegurar que la base de datos se haya actualizado primero
+    setTimeout(() => {
+      // Enviar actualización específica de la mesa
+      sendMessage({
+        type: 'table_status_update',
+        table_id: tableId,
+        status: status,
+        current_operation_id: currentOperationId || null,
+        occupied_by_user_id: occupiedById || null,
+        waiter_name: waiterName || null
+      });
+      console.log(`📡 Notificación WebSocket enviada para mesa ${tableId}: ${status}`);
+      
+      // También solicitar un snapshot completo de todas las mesas para asegurar sincronización
+      setTimeout(() => {
+        sendMessage({
+          type: 'table_update_request'
+        });
+        console.log('📡 Solicitud de snapshot de mesas enviada');
+      }, 500);
+    }, 300);
+  };
 
   const operation = data?.operationByTable;
   // Filtrar solo documentos y series activos (aunque el backend ya debería filtrarlos)
@@ -879,6 +907,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       const selectedSerial = serials.find((ser: any) => ser.id === selectedSerialId);
       const serial = selectedSerial?.serial || '';
 
+      // Para pagos parciales: NO pasar table_id si hay productos restantes
+      // Esto evita que el backend libere la mesa cuando todavía hay productos por pagar
+      // Solo pasamos tableId si se está pagando toda la operación (no hay productos restantes)
+      const hasRemainingProducts = selectedDetailIds.length > 0 && 
+        detailsToProcess.filter((detail: any) => !selectedDetailIds.includes(detail.id)).length > 0;
+      const tableIdForPayment = hasRemainingProducts ? null : (table?.id || null);
+
       const variables = {
         operationId: operationToPay.id,
         branchId: companyData?.branch.id,
@@ -904,10 +939,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         items: items,
         payments: payments,
         notes: null,
-        // Para pagos parciales: pasar table_id para que el backend imprima el documento
-        // La nueva operación (solo productos seleccionados) está completamente pagada, así que se imprimirá
-        // Luego crearemos una nueva operación con los productos restantes para mantener la mesa ocupada
-        tableId: selectedDetailIds.length > 0 ? (table?.id || null) : (table?.id || null),
+        tableId: tableIdForPayment,
         deviceId: resolvedDeviceId, // Siempre pasar deviceId o MAC para que el backend pueda imprimir el documento (boleta/factura)
         printerId: null // Opcional: se puede agregar selección de impresora si es necesario
       };
@@ -923,9 +955,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         
         if (selectedDetailIds.length > 0) {
           // Se pagaron solo algunos productos
-          // La nueva operación (solo productos seleccionados) está completamente pagada,
-          // así que el backend ya imprimió el documento y puede haber liberado la mesa temporalmente
-          // Necesitamos restaurar la operación original con los productos restantes
+          // IMPORTANTE: Crear primero la nueva operación con productos restantes ANTES de que el backend libere la mesa
+          // Esto evita que la mesa se ponga verde temporalmente
           
           // Obtener los productos restantes de la operación original
           const remainingDetails = detailsToProcess.filter((detail: any) => 
@@ -933,8 +964,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           );
           
           if (remainingDetails.length > 0) {
-            // Crear una nueva operación con los productos restantes y asociarla a la mesa
-            // Esto restaurará la operación original en la mesa
+            // Preparar la nueva operación con productos restantes
             const remainingProductMap: Record<string, { quantity: number; unitPrice: number; notes: string }> = {};
             remainingDetails.forEach((detail: any) => {
               const productId = detail.productId;
@@ -965,8 +995,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             const remainingIgvAmount = remainingSubtotal * (igvPercentage / 100);
             const remainingTotal = remainingSubtotal + remainingIgvAmount;
             
-            // Crear operación con productos restantes y asociarla a la mesa
-            await createOperationMutation({
+            // CRÍTICO: Crear la nueva operación con productos restantes INMEDIATAMENTE
+            // Esto asegura que la mesa tenga una operación activa antes de que el backend pueda liberarla
+            const remainingOperationResult = await createOperationMutation({
               variables: {
                 branchId: companyData?.branch.id,
                 tableId: table?.id || null,
@@ -984,6 +1015,49 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 operationDate: now.toISOString()
               }
             });
+            
+            // Asegurar que la mesa se mantenga ocupada INMEDIATAMENTE después de crear la nueva operación
+            // Esto evita que la mesa se ponga verde cuando todavía hay productos por pagar
+            if (remainingOperationResult.data?.createOperation?.success && table?.id) {
+              // Actualizar el estado de la mesa a OCCUPIED INMEDIATAMENTE para evitar que se ponga verde
+              try {
+                const tableResult = await updateTableStatusMutation({
+                  variables: {
+                    tableId: table.id,
+                    status: 'OCCUPIED',
+                    userId: user?.id
+                  }
+                });
+                
+                if (tableResult.data?.updateTableStatus?.success) {
+                  const updatedTable = tableResult.data.updateTableStatus.table;
+                  if (updateTableInContext) {
+                    updateTableInContext({
+                      id: updatedTable.id,
+                      status: updatedTable.status,
+                      statusColors: updatedTable.statusColors,
+                      currentOperationId: remainingOperationResult.data.createOperation.operation?.id || updatedTable.currentOperationId,
+                      occupiedById: updatedTable.occupiedById,
+                      userName: updatedTable.userName
+                    });
+                  }
+                  
+                  // Enviar notificación WebSocket INMEDIATAMENTE para mantener la mesa ocupada
+                  notifyTableUpdate(
+                    updatedTable.id,
+                    'OCCUPIED', // Forzar estado OCCUPIED
+                    remainingOperationResult.data.createOperation.operation?.id || updatedTable.currentOperationId,
+                    updatedTable.occupiedById,
+                    updatedTable.userName
+                  );
+                  
+                  console.log('✅ Mesa actualizada a OCCUPIED ANTES del pago para evitar que se ponga verde');
+                }
+              } catch (tableError) {
+                console.error('⚠️ Error al actualizar estado de mesa antes del pago:', tableError);
+                // Continuar aunque falle la actualización de la mesa
+              }
+            }
           }
           
           // Refetch para obtener la operación restaurada
@@ -995,6 +1069,23 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           // Si se pagó toda la operación, refetch y verificar si la mesa fue liberada
           await refetch();
           if (result.data?.createIssuedDocument?.wasTableFreed) {
+            // Actualizar la mesa en el contexto para limpiar el nombre del mozo
+            const freedTable = result.data?.createIssuedDocument?.table;
+            if (freedTable && table?.id && updateTableInContext) {
+              updateTableInContext({
+                id: table.id,
+                status: freedTable.status || 'AVAILABLE',
+                statusColors: freedTable.statusColors || null,
+                currentOperationId: null,
+                occupiedById: null,
+                userName: null  // Limpiar el nombre del mozo
+              });
+              
+              // Enviar notificación WebSocket para actualizar en tiempo real
+              notifyTableUpdate(table.id, freedTable.status || 'AVAILABLE', null, null, null);
+              
+              console.log('✅ Mesa liberada - nombre del mozo limpiado para mesa:', table.id);
+            }
             setTimeout(() => {
               onBack();
             }, 2000);
@@ -1079,6 +1170,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             occupiedById: null,
             userName: null  // ← ESTO LIMPIA EL NOMBRE DEL MOZO
           });
+          // Enviar notificación WebSocket para actualizar en tiempo real
+          notifyTableUpdate(table.id, oldTableData?.status || 'AVAILABLE', null, null, null);
           console.log('✅ Mesa antigua actualizada - nombre del mozo limpiado para mesa:', table.id);
         }
         
@@ -1099,6 +1192,14 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             occupiedById: currentOccupiedById,
             userName: currentUserName
           });
+          // Enviar notificación WebSocket para actualizar en tiempo real
+          notifyTableUpdate(
+            resultNewTable.id,
+            resultNewTable.status || 'OCCUPIED',
+            currentOperationId,
+            currentOccupiedById,
+            currentUserName
+          );
           console.log('✅ Mesa nueva actualizada en contexto para mesa:', resultNewTable.id);
         }
         
@@ -1254,6 +1355,14 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             occupiedById: resultOldTable.occupiedById ?? null,
             userName: resultOldTable.userName ?? null
           });
+          // Enviar notificación WebSocket para actualizar en tiempo real
+          notifyTableUpdate(
+            resultOldTable.id,
+            resultOldTable.status || 'AVAILABLE',
+            resultOldTable.currentOperationId ?? null,
+            resultOldTable.occupiedById ?? null,
+            resultOldTable.userName ?? null
+          );
           console.log('✅ Mesa origen actualizada después de transferir');
         }
         
@@ -1265,6 +1374,14 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             occupiedById: resultNewTable.occupiedById ?? null,
             userName: resultNewTable.userName ?? null
           });
+          // Enviar notificación WebSocket para actualizar en tiempo real
+          notifyTableUpdate(
+            resultNewTable.id,
+            resultNewTable.status || 'OCCUPIED',
+            resultNewTable.currentOperationId ?? null,
+            resultNewTable.occupiedById ?? null,
+            resultNewTable.userName ?? null
+          );
           console.log('✅ Mesa destino actualizada después de transferir');
         }
         
