@@ -444,3 +444,41 @@ export const CANCEL_OPERATION_DETAIL = gql`
   }
 `;
 
+// Mutación para cancelar una operación completa
+export const CANCEL_OPERATION = gql`
+  mutation CancelOperation(
+    $operationId: ID!
+    $branchId: ID!
+    $userId: ID!
+    $cancellationReason: String!
+    $deviceId: String
+  ) {
+    cancelOperation(
+      operationId: $operationId
+      branchId: $branchId
+      userId: $userId
+      cancellationReason: $cancellationReason
+      deviceId: $deviceId
+    ) {
+      success
+      message
+      operation {
+        id
+        order
+        status
+        cancelledAt
+      }
+      table {
+        id
+        name
+        status
+        statusColors
+        currentOperationId
+        occupiedById
+        userName
+      }
+      stockMovementsCount
+    }
+  }
+`;
+

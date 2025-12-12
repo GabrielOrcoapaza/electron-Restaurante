@@ -3,7 +3,7 @@ import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useWebSocket } from '../../context/WebSocketContext';
 import type { Table } from '../../types/table';
-import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CREATE_OPERATION, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS } from '../../graphql/mutations';
+import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CREATE_OPERATION, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION } from '../../graphql/mutations';
 import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries';
 
 type CashPayProps = {
@@ -41,6 +41,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [showTransferPlatesModal, setShowTransferPlatesModal] = useState(false);
   const [selectedTransferFloorId, setSelectedTransferFloorId] = useState<string>('');
   const [selectedTransferTableId, setSelectedTransferTableId] = useState<string>('');
+  const [showCancelOperationModal, setShowCancelOperationModal] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState<string>('');
 
   const {
     data,
@@ -115,6 +117,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [createOperationMutation] = useMutation(CREATE_OPERATION);
   const [cancelOperationDetailMutation] = useMutation(CANCEL_OPERATION_DETAIL);
   const [updateTableStatusMutation] = useMutation(UPDATE_TABLE_STATUS);
+  const [cancelOperationMutation] = useMutation(CANCEL_OPERATION);
 
   // Función auxiliar para enviar notificación WebSocket de actualización de mesa
   const notifyTableUpdate = (tableId: string, status: string, currentOperationId?: string | number | null, occupiedById?: string | number | null, waiterName?: string | null) => {
@@ -371,9 +374,11 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       };
 
       // Crear copia con cantidad 1
+      // Guardar el ID original para poder transferir correctamente
       const splitDetail = {
         ...originalDetail,
-        id: splitDetailId, // ID único para la copia
+        id: splitDetailId, // ID único para la copia (solo para UI)
+        originalDetailId: detailId, // ID original del detalle en la BD
         quantity: 1,
         total: Number(originalDetail.unitPrice)
       };
@@ -1309,6 +1314,78 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   // Obtener lista de mozos disponibles (usuarios activos de la sucursal)
   const availableUsers = (companyData?.branch?.users || []).filter((u: any) => u.isActive !== false);
 
+  const handleCancelOperation = async () => {
+    if (!operation || !companyData?.branch.id || !user?.id) {
+      setPaymentError('No se puede cancelar la operación: faltan datos necesarios');
+      return;
+    }
+
+    if (!cancellationReason.trim()) {
+      setPaymentError('Por favor ingresa una razón para la cancelación');
+      return;
+    }
+
+    setIsProcessing(true);
+    setPaymentError(null);
+
+    try {
+      const resolvedDeviceId = deviceId || await getMacAddress();
+
+      const result = await cancelOperationMutation({
+        variables: {
+          operationId: operation.id,
+          branchId: companyData.branch.id,
+          userId: user.id,
+          cancellationReason: cancellationReason.trim(),
+          deviceId: resolvedDeviceId
+        }
+      });
+
+      if (result.data?.cancelOperation?.success) {
+        const resultTable = result.data.cancelOperation.table;
+        
+        // Actualizar la mesa en el contexto - liberarla
+        if (resultTable && updateTableInContext) {
+          updateTableInContext({
+            id: resultTable.id,
+            status: resultTable.status || 'AVAILABLE',
+            currentOperationId: null,
+            occupiedById: null,
+            userName: null
+          });
+          // Enviar notificación WebSocket
+          notifyTableUpdate(resultTable.id, resultTable.status || 'AVAILABLE', null, null, null);
+        }
+
+        // Cerrar modal
+        setShowCancelOperationModal(false);
+        setCancellationReason('');
+        
+        // Refetch la operación (aunque ya no debería existir)
+        await refetch();
+        
+        // Llamar callback de éxito para que el padre pueda refetch las mesas
+        if (onPaymentSuccess) {
+          onPaymentSuccess();
+        }
+
+        // Volver atrás ya que la operación fue cancelada
+        if (onBack) {
+          onBack();
+        }
+
+        setPaymentError(null);
+      } else {
+        setPaymentError(result.data?.cancelOperation?.message || 'Error al cancelar la operación');
+      }
+    } catch (err: any) {
+      console.error('Error cancelando operación:', err);
+      setPaymentError(err.message || 'Error al cancelar la operación');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleTransferPlates = async () => {
     if (!operation || !selectedTransferTableId || !companyData?.branch.id) {
       setPaymentError('Por favor selecciona una mesa de destino');
@@ -1332,11 +1409,99 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     setPaymentError(null);
 
     try {
+      // Procesar los items seleccionados: agrupar por ID original y calcular cantidades
+      // Esto maneja correctamente los productos divididos
+      const itemsByOriginalId: Record<string, { totalQuantity: number; originalQuantity: number }> = {};
+
+      // Primero, agrupar todos los items seleccionados por su ID original
+      for (const selectedId of selectedDetailIds) {
+        // Buscar el detalle en modifiedDetails
+        const detail = modifiedDetails.find((d: any) => d.id === selectedId);
+        if (!detail) continue;
+
+        // Si es una copia dividida, usar el originalDetailId o extraer del ID
+        let originalDetailId: string;
+        if (detail.originalDetailId) {
+          originalDetailId = detail.originalDetailId;
+        } else if (selectedId.includes('-split-')) {
+          originalDetailId = selectedId.split('-split-')[0];
+        } else {
+          originalDetailId = selectedId;
+        }
+
+        // Validar que sea un ID numérico válido
+        if (!/^\d+$/.test(originalDetailId)) continue;
+
+        const selectedQuantity = Number(detail.quantity) || 0;
+
+        // Inicializar o actualizar el registro para este ID original
+        if (!itemsByOriginalId[originalDetailId]) {
+          // Buscar el detalle original para obtener su cantidad total
+          const originalDetail = modifiedDetails.find((d: any) => d.id === originalDetailId && !d.id?.includes('-split-'));
+          itemsByOriginalId[originalDetailId] = {
+            totalQuantity: selectedQuantity,
+            originalQuantity: originalDetail ? Number(originalDetail.quantity) || 0 : selectedQuantity
+          };
+        } else {
+          itemsByOriginalId[originalDetailId].totalQuantity += selectedQuantity;
+        }
+      }
+
+      // Procesar cada item: cancelar parcialmente si es necesario, luego transferir
+      const detailIdsToTransfer: string[] = [];
+      let needsRefetch = false;
+
+      for (const [originalDetailId, itemData] of Object.entries(itemsByOriginalId)) {
+        const { totalQuantity, originalQuantity } = itemData;
+
+        // Si la cantidad total seleccionada es menor que la cantidad original,
+        // necesitamos cancelar la diferencia primero
+        if (totalQuantity < originalQuantity) {
+          const quantityToCancel = originalQuantity - totalQuantity;
+          
+          // Cancelar parcialmente el detalle original
+          // Construir variables sin userId si es null (el backend puede requerir ID! en lugar de ID)
+          const cancelVariables: any = {
+            detailId: originalDetailId,
+            quantity: quantityToCancel
+          };
+          
+          // Solo agregar userId si existe (no enviar null)
+          if (user?.id) {
+            cancelVariables.userId = user.id;
+          }
+          
+          const cancelResult = await cancelOperationDetailMutation({
+            variables: cancelVariables
+          });
+
+          if (!cancelResult.data?.cancelOperationDetail?.success) {
+            throw new Error(cancelResult.data?.cancelOperationDetail?.message || 'Error al cancelar parcialmente el item');
+          }
+
+          needsRefetch = true;
+        }
+
+        // Agregar el ID original para transferir (el backend transferirá el detalle completo)
+        detailIdsToTransfer.push(originalDetailId);
+      }
+
+      // Si se hicieron cancelaciones parciales, hacer refetch para obtener los datos actualizados
+      if (needsRefetch) {
+        await refetch();
+      }
+
+      if (detailIdsToTransfer.length === 0) {
+        setPaymentError('No se encontraron IDs válidos para transferir');
+        setIsProcessing(false);
+        return;
+      }
+
       const result = await transferItemsMutation({
         variables: {
           fromOperationId: operation.id,
           toTableId: selectedTransferTableId,
-          detailIds: selectedDetailIds,
+          detailIds: detailIdsToTransfer,
           branchId: companyData.branch.id,
           createNewOperation: false // Por defecto usa la operación existente o crea una nueva si no existe
         }
@@ -2410,6 +2575,39 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 >
                   {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Orden ya pagada' : 'Procesar pago'}
                 </button>
+                <button
+                  onClick={() => setShowCancelOperationModal(true)}
+                  disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
+                  style={{
+                    width: '100%',
+                    marginTop: '0.75rem',
+                    padding: '0.95rem 1.25rem',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: operation?.status === 'COMPLETED'
+                      ? '#cbd5e0' 
+                      : 'linear-gradient(130deg, #ef4444, #dc2626)',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.95rem',
+                    cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 16px 28px -12px rgba(239,68,68,0.55)',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
+                  }}
+                  onMouseOver={(e) => {
+                    if (operation?.status !== 'COMPLETED' && !isProcessing) {
+                      e.currentTarget.style.transform = 'translateY(-3px)';
+                      e.currentTarget.style.boxShadow = '0 20px 32px -10px rgba(239,68,68,0.6)';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 16px 28px -12px rgba(239,68,68,0.55)';
+                  }}
+                >
+                  {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Orden ya pagada' : 'Anular Orden'}
+                </button>
                 {paymentError && (
                   <div
                     style={{
@@ -3436,6 +3634,218 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 {isProcessing ? 'Transfiriendo...' : 'Transferir'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para cancelar operación */}
+      {showCancelOperationModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem'
+          }}
+          onClick={() => {
+            if (!isProcessing) {
+              setShowCancelOperationModal(false);
+              setCancellationReason('');
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '20px',
+              padding: '2rem',
+              maxWidth: '500px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: '1.5rem',
+                  fontWeight: 700,
+                  color: '#1a202c',
+                  margin: 0
+                }}
+              >
+                Anular Orden
+              </h2>
+              <button
+                onClick={() => {
+                  if (!isProcessing) {
+                    setShowCancelOperationModal(false);
+                    setCancellationReason('');
+                  }
+                }}
+                disabled={isProcessing}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  color: '#4a5568',
+                  padding: '0.5rem',
+                  lineHeight: 1
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <p style={{ color: '#4a5568', marginBottom: '1rem', fontSize: '0.95rem' }}>
+                ¿Estás seguro de que deseas anular esta orden? Esta acción:
+              </p>
+              <ul style={{ color: '#4a5568', marginLeft: '1.5rem', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                <li>Cancelará todos los items de la orden</li>
+                <li>Devolverá el stock de los productos</li>
+                <li>Liberará la mesa automáticamente</li>
+                <li>No se puede deshacer</li>
+              </ul>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#2d3748',
+                  marginBottom: '0.75rem'
+                }}
+              >
+                Razón de cancelación *
+              </label>
+              <textarea
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+                disabled={isProcessing}
+                placeholder="Ingresa la razón de la cancelación..."
+                style={{
+                  width: '100%',
+                  minHeight: '100px',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e0',
+                  fontSize: '0.9rem',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            {/* Botones de acción */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '1rem',
+                justifyContent: 'flex-end',
+                marginTop: '2rem'
+              }}
+            >
+              <button
+                onClick={() => {
+                  if (!isProcessing) {
+                    setShowCancelOperationModal(false);
+                    setCancellationReason('');
+                  }
+                }}
+                disabled={isProcessing}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  border: '2px solid #e2e8f0',
+                  background: 'white',
+                  color: '#4a5568',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (!isProcessing) {
+                    e.currentTarget.style.borderColor = '#cbd5e0';
+                    e.currentTarget.style.backgroundColor = '#f7fafc';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                  e.currentTarget.style.backgroundColor = 'white';
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCancelOperation}
+                disabled={!cancellationReason.trim() || isProcessing}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: !cancellationReason.trim() || isProcessing
+                    ? '#cbd5e0'
+                    : 'linear-gradient(130deg, #ef4444, #dc2626)',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: !cancellationReason.trim() || isProcessing
+                    ? 'not-allowed'
+                    : 'pointer',
+                  boxShadow: !cancellationReason.trim() || isProcessing
+                    ? 'none'
+                    : '0 12px 24px -8px rgba(239,68,68,0.4)',
+                  transition: 'all 0.2s',
+                  opacity: !cancellationReason.trim() || isProcessing ? 0.6 : 1
+                }}
+                onMouseOver={(e) => {
+                  if (cancellationReason.trim() && !isProcessing) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 16px 28px -10px rgba(239,68,68,0.5)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = !cancellationReason.trim() || isProcessing
+                    ? 'none'
+                    : '0 12px 24px -8px rgba(239,68,68,0.4)';
+                }}
+              >
+                {isProcessing ? 'Anulando...' : 'Confirmar Anulación'}
+              </button>
+            </div>
+            {paymentError && (
+              <div
+                style={{
+                  marginTop: '1rem',
+                  backgroundColor: '#fed7d7',
+                  border: '1px solid #feb2b2',
+                  color: '#742a2a',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem'
+                }}
+              >
+                {paymentError}
+              </div>
+            )}
           </div>
         </div>
       )}
