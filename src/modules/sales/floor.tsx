@@ -11,7 +11,7 @@ type FloorProps = {
 };
 
 const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
-  const { companyData } = useAuth();
+  const { companyData, user } = useAuth();
   
   // CSS para animación de pulso (adaptable a diferentes colores)
   const pulseKeyframes = `
@@ -139,7 +139,54 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     setShowTables(false);
   };
 
+  // Función para verificar si el usuario puede acceder a una mesa específica
+  const canAccessTable = (table: Table): { canAccess: boolean; reason?: string } => {
+    // Los cajeros siempre pueden acceder (para procesar pagos)
+    if (user?.role?.toUpperCase() === 'CASHIER') {
+      return { canAccess: true };
+    }
+
+    // Si la mesa no está ocupada, cualquier usuario puede acceder
+    if (!table.currentOperationId || !table.occupiedById) {
+      return { canAccess: true };
+    }
+
+    // Si la mesa está ocupada, verificar el modo multi-waiter
+    const isMultiWaiterEnabled = companyData?.branch?.isMultiWaiterEnabled || false;
+
+    // Si multi-waiter está habilitado, cualquier usuario puede acceder
+    if (isMultiWaiterEnabled) {
+      return { canAccess: true };
+    }
+
+    // Si multi-waiter está deshabilitado, solo el usuario que creó la orden puede acceder
+    const tableOccupiedById = String(table.occupiedById);
+    const currentUserId = String(user?.id);
+
+    if (tableOccupiedById === currentUserId) {
+      return { canAccess: true };
+    }
+
+    // El usuario no es el que creó la orden
+    return { 
+      canAccess: false, 
+      reason: `Esta mesa está siendo atendida por ${table.userName || 'otro usuario'}. Solo el usuario que creó la orden puede acceder a esta mesa.` 
+    };
+  };
+
   const handleTableClick = (table: Table) => {
+    // Verificar si el usuario puede acceder a esta mesa
+    const accessCheck = canAccessTable(table);
+    
+    if (!accessCheck.canAccess) {
+      setNotification({ 
+        type: 'error', 
+        message: accessCheck.reason || 'No tiene permiso para acceder a esta mesa.' 
+      });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+    
     setSelectedTable(table);
     setShowOrder(false);
     setShowStatusModal(true);
@@ -520,7 +567,8 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                     padding: '2.5rem',
                     textAlign: 'center',
                     transition: 'all 0.2s ease',
-                    cursor: 'pointer',
+                    cursor: canAccessTable(table).canAccess ? 'pointer' : 'not-allowed',
+                    opacity: canAccessTable(table).canAccess ? 1 : 0.6,
                     position: 'relative',
                     // Para mesas redondas, hacer el contenedor cuadrado para que el 50% funcione
                     aspectRatio: isRoundTable ? '1 / 1' : 'auto',
@@ -714,24 +762,26 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             </div>
 
             <div style={{ display: 'grid', gap: '0.75rem' }}>
-              <button
-                onClick={() => {
-                  setShowStatusModal(false);
-                  setShowOrder(true);
-                }}
-                style={{
-                  padding: '0.9rem 1.25rem',
-                  backgroundColor: '#667eea',
-                  border: 'none',
-                  borderRadius: '8px',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '0.95rem',
-                  fontWeight: 600
-                }}
-              >
-                Orden
-              </button>
+              {selectedTable && canAccessTable(selectedTable).canAccess && (
+                <button
+                  onClick={() => {
+                    setShowStatusModal(false);
+                    setShowOrder(true);
+                  }}
+                  style={{
+                    padding: '0.9rem 1.25rem',
+                    backgroundColor: '#667eea',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: '0.95rem',
+                    fontWeight: 600
+                  }}
+                >
+                  Orden
+                </button>
+              )}
               <button
                 onClick={() => {
                   const tableForCash = selectedTable;

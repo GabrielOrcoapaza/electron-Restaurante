@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@apollo/client';
+import { useMutation, useQuery } from '@apollo/client';
 import { USER_LOGIN } from '../graphql/mutations';
+import { GET_USERS_BY_BRANCH } from '../graphql/queries';
 import { useAuth } from '../hooks/useAuth';
 
 const Login: React.FC = () => {
@@ -15,17 +16,25 @@ const Login: React.FC = () => {
 
   const [userLoginMutation, { loading }] = useMutation(USER_LOGIN);
 
-  // Obtener empleados directamente de los datos de la sucursal
-  const allEmployees = companyData?.branch?.users || [];
-  const employeesLoading = false;
-  
-  // Filtrar empleados por término de búsqueda
-  const filteredEmployees = allEmployees.filter((employee: any) => {
-    const fullName = `${employee.firstName} ${employee.lastName}`.toLowerCase();
-    const dni = employee.dni.toLowerCase();
-    const search = searchTerm.toLowerCase();
-    return fullName.includes(search) || dni.includes(search);
+  // Obtener empleados actualizados desde el servidor usando GraphQL
+  const { data: usersData, loading: employeesLoading, refetch: refetchEmployees } = useQuery(GET_USERS_BY_BRANCH, {
+    variables: { branchId: companyData?.branch?.id },
+    skip: !companyData?.branch?.id,
+    fetchPolicy: 'network-only' // Siempre obtener datos frescos del servidor
   });
+
+  // Usar los empleados de la query, o fallback a los del companyData si no hay datos aún
+  const allEmployees = usersData?.usersByBranch || companyData?.branch?.users || [];
+  
+  // Filtrar solo empleados activos y por término de búsqueda
+  const filteredEmployees = allEmployees
+    .filter((employee: any) => employee.isActive !== false) // Solo empleados activos
+    .filter((employee: any) => {
+      const fullName = `${employee.firstName || ''} ${employee.lastName || ''}`.toLowerCase();
+      const dni = (employee.dni || '').toLowerCase();
+      const search = searchTerm.toLowerCase();
+      return fullName.includes(search) || dni.includes(search);
+    });
 
   // Verificar que existan datos de la empresa
   useEffect(() => {
@@ -34,6 +43,13 @@ const Login: React.FC = () => {
       navigate('/login-company');
     }
   }, [companyData, navigate]);
+
+  // Refrescar empleados cuando cambia el branchId o cuando se monta el componente
+  useEffect(() => {
+    if (companyData?.branch?.id && refetchEmployees) {
+      refetchEmployees();
+    }
+  }, [companyData?.branch?.id, refetchEmployees]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -450,7 +466,20 @@ const Login: React.FC = () => {
                   👥 Selecciona tu Empleado
                 </label>
                 
-                {filteredEmployees.length === 0 && !employeesLoading ? (
+                {employeesLoading ? (
+                  <div style={{ 
+                    color: '#42a5f5', 
+                    fontSize: '16px', 
+                    textAlign: 'center',
+                    padding: '2rem',
+                    backgroundColor: '#e3f2fd',
+                    borderRadius: '16px',
+                    border: '2px solid #90caf9',
+                    fontWeight: '500'
+                  }}>
+                    ⏳ Cargando empleados...
+                  </div>
+                ) : filteredEmployees.length === 0 ? (
                   <p style={{ 
                     color: '#e53e3e', 
                     fontSize: '16px', 

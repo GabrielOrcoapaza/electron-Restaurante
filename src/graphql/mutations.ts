@@ -482,3 +482,151 @@ export const CANCEL_OPERATION = gql`
   }
 `;
 
+// Mutación para imprimir precuenta
+export const PRINT_PRECUENTA = gql`
+  mutation PrintPrecuenta(
+    $operationId: ID!
+    $tableId: ID!
+    $branchId: ID!
+    $deviceId: String!
+    $printerId: ID
+  ) {
+    printCuenta(
+      operationId: $operationId
+      tableId: $tableId
+      branchId: $branchId
+      deviceId: $deviceId
+      printerId: $printerId
+    ) {
+      success
+      message
+      operation {
+        id
+        order
+      }
+      table {
+        id
+        name
+        status
+        statusColors
+        currentOperationId
+        occupiedById
+        userName
+      }
+    }
+  }
+`;
+
+// Mutación para imprimir precuenta parcial (solo items seleccionados)
+export const PRINT_PARTIAL_PRECUENTA = gql`
+  mutation PrintPartialPrecuenta(
+    $operationId: ID!
+    $detailIds: [ID!]!
+    $tableId: ID!
+    $branchId: ID!
+    $userId: ID!
+    $deviceId: String!
+    $printerId: ID
+  ) {
+    printPartialPrecuenta(
+      operationId: $operationId
+      detailIds: $detailIds
+      tableId: $tableId
+      branchId: $branchId
+      userId: $userId
+      deviceId: $deviceId
+      printerId: $printerId
+    ) {
+      success
+      message
+      operation {
+        id
+        order
+      }
+      table {
+        id
+        name
+        status
+        statusColors
+        currentOperationId
+        occupiedById
+        userName
+      }
+    }
+  }
+`;
+
+// Mutación para crear usuario/empleado
+export const CREATE_USER = gql`
+  mutation CreateUser(
+    $dni: String!
+    $email: String!
+    $password: String!
+    $firstName: String!
+    $lastName: String!
+    $branchId: ID!
+    $role: String!
+    $phone: String
+    $photoBase64: String
+  ) {
+    createUser(
+      dni: $dni
+      email: $email
+      password: $password
+      firstName: $firstName
+      lastName: $lastName
+      branchId: $branchId
+      role: $role
+      phone: $phone
+      photoBase64: $photoBase64
+    ) {
+      success
+      message
+      user {
+        id
+        dni
+        email
+        firstName
+        lastName
+        fullName
+        role
+        phone
+        isActive
+      }
+    }
+  }
+`;
+
+// Mutación para cerrar caja
+export const CLOSE_CASH = gql`
+  mutation CloseCash($userId: ID!, $branchId: ID!, $deviceId: ID!, $cashRegisterId: ID!) {
+    closeCash(userId: $userId, branchId: $branchId, deviceId: $deviceId, cashRegisterId: $cashRegisterId) {
+      success
+      message
+      closure {
+        id
+        closureNumber
+        closedAt
+        totalIncome
+        totalExpense
+        netTotal
+        user {
+          id
+          fullName
+          role
+        }
+        cashRegister {
+          id
+          name
+          cashType
+        }
+        branch {
+          id
+          name
+        }
+      }
+      summary
+    }
+  }
+`;
+

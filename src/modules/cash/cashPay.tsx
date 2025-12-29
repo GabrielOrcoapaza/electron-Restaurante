@@ -3,7 +3,7 @@ import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useWebSocket } from '../../context/WebSocketContext';
 import type { Table } from '../../types/table';
-import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CREATE_OPERATION, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION } from '../../graphql/mutations';
+import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CREATE_OPERATION, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION, PRINT_PRECUENTA, PRINT_PARTIAL_PRECUENTA } from '../../graphql/mutations';
 import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries';
 
 type CashPayProps = {
@@ -22,6 +22,41 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTableChange }) => {
   const { companyData, user, deviceId, getMacAddress, updateTableInContext } = useAuth();
   const { sendMessage } = useWebSocket();
+  
+  // Función para verificar si el usuario puede acceder a una mesa específica
+  const canAccessTable = (tableItem: any): { canAccess: boolean; reason?: string } => {
+    // Los cajeros siempre pueden acceder (para procesar pagos)
+    if (user?.role?.toUpperCase() === 'CASHIER') {
+      return { canAccess: true };
+    }
+
+    // Si la mesa no está ocupada, cualquier usuario puede acceder
+    if (!tableItem.currentOperationId || !tableItem.occupiedById) {
+      return { canAccess: true };
+    }
+
+    // Si la mesa está ocupada, verificar el modo multi-waiter
+    const isMultiWaiterEnabled = companyData?.branch?.isMultiWaiterEnabled || false;
+
+    // Si multi-waiter está habilitado, cualquier usuario puede acceder
+    if (isMultiWaiterEnabled) {
+      return { canAccess: true };
+    }
+
+    // Si multi-waiter está deshabilitado, solo el usuario que creó la orden puede acceder
+    const tableOccupiedById = String(tableItem.occupiedById);
+    const currentUserId = String(user?.id);
+
+    if (tableOccupiedById === currentUserId) {
+      return { canAccess: true };
+    }
+
+    // El usuario no es el que creó la orden
+    return { 
+      canAccess: false, 
+      reason: `Esta mesa está siendo atendida por ${tableItem.userName || 'otro usuario'}.` 
+    };
+  };
   const hasSelection = Boolean(table?.id && companyData?.branch.id);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
   const [selectedSerialId, setSelectedSerialId] = useState<string>('');
@@ -118,6 +153,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [cancelOperationDetailMutation] = useMutation(CANCEL_OPERATION_DETAIL);
   const [updateTableStatusMutation] = useMutation(UPDATE_TABLE_STATUS);
   const [cancelOperationMutation] = useMutation(CANCEL_OPERATION);
+  const [printPrecuentaMutation] = useMutation(PRINT_PRECUENTA);
+  const [printPartialPrecuentaMutation] = useMutation(PRINT_PARTIAL_PRECUENTA);
 
   // Función auxiliar para enviar notificación WebSocket de actualización de mesa
   const notifyTableUpdate = (tableId: string, status: string, currentOperationId?: string | number | null, occupiedById?: string | number | null, waiterName?: string | null) => {
@@ -1116,24 +1153,185 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   };
 
   const handlePrecuenta = async () => {
-    if (!operation) {
-      alert('No hay una orden disponible para imprimir precuenta');
+    if (!operation || !table?.id || !companyData?.branch.id || !user?.id) {
+      setPaymentError('No hay una orden disponible para imprimir precuenta');
       return;
     }
 
     if (operation.status === 'COMPLETED') {
-      alert('Esta orden ya ha sido completada');
+      setPaymentError('Esta orden ya ha sido completada');
       return;
     }
 
+    setIsProcessing(true);
+    setPaymentError(null);
+
     try {
-      // TODO: Implementar lógica de impresión de precuenta
-      // Por ahora, mostramos un mensaje informativo
-      console.log('🧾 Imprimiendo precuenta para operación:', operation.id);
-      alert(`Precuenta para ${table?.name}\nTotal: ${currencyFormatter.format(total)}\n\nLa funcionalidad de impresión se implementará próximamente.`);
+      const resolvedDeviceId = deviceId || await getMacAddress();
+      
+      // Obtener los IDs de los items seleccionados
+      const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
+      
+      // Si hay items seleccionados, usar la mutación parcial
+      if (selectedDetailIds.length > 0) {
+        const result = await printPartialPrecuentaMutation({
+          variables: {
+            operationId: operation.id,
+            detailIds: selectedDetailIds,
+            tableId: table.id,
+            branchId: companyData.branch.id,
+            userId: user.id,
+            deviceId: resolvedDeviceId,
+            printerId: null // Opcional, se puede agregar selección de impresora si es necesario
+          }
+        });
+
+        if (result.data?.printPartialPrecuenta?.success) {
+          const resultTable = result.data.printPartialPrecuenta.table;
+          
+          // ✅ FORZAR actualización del estado de la mesa a TO_PAY
+          // Primero intentar actualizar usando la mutación UPDATE_TABLE_STATUS
+          try {
+            await updateTableStatusMutation({
+              variables: {
+                tableId: table.id,
+                status: 'TO_PAY',
+                userId: user.id
+              }
+            });
+            console.log('✅ Estado de mesa actualizado a TO_PAY mediante mutación');
+          } catch (updateError) {
+            console.warn('⚠️ No se pudo actualizar el estado mediante mutación, actualizando en contexto:', updateError);
+          }
+
+          // Actualizar la mesa en el contexto con el nuevo estado TO_PAY
+          const updatedTableId = resultTable?.id || table.id;
+          const updatedStatus = 'TO_PAY'; // Siempre forzar a TO_PAY
+          
+          if (updateTableInContext) {
+            updateTableInContext({
+              id: updatedTableId,
+              status: updatedStatus,
+              currentOperationId: resultTable?.currentOperationId ?? table?.currentOperationId,
+              occupiedById: resultTable?.occupiedById ?? table?.occupiedById,
+              userName: resultTable?.userName ?? table?.userName
+            });
+            console.log(`✅ Mesa ${updatedTableId} actualizada en contexto a estado: ${updatedStatus}`);
+            
+            // Enviar notificación WebSocket
+            notifyTableUpdate(
+              updatedTableId,
+              updatedStatus,
+              resultTable?.currentOperationId ?? table?.currentOperationId,
+              resultTable?.occupiedById ?? table?.occupiedById,
+              resultTable?.userName ?? table?.userName
+            );
+          }
+
+          // Si hay callback onTableChange, notificar el cambio
+          if (onTableChange && table) {
+            onTableChange({
+              ...table,
+              status: updatedStatus
+            });
+          }
+
+          // Refetch la operación para obtener los datos actualizados
+          await refetch();
+          
+          // Llamar callback de éxito si existe (para que el padre pueda refetch las mesas)
+          if (onPaymentSuccess) {
+            onPaymentSuccess();
+          }
+
+          setPaymentError(null);
+          // Mostrar mensaje de éxito
+          alert(result.data.printPartialPrecuenta.message || `Precuenta parcial enviada a imprimir exitosamente (${selectedDetailIds.length} plato(s) seleccionado(s)). Estado de mesa actualizado a TO_PAY`);
+        } else {
+          setPaymentError(result.data?.printPartialPrecuenta?.message || 'Error al imprimir la precuenta parcial');
+        }
+      } else {
+        // Si no hay items seleccionados, usar la mutación completa
+        const result = await printPrecuentaMutation({
+          variables: {
+            operationId: operation.id,
+            tableId: table.id,
+            branchId: companyData.branch.id,
+            deviceId: resolvedDeviceId,
+            printerId: null // Opcional, se puede agregar selección de impresora si es necesario
+          }
+        });
+
+        if (result.data?.printCuenta?.success) {
+          const resultTable = result.data.printCuenta.table;
+          
+          // ✅ FORZAR actualización del estado de la mesa a TO_PAY
+          // Primero intentar actualizar usando la mutación UPDATE_TABLE_STATUS
+          try {
+            await updateTableStatusMutation({
+              variables: {
+                tableId: table.id,
+                status: 'TO_PAY',
+                userId: user.id
+              }
+            });
+            console.log('✅ Estado de mesa actualizado a TO_PAY mediante mutación');
+          } catch (updateError) {
+            console.warn('⚠️ No se pudo actualizar el estado mediante mutación, actualizando en contexto:', updateError);
+          }
+
+          // Actualizar la mesa en el contexto con el nuevo estado TO_PAY
+          const updatedTableId = resultTable?.id || table.id;
+          const updatedStatus = 'TO_PAY'; // Siempre forzar a TO_PAY
+          
+          if (updateTableInContext) {
+            updateTableInContext({
+              id: updatedTableId,
+              status: updatedStatus,
+              currentOperationId: resultTable?.currentOperationId ?? table?.currentOperationId,
+              occupiedById: resultTable?.occupiedById ?? table?.occupiedById,
+              userName: resultTable?.userName ?? table?.userName
+            });
+            console.log(`✅ Mesa ${updatedTableId} actualizada en contexto a estado: ${updatedStatus}`);
+            
+            // Enviar notificación WebSocket
+            notifyTableUpdate(
+              updatedTableId,
+              updatedStatus,
+              resultTable?.currentOperationId ?? table?.currentOperationId,
+              resultTable?.occupiedById ?? table?.occupiedById,
+              resultTable?.userName ?? table?.userName
+            );
+          }
+
+          // Si hay callback onTableChange, notificar el cambio
+          if (onTableChange && table) {
+            onTableChange({
+              ...table,
+              status: updatedStatus
+            });
+          }
+
+          // Refetch la operación para obtener los datos actualizados
+          await refetch();
+          
+          // Llamar callback de éxito si existe (para que el padre pueda refetch las mesas)
+          if (onPaymentSuccess) {
+            onPaymentSuccess();
+          }
+
+          setPaymentError(null);
+          // Mostrar mensaje de éxito
+          alert(result.data.printCuenta.message || 'Precuenta enviada a imprimir exitosamente. Estado de mesa actualizado a TO_PAY');
+        } else {
+          setPaymentError(result.data?.printCuenta?.message || 'Error al imprimir la precuenta');
+        }
+      }
     } catch (err: any) {
       console.error('Error al imprimir precuenta:', err);
-      alert('Error al imprimir la precuenta: ' + (err.message || 'Error desconocido'));
+      setPaymentError(err.message || 'Error al imprimir la precuenta');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -1778,38 +1976,38 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             </button>
             <button
               onClick={handlePrecuenta}
-              disabled={!operation || operation.status === 'COMPLETED' || loading}
+              disabled={!operation || operation.status === 'COMPLETED' || loading || isProcessing}
               style={{
                 padding: '0.85rem 1.45rem',
                 borderRadius: '999px',
                 border: 'none',
-                background: !operation || operation.status === 'COMPLETED' || loading
+                background: !operation || operation.status === 'COMPLETED' || loading || isProcessing
                   ? 'rgba(255,255,255,0.08)'
                   : 'linear-gradient(135deg, rgba(245,158,11,0.9), rgba(217,119,6,0.9))',
                 color: 'white',
-                cursor: !operation || operation.status === 'COMPLETED' || loading ? 'not-allowed' : 'pointer',
+                cursor: !operation || operation.status === 'COMPLETED' || loading || isProcessing ? 'not-allowed' : 'pointer',
                 fontWeight: 700,
                 fontSize: '0.92rem',
-                boxShadow: !operation || operation.status === 'COMPLETED' || loading
+                boxShadow: !operation || operation.status === 'COMPLETED' || loading || isProcessing
                   ? '0 8px 16px rgba(0,0,0,0.1)'
                   : '0 12px 24px rgba(245,158,11,0.3)',
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                opacity: !operation || operation.status === 'COMPLETED' || loading ? 0.6 : 1
+                opacity: !operation || operation.status === 'COMPLETED' || loading || isProcessing ? 0.6 : 1
               }}
               onMouseOver={(e) => {
-                if (operation && operation.status !== 'COMPLETED' && !loading) {
+                if (operation && operation.status !== 'COMPLETED' && !loading && !isProcessing) {
                   e.currentTarget.style.transform = 'translateY(-2px)';
                   e.currentTarget.style.boxShadow = '0 16px 28px rgba(245,158,11,0.4)';
                 }
               }}
               onMouseOut={(e) => {
                 e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = !operation || operation.status === 'COMPLETED' || loading
+                e.currentTarget.style.boxShadow = !operation || operation.status === 'COMPLETED' || loading || isProcessing
                   ? '0 8px 16px rgba(0,0,0,0.1)'
                   : '0 12px 24px rgba(245,158,11,0.3)';
               }}
             >
-              🧾 Precuenta
+              {isProcessing ? '🖨️ Imprimiendo...' : '🧾 Precuenta'}
             </button>
             <button
               onClick={onBack}
@@ -2807,16 +3005,23 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                       const isSelected = selectedTableId === tableItem.id;
                       const isCurrentTable = tableItem.id === table?.id;
                       const isOccupied = tableItem.status === 'OCCUPIED' && !isCurrentTable;
+                      const accessCheck = canAccessTable(tableItem);
+                      const canAccess = accessCheck.canAccess;
                       
                       return (
                         <button
                           key={tableItem.id}
                           onClick={() => {
+                            if (!canAccess) {
+                              setPaymentError(accessCheck.reason || 'No tiene permiso para acceder a esta mesa.');
+                              setTimeout(() => setPaymentError(null), 3000);
+                              return;
+                            }
                             if (!isOccupied && !isCurrentTable) {
                               setSelectedTableId(tableItem.id);
                             }
                           }}
-                          disabled={isOccupied || isCurrentTable}
+                          disabled={isOccupied || isCurrentTable || !canAccess}
                           style={{
                             padding: '1rem',
                             borderRadius: '12px',
@@ -2842,10 +3047,10 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                               ? '#a0aec0'
                               : '#2d3748',
                             fontWeight: isSelected ? 700 : 600,
-                            cursor: isOccupied || isCurrentTable ? 'not-allowed' : 'pointer',
+                            cursor: (isOccupied || isCurrentTable || !canAccess) ? 'not-allowed' : 'pointer',
                             transition: 'all 0.2s',
                             fontSize: '0.9rem',
-                            opacity: isOccupied || isCurrentTable ? 0.6 : 1,
+                            opacity: (isOccupied || isCurrentTable || !canAccess) ? 0.6 : 1,
                             position: 'relative'
                           }}
                           onMouseOver={(e) => {

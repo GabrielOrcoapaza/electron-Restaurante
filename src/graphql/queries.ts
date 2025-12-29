@@ -183,3 +183,139 @@ export const GET_MY_UNREAD_MESSAGES = gql`
   }
 `;
 
+// Query para obtener sucursales
+export const GET_BRANCHES = gql`
+  query GetBranches {
+    branches {
+      id
+      name
+      isActive
+    }
+  }
+`;
+
+// Query para obtener usuarios/empleados por sucursal
+export const GET_USERS_BY_BRANCH = gql`
+  query GetUsersByBranch($branchId: ID!) {
+    usersByBranch(branchId: $branchId) {
+      id
+      dni
+      email
+      firstName
+      lastName
+      fullName
+      role
+      phone
+      isActive
+    }
+  }
+`;
+
+// Query para obtener resumen de pagos
+export const GET_PAYMENT_SUMMARY = gql`
+  query GetPaymentSummary($branchId: ID!) {
+    paymentSummary(branchId: $branchId) {
+      totalPayments
+      totalIncome
+      totalExpenses
+      pendingPayments
+      paidPayments
+      cashBalance
+      digitalBalance
+      bankBalance
+    }
+  }
+`;
+
+// Query para obtener resumen de métodos de pago
+export const GET_PAYMENT_METHODS_SUMMARY = gql`
+  query GetPaymentMethodsSummary($branchId: ID!) {
+    paymentMethodsSummary(branchId: $branchId) {
+      method
+      totalAmount
+      count
+      percentage
+    }
+  }
+`;
+
+// Query para obtener preview de cierre de caja
+export const GET_CASH_CLOSURE_PREVIEW = gql`
+  query GetCashClosurePreview($branchId: ID!, $cashRegisterId: ID!, $userId: ID) {
+    cashClosurePreview(branchId: $branchId, cashRegisterId: $cashRegisterId, userId: $userId) {
+      branchId
+      branchName
+      cashRegisterId
+      cashRegisterName
+      nextClosureNumber
+      totalPaymentsPending
+      totalIncome
+      totalExpense
+      netTotal
+      canClose
+      previewDate
+      usersSummary {
+        userId
+        userName
+        userRole
+        totalIncome
+        totalExpense
+        netTotal
+        paymentsCount
+        operationsCount
+        dishesCount
+        hasOccupiedTables
+        occupiedTablesCount
+        occupiedTablesNames
+        canClose
+        paymentMethods {
+          methodCode
+          methodName
+          income
+          expense
+          net
+        }
+      }
+      generalPaymentMethods {
+        methodCode
+        methodName
+        income
+        expense
+        net
+      }
+      warnings {
+        type
+        message
+      }
+    }
+  }
+`;
+
+// Query para obtener cierres de caja
+export const GET_CASH_CLOSURES = gql`
+  query GetCashClosures($branchId: ID!, $userId: ID, $startDate: Date, $endDate: Date) {
+    cashClosures(branchId: $branchId, userId: $userId, startDate: $startDate, endDate: $endDate) {
+      id
+      closureNumber
+      closedAt
+      totalIncome
+      totalExpense
+      netTotal
+      user {
+        id
+        fullName
+        role
+      }
+      cashRegister {
+        id
+        name
+        cashType
+      }
+      branch {
+        id
+        name
+      }
+    }
+  }
+`;
+

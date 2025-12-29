@@ -5,7 +5,9 @@ import { useAuth } from '../hooks/useAuth';
 import { WebSocketProvider, useWebSocket } from '../context/WebSocketContext';
 import Floor from '../modules/sales/floor';
 import CashPay from '../modules/cash/cashPay';
+import Cashs from '../modules/cash/cashs';
 import Message from '../modules/cash/message';
+import CreateUser from '../modules/user/createUser';
 import { GET_MY_UNREAD_MESSAGES } from '../graphql/queries';
 import { MARK_MESSAGE_READ } from '../graphql/mutations';
 import type { Table } from '../types/table';
@@ -61,7 +63,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const { user, companyData, logout } = useAuth();
   const { disconnect, subscribe } = useWebSocket();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'messages'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees'>('dashboard');
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
@@ -225,7 +227,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     setSidebarOpen(!sidebarOpen);
   };
 
-  const handleMenuClick = (view: 'dashboard' | 'floors' | 'messages') => {
+  const handleMenuClick = (view: 'dashboard' | 'floors' | 'messages' | 'employees' | 'cashs') => {
     setCurrentView(view);
     setSelectedCashTable(null);
   };
@@ -247,6 +249,10 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       ? 'Mesas'
       : currentView === 'messages'
       ? 'Mensajes'
+      : currentView === 'employees'
+      ? 'Empleados'
+      : currentView === 'cashs'
+      ? 'Gestión de Cajas'
       : 'Caja';
 
   const headerSubtitle =
@@ -256,6 +262,10 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       ? 'Gestiona la ocupación y las órdenes de tus mesas.'
       : currentView === 'messages'
       ? 'Envía mensajes a cocina, mozos u otros usuarios.'
+      : currentView === 'employees'
+      ? 'Administra los empleados de tu empresa.'
+      : currentView === 'cashs'
+      ? 'Gestiona las cajas registradoras, cierres y resúmenes de pagos.'
       : selectedCashTable
       ? `Procesa el pago de ${selectedCashTable.name}.`
       : 'Selecciona una mesa para revisar su orden.';
@@ -457,6 +467,35 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
             </button>
 
             <button
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.75rem 1.5rem',
+                background: 'transparent',
+                border: 'none',
+                color: '#a0aec0',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                transition: 'all 0.2s ease',
+                textAlign: 'left',
+                width: '100%'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                e.currentTarget.style.color = 'white';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#a0aec0';
+              }}
+            >
+              <span style={{ fontSize: '1.25rem' }}>📈</span>
+              {sidebarOpen && 'Productos'}
+            </button>   
+
+            <button
               onClick={() => handleMenuClick('floors')}
               style={{
                 display: 'flex',
@@ -552,6 +591,75 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               <span style={{ fontSize: '1.25rem' }}>💬</span>
               {sidebarOpen && 'Mensajes'}
             </button>
+
+            <button
+              onClick={() => handleMenuClick('employees')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.75rem 1.5rem',
+                background: currentView === 'employees' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                border: 'none',
+                color: currentView === 'employees' ? '#667eea' : '#a0aec0',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                transition: 'all 0.2s ease',
+                textAlign: 'left',
+                width: '100%'
+              }}
+              onMouseOver={(e) => {
+                if (currentView !== 'employees') {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.color = 'white';
+                }
+              }}
+              onMouseOut={(e) => {
+                if (currentView !== 'employees') {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#a0aec0';
+                }
+              }}
+            >
+              <span style={{ fontSize: '1.25rem' }}>👥</span>
+              {sidebarOpen && 'Empleados'}
+            </button> 
+
+            <button
+              onClick={() => handleMenuClick('cashs')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.75rem 1.5rem',
+                background: currentView === 'cashs' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                border: 'none',
+                color: currentView === 'cashs' ? '#667eea' : '#a0aec0',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                transition: 'all 0.2s ease',
+                textAlign: 'left',
+                width: '100%'
+              }}
+              onMouseOver={(e) => {
+                if (currentView !== 'cashs') {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.color = 'white';
+                }
+              }}
+              onMouseOut={(e) => {
+                if (currentView !== 'cashs') {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#a0aec0';
+                }
+              }}
+            >
+              <span style={{ fontSize: '1.25rem' }}>💰</span>
+              {sidebarOpen && 'Caja'}
+            </button>
+
           </div>
         </nav>
 
@@ -945,6 +1053,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               }}
             />
           )}
+          {currentView === 'cashs' && <Cashs />}
           {currentView === 'messages' && (
             <Message
               onBack={() => handleMenuClick('dashboard')}
@@ -954,6 +1063,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               }}
             />
           )}
+          {currentView === 'employees' && <CreateUser />}
         </main>
       </div>
     </div>

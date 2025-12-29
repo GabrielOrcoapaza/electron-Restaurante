@@ -26,6 +26,53 @@ type OrderItem = {
 const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const { companyData, user, deviceId, getDeviceId, getMacAddress, updateTableInContext } = useAuth();
 	const isExistingOrder = Boolean(table?.currentOperationId);
+	
+	// Función para verificar si el usuario puede acceder a esta mesa
+	const canAccessTable = (): { canAccess: boolean; reason?: string } => {
+		// Los cajeros siempre pueden acceder (para procesar pagos)
+		if (user?.role?.toUpperCase() === 'CASHIER') {
+			return { canAccess: true };
+		}
+
+		// Si la mesa no está ocupada, cualquier usuario puede acceder
+		if (!table.currentOperationId || !table.occupiedById) {
+			return { canAccess: true };
+		}
+
+		// Si la mesa está ocupada, verificar el modo multi-waiter
+		const isMultiWaiterEnabled = companyData?.branch?.isMultiWaiterEnabled || false;
+
+		// Si multi-waiter está habilitado, cualquier usuario puede acceder
+		if (isMultiWaiterEnabled) {
+			return { canAccess: true };
+		}
+
+		// Si multi-waiter está deshabilitado, solo el usuario que creó la orden puede acceder
+		const tableOccupiedById = String(table.occupiedById);
+		const currentUserId = String(user?.id);
+
+		if (tableOccupiedById === currentUserId) {
+			return { canAccess: true };
+		}
+
+		// El usuario no es el que creó la orden
+		return { 
+			canAccess: false, 
+			reason: `Esta mesa está siendo atendida por ${table.userName || 'otro usuario'}. Solo el usuario que creó la orden puede acceder a esta mesa.` 
+		};
+	};
+
+	// Verificar acceso al montar el componente
+	useEffect(() => {
+		const accessCheck = canAccessTable();
+		if (!accessCheck.canAccess) {
+			setSaveError(accessCheck.reason || 'No tiene permiso para acceder a esta mesa.');
+			setTimeout(() => {
+				onClose();
+			}, 3000);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [table.id, table.currentOperationId, table.occupiedById, user?.id, companyData?.branch?.isMultiWaiterEnabled]);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchTerm, setSearchTerm] = useState<string>('');
 	const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
