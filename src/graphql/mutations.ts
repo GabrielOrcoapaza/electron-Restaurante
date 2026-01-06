@@ -630,3 +630,159 @@ export const CLOSE_CASH = gql`
   }
 `;
 
+// Mutación para crear producto
+export const CREATE_PRODUCT = gql`
+  mutation CreateProduct(
+    $branchId: ID!
+    $code: String!
+    $name: String!
+    $productType: String!
+    $salePrice: Float
+    $purchasePrice: Float
+    $unitMeasure: String
+    $preparationTime: Int
+    $currentStock: Float
+    $stockMin: Float
+    $stockMax: Float
+    $description: String
+    $subcategoryId: ID
+    $imageBase64: String
+  ) {
+    createProduct(
+      branchId: $branchId
+      code: $code
+      name: $name
+      productType: $productType
+      salePrice: $salePrice
+      purchasePrice: $purchasePrice
+      unitMeasure: $unitMeasure
+      preparationTime: $preparationTime
+      currentStock: $currentStock
+      stockMin: $stockMin
+      stockMax: $stockMax
+      description: $description
+      subcategoryId: $subcategoryId
+      imageBase64: $imageBase64
+    ) {
+      success
+      message
+      product {
+        id
+        code
+        name
+        description
+        productType
+        salePrice
+        purchasePrice
+        unitMeasure
+        preparationTime
+        currentStock
+        stockMin
+        stockMax
+        imageBase64
+        isActive
+        subcategoryId
+      }
+    }
+  }
+`;
+
+// Mutación para actualizar producto
+export const UPDATE_PRODUCT = gql`
+  mutation UpdateProduct(
+    $productId: ID!
+    $code: String
+    $name: String
+    $description: String
+    $subcategoryId: ID
+    $productType: String
+    $salePrice: Float
+    $purchasePrice: Float
+    $unitMeasure: String
+    $preparationTime: Int
+    $stockMin: Float
+    $stockMax: Float
+    $currentStock: Float
+    $isActive: Boolean
+  ) {
+    updateProduct(
+      productId: $productId
+      code: $code
+      name: $name
+      description: $description
+      subcategoryId: $subcategoryId
+      productType: $productType
+      salePrice: $salePrice
+      purchasePrice: $purchasePrice
+      unitMeasure: $unitMeasure
+      preparationTime: $preparationTime
+      stockMin: $stockMin
+      stockMax: $stockMax
+      currentStock: $currentStock
+      isActive: $isActive
+    ) {
+      success
+      message
+      product {
+        id
+        code
+        name
+        description
+        salePrice
+        preparationTime
+        currentStock
+        isActive
+      }
+    }
+  }
+`;
+
+// Mutación para agregar ingrediente a una receta
+export const ADD_RECIPE = gql`
+  mutation AddRecipe(
+    $productId: ID!
+    $ingredientId: ID!
+    $quantity: Float!
+    $unitMeasure: String!
+    $notes: String
+  ) {
+    addRecipe(
+      productId: $productId
+      ingredientId: $ingredientId
+      quantity: $quantity
+      unitMeasure: $unitMeasure
+      notes: $notes
+    ) {
+      success
+      message
+      recipe {
+        id
+        quantity
+        unitMeasure
+        notes
+        product {
+          id
+          name
+          code
+        }
+        ingredient {
+          id
+          name
+          code
+          unitMeasure
+        }
+      }
+    }
+  }
+`;
+
+// Mutación para eliminar ingrediente de una receta
+export const REMOVE_RECIPE = gql`
+  mutation RemoveRecipe($recipeId: ID!) {
+    removeRecipe(recipeId: $recipeId) {
+      success
+      message
+    }
+  }
+`;
+

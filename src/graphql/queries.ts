@@ -114,6 +114,13 @@ export const GET_CATEGORIES_BY_BRANCH = gql`
       color
       order
       isActive
+      subcategories {
+        id
+        name
+        description
+        order
+        isActive
+      }
     }
   }
 `;
@@ -146,6 +153,28 @@ export const GET_PRODUCTS_BY_BRANCH = gql`
       imageBase64
       preparationTime
       isActive
+    }
+  }
+`;
+
+// Query para obtener productos con información de inventario
+export const GET_PRODUCTS_WITH_STOCK = gql`
+  query GetProductsWithStock($branchId: ID!) {
+    productsByBranch(branchId: $branchId) {
+      id
+      code
+      name
+      description
+      salePrice
+      purchasePrice
+      unitMeasure
+      currentStock
+      stockMin
+      stockMax
+      imageBase64
+      isActive
+      productType
+      subcategoryId
     }
   }
 `;
@@ -315,6 +344,71 @@ export const GET_CASH_CLOSURES = gql`
         id
         name
       }
+    }
+  }
+`;
+
+// Query para obtener recetas de un producto
+export const GET_RECIPES_BY_PRODUCT = gql`
+  query GetRecipesByProduct($productId: ID!) {
+    recipesByProduct(productId: $productId) {
+      id
+      quantity
+      unitMeasure
+      notes
+      product {
+        id
+        name
+        code
+      }
+      ingredient {
+        id
+        name
+        code
+        unitMeasure
+      }
+    }
+  }
+`;
+
+// Query para obtener reporte de movimientos de stock (Kardex)
+export const GET_STOCK_MOVEMENTS_REPORT = gql`
+  query GetStockMovementsReport(
+    $branchId: ID!
+    $productId: ID
+    $startDate: DateTime!
+    $endDate: DateTime!
+  ) {
+    stockMovementsReport(
+      branchId: $branchId
+      productId: $productId
+      startDate: $startDate
+      endDate: $endDate
+    ) {
+      id
+      movementType
+      movementTypeDisplay
+      quantity
+      unitCost
+      totalCost
+      reason
+      createdAt
+      productId
+      productCode
+      productName
+      productType
+      productTypeDisplay
+      stockId
+      currentQuantity
+      averageCost
+      operationId
+      operationOrder
+      operationType
+      operationDate
+      userId
+      userName
+      branchId
+      branchName
     }
   }
 `;
