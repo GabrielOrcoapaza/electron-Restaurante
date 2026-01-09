@@ -136,6 +136,7 @@ export const GET_PRODUCTS_BY_CATEGORY = gql`
       salePrice
       imageBase64
       preparationTime
+      productType
       isActive
     }
   }
@@ -152,6 +153,24 @@ export const GET_PRODUCTS_BY_BRANCH = gql`
       salePrice
       imageBase64
       preparationTime
+      productType
+      isActive
+    }
+  }
+`;
+
+// Query para obtener productos con filtros opcionales (tipo y categoría)
+export const GET_PRODUCTS = gql`
+  query GetProducts($branchId: ID!, $productType: String, $categoryId: ID) {
+    products(branchId: $branchId, productType: $productType, categoryId: $categoryId) {
+      id
+      code
+      name
+      description
+      salePrice
+      imageBase64
+      preparationTime
+      productType
       isActive
     }
   }
@@ -409,6 +428,116 @@ export const GET_STOCK_MOVEMENTS_REPORT = gql`
       userName
       branchId
       branchName
+    }
+  }
+`;
+
+// Query para obtener todas las personas de la sucursal (se filtra por isSupplier en el frontend)
+export const GET_PERSONS_BY_BRANCH = gql`
+  query GetPersonsByBranch($branchId: ID!) {
+    personsByBranch(branchId: $branchId) {
+      id
+      name
+      documentType
+      documentNumber
+      email
+      phone
+      address
+      isSupplier
+      isActive
+    }
+  }
+`;
+
+// Query para obtener proveedores (personas con is_supplier=true)
+// Usa GET_PERSONS_BY_BRANCH y filtra en el frontend
+export const GET_SUPPLIERS_BY_BRANCH = GET_PERSONS_BY_BRANCH;
+
+// Query para obtener operaciones de compra (usando purchases_by_branch del backend)
+export const GET_PURCHASE_OPERATIONS = gql`
+  query GetPurchaseOperations($branchId: ID!) {
+    purchasesByBranch(branchId: $branchId) {
+      id
+      order
+      operationDate
+      status
+      subtotal
+      igvAmount
+      igvPercentage
+      total
+      notes
+      cancelledAt
+      person {
+        id
+        name
+        documentNumber
+      }
+      user {
+        id
+        fullName
+      }
+      details {
+        id
+        quantity
+        unitMeasure
+        unitValue
+        unitPrice
+        notes
+        isCanceled
+        product {
+          id
+          code
+          name
+          productType
+          unitMeasure
+        }
+      }
+    }
+  }
+`;
+
+// Query para obtener una operación de compra por ID
+export const GET_PURCHASE_OPERATION = gql`
+  query GetPurchaseOperation($operationId: ID!) {
+    purchaseOperation(operationId: $operationId) {
+      id
+      order
+      operationDate
+      status
+      subtotal
+      igvAmount
+      igvPercentage
+      total
+      notes
+      cancelledAt
+      person {
+        id
+        name
+        documentNumber
+        email
+        phone
+      }
+      user {
+        id
+        fullName
+      }
+      details {
+        id
+        quantity
+        unitMeasure
+        unitValue
+        unitPrice
+        notes
+        isCanceled
+        product {
+          id
+          code
+          name
+          productType
+          unitMeasure
+          purchasePrice
+        }
+      }
     }
   }
 `;

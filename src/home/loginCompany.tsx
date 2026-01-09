@@ -60,6 +60,7 @@ const LoginCompany: React.FC = () => {
         console.log('🪑 Todas las mesas de la sucursal:', allTables);
         
         // Usar el hook useAuth para guardar datos
+        console.log('📊 IGV de la sucursal obtenido:', data.companyLogin.branch.igvPercentage, '%');
         loginCompany({
           company: data.companyLogin.company,
           branch: {
@@ -67,7 +68,8 @@ const LoginCompany: React.FC = () => {
             users: data.companyLogin.branch.users || [],
             floors: data.companyLogin.branch.floors || [],
             categories: data.companyLogin.branch.categories || [],
-            tables: allTables
+            tables: allTables,
+            igvPercentage: data.companyLogin.branch.igvPercentage // Asegurar que el IGV se guarde explícitamente
           },
           companyLogo: data.companyLogin.companyLogoBase64,
           branchLogo: data.companyLogin.branchLogoBase64,

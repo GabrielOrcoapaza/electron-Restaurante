@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useWebSocket } from '../../context/WebSocketContext';
@@ -21,7 +21,7 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 
 const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTableChange }) => {
   const { companyData, user, deviceId, getMacAddress, updateTableInContext } = useAuth();
-  const { sendMessage } = useWebSocket();
+  const { sendMessage, subscribe } = useWebSocket();
   
   // Función para verificar si el usuario puede acceder a una mesa específica
   const canAccessTable = (tableItem: any): { canAccess: boolean; reason?: string } => {
@@ -182,6 +182,30 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   };
 
   const operation = data?.operationByTable;
+  
+  // Suscribirse a eventos WebSocket
+  useEffect(() => {
+    const unsubscribeOperationCancelled = subscribe('operation_cancelled', (message: any) => {
+      console.log('🚫 Operación cancelada recibida:', message);
+      // Si la operación cancelada es la actual, refetch
+      if (message.operation_id === operation?.id) {
+        refetch();
+      }
+    });
+
+    const unsubscribeOperationStatusUpdate = subscribe('operation_status_update', (message: any) => {
+      console.log('🔄 Actualización de estado de operación:', message);
+      // Si la operación actualizada es la actual, refetch
+      if (message.operation_id === operation?.id) {
+        refetch();
+      }
+    });
+
+    return () => {
+      unsubscribeOperationCancelled();
+      unsubscribeOperationStatusUpdate();
+    };
+  }, [subscribe, operation?.id, refetch]);
   // Filtrar solo documentos y series activos (aunque el backend ya debería filtrarlos)
   const documents = (documentsData?.documentsByBranch || []).filter((doc: any) => doc.isActive !== false);
   const serials = (serialsData?.serialsByDocument || []).filter((ser: any) => ser.isActive !== false);
@@ -257,7 +281,17 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     );
   }
 
-  const igvPercentage = Number(operation?.igvPercentage) || 18;
+  // Usar el IGV de la sucursal obtenido en el login de empresa
+  const igvPercentage = Number(companyData?.branch?.igvPercentage) || 18;
+  
+  // Log para verificar que se está usando el IGV de la sucursal
+  React.useEffect(() => {
+    if (companyData?.branch?.igvPercentage) {
+      console.log('✅ IGV de la sucursal:', companyData.branch.igvPercentage, '%');
+    } else {
+      console.warn('⚠️ IGV de la sucursal no encontrado, usando valor por defecto: 18%');
+    }
+  }, [companyData?.branch?.igvPercentage]);
   
   // Función helper para filtrar productos cancelados
   const filterCanceledDetails = (details: any[]) => {
@@ -318,18 +352,17 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     if (operation?.details) {
       const nonCanceledDetails = filterCanceledDetails(operation.details);
       setModifiedDetails([...nonCanceledDetails]);
-      // Si estamos en modo de división, marcar todos los productos como seleccionados
-      if (isSplitMode) {
-        const initialAssignments: Record<string, boolean> = {};
-        nonCanceledDetails.forEach((detail: any) => {
-          if (detail.id) {
-            initialAssignments[detail.id] = true;
-          }
-        });
-        setItemAssignments(prev => ({ ...prev, ...initialAssignments }));
-      }
+      
+      // Marcar todos los productos como seleccionados automáticamente cuando se carga la orden
+      const initialAssignments: Record<string, boolean> = {};
+      nonCanceledDetails.forEach((detail: any) => {
+        if (detail.id) {
+          initialAssignments[detail.id] = true;
+        }
+      });
+      setItemAssignments(initialAssignments);
     }
-  }, [operation?.details, isSplitMode]);
+  }, [operation?.details]);
 
   // Refetch automático cuando cambia la mesa
   React.useEffect(() => {
@@ -347,6 +380,14 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           if (result.data?.operationByTable?.details) {
             const nonCanceledDetails = filterCanceledDetails(result.data.operationByTable.details);
             setModifiedDetails([...nonCanceledDetails]);
+            // Marcar todos los productos como seleccionados automáticamente
+            const initialAssignments: Record<string, boolean> = {};
+            nonCanceledDetails.forEach((detail: any) => {
+              if (detail.id) {
+                initialAssignments[detail.id] = true;
+              }
+            });
+            setItemAssignments(initialAssignments);
           }
         }).catch((error) => {
           console.error('❌ Error al refetch operación:', error);
@@ -366,19 +407,27 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     if (!isSplitMode) {
       // Al activar el modo de división, marcar todos los productos como seleccionados
       const detailsToMark = modifiedDetails.length > 0 ? modifiedDetails : (operation?.details || []);
+      const nonCanceledDetails = filterCanceledDetails(detailsToMark);
       const initialAssignments: Record<string, boolean> = {};
-      detailsToMark.forEach((detail: any) => {
+      nonCanceledDetails.forEach((detail: any) => {
         if (detail.id) {
           initialAssignments[detail.id] = true;
         }
       });
       setItemAssignments(initialAssignments);
     } else {
-      // Limpiar asignaciones y restaurar detalles originales cuando se desactiva (filtrar cancelados)
-      setItemAssignments({});
+      // Al desactivar el modo de división, restaurar detalles originales y seleccionar todos
       if (operation?.details) {
         const nonCanceledDetails = filterCanceledDetails(operation.details);
         setModifiedDetails([...nonCanceledDetails]);
+        // Volver a seleccionar todos los productos
+        const initialAssignments: Record<string, boolean> = {};
+        nonCanceledDetails.forEach((detail: any) => {
+          if (detail.id) {
+            initialAssignments[detail.id] = true;
+          }
+        });
+        setItemAssignments(initialAssignments);
       }
     }
   };
@@ -530,11 +579,19 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           variables: {
             detailId: originalDetailId,
             quantity: 1,
-            userId: user?.id || null
+            userId: user?.id || '',
+            deviceId: deviceId || undefined
           }
         });
 
         if (result.data?.cancelOperationDetail?.success) {
+          // ✅ Verificar si la operación cambió de estado automáticamente
+          const operationCancelled = result.data?.cancelOperationDetail?.operationCancelled;
+          
+          if (operationCancelled) {
+            console.log('✅ Operación cambió de estado automáticamente después de cancelar item');
+          }
+          
           // Refetch la operación para obtener los datos actualizados
           const refetchResult = await refetch();
           // Actualizar modifiedDetails filtrando cancelados y preservando splits restantes
@@ -619,11 +676,19 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       const result = await cancelOperationDetailMutation({
         variables: {
           detailId: detailId,
-          userId: user?.id || null
+          userId: user?.id || '',
+          deviceId: deviceId || undefined
         }
       });
 
       if (result.data?.cancelOperationDetail?.success) {
+        // ✅ Verificar si la operación cambió de estado automáticamente
+        const operationCancelled = result.data?.cancelOperationDetail?.operationCancelled;
+        
+        if (operationCancelled) {
+          console.log('✅ Operación cambió de estado automáticamente después de cancelar item');
+        }
+        
         // Refetch la operación para obtener los datos actualizados
         const refetchResult = await refetch();
         // Actualizar modifiedDetails filtrando cancelados
@@ -1658,16 +1723,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           const quantityToCancel = originalQuantity - totalQuantity;
           
           // Cancelar parcialmente el detalle original
-          // Construir variables sin userId si es null (el backend puede requerir ID! en lugar de ID)
           const cancelVariables: any = {
             detailId: originalDetailId,
-            quantity: quantityToCancel
+            quantity: quantityToCancel,
+            userId: user?.id || '',
+            deviceId: deviceId || undefined
           };
-          
-          // Solo agregar userId si existe (no enviar null)
-          if (user?.id) {
-            cancelVariables.userId = user.id;
-          }
           
           const cancelResult = await cancelOperationDetailMutation({
             variables: cancelVariables
@@ -2623,7 +2684,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   }}
                 >
                   <span>
-                    IGV ({operation.igvPercentage ? `${operation.igvPercentage}%` : '—'})
+                    IGV ({igvPercentage ? `${igvPercentage}%` : '—'})
                   </span>
                   <span>{currencyFormatter.format(igvAmount)}</span>
                 </div>

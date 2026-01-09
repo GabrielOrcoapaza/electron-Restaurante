@@ -11,6 +11,7 @@ import CreateUser from '../modules/user/createUser';
 import Products from '../modules/products/Products';
 import Inventories from '../modules/inventories/Inventories';
 import Kardex from '../modules/inventories/kardex';
+import Purchase from '../modules/purchase/Purchase';
 import { GET_MY_UNREAD_MESSAGES } from '../graphql/queries';
 import { MARK_MESSAGE_READ } from '../graphql/mutations';
 import type { Table } from '../types/table';
@@ -66,11 +67,13 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const { user, companyData, logout } = useAuth();
   const { disconnect, subscribe } = useWebSocket();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'products' | 'inventory' | 'kardex'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'products' | 'inventory' | 'kardex' | 'purchase'>('dashboard');
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
   const [hiddenNotificationIds, setHiddenNotificationIds] = useState<string[]>([]);
+  const previousNotificationIdsRef = useRef<Set<string>>(new Set());
+  const isInitialLoadRef = useRef<boolean>(true);
 
   const {
     data: notificationsData,
@@ -195,12 +198,52 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   useEffect(() => {
     if (!allNotifications.length) {
       setHiddenNotificationIds([]);
+      previousNotificationIdsRef.current = new Set();
       return;
     }
     setHiddenNotificationIds((prev) =>
       prev.filter((hiddenId) => allNotifications.some((notification: any) => notification?.id === hiddenId))
     );
   }, [allNotifications]);
+
+  // Detectar nuevas notificaciones y abrir el modal automáticamente
+  useEffect(() => {
+    if (!allNotifications.length) {
+      previousNotificationIdsRef.current = new Set();
+      // Si no hay notificaciones, no es la carga inicial (ya se procesaron datos)
+      if (!isInitialLoadRef.current) {
+        isInitialLoadRef.current = false;
+      }
+      return;
+    }
+
+    // Obtener las IDs actuales de todas las notificaciones (incluyendo ocultas)
+    const currentAllIds = new Set(
+      allNotifications.map((notification: any) => notification.id)
+    );
+    
+    // En la carga inicial, solo guardar las IDs sin abrir el modal
+    if (isInitialLoadRef.current) {
+      previousNotificationIdsRef.current = currentAllIds;
+      isInitialLoadRef.current = false;
+      return;
+    }
+    
+    // Verificar si hay nuevas notificaciones comparando con las anteriores
+    const hasNewNotifications = Array.from(currentAllIds).some(
+      (id) => !previousNotificationIdsRef.current.has(id)
+    );
+    
+    // Solo abrir el modal si:
+    // 1. Hay nuevas notificaciones (nuevas IDs que no estaban antes)
+    // 2. Y hay notificaciones visibles (no todas están ocultas)
+    if (hasNewNotifications && visibleNotifications.length > 0) {
+      setShowNotifications(true);
+    }
+
+    // Actualizar la referencia con las IDs actuales de todas las notificaciones
+    previousNotificationIdsRef.current = currentAllIds;
+  }, [allNotifications, visibleNotifications.length]);
 
   const handleDismissNotification = (notificationId: string) => {
     setHiddenNotificationIds((prev) => (prev.includes(notificationId) ? prev : [...prev, notificationId]));
@@ -229,7 +272,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     setSidebarOpen(!sidebarOpen);
   };
 
-  const handleMenuClick = (view: 'dashboard' | 'floors' | 'messages' | 'employees' | 'cashs' | 'products' | 'inventory' | 'kardex') => {
+  const handleMenuClick = (view: 'dashboard' | 'floors' | 'messages' | 'employees' | 'cashs' | 'products' | 'inventory' | 'kardex' | 'purchase') => {
     setCurrentView(view);
     setSelectedCashTable(null);
   };
@@ -261,6 +304,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       ? 'Inventario'
       : currentView === 'kardex'
       ? 'Kardex'
+      : currentView === 'purchase'
+      ? 'Compras'
       : 'Caja';
 
   const headerSubtitle =
@@ -280,6 +325,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       ? 'Controla el stock de tus productos.'
       : currentView === 'kardex'
       ? 'Registro de movimientos de inventario.'
+      : currentView === 'purchase'
+      ? 'Gestiona las compras a proveedores y controla el stock.'
       : selectedCashTable
       ? `Procesa el pago de ${selectedCashTable.name}.`
       : 'Selecciona una mesa para revisar su orden.';
@@ -643,6 +690,40 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
             >
               <span style={{ fontSize: '1.25rem' }}>👥</span>
               {sidebarOpen && 'Empleados'}
+            </button> 
+
+            <button
+              onClick={() => handleMenuClick('purchase')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.75rem 1.5rem',
+                background: currentView === 'purchase' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                border: 'none',
+                color: currentView === 'purchase' ? '#667eea' : '#a0aec0',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                transition: 'all 0.2s ease',
+                textAlign: 'left',
+                width: '100%'
+              }}
+              onMouseOver={(e) => {
+                if (currentView !== 'purchase') {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.color = 'white';
+                }
+              }}
+              onMouseOut={(e) => {
+                if (currentView !== 'purchase') {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#a0aec0';
+                }
+              }}
+            >
+              <span style={{ fontSize: '1.25rem' }}>🛒</span>
+              {sidebarOpen && 'Compras'}
             </button> 
 
             <button
@@ -1154,6 +1235,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
           {currentView === 'products' && <Products />}
           {currentView === 'inventory' && <Inventories />}
           {currentView === 'kardex' && <Kardex />}
+          {currentView === 'purchase' && <Purchase />}
         </main>
       </div>
     </div>

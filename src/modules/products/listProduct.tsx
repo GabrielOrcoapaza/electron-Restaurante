@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@apollo/client';
-import { GET_PRODUCTS_BY_BRANCH, GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS_BY_CATEGORY } from '../../graphql/queries';
+import { GET_PRODUCTS_BY_BRANCH, GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS } from '../../graphql/queries';
 import { useAuth } from '../../hooks/useAuth';
 import RecipeModal from './recipe';
 
@@ -12,6 +12,7 @@ interface Product {
   salePrice: number;
   imageBase64?: string;
   preparationTime?: number;
+  productType?: string;
   isActive: boolean;
 }
 
@@ -40,26 +41,35 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
   const { companyData } = useAuth();
   const branchId = companyData?.branch?.id;
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedProductType, setSelectedProductType] = useState<string>('');
   const [selectedProductForRecipe, setSelectedProductForRecipe] = useState<{ id: string; name: string } | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 20;
 
-  // Query para obtener todos los productos (cuando no hay categoría seleccionada)
-  const { data: productsData, loading: productsLoading, error: productsError, refetch: refetchProducts } = useQuery(
-    GET_PRODUCTS_BY_BRANCH,
+  // Determinar si hay algún filtro activo
+  const hasFilters = Boolean(selectedProductType || selectedCategory);
+
+  // Query optimizada con filtros (productType y/o categoryId)
+  // Esta query se usa cuando hay al menos un filtro activo
+  const { data: filteredProductsData, loading: filteredProductsLoading, error: filteredProductsError, refetch: refetchFilteredProducts } = useQuery(
+    GET_PRODUCTS,
     {
-      variables: { branchId: branchId! },
-      skip: !branchId || !!selectedCategory,
+      variables: { 
+        branchId: branchId!,
+        ...(selectedProductType && { productType: selectedProductType }),
+        ...(selectedCategory && { categoryId: selectedCategory })
+      },
+      skip: !branchId || !hasFilters,
       fetchPolicy: 'network-only'
     }
   );
 
-  // Query para obtener productos por categoría (cuando hay categoría seleccionada)
-  const { data: productsByCategoryData, loading: productsByCategoryLoading, refetch: refetchProductsByCategory } = useQuery(
-    GET_PRODUCTS_BY_CATEGORY,
+  // Query para obtener todos los productos (cuando no hay filtros)
+  const { data: productsData, loading: productsLoading, error: productsError, refetch: refetchProducts } = useQuery(
+    GET_PRODUCTS_BY_BRANCH,
     {
-      variables: { categoryId: selectedCategory },
-      skip: !selectedCategory,
+      variables: { branchId: branchId! },
+      skip: !branchId || hasFilters,
       fetchPolicy: 'network-only'
     }
   );
@@ -69,11 +79,14 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
     skip: !branchId
   });
 
-  const allProducts: Product[] = productsData?.productsByBranch || [];
-  const categoryProducts: Product[] = productsByCategoryData?.productsByCategory || [];
-  const filteredProducts = selectedCategory ? categoryProducts : allProducts;
+  // Obtener productos según la query usada
+  const filteredProducts: Product[] = hasFilters 
+    ? (filteredProductsData?.products || [])
+    : (productsData?.productsByBranch || []);
+  
   const categories: Category[] = categoriesData?.categoriesByBranch || [];
-  const loading = selectedCategory ? productsByCategoryLoading : productsLoading;
+  const loading = hasFilters ? filteredProductsLoading : productsLoading;
+  const error = hasFilters ? filteredProductsError : productsError;
 
   // Calcular paginación
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
@@ -81,19 +94,19 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
   const endIndex = startIndex + itemsPerPage;
   const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
 
-  // Resetear página cuando cambie la categoría
+  // Resetear página cuando cambie la categoría o el tipo de producto
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [selectedCategory]);
+  }, [selectedCategory, selectedProductType]);
 
   // Refrescar cuando cambie el refreshKey
   React.useEffect(() => {
-    if (selectedCategory) {
-      refetchProductsByCategory();
+    if (hasFilters) {
+      refetchFilteredProducts();
     } else {
       refetchProducts();
     }
-  }, [refreshKey, selectedCategory, refetchProducts, refetchProductsByCategory]);
+  }, [refreshKey, hasFilters, refetchProducts, refetchFilteredProducts]);
 
   if (!branchId) {
     return (
@@ -111,25 +124,77 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
     );
   }
 
-  if (productsError) {
+  if (error) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: '#dc2626' }}>
-        Error al cargar productos: {productsError.message}
+        Error al cargar productos: {error.message}
       </div>
     );
   }
 
   return (
     <div>
-      {/* Filtro de categorías */}
-      {categories.length > 0 && (
+      {/* Filtros */}
+      <div style={{
+        display: 'flex',
+        gap: '1rem',
+        marginBottom: '1.5rem',
+        flexWrap: 'wrap'
+      }}>
+        {/* Filtro de categorías */}
+        {categories.length > 0 && (
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            padding: '1rem',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+            border: '1px solid #e2e8f0',
+            flex: '1',
+            minWidth: '250px'
+          }}>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '0.5rem', 
+              fontWeight: 500, 
+              fontSize: '0.875rem', 
+              color: '#475569' 
+            }}>
+              Filtrar por categoría:
+            </label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.625rem 0.875rem',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                fontSize: '0.875rem',
+                boxSizing: 'border-box',
+                backgroundColor: 'white'
+              }}
+            >
+              <option value="">Todas las categorías</option>
+              {categories
+                .filter(cat => cat.isActive)
+                .map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+
+        {/* Filtro de tipo de producto */}
         <div style={{
           backgroundColor: 'white',
           borderRadius: '12px',
           padding: '1rem',
-          marginBottom: '1.5rem',
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-          border: '1px solid #e2e8f0'
+          border: '1px solid #e2e8f0',
+          flex: '1',
+          minWidth: '250px'
         }}>
           <label style={{ 
             display: 'block', 
@@ -138,14 +203,13 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
             fontSize: '0.875rem', 
             color: '#475569' 
           }}>
-            Filtrar por categoría:
+            Filtrar por tipo:
           </label>
           <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            value={selectedProductType}
+            onChange={(e) => setSelectedProductType(e.target.value)}
             style={{
               width: '100%',
-              maxWidth: '300px',
               padding: '0.625rem 0.875rem',
               border: '1px solid #e2e8f0',
               borderRadius: '8px',
@@ -154,17 +218,13 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
               backgroundColor: 'white'
             }}
           >
-            <option value="">Todas las categorías</option>
-            {categories
-              .filter(cat => cat.isActive)
-              .map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
+            <option value="">Todos los tipos</option>
+            <option value="DISH">Plato</option>
+            <option value="INGREDIENT">Ingrediente</option>
+            <option value="BEVERAGE">Bebida</option>
           </select>
         </div>
-      )}
+      </div>
 
       {/* Lista de productos */}
       <div style={{

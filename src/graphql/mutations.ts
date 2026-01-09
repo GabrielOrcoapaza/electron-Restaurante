@@ -431,8 +431,8 @@ export const TRANSFER_ITEMS = gql`
 
 // Mutación para cancelar un detalle de operación
 export const CANCEL_OPERATION_DETAIL = gql`
-  mutation CancelOperationDetail($detailId: ID!, $quantity: Float, $userId: ID) {
-    cancelOperationDetail(detailId: $detailId, quantity: $quantity, userId: $userId) {
+  mutation CancelOperationDetail($detailId: ID!, $quantity: Float, $userId: ID!, $deviceId: String) {
+    cancelOperationDetail(detailId: $detailId, quantity: $quantity, userId: $userId, deviceId: $deviceId) {
       success
       message
       detail {
@@ -440,6 +440,7 @@ export const CANCEL_OPERATION_DETAIL = gql`
         quantity
         isCanceled
       }
+      operationCancelled
     }
   }
 `;
@@ -782,6 +783,85 @@ export const REMOVE_RECIPE = gql`
     removeRecipe(recipeId: $recipeId) {
       success
       message
+    }
+  }
+`;
+
+// Mutación para crear operación de compra
+export const CREATE_PURCHASE_OPERATION = gql`
+  mutation CreatePurchaseOperation(
+    $branchId: ID!
+    $personId: ID!
+    $userId: ID!
+    $operationDate: String
+    $notes: String
+    $details: [OperationDetailInput!]!
+    $subtotal: Float
+    $igvAmount: Float
+    $igvPercentage: Float
+    $total: Float
+  ) {
+    createPurchaseOperation(
+      branchId: $branchId
+      personId: $personId
+      userId: $userId
+      operationDate: $operationDate
+      notes: $notes
+      details: $details
+      subtotal: $subtotal
+      igvAmount: $igvAmount
+      igvPercentage: $igvPercentage
+      total: $total
+    ) {
+      operation {
+        id
+        order
+        operationDate
+        status
+        subtotal
+        igvAmount
+        igvPercentage
+        total
+        notes
+        person {
+          id
+          name
+        }
+        user {
+          id
+          fullName
+        }
+      }
+      success
+      message
+      stockMovementsCount
+    }
+  }
+`;
+
+// Mutación para cancelar operación de compra
+export const CANCEL_PURCHASE_OPERATION = gql`
+  mutation CancelPurchaseOperation(
+    $operationId: ID!
+    $branchId: ID!
+    $userId: ID!
+    $cancellationReason: String!
+  ) {
+    cancelPurchaseOperation(
+      operationId: $operationId
+      branchId: $branchId
+      userId: $userId
+      cancellationReason: $cancellationReason
+    ) {
+      success
+      message
+      operation {
+        id
+        order
+        status
+        cancelledAt
+      }
+      stockMovementsCount
     }
   }
 `;
