@@ -356,7 +356,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
         height: '100vh',
         zIndex: 1000,
         overflow: 'hidden',
-        boxShadow: '2px 0 10px rgba(0, 0, 0, 0.1)'
+        boxShadow: '2px 0 10px rgba(0, 0, 0, 0.1)', 
+        display: 'flex',
+        flexDirection: 'column'
       }}>
         {/* Header del Sidebar */}
         <div style={{
@@ -473,7 +475,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
         {/* Menú de Navegación */}
         <nav style={{
           padding: '1rem 0',
-          flex: 1
+          flex: 1, 
+          overflowY: 'auto',
+          scrollbarWidth: 'thin',             // Firefox
         }}>
           <div style={{
             padding: '0.5rem 1.5rem',
@@ -874,7 +878,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'auto',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         transition: 'margin-left 0.3s ease'
       }}>
         {/* Header Principal */}
@@ -1199,9 +1204,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
           flex: 1,
           padding: currentView === 'dashboard' ? '2rem' : '1rem',
           backgroundColor: '#f8fafc',
-          overflow: 'auto',
+          overflowY: 'auto',
+          overflowX: 'hidden',
           width: '100%',
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
+          minHeight: 0
         }}>
           {currentView === 'dashboard' && children}
           {currentView === 'floors' && <Floor onOpenCash={handleOpenCash} />}

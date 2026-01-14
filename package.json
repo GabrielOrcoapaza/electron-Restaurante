@@ -1,7 +1,7 @@
 {
   "name": "appsuma",
-  "private": true,
-  "version": "0.0.0",
+  "private": false,
+  "version": "1.0.0",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,33 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "dev:all": "concurrently \"npm run dev\" \"npm run electron\"",
-    "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\""
+    "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\"",
+    "dist": "npm run build && npm run build-electron && electron-builder"
+  },
+  "build": {
+    "appId": "com.mirestaurante.restaurante",
+    "productName": "Restaurantes",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "public/logos.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   },
   "dependencies": {
     "@apollo/client": "^3.14.0",
@@ -32,6 +58,7 @@
     "babel-plugin-react-compiler": "^19.1.0-rc.3",
     "concurrently": "^9.2.1",
     "electron": "^38.3.0",
+    "electron-builder": "^26.4.0",
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",

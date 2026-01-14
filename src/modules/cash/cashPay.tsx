@@ -65,7 +65,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [referenceNumber, setReferenceNumber] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [isSplitMode, setIsSplitMode] = useState(false);
   const [itemAssignments, setItemAssignments] = useState<Record<string, boolean>>({});
   const [modifiedDetails, setModifiedDetails] = useState<any[]>([]);
   const [showChangeTableModal, setShowChangeTableModal] = useState(false);
@@ -116,7 +115,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   });
 
   // Obtener cajas registradoras
-  const { data: cashRegistersData, loading: cashRegistersLoading } = useQuery(GET_CASH_REGISTERS, {
+  const { data: cashRegistersData } = useQuery(GET_CASH_REGISTERS, {
     variables: { branchId: companyData?.branch.id || '' },
     skip: !companyData?.branch.id
   });
@@ -128,7 +127,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   });
 
   // Obtener mesas del piso seleccionado
-  const { data: tablesData, loading: tablesLoading, refetch: refetchTables } = useQuery(GET_TABLES_BY_FLOOR, {
+  const { data: tablesData, loading: tablesLoading } = useQuery(GET_TABLES_BY_FLOOR, {
     variables: { floorId: selectedFloorId },
     skip: !selectedFloorId
   });
@@ -394,43 +393,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         });
       }, 500);
       
-      // Limpiar estado de división cuando cambia la mesa
-      setIsSplitMode(false);
+      // Limpiar selecciones cuando cambia la mesa
       setItemAssignments({});
       
       return () => clearTimeout(timer);
     }
   }, [table?.id, companyData?.branch.id, refetch]);
-
-  const handleSplitBill = () => {
-    setIsSplitMode(!isSplitMode);
-    if (!isSplitMode) {
-      // Al activar el modo de división, marcar todos los productos como seleccionados
-      const detailsToMark = modifiedDetails.length > 0 ? modifiedDetails : (operation?.details || []);
-      const nonCanceledDetails = filterCanceledDetails(detailsToMark);
-      const initialAssignments: Record<string, boolean> = {};
-      nonCanceledDetails.forEach((detail: any) => {
-        if (detail.id) {
-          initialAssignments[detail.id] = true;
-        }
-      });
-      setItemAssignments(initialAssignments);
-    } else {
-      // Al desactivar el modo de división, restaurar detalles originales y seleccionar todos
-      if (operation?.details) {
-        const nonCanceledDetails = filterCanceledDetails(operation.details);
-        setModifiedDetails([...nonCanceledDetails]);
-        // Volver a seleccionar todos los productos
-        const initialAssignments: Record<string, boolean> = {};
-        nonCanceledDetails.forEach((detail: any) => {
-          if (detail.id) {
-            initialAssignments[detail.id] = true;
-          }
-        });
-        setItemAssignments(initialAssignments);
-      }
-    }
-  };
 
   const handleSplitItem = (detailId: string) => {
     const splitTimestamp = Date.now();
@@ -1174,7 +1142,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           setItemAssignments({});
         } else {
           // Si se pagó toda la operación, refetch y verificar si la mesa fue liberada
-          await refetch();
+          const refetchResult = await refetch();
+          
+          // Verificar si la mesa fue liberada según la respuesta del backend
           if (result.data?.createIssuedDocument?.wasTableFreed) {
             // Actualizar la mesa en el contexto para limpiar el nombre del mozo
             const freedTable = result.data?.createIssuedDocument?.table;
@@ -1196,6 +1166,32 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             setTimeout(() => {
               onBack();
             }, 2000);
+          } else if (!refetchResult.data?.operationByTable && table?.id && updateTableInContext) {
+            // Si la operación ya no existe después del refetch, la mesa queda libre
+            // Esto puede pasar si el backend liberó la mesa pero no retornó wasTableFreed
+            updateTableInContext({
+              id: table.id,
+              status: 'AVAILABLE',
+              statusColors: null, // Limpiar colores para usar los por defecto (verde)
+              currentOperationId: null,
+              occupiedById: null,
+              userName: null
+            });
+            
+            // Enviar notificación WebSocket para actualizar en tiempo real
+            notifyTableUpdate(table.id, 'AVAILABLE', null, null, null);
+            
+            console.log('✅ Mesa liberada - operación ya no existe para mesa:', table.id);
+            
+            // Notificar al componente padre para que actualice las mesas
+            if (onPaymentSuccess) {
+              onPaymentSuccess();
+            }
+            
+            // Volver atrás después de un breve delay
+            setTimeout(() => {
+              onBack();
+            }, 500);
           }
         }
         

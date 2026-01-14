@@ -13,7 +13,7 @@ const httpLink = createHttpLink({
 });
 
 // Link para manejar errores de autenticación
-const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
+const errorLink = onError(({ graphQLErrors, networkError }) => {
   if (graphQLErrors) {
     graphQLErrors.forEach(({ message, extensions }) => {
       console.error(`GraphQL error: ${message}`);

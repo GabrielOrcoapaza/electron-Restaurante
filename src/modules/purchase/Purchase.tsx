@@ -67,7 +67,7 @@ interface PurchaseOperation {
     id: string;
     name: string;
     documentNumber?: string;
-  };
+  } | null;
   user: {
     id: string;
     fullName: string;
@@ -258,12 +258,6 @@ const Purchase: React.FC = () => {
   };
 
   const handleCreatePurchase = async () => {
-    if (!selectedSupplierId) {
-      setMessage({ type: 'error', text: 'Selecciona un proveedor' });
-      setTimeout(() => setMessage(null), 3000);
-      return;
-    }
-
     if (purchaseDetails.length === 0) {
       setMessage({ type: 'error', text: 'Agrega al menos un producto' });
       setTimeout(() => setMessage(null), 3000);
@@ -296,7 +290,7 @@ const Purchase: React.FC = () => {
       await createPurchaseOperation({
         variables: {
           branchId: branchId!,
-          personId: selectedSupplierId,
+          personId: selectedSupplierId || null,
           userId: user.id,
           operationDate: operationDateTime,
           notes: notes || null,
@@ -487,7 +481,7 @@ const Purchase: React.FC = () => {
                         {new Date(operation.operationDate).toLocaleDateString('es-PE')}
                       </td>
                       <td style={{ padding: '0.75rem', color: '#334155' }}>
-                        {operation.person.name}
+                        {operation.person?.name || 'Sin proveedor'}
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', color: '#334155', fontWeight: 500 }}>
                         {currencyFormatter.format(operation.subtotal)}
@@ -554,7 +548,7 @@ const Purchase: React.FC = () => {
           {/* Información del proveedor */}
           <div>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#475569' }}>
-              Proveedor *
+              Proveedor (Opcional)
             </label>
             {suppliersLoading ? (
               <div>Cargando proveedores...</div>

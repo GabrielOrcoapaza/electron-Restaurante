@@ -791,7 +791,7 @@ export const REMOVE_RECIPE = gql`
 export const CREATE_PURCHASE_OPERATION = gql`
   mutation CreatePurchaseOperation(
     $branchId: ID!
-    $personId: ID!
+    $personId: ID
     $userId: ID!
     $operationDate: String
     $notes: String
