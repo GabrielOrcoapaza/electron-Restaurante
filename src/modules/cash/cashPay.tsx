@@ -814,13 +814,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       // Preparar items del documento usando los detalles modificados
       const detailsToProcess = modifiedDetails.length > 0 ? modifiedDetails : (operation.details || []);
       
+      // Filtrar detalles cancelados para obtener solo los disponibles
+      const availableDetails = filterCanceledDetails(detailsToProcess);
+      
       // Obtener los IDs de los productos seleccionados (checkboxes marcados)
       const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
       
       // Si hay productos seleccionados, filtrar solo esos
-      let detailsToPay = detailsToProcess;
+      let detailsToPay = availableDetails;
       if (selectedDetailIds.length > 0) {
-        detailsToPay = detailsToProcess.filter((detail: any) => {
+        detailsToPay = availableDetails.filter((detail: any) => {
           // Verificar si el detail.id está en los seleccionados
           return selectedDetailIds.includes(detail.id);
         });
@@ -832,11 +835,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         }
       }
       
-      // Si hay productos seleccionados, crear una nueva operación solo con esos productos
+      // ✅ VERIFICAR SI ES PAGO PARCIAL O COMPLETO
+      // Si se están pagando TODOS los productos disponibles, usar la operación existente
+      // Si se están pagando SOLO ALGUNOS productos, crear una nueva operación
+      const isPartialPayment = selectedDetailIds.length > 0 && selectedDetailIds.length < availableDetails.length;
+      
+      // Si hay productos seleccionados Y es un pago parcial, crear una nueva operación solo con esos productos
       let operationToPay = operation;
       let newOperationDetails: any[] = [];
       
-      if (selectedDetailIds.length > 0) {
+      if (isPartialPayment) {
         // Calcular totales solo de los productos seleccionados
         const selectedSubtotal = detailsToPay.reduce((sum: number, detail: any) => {
           const quantity = Number(detail.quantity) || 0;
@@ -915,8 +923,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       // Preparar items para el documento
       let items: any[] = [];
       
-      if (selectedDetailIds.length > 0 && newOperationDetails.length > 0) {
-        // Usar los detalles reales de la nueva operación (con IDs reales de la base de datos)
+      if (isPartialPayment && newOperationDetails.length > 0) {
+        // ✅ PAGO PARCIAL: Usar los detalles reales de la nueva operación (con IDs reales de la base de datos)
         items = newOperationDetails.map((detail: any) => ({
           operationDetailId: detail.id, // ID real del detalle
           quantity: Number(detail.quantity) || 0,
@@ -926,7 +934,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           notes: detail.notes || ''
         }));
       } else {
-        // Si no hay productos seleccionados, usar toda la operación (comportamiento original)
+        // ✅ PAGO COMPLETO: Usar la operación existente
         // Agrupar detalles por ID original (sin el sufijo -split)
         const groupedDetails: Record<string, any[]> = {};
         detailsToPay.forEach((detail: any) => {
@@ -985,8 +993,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       // Para pagos parciales: NO pasar table_id si hay productos restantes
       // Esto evita que el backend libere la mesa cuando todavía hay productos por pagar
       // Solo pasamos tableId si se está pagando toda la operación (no hay productos restantes)
-      const hasRemainingProducts = selectedDetailIds.length > 0 && 
-        detailsToProcess.filter((detail: any) => !selectedDetailIds.includes(detail.id)).length > 0;
+      const hasRemainingProducts = isPartialPayment;
       const tableIdForPayment = hasRemainingProducts ? null : (table?.id || null);
 
       const variables = {
@@ -1028,13 +1035,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         // El backend debería haber impreso el documento si deviceId estaba disponible
         // y la operación estaba completamente pagada (lo cual es cierto para la nueva operación con productos seleccionados)
         
-        if (selectedDetailIds.length > 0) {
-          // Se pagaron solo algunos productos
+        if (isPartialPayment) {
+          // ✅ Se pagaron solo algunos productos (pago parcial)
           // IMPORTANTE: Crear primero la nueva operación con productos restantes ANTES de que el backend libere la mesa
           // Esto evita que la mesa se ponga verde temporalmente
           
           // Obtener los productos restantes de la operación original
-          const remainingDetails = detailsToProcess.filter((detail: any) => 
+          const remainingDetails = availableDetails.filter((detail: any) => 
             !selectedDetailIds.includes(detail.id)
           );
           
