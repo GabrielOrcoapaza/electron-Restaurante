@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useWebSocket } from '../../context/WebSocketContext';
 import type { Table } from '../../types/table';
 import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CREATE_OPERATION, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION, PRINT_PRECUENTA, PRINT_PARTIAL_PRECUENTA } from '../../graphql/mutations';
-import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries';
+import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR, GET_PERSONS_BY_BRANCH } from '../../graphql/queries';
+import CreateClient from '../user/createClient';
 
 type CashPayProps = {
   table: Table | null;
@@ -61,10 +62,24 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
   const [selectedSerialId, setSelectedSerialId] = useState<string>('');
   const [selectedCashRegisterId, setSelectedCashRegisterId] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
-  const [referenceNumber, setReferenceNumber] = useState<string>('');
+  const [selectedPersonId, setSelectedPersonId] = useState<string>('');
+  const [showCreateClientModal, setShowCreateClientModal] = useState(false);
+  
+  // Estado para múltiples pagos
+  type Payment = {
+    id: string;
+    method: string;
+    amount: number;
+    referenceNumber: string;
+  };
+  const [payments, setPayments] = useState<Payment[]>([
+    { id: '1', method: 'CASH', amount: 0, referenceNumber: '' }
+  ]);
+  
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  // ⚠️ Ref para prevenir dobles clics (más confiable que solo el estado)
+  const isProcessingRef = useRef(false);
   const [itemAssignments, setItemAssignments] = useState<Record<string, boolean>>({});
   const [modifiedDetails, setModifiedDetails] = useState<any[]>([]);
   const [showChangeTableModal, setShowChangeTableModal] = useState(false);
@@ -119,6 +134,15 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     variables: { branchId: companyData?.branch.id || '' },
     skip: !companyData?.branch.id
   });
+
+  // Obtener clientes (personas que no son proveedores)
+  const { data: personsData, refetch: refetchClients } = useQuery(GET_PERSONS_BY_BRANCH, {
+    variables: { branchId: companyData?.branch.id || '' },
+    skip: !companyData?.branch.id
+  });
+
+  // Filtrar solo clientes (personas con isSupplier = false o null)
+  const clients = (personsData?.personsByBranch || []).filter((person: any) => !person.isSupplier && person.isActive !== false);
 
   // Obtener pisos para el modal de cambio de mesa
   const { data: floorsData, loading: floorsLoading } = useQuery(GET_FLOORS_BY_BRANCH, {
@@ -281,44 +305,159 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   }
 
   // Usar el IGV de la sucursal obtenido en el login de empresa
-  const igvPercentage = Number(companyData?.branch?.igvPercentage) || 18;
+  const igvPercentage = Number(companyData?.branch?.igvPercentage) || 10;
   
   // Log para verificar que se está usando el IGV de la sucursal
   React.useEffect(() => {
     if (companyData?.branch?.igvPercentage) {
       console.log('✅ IGV de la sucursal:', companyData.branch.igvPercentage, '%');
     } else {
-      console.warn('⚠️ IGV de la sucursal no encontrado, usando valor por defecto: 18%');
+      console.warn('⚠️ IGV de la sucursal no encontrado, usando valor por defecto: 10%');
     }
   }, [companyData?.branch?.igvPercentage]);
   
-  // Función helper para filtrar productos cancelados
-  const filterCanceledDetails = (details: any[]) => {
-    if (!details || !Array.isArray(details)) return [];
-    return details.filter((detail: any) => {
-      // Filtrar productos cancelados (isCanceled puede ser true, "true", 1, etc.)
-      // Si isCanceled es undefined, null, false, 0, o "", el producto NO está cancelado
-      if (detail.isCanceled === undefined || detail.isCanceled === null || detail.isCanceled === false) {
-        return true; // No está cancelado, incluirlo
+  // Función helper para obtener información de facturación desde sessionStorage
+  const getFacturedItemsFromStorage = (operationId: string): Map<string, number> => {
+    try {
+      const storageKey = `factured_items_${operationId}`;
+      const storedData = sessionStorage.getItem(storageKey);
+      if (storedData) {
+        const parsed = JSON.parse(storedData);
+        const map = new Map<string, number>();
+        Object.entries(parsed).forEach(([key, value]) => {
+          map.set(String(key), Number(value) || 0);
+        });
+        return map;
       }
-      // Si isCanceled es true, 1, "true", "True", etc., está cancelado, excluirlo
+    } catch (error) {
+      console.warn('⚠️ Error leyendo facturación de sessionStorage:', error);
+    }
+    return new Map<string, number>();
+  };
+
+  // Función helper para guardar información de facturación en sessionStorage
+  const saveFacturedItemsToStorage = (operationId: string, facturedItemsMap: Map<string, number>) => {
+    try {
+      const storageKey = `factured_items_${operationId}`;
+      const existingData = getFacturedItemsFromStorage(operationId);
+      
+      // Combinar con datos existentes (sumar cantidades si el mismo detalle se facturó múltiples veces)
+      facturedItemsMap.forEach((quantity, detailId) => {
+        const existingQty = existingData.get(detailId) || 0;
+        existingData.set(detailId, existingQty + quantity);
+      });
+      
+      // Convertir Map a objeto para guardar en sessionStorage
+      const dataToStore: Record<string, number> = {};
+      existingData.forEach((value, key) => {
+        dataToStore[key] = value;
+      });
+      
+      sessionStorage.setItem(storageKey, JSON.stringify(dataToStore));
+      console.log('💾 Facturación guardada en sessionStorage:', dataToStore);
+    } catch (error) {
+      console.warn('⚠️ Error guardando facturación en sessionStorage:', error);
+    }
+  };
+
+  // Función helper para filtrar productos cancelados y completamente facturados
+  const filterCanceledDetails = (details: any[], operationId?: string) => {
+    if (!details || !Array.isArray(details)) return [];
+    
+    // Obtener información de facturación desde sessionStorage si tenemos operationId
+    const facturedItemsMap = operationId ? getFacturedItemsFromStorage(operationId) : new Map<string, number>();
+    
+    return details.filter((detail: any) => {
+      // 1. Filtrar productos cancelados (isCanceled puede ser true, "true", 1, etc.)
       const isCanceled = detail.isCanceled === true || detail.isCanceled === 1 || 
                         detail.isCanceled === "true" || detail.isCanceled === "True" ||
                         String(detail.isCanceled).toLowerCase() === "true";
-      return !isCanceled;
+      if (isCanceled) {
+        return false; // Está cancelado, excluirlo
+      }
+      
+      // 2. Filtrar productos completamente facturados
+      // 2a. Si remainingQuantity existe y es <= 0, el producto ya fue completamente facturado
+      if (detail.remainingQuantity !== undefined && detail.remainingQuantity !== null) {
+        const remainingQty = Number(detail.remainingQuantity) || 0;
+        if (remainingQty <= 0) {
+          return false; // Ya fue completamente facturado, excluirlo
+        }
+      }
+      
+      // 2b. Calcular cantidad restante usando sessionStorage si está disponible
+      const detailId = String(detail.id);
+      const originalQuantity = Number(detail.quantity) || 0;
+      const facturedQuantity = facturedItemsMap.get(detailId) || 0;
+      const remainingQuantity = originalQuantity - facturedQuantity;
+      
+      // Si la cantidad restante es <= 0, el producto ya fue completamente facturado
+      if (remainingQuantity <= 0) {
+        console.log(`   ❌ Detalle ${detail.productName || detailId} excluido: facturado completamente (${facturedQuantity} de ${originalQuantity})`);
+        return false; // Ya fue completamente facturado, excluirlo
+      }
+      
+      // Incluir el producto si no está cancelado y tiene cantidad restante
+      return true;
     });
   };
 
   // Calcular totales basados en los detalles modificados (filtrar cancelados)
+  // ⚠️ IMPORTANTE: Si hay productos seleccionados (checkboxes), calcular solo los seleccionados
+  // NOTA: Los precios unitarios ya incluyen IGV, por lo que:
+  // Total = suma de (cantidad * precio_unitario) [con IGV incluido]
+  // Subtotal = Total / (1 + IGV%)
+  // IGV = Total - Subtotal
   const allDetails = modifiedDetails.length > 0 ? modifiedDetails : (operation?.details || []);
-  const detailsToUse = filterCanceledDetails(allDetails);
-  const subtotal = detailsToUse.reduce((sum: number, detail: any) => {
+  const detailsToUse = filterCanceledDetails(allDetails, operation?.id);
+  
+  // Obtener productos seleccionados (si hay checkboxes marcados, usar solo esos)
+  const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
+  const detailsForTotal = selectedDetailIds.length > 0 
+    ? detailsToUse.filter((detail: any) => selectedDetailIds.includes(detail.id))
+    : detailsToUse;
+  
+  const total = detailsForTotal.reduce((sum: number, detail: any) => {
     const quantity = Number(detail.quantity) || 0;
     const unitPrice = Number(detail.unitPrice) || 0;
     return sum + (quantity * unitPrice);
   }, 0);
-  const igvAmount = subtotal * (igvPercentage / 100);
-  const total = subtotal + igvAmount;
+  const igvDecimal = igvPercentage / 100;
+  const subtotal = parseFloat((Math.round((total / (1 + igvDecimal)) * 100) / 100).toFixed(2));
+  const igvAmount = parseFloat((Math.round((total - subtotal) * 100) / 100).toFixed(2));
+
+  // Funciones para manejar múltiples pagos
+  const addPayment = () => {
+    const newId = String(Date.now());
+    setPayments([...payments, { id: newId, method: 'CASH', amount: 0, referenceNumber: '' }]);
+  };
+
+  const removePayment = (id: string) => {
+    if (payments.length > 1) {
+      setPayments(payments.filter(p => p.id !== id));
+    }
+  };
+
+  const updatePayment = (id: string, field: keyof Payment, value: string | number) => {
+    setPayments(payments.map(p => 
+      p.id === id ? { ...p, [field]: value } : p
+    ));
+  };
+
+  // Calcular total pagado y diferencia
+  const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const remaining = total - totalPaid;
+  const isPaymentComplete = Math.abs(remaining) < 0.01; // Tolerancia para errores de redondeo
+
+  // Inicializar el primer pago con el total cuando cambie la operación o el total
+  React.useEffect(() => {
+    if (total > 0 && payments.length > 0) {
+      // Si solo hay un pago y está en 0, inicializarlo con el total
+      if (payments.length === 1 && payments[0].amount === 0) {
+        setPayments([{ ...payments[0], amount: total }]);
+      }
+    }
+  }, [total, operation?.id]);
 
   // Inicializar valores por defecto cuando se cargan los datos
   React.useEffect(() => {
@@ -348,8 +487,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
   // Inicializar detalles modificados cuando se carga la operación (filtrar cancelados)
   React.useEffect(() => {
-    if (operation?.details) {
-      const nonCanceledDetails = filterCanceledDetails(operation.details);
+    if (operation?.details && operation?.id) {
+      const nonCanceledDetails = filterCanceledDetails(operation.details, operation.id);
       setModifiedDetails([...nonCanceledDetails]);
       
       // Marcar todos los productos como seleccionados automáticamente cuando se carga la orden
@@ -361,7 +500,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       });
       setItemAssignments(initialAssignments);
     }
-  }, [operation?.details]);
+  }, [operation?.details, operation?.id]);
 
   // Refetch automático cuando cambia la mesa
   React.useEffect(() => {
@@ -376,8 +515,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         }).then((result) => {
           console.log('✅ Operación refetched exitosamente para mesa:', table.id);
           // Reinicializar detalles después del refetch (filtrar cancelados)
-          if (result.data?.operationByTable?.details) {
-            const nonCanceledDetails = filterCanceledDetails(result.data.operationByTable.details);
+          if (result.data?.operationByTable?.details && result.data?.operationByTable?.id) {
+            const nonCanceledDetails = filterCanceledDetails(result.data.operationByTable.details, result.data.operationByTable.id);
             setModifiedDetails([...nonCanceledDetails]);
             // Marcar todos los productos como seleccionados automáticamente
             const initialAssignments: Record<string, boolean> = {};
@@ -563,8 +702,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           // Refetch la operación para obtener los datos actualizados
           const refetchResult = await refetch();
           // Actualizar modifiedDetails filtrando cancelados y preservando splits restantes
-          if (refetchResult.data?.operationByTable?.details) {
-            const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationByTable.details);
+          if (refetchResult.data?.operationByTable?.details && refetchResult.data?.operationByTable?.id) {
+            const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationByTable.details, refetchResult.data.operationByTable.id);
             // Combinar detalles del backend con splits restantes
             const allDetails = [...nonCanceledDetails, ...remainingSplits];
             setModifiedDetails(allDetails);
@@ -763,21 +902,41 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     });
   };
 
-  // Función helper para obtener deviceId o MAC address
+  // Función helper para obtener MAC address del dispositivo
+  // ⚠️ IMPORTANTE: Siempre priorizar obtener la MAC, nunca usar deviceId temporal
   const getDeviceIdOrMac = async (): Promise<string | null> => {
-    if (deviceId) {
-      return deviceId;
-    }
     try {
+      // Siempre intentar obtener la MAC primero - es el valor requerido
       const macAddress = await getMacAddress();
-      return macAddress;
+      if (macAddress && macAddress.trim() !== '') {
+        console.log('✅ MAC address obtenida correctamente:', macAddress);
+        return macAddress;
+      } else {
+        console.warn('⚠️ MAC address obtenida pero está vacía');
+      }
     } catch (error) {
-      console.error('Error al obtener MAC address:', error);
-      return null;
+      console.error('❌ Error al obtener MAC address:', error);
     }
+    
+    // ⚠️ NO usar deviceId como fallback - siempre debe ser MAC
+    // Si no se puede obtener MAC, mostrar error claro
+    console.error('❌ ERROR: No se pudo obtener MAC address. La impresión no funcionará correctamente.');
+    return null;
   };
 
   const handleProcessPayment = async () => {
+    // ⚠️ PROTECCIÓN CONTRA DOBLE CLIC - Verificar ref primero (más confiable que estado)
+    if (isProcessingRef.current) {
+      console.warn('⚠️ Pago ya en proceso (ref check), ignorando solicitud duplicada');
+      return;
+    }
+
+    // ⚠️ PROTECCIÓN CONTRA DOBLE CLIC - Verificar también estado
+    if (isProcessing) {
+      console.warn('⚠️ Pago ya en proceso (state check), ignorando solicitud duplicada');
+      return;
+    }
+
     if (!operation || !selectedDocumentId || !selectedSerialId || !user?.id) {
       setPaymentError('Por favor completa todos los campos requeridos');
       return;
@@ -797,14 +956,27 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       return;
     }
     
-    // Obtener deviceId o MAC address
+    // ⚠️ ESTABLECER flags INMEDIATAMENTE para prevenir doble ejecución
+    isProcessingRef.current = true; // Ref se actualiza síncronamente
+    setIsProcessing(true); // Estado puede tener delay
+    setPaymentError(null);
+    
+    // ⚠️ Obtener MAC address (requerida para impresión)
     const resolvedDeviceId = await getDeviceIdOrMac();
     if (!resolvedDeviceId) {
-      console.warn('⚠️ No se pudo obtener deviceId ni MAC address. La impresión puede no funcionar.');
+      setPaymentError('No se pudo obtener la MAC address del dispositivo. La impresión no funcionará correctamente.');
+      isProcessingRef.current = false;
+      setIsProcessing(false);
+      return;
     }
-
-    setIsProcessing(true);
-    setPaymentError(null);
+    
+    // Verificar que sea una MAC válida (formato XX:XX:XX:XX:XX:XX o similar)
+    if (!resolvedDeviceId.includes(':')) {
+      console.warn('⚠️ El deviceId no parece ser una MAC address válida:', resolvedDeviceId);
+      // Continuar de todas formas, pero advertir
+    }
+    
+    console.log('✅ MAC address que se enviará al backend:', resolvedDeviceId);
 
     try {
       const now = new Date();
@@ -815,7 +987,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       const detailsToProcess = modifiedDetails.length > 0 ? modifiedDetails : (operation.details || []);
       
       // Filtrar detalles cancelados para obtener solo los disponibles
-      const availableDetails = filterCanceledDetails(detailsToProcess);
+      const availableDetails = filterCanceledDetails(detailsToProcess, operation?.id);
       
       // Obtener los IDs de los productos seleccionados (checkboxes marcados)
       const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
@@ -837,155 +1009,89 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       
       // ✅ VERIFICAR SI ES PAGO PARCIAL O COMPLETO
       // Si se están pagando TODOS los productos disponibles, usar la operación existente
-      // Si se están pagando SOLO ALGUNOS productos, crear una nueva operación
+      // Si se están pagando SOLO ALGUNOS productos, también usar la operación existente (NO crear nueva)
+      // El backend se encargará de manejar el pago parcial correctamente
       const isPartialPayment = selectedDetailIds.length > 0 && selectedDetailIds.length < availableDetails.length;
       
-      // Si hay productos seleccionados Y es un pago parcial, crear una nueva operación solo con esos productos
-      let operationToPay = operation;
-      let newOperationDetails: any[] = [];
+      // ✅ SIEMPRE usar la operación existente - NO crear nuevas operaciones
+      // El backend maneja los pagos parciales a nivel de documento emitido
+      const operationToPay = operation;
       
-      if (isPartialPayment) {
-        // Calcular totales solo de los productos seleccionados
-        const selectedSubtotal = detailsToPay.reduce((sum: number, detail: any) => {
-          const quantity = Number(detail.quantity) || 0;
-          const unitPrice = Number(detail.unitPrice) || 0;
-          return sum + (quantity * unitPrice);
-        }, 0);
-        const selectedIgvAmount = selectedSubtotal * (igvPercentage / 100);
-        const selectedTotal = selectedSubtotal + selectedIgvAmount;
-        
-        // Preparar detalles para la nueva operación (agrupar por producto)
-        const productMap: Record<string, { quantity: number; unitPrice: number; notes: string }> = {};
-        detailsToPay.forEach((detail: any) => {
-          const productId = detail.productId;
-          if (!productMap[productId]) {
-            productMap[productId] = {
-              quantity: 0,
-              unitPrice: Number(detail.unitPrice) || 0,
-              notes: detail.notes || ''
-            };
-          }
-          productMap[productId].quantity += Number(detail.quantity) || 0;
-        });
-        
-        const operationDetails = Object.entries(productMap).map(([productId, data]) => ({
-          productId: productId,
-          quantity: data.quantity,
-          unitMeasure: 'NIU',
-          unitValue: data.unitPrice,
-          unitPrice: data.unitPrice,
-          notes: data.notes
-        }));
-        
-        // Crear nueva operación con solo los productos seleccionados (asociada temporalmente a la mesa)
-        // para poder obtener los detalles con sus IDs reales
-        const createOperationResult = await createOperationMutation({
-          variables: {
-            branchId: companyData?.branch.id,
-            tableId: table?.id || null, // Asociar temporalmente para obtener detalles
-            userId: user.id,
-            operationType: 'SALE',
-            serviceType: operation.serviceType || 'RESTAURANT',
-            status: 'PROCESSING',
-            notes: operation.notes || null,
-            details: operationDetails,
-            deviceId: resolvedDeviceId,
-            subtotal: selectedSubtotal,
-            igvAmount: selectedIgvAmount,
-            igvPercentage: igvPercentage,
-            total: selectedTotal,
-            operationDate: now.toISOString()
-          }
-        });
-        
-        if (!createOperationResult.data?.createOperation?.success) {
-          setPaymentError(createOperationResult.data?.createOperation?.message || 'Error al crear la operación');
-          setIsProcessing(false);
-          return;
-        }
-        
-        operationToPay = createOperationResult.data.createOperation.operation;
-        
-        // Obtener los detalles reales de la nueva operación mediante refetch
-        // La nueva operación está asociada a la mesa, así que podemos obtenerla
-        const refetchResult = await refetch();
-        if (refetchResult.data?.operationByTable?.id === operationToPay.id) {
-          const allDetails = refetchResult.data.operationByTable.details || [];
-          newOperationDetails = filterCanceledDetails(allDetails);
-        } else {
-          // Fallback: usar los detalles originales (esto no debería pasar)
-          setPaymentError('No se pudieron obtener los detalles de la nueva operación');
-          setIsProcessing(false);
-          return;
-        }
-      }
-      
-      // Preparar items para el documento
+      // Preparar items para el documento usando los detalles seleccionados
+      // Agrupar detalles por ID original (sin el sufijo -split si existe)
       let items: any[] = [];
+      const groupedDetails: Record<string, any[]> = {};
       
-      if (isPartialPayment && newOperationDetails.length > 0) {
-        // ✅ PAGO PARCIAL: Usar los detalles reales de la nueva operación (con IDs reales de la base de datos)
-        items = newOperationDetails.map((detail: any) => ({
-          operationDetailId: detail.id, // ID real del detalle
-          quantity: Number(detail.quantity) || 0,
-          unitValue: Number(detail.unitPrice) || 0,
-          unitPrice: Number(detail.unitPrice) || 0,
-          discount: 0,
-          notes: detail.notes || ''
-        }));
-      } else {
-        // ✅ PAGO COMPLETO: Usar la operación existente
-        // Agrupar detalles por ID original (sin el sufijo -split)
-        const groupedDetails: Record<string, any[]> = {};
-        detailsToPay.forEach((detail: any) => {
-          const originalId = detail.id?.includes('-split') 
-            ? detail.id.split('-split')[0] 
-            : detail.id;
-          
-          if (!groupedDetails[originalId]) {
-            groupedDetails[originalId] = [];
-          }
-          groupedDetails[originalId].push(detail);
-        });
+      detailsToPay.forEach((detail: any) => {
+        const originalId = detail.id?.includes('-split') 
+          ? detail.id.split('-split')[0] 
+          : detail.id;
         
-        // Crear items agrupados
-        items = Object.entries(groupedDetails).map(([originalId, details]) => {
-          const totalQuantity = details.reduce((sum, d) => sum + (Number(d.quantity) || 0), 0);
-          const firstDetail = details[0];
-          
-          return {
-            operationDetailId: originalId,
-            quantity: totalQuantity,
-            unitValue: Number(firstDetail.unitPrice) || 0,
-            unitPrice: Number(firstDetail.unitPrice) || 0,
-            discount: 0,
-            notes: firstDetail.notes || ''
-          };
-        });
-      }
+        if (!groupedDetails[originalId]) {
+          groupedDetails[originalId] = [];
+        }
+        groupedDetails[originalId].push(detail);
+      });
+       
+      // Crear items agrupados
+      items = Object.entries(groupedDetails).map(([originalId, details]) => {
+        const totalQuantity = details.reduce((sum, d) => sum + (Number(d.quantity) || 0), 0);
+        const firstDetail = details[0];
+        
+        return {
+          operationDetailId: originalId, // ✅ Usar IDs de la operación original
+          quantity: totalQuantity,
+          unitValue: Number(firstDetail.unitPrice) || 0,
+          unitPrice: Number(firstDetail.unitPrice) || 0,
+          discount: 0,
+          notes: firstDetail.notes || ''
+        };
+      });
       
       // Calcular totales para el pago
-      const paymentSubtotal = detailsToPay.reduce((sum: number, detail: any) => {
+      // NOTA: Los precios unitarios ya incluyen IGV
+      const paymentTotal = detailsToPay.reduce((sum: number, detail: any) => {
         const quantity = Number(detail.quantity) || 0;
         const unitPrice = Number(detail.unitPrice) || 0;
         return sum + (quantity * unitPrice);
       }, 0);
-      const paymentIgvAmount = paymentSubtotal * (igvPercentage / 100);
-      const paymentTotal = paymentSubtotal + paymentIgvAmount;
+      const igvDecimal = igvPercentage / 100;
+      const paymentSubtotal = parseFloat((Math.round((paymentTotal / (1 + igvDecimal)) * 100) / 100).toFixed(2));
+      const paymentIgvAmount = parseFloat((Math.round((paymentTotal - paymentSubtotal) * 100) / 100).toFixed(2));
 
-      // Preparar pagos
-      const payments = [{
-        cashRegisterId: cashRegisterIdToUse,
-        paymentType: 'CASH',
-        paymentMethod: paymentMethod,
-        transactionType: 'INCOME',
-        totalAmount: paymentTotal,
-        paidAmount: paymentTotal,
-        paymentDate: now.toISOString(),
-        dueDate: null,
-        referenceNumber: referenceNumber || null,
-        notes: null
-      }];
+      // Validar que la suma de pagos sea igual al total
+      const totalPaymentsAmount = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      if (Math.abs(totalPaymentsAmount - paymentTotal) > 0.01) {
+        setPaymentError(`La suma de los pagos (${currencyFormatter.format(totalPaymentsAmount)}) debe ser igual al total (${currencyFormatter.format(paymentTotal)})`);
+        isProcessingRef.current = false;
+        setIsProcessing(false);
+        return;
+      }
+
+      // Preparar pagos para enviar al backend
+      const paymentsToSend = payments
+        .filter(p => Number(p.amount) > 0) // Solo incluir pagos con monto > 0
+        .map(p => ({
+          cashRegisterId: cashRegisterIdToUse,
+          paymentType: 'CASH',
+          paymentMethod: p.method,
+          transactionType: 'INCOME',
+          totalAmount: Number(p.amount),
+          paidAmount: Number(p.amount),
+          paymentDate: now.toISOString(),
+          dueDate: null,
+          referenceNumber: (p.method === 'YAPE' || p.method === 'PLIN' || p.method === 'TRANSFER') 
+            ? (p.referenceNumber || null) 
+            : null,
+          notes: null
+        }));
+
+      if (paymentsToSend.length === 0) {
+        setPaymentError('Debe agregar al menos un pago con monto mayor a 0');
+        isProcessingRef.current = false;
+        setIsProcessing(false);
+        return;
+      }
 
       const selectedSerial = serials.find((ser: any) => ser.id === selectedSerialId);
       const serial = selectedSerial?.serial || '';
@@ -1019,137 +1125,210 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         totalFree: 0.0,
         totalAmount: paymentTotal,
         items: items,
-        payments: payments,
+        payments: paymentsToSend,
         notes: null,
         tableId: tableIdForPayment,
         deviceId: resolvedDeviceId, // Siempre pasar deviceId o MAC para que el backend pueda imprimir el documento (boleta/factura)
         printerId: null // Opcional: se puede agregar selección de impresora si es necesario
       };
 
+      // 🧪 LOG COMPLETO ANTES DEL PAGO - ESPECIALMENTE PARA PAGOS PARCIALES
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log(`💰 ${isPartialPayment ? 'PAGO PARCIAL' : 'PAGO COMPLETO'}`);
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('📋 INFORMACIÓN DE LA OPERACIÓN:');
+      console.log(`   - Operation ID: ${operationToPay.id}`);
+      console.log(`   - Tipo de pago: ${isPartialPayment ? 'PARCIAL' : 'COMPLETO'}`);
+      console.log(`   - Mesa ID: ${table?.id || 'N/A'}`);
+      console.log(`   - TableId para pago: ${tableIdForPayment || 'null (no liberar mesa)'}`);
+      console.log('');
+      console.log('📄 INFORMACIÓN DEL DOCUMENTO:');
+      console.log(`   - Document ID: ${selectedDocumentId}`);
+      console.log(`   - Serial: ${serial}`);
+      console.log(`   - Branch ID: ${companyData?.branch.id}`);
+      console.log(`   - User ID: ${user.id}`);
+      console.log(`   - Emission Date: ${emissionDate}`);
+      console.log(`   - Emission Time: ${emissionTime}`);
+      console.log('');
+      console.log('📊 CÁLCULOS Y TOTALES:');
+      console.log(`   - IGV Percentage: ${igvPercentage}%`);
+      console.log(`   - Subtotal: ${currencyFormatter.format(paymentSubtotal)}`);
+      console.log(`   - IGV Amount: ${currencyFormatter.format(paymentIgvAmount)}`);
+      console.log(`   - Total Amount: ${currencyFormatter.format(paymentTotal)}`);
+      console.log('');
+      console.log('📦 ITEMS A PAGAR:');
+      console.log(`   - Cantidad de items: ${items.length}`);
+      items.forEach((item, index) => {
+        console.log(`   ${index + 1}. Operation Detail ID: ${item.operationDetailId}`);
+        console.log(`      - Cantidad: ${item.quantity}`);
+        console.log(`      - Unit Value: ${currencyFormatter.format(item.unitValue)}`);
+        console.log(`      - Unit Price: ${currencyFormatter.format(item.unitPrice)}`);
+        console.log(`      - Subtotal Item: ${currencyFormatter.format(item.quantity * item.unitPrice)}`);
+        if (item.notes) {
+          console.log(`      - Notas: ${item.notes}`);
+        }
+      });
+      console.log('');
+      console.log('💳 INFORMACIÓN DE PAGO:');
+      paymentsToSend.forEach((payment, index) => {
+        console.log(`   Pago ${index + 1}:`);
+        console.log(`      - Cash Register ID: ${payment.cashRegisterId}`);
+        console.log(`      - Payment Type: ${payment.paymentType}`);
+        console.log(`      - Payment Method: ${payment.paymentMethod}`);
+        console.log(`      - Transaction Type: ${payment.transactionType}`);
+        console.log(`      - Total Amount: ${currencyFormatter.format(payment.totalAmount)}`);
+        console.log(`      - Paid Amount: ${currencyFormatter.format(payment.paidAmount)}`);
+        if (payment.referenceNumber) {
+          console.log(`      - Reference Number: ${payment.referenceNumber}`);
+        }
+      });
+      console.log('');
+      console.log('🖨️ IMPRESIÓN:');
+      console.log(`   - Device ID: ${resolvedDeviceId || 'No disponible'}`);
+      console.log(`   - Printer ID: No especificado`);
+      console.log('');
+      if (isPartialPayment) {
+        console.log('⚠️ PAGO PARCIAL DETECTADO:');
+        console.log(`   - Productos seleccionados para pagar: ${selectedDetailIds.length}`);
+        console.log(`   - Productos totales disponibles: ${availableDetails.length}`);
+        console.log(`   - Productos que quedan por pagar: ${availableDetails.length - selectedDetailIds.length}`);
+        console.log(`   - TableId será null (mesa NO se liberará)`);
+      }
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('📤 Enviando mutación CREATE_ISSUED_DOCUMENT...');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('');
+
+      // ⚠️ VERIFICACIÓN FINAL: Usar ref en lugar de estado (más confiable - actualización síncrona)
+      if (!isProcessingRef.current) {
+        console.warn('⚠️ isProcessingRef cambiado, abortando pago');
+        // Ya se reseteó, solo asegurar estado
+        setIsProcessing(false);
+        return;
+      }
+
+      // ⚠️ GUARDAR información de items facturados ANTES de enviar (para usar después del refetch)
+      // Esto nos permite calcular remainingQuantity localmente si el backend no lo devuelve
+      const facturedItemsMap = new Map<string, number>(); // operationDetailId (string) -> cantidad facturada
+      items.forEach((item: any) => {
+        const detailId = String(item.operationDetailId); // Asegurar que sea string
+        const qty = Number(item.quantity) || 0;
+        const existingQty = facturedItemsMap.get(detailId) || 0;
+        facturedItemsMap.set(detailId, existingQty + qty);
+      });
+      
+      console.log('✅ Enviando mutación al backend...');
+      console.log('   - Items facturados (para cálculo local):', Array.from(facturedItemsMap.entries()).map(([id, qty]) => `ID:${id}=${qty}`));
+      
       const result = await createIssuedDocumentMutation({
         variables
       });
-
+        
       if (result.data?.createIssuedDocument?.success) {
         // El documento (boleta/factura) se ha creado exitosamente
         // El backend debería haber impreso el documento si deviceId estaba disponible
-        // y la operación estaba completamente pagada (lo cual es cierto para la nueva operación con productos seleccionados)
+        
+        // ✅ GUARDAR información de facturación en sessionStorage para pago parcial
+        if (isPartialPayment && operation?.id) {
+          saveFacturedItemsToStorage(operation.id, facturedItemsMap);
+        }
+        
+        // Refetch para obtener la operación actualizada
+        // Usar fetchPolicy: 'network-only' para forzar la actualización
+        const refetchResult = await refetch({
+          fetchPolicy: 'network-only'
+        });
+        
+        // Limpiar selecciones después del pago
+        setItemAssignments({});
         
         if (isPartialPayment) {
-          // ✅ Se pagaron solo algunos productos (pago parcial)
-          // IMPORTANTE: Crear primero la nueva operación con productos restantes ANTES de que el backend libere la mesa
-          // Esto evita que la mesa se ponga verde temporalmente
-          
-          // Obtener los productos restantes de la operación original
-          const remainingDetails = availableDetails.filter((detail: any) => 
-            !selectedDetailIds.includes(detail.id)
-          );
-          
-          if (remainingDetails.length > 0) {
-            // Preparar la nueva operación con productos restantes
-            const remainingProductMap: Record<string, { quantity: number; unitPrice: number; notes: string }> = {};
-            remainingDetails.forEach((detail: any) => {
-              const productId = detail.productId;
-              if (!remainingProductMap[productId]) {
-                remainingProductMap[productId] = {
-                  quantity: 0,
-                  unitPrice: Number(detail.unitPrice) || 0,
-                  notes: detail.notes || ''
-                };
-              }
-              remainingProductMap[productId].quantity += Number(detail.quantity) || 0;
-            });
+          // ✅ Pago parcial: La operación original sigue activa con los productos restantes
+          // El backend ya se encargó de crear el documento con solo los items seleccionados
+          // Actualizar los detalles modificados con los nuevos datos del refetch
+          if (refetchResult.data?.operationByTable?.details && refetchResult.data?.operationByTable?.id) {
+            const allDetails = refetchResult.data.operationByTable.details;
+            const currentOperationId = refetchResult.data.operationByTable.id;
             
-            const remainingOperationDetails = Object.entries(remainingProductMap).map(([productId, data]) => ({
-              productId: productId,
-              quantity: data.quantity,
-              unitMeasure: 'NIU',
-              unitValue: data.unitPrice,
-              unitPrice: data.unitPrice,
-              notes: data.notes
-            }));
+            // Filtrar detalles cancelados (usando sessionStorage para calcular cantidades restantes)
+            // filterCanceledDetails ya calcula remainingQuantity usando sessionStorage
+            const nonCanceledDetails = filterCanceledDetails(allDetails, currentOperationId);
             
-            const remainingSubtotal = remainingDetails.reduce((sum: number, detail: any) => {
-              const quantity = Number(detail.quantity) || 0;
-              const unitPrice = Number(detail.unitPrice) || 0;
-              return sum + (quantity * unitPrice);
-            }, 0);
-            const remainingIgvAmount = remainingSubtotal * (igvPercentage / 100);
-            const remainingTotal = remainingSubtotal + remainingIgvAmount;
+            // Actualizar cantidades mostradas con las cantidades restantes calculadas
+            const detailsWithRemaining: any[] = [];
             
-            // CRÍTICO: Crear la nueva operación con productos restantes INMEDIATAMENTE
-            // Esto asegura que la mesa tenga una operación activa antes de que el backend pueda liberarla
-            const remainingOperationResult = await createOperationMutation({
-              variables: {
-                branchId: companyData?.branch.id,
-                tableId: table?.id || null,
-                userId: user.id,
-                operationType: 'SALE',
-                serviceType: operation.serviceType || 'RESTAURANT',
-                status: 'PROCESSING',
-                notes: operation.notes || null,
-                details: remainingOperationDetails,
-                deviceId: resolvedDeviceId,
-                subtotal: remainingSubtotal,
-                igvAmount: remainingIgvAmount,
-                igvPercentage: igvPercentage,
-                total: remainingTotal,
-                operationDate: now.toISOString()
-              }
-            });
-            
-            // Asegurar que la mesa se mantenga ocupada INMEDIATAMENTE después de crear la nueva operación
-            // Esto evita que la mesa se ponga verde cuando todavía hay productos por pagar
-            if (remainingOperationResult.data?.createOperation?.success && table?.id) {
-              // Actualizar el estado de la mesa a OCCUPIED INMEDIATAMENTE para evitar que se ponga verde
-              try {
-                const tableResult = await updateTableStatusMutation({
-                  variables: {
-                    tableId: table.id,
-                    status: 'OCCUPIED',
-                    userId: user?.id
-                  }
+            nonCanceledDetails.forEach((detail: any) => {
+              const detailId = String(detail.id);
+              const originalQuantity = Number(detail.quantity) || 0;
+              
+              // Obtener cantidad facturada total desde sessionStorage
+              const facturedItemsMap = getFacturedItemsFromStorage(currentOperationId);
+              const totalFactured = facturedItemsMap.get(detailId) || 0;
+              const remainingQty = originalQuantity - totalFactured;
+              
+              if (remainingQty > 0) {
+                detailsWithRemaining.push({
+                  ...detail,
+                  quantity: remainingQty, // Actualizar cantidad mostrada con lo que queda
+                  remainingQuantity: remainingQty
                 });
-                
-                if (tableResult.data?.updateTableStatus?.success) {
-                  const updatedTable = tableResult.data.updateTableStatus.table;
-                  if (updateTableInContext) {
-                    updateTableInContext({
-                      id: updatedTable.id,
-                      status: updatedTable.status,
-                      statusColors: updatedTable.statusColors,
-                      currentOperationId: remainingOperationResult.data.createOperation.operation?.id || updatedTable.currentOperationId,
-                      occupiedById: updatedTable.occupiedById,
-                      userName: updatedTable.userName
-                    });
-                  }
-                  
-                  // Enviar notificación WebSocket INMEDIATAMENTE para mantener la mesa ocupada
-                  notifyTableUpdate(
-                    updatedTable.id,
-                    'OCCUPIED', // Forzar estado OCCUPIED
-                    remainingOperationResult.data.createOperation.operation?.id || updatedTable.currentOperationId,
-                    updatedTable.occupiedById,
-                    updatedTable.userName
-                  );
-                  
-                  console.log('✅ Mesa actualizada a OCCUPIED ANTES del pago para evitar que se ponga verde');
-                }
-              } catch (tableError) {
-                console.error('⚠️ Error al actualizar estado de mesa antes del pago:', tableError);
-                // Continuar aunque falle la actualización de la mesa
+              } else {
+                console.log(`   ❌ Detalle ${detail.productName || detailId} excluido: facturado completamente (${totalFactured} de ${originalQuantity})`);
               }
-            }
+            });
+            
+            // Debug: mostrar información de los detalles
+            console.log('📊 Detalles después del refetch:');
+            allDetails.forEach((detail: any) => {
+              const detailId = detail.id;
+              const facturedQty = facturedItemsMap.get(detailId) || 0;
+              const originalQty = Number(detail.quantity) || 0;
+              const calculatedRemaining = facturedQty > 0 ? originalQty - facturedQty : originalQty;
+              
+              console.log(`   - ${detail.productName || detail.id} (ID: ${detailId}):`);
+              console.log(`     quantity original: ${originalQty}`);
+              console.log(`     facturado en este pago: ${facturedQty}`);
+              console.log(`     remainingQuantity (backend): ${detail.remainingQuantity ?? 'N/A'}`);
+              console.log(`     remainingQuantity (calculado): ${calculatedRemaining}`);
+              console.log(`     isCanceled: ${detail.isCanceled}`);
+              console.log(`     será incluido: ${calculatedRemaining > 0 ? 'SÍ' : 'NO'}`);
+            });
+            
+            console.log('✅ Pago parcial completado - operación actualizada');
+            console.log('   - Detalles totales:', allDetails.length);
+            console.log('   - Detalles no cancelados:', nonCanceledDetails.length);
+            console.log('   - Detalles restantes (con cantidad pendiente):', detailsWithRemaining.length);
+            console.log('   - Items facturados en este pago:', Array.from(facturedItemsMap.entries()).map(([id, qty]) => `ID:${id}=${qty}`));
+            console.log('   - IDs restantes:', detailsWithRemaining.map((d: any) => `${d.id} (qty:${d.quantity})`));
+            
+            // ⚠️ IMPORTANTE: Actualizar los detalles modificados con los productos restantes
+            setModifiedDetails([...detailsWithRemaining]);
+            
+            // Marcar automáticamente todos los productos restantes como seleccionados
+            const updatedAssignments: Record<string, boolean> = {};
+            detailsWithRemaining.forEach((detail: any) => {
+              if (detail.id) {
+                updatedAssignments[detail.id] = true;
+              }
+            });
+            setItemAssignments(updatedAssignments);
+            
+            console.log('   - Productos marcados automáticamente:', Object.keys(updatedAssignments).length);
+          } else {
+            console.warn('⚠️ No se pudieron obtener los detalles actualizados después del pago parcial');
+            // Intentar refetch nuevamente si no hay datos
+            setTimeout(async () => {
+              const retryRefetch = await refetch({ fetchPolicy: 'network-only' });
+              if (retryRefetch.data?.operationByTable?.details && retryRefetch.data?.operationByTable?.id) {
+                const nonCanceledDetails = filterCanceledDetails(retryRefetch.data.operationByTable.details, retryRefetch.data.operationByTable.id);
+                setModifiedDetails([...nonCanceledDetails]);
+                console.log('✅ Detalles actualizados en el segundo intento:', nonCanceledDetails.length, 'items');
+              }
+            }, 500);
           }
-          
-          // Refetch para obtener la operación restaurada
-          await refetch();
-          
-          // Limpiar selecciones después del pago
-          setItemAssignments({});
         } else {
-          // Si se pagó toda la operación, refetch y verificar si la mesa fue liberada
-          const refetchResult = await refetch();
+          // Si se pagó toda la operación, verificar si la mesa fue liberada
+          // (ya hicimos refetch arriba, no necesitamos hacerlo de nuevo)
           
           // Verificar si la mesa fue liberada según la respuesta del backend
           if (result.data?.createIssuedDocument?.wasTableFreed) {
@@ -1216,6 +1395,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       console.error('Error procesando pago:', err);
       setPaymentError(err.message || 'Error al procesar el pago');
     } finally {
+      // ⚠️ Siempre resetear ambos flags al finalizar
+      isProcessingRef.current = false;
       setIsProcessing(false);
     }
   };
@@ -1826,9 +2007,11 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         // Actualizar explícitamente los detalles modificados con los datos actualizados
         // Esto asegura que los platos trasladados desaparezcan de la mesa original (filtrar cancelados)
         if (refetchResult.data?.operationByTable?.details) {
-          const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationByTable.details);
-          setModifiedDetails([...nonCanceledDetails]);
-          console.log('✅ Detalles actualizados después del traslado:', nonCanceledDetails);
+          if (refetchResult.data?.operationByTable?.details && refetchResult.data?.operationByTable?.id) {
+            const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationByTable.details, refetchResult.data.operationByTable.id);
+            setModifiedDetails([...nonCanceledDetails]);
+            console.log('✅ Detalles actualizados después del traslado:', nonCanceledDetails);
+          }
         } else if (refetchResult.data?.operationByTable === null) {
           // Si la operación ya no existe (todos los platos fueron trasladados), limpiar los detalles
           setModifiedDetails([]);
@@ -2584,71 +2767,209 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 </div>
               )}
 
-              {/* Método de Pago */}
+              {/* Pagos Múltiples */}
               <div>
-                <label
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      color: '#2d3748',
+                      margin: 0
+                    }}
+                  >
+                    Pagos *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={addPayment}
+                    disabled={isProcessing}
+                    style={{
+                      padding: '0.4rem 0.75rem',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: '#667eea',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: isProcessing ? 'not-allowed' : 'pointer',
+                      opacity: isProcessing ? 0.6 : 1
+                    }}
+                  >
+                    + Agregar Pago
+                  </button>
+                </div>
+                
+                {payments.map((payment, index) => (
+                  <div
+                    key={payment.id}
+                    style={{
+                      marginBottom: '1rem',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0',
+                      backgroundColor: '#f7fafc'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d3748' }}>
+                        Pago {index + 1}
+                      </span>
+                      {payments.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePayment(payment.id)}
+                          disabled={isProcessing}
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            borderRadius: '4px',
+                            border: 'none',
+                            backgroundColor: '#ef4444',
+                            color: 'white',
+                            fontSize: '0.7rem',
+                            cursor: isProcessing ? 'not-allowed' : 'pointer',
+                            opacity: isProcessing ? 0.6 : 1
+                          }}
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div style={{ marginBottom: '0.75rem' }}>
+                      <label
+                        style={{
+                          display: 'block',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: '#4a5568',
+                          marginBottom: '0.3rem'
+                        }}
+                      >
+                        Método de Pago
+                      </label>
+                      <select
+                        value={payment.method}
+                        onChange={(e) => updatePayment(payment.id, 'method', e.target.value)}
+                        disabled={isProcessing}
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem 0.65rem',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e0',
+                          fontSize: '0.8rem',
+                          backgroundColor: 'white',
+                          cursor: isProcessing ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        <option value="CASH">Efectivo</option>
+                        <option value="YAPE">Yape</option>
+                        <option value="PLIN">Plin</option>
+                        <option value="CARD">Tarjeta</option>
+                        <option value="TRANSFER">Transferencia Bancaria</option>
+                      </select>
+                    </div>
+                    
+                    <div style={{ marginBottom: '0.75rem' }}>
+                      <label
+                        style={{
+                          display: 'block',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: '#4a5568',
+                          marginBottom: '0.3rem'
+                        }}
+                      >
+                        Monto
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={payment.amount}
+                        onChange={(e) => updatePayment(payment.id, 'amount', parseFloat(e.target.value) || 0)}
+                        disabled={isProcessing}
+                        placeholder="0.00"
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem 0.65rem',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e0',
+                          fontSize: '0.8rem'
+                        }}
+                      />
+                    </div>
+                    
+                    {(payment.method === 'YAPE' || payment.method === 'PLIN' || payment.method === 'TRANSFER') && (
+                      <div>
+                        <label
+                          style={{
+                            display: 'block',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            color: '#4a5568',
+                            marginBottom: '0.3rem'
+                          }}
+                        >
+                          Número de Operación
+                        </label>
+                        <input
+                          type="text"
+                          value={payment.referenceNumber}
+                          onChange={(e) => updatePayment(payment.id, 'referenceNumber', e.target.value)}
+                          disabled={isProcessing}
+                          placeholder="Ingrese el número de operación"
+                          style={{
+                            width: '100%',
+                            padding: '0.5rem 0.65rem',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e0',
+                            fontSize: '0.8rem'
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+                
+                {/* Resumen de Pagos */}
+                <div
                   style={{
-                    display: 'block',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    color: '#2d3748',
-                    marginBottom: '0.4rem'
+                    marginTop: '0.75rem',
+                    padding: '0.75rem',
+                    borderRadius: '6px',
+                    backgroundColor: isPaymentComplete ? '#d1fae5' : '#fef3c7',
+                    border: `1px solid ${isPaymentComplete ? '#a7f3d0' : '#fde68a'}`
                   }}
                 >
-                  Método de Pago *
-                </label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  disabled={isProcessing}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e0',
-                    fontSize: '0.85rem',
-                    backgroundColor: 'white',
-                    cursor: isProcessing ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  <option value="CASH">Efectivo</option>
-                  <option value="YAPE">Yape</option>
-                  <option value="PLIN">Plin</option>
-                  <option value="CARD">Tarjeta</option>
-                  <option value="TRANSFER">Transferencia Bancaria</option>
-                </select>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#2d3748' }}>
+                      Total Pagado:
+                    </span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#2d3748' }}>
+                      {currencyFormatter.format(totalPaid)}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#2d3748' }}>
+                      {remaining >= 0 ? 'Falta pagar:' : 'Exceso:'}
+                    </span>
+                    <span style={{ 
+                      fontSize: '0.8rem', 
+                      fontWeight: 700, 
+                      color: isPaymentComplete ? '#059669' : (remaining >= 0 ? '#d97706' : '#dc2626')
+                    }}>
+                      {currencyFormatter.format(Math.abs(remaining))}
+                    </span>
+                  </div>
+                  {!isPaymentComplete && (
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#92400e' }}>
+                      ⚠️ La suma de los pagos debe ser igual al total
+                    </div>
+                  )}
+                </div>
               </div>
-
-              {/* Número de Referencia (para Yape, Plin, etc.) */}
-              {(paymentMethod === 'YAPE' || paymentMethod === 'PLIN' || paymentMethod === 'TRANSFER') && (
-                <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    color: '#2d3748',
-                    marginBottom: '0.4rem'
-                  }}
-                >
-                  Número de Operación
-                </label>
-                <input
-                  type="text"
-                  value={referenceNumber}
-                  onChange={(e) => setReferenceNumber(e.target.value)}
-                  disabled={isProcessing}
-                  placeholder="Ingrese el número de operación"
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e0',
-                    fontSize: '0.85rem'
-                  }}
-                />
-              </div>
-              )}
 
               {/* Resumen de Totales */}
               <div
@@ -2806,26 +3127,26 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 </button>
                 <button
                   onClick={handleProcessPayment}
-                  disabled={!operation || operation.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing}
+                  disabled={!operation || operation.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing || !isPaymentComplete}
                   style={{
                     width: '100%',
                     marginTop: '0.75rem',
                     padding: '0.95rem 1.25rem',
                     borderRadius: '12px',
                     border: 'none',
-                    background: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId
+                    background: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || !isPaymentComplete
                       ? '#cbd5e0' 
                       : 'linear-gradient(130deg, #4fd1c5, #63b3ed)',
                     color: 'white',
                     fontWeight: 700,
                     fontSize: '0.95rem',
-                    cursor: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing ? 'not-allowed' : 'pointer',
+                    cursor: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing || !isPaymentComplete ? 'not-allowed' : 'pointer',
                     boxShadow: '0 16px 28px -12px rgba(79,209,197,0.55)',
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                    opacity: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId ? 0.6 : 1
+                    opacity: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || !isPaymentComplete ? 0.6 : 1
                   }}
                   onMouseOver={(e) => {
-                    if (operation?.status !== 'COMPLETED' && selectedDocumentId && selectedSerialId && !isProcessing) {
+                    if (operation?.status !== 'COMPLETED' && selectedDocumentId && selectedSerialId && !isProcessing && isPaymentComplete) {
                       e.currentTarget.style.transform = 'translateY(-3px)';
                       e.currentTarget.style.boxShadow = '0 20px 32px -10px rgba(79,209,197,0.6)';
                     }
@@ -2835,7 +3156,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     e.currentTarget.style.boxShadow = '0 16px 28px -12px rgba(79,209,197,0.55)';
                   }}
                 >
-                  {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Orden ya pagada' : 'Procesar pago'}
+                  {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Orden ya pagada' : !isPaymentComplete ? 'Completa los pagos' : 'Procesar pago'}
                 </button>
                 <button
                   onClick={() => setShowCancelOperationModal(true)}

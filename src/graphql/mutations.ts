@@ -866,3 +866,44 @@ export const CANCEL_PURCHASE_OPERATION = gql`
   }
 `;
 
+// Mutación para crear persona (cliente o proveedor)
+export const CREATE_PERSON = gql`
+  mutation CreatePerson(
+    $branchId: ID!
+    $documentType: String!
+    $documentNumber: String!
+    $name: String!
+    $address: String
+    $phone: String
+    $email: String
+    $isCustomer: Boolean
+    $isSupplier: Boolean
+  ) {
+    createPerson(
+      branchId: $branchId
+      documentType: $documentType
+      documentNumber: $documentNumber
+      name: $name
+      address: $address
+      phone: $phone
+      email: $email
+      isCustomer: $isCustomer
+      isSupplier: $isSupplier
+    ) {
+      success
+      message
+      person {
+        id
+        name
+        documentType
+        documentNumber
+        email
+        phone
+        address
+        isCustomer
+        isSupplier
+        isActive
+      }
+    }
+  }
+`;

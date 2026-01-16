@@ -625,7 +625,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               }}
             >
               <span style={{ fontSize: '1.25rem' }}>📈</span>
-              {sidebarOpen && 'Reportes'}
+              {sidebarOpen && 'Configuracion'}
             </button>
 
             <button

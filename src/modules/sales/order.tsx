@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useWebSocket } from '../../context/WebSocketContext';
 import type { Table } from '../../types/table';
 import { CREATE_OPERATION, ADD_ITEMS_TO_OPERATION, UPDATE_TABLE_STATUS } from '../../graphql/mutations';
 import { GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS_BY_CATEGORY, GET_PRODUCTS_BY_BRANCH, GET_OPERATION_BY_TABLE, SEARCH_PRODUCTS } from '../../graphql/queries';
@@ -25,6 +26,7 @@ type OrderItem = {
 
 const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const { companyData, user, deviceId, getDeviceId, getMacAddress, updateTableInContext } = useAuth();
+	const { sendMessage } = useWebSocket();
 	const isExistingOrder = Boolean(table?.currentOperationId);
 	
 	// Función para verificar si el usuario puede acceder a esta mesa
@@ -645,14 +647,40 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					if (tableResult.data?.updateTableStatus?.success) {
 						// Actualizar la mesa en el contexto local
 						const updatedTable = tableResult.data.updateTableStatus.table;
+						const currentOperationId = result.data.createOperation.operation?.id || updatedTable.currentOperationId;
+						const occupiedById = updatedTable.occupiedById;
+						const userName = updatedTable.userName;
+						
 						updateTableInContext({
 							id: updatedTable.id,
 							status: updatedTable.status,
 							statusColors: updatedTable.statusColors,
-							currentOperationId: result.data.createOperation.operation?.id || updatedTable.currentOperationId,
-							occupiedById: updatedTable.occupiedById,
-							userName: updatedTable.userName
+							currentOperationId: currentOperationId,
+							occupiedById: occupiedById,
+							userName: userName
 						});
+						
+						// Enviar notificación WebSocket para actualizar en tiempo real
+						setTimeout(() => {
+							sendMessage({
+								type: 'table_status_update',
+								table_id: updatedTable.id,
+								status: updatedTable.status || 'OCCUPIED',
+								current_operation_id: currentOperationId || null,
+								occupied_by_user_id: occupiedById || null,
+								waiter_name: userName || null
+							});
+							console.log('📡 Notificación WebSocket enviada para mesa:', updatedTable.id);
+							
+							// Solicitar snapshot completo de todas las mesas
+							setTimeout(() => {
+								sendMessage({
+									type: 'table_update_request'
+								});
+								console.log('📡 Solicitud de snapshot de mesas enviada');
+							}, 500);
+						}, 300);
+						
 						console.log('✅ Estado de mesa actualizado a OCCUPIED');
 					}
 				} catch (tableError) {
