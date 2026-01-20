@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 import { 
   GET_SUPPLIERS_BY_BRANCH, 
   GET_PURCHASE_OPERATIONS,
@@ -91,8 +92,17 @@ interface PurchaseOperation {
 
 const Purchase: React.FC = () => {
   const { companyData, user } = useAuth();
+  const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
   const igvPercentage = companyData?.branch?.igvPercentage || 18;
+  
+  // Adaptar según tamaño de pantalla de PC
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  
+  // Tamaños adaptativos
+  const containerPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
+  const containerGap = isSmallDesktop ? '1.5rem' : '2rem';
+  const titleFontSize = isSmallDesktop ? '1.375rem' : '1.5rem';
 
   const [view, setView] = useState<'list' | 'create'>('list');
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
@@ -354,9 +364,9 @@ const Purchase: React.FC = () => {
         minHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
-        gap: '2rem',
+        gap: containerGap,
         background: 'linear-gradient(160deg, #f0f4ff 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: '1.5rem',
+        padding: containerPadding,
         borderRadius: '18px',
         boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
       }}
@@ -380,7 +390,7 @@ const Purchase: React.FC = () => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: '#1e293b' }}>
+          <h2 style={{ margin: 0, fontSize: titleFontSize, fontWeight: 700, color: '#1e293b' }}>
             🛒 Gestión de Compras
           </h2>
           <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.875rem' }}>

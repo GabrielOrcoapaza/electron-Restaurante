@@ -1,16 +1,30 @@
 import LayoutDashboard from '../layouts/layoutDashboard';
 import { useAuth } from '../hooks/useAuth';
+import { useResponsive } from '../hooks/useResponsive';
 
 const Dashboard = () => {
   const { user, companyData } = useAuth();
+  const { breakpoint } = useResponsive();
+  
+  // Adaptar según tamaño de pantalla de PC
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
+  
+  // Tamaños adaptativos
+  const cardPadding = isSmallDesktop ? '1.5rem' : '2rem';
+  const cardGap = isSmallDesktop ? '1.5rem' : '2rem';
+  const cardMinWidth = isSmallDesktop ? '280px' : isMediumDesktop ? '300px' : '320px';
+  const gridGap = isSmallDesktop ? '1.25rem' : '1.5rem';
+  const quickActionMinWidth = isSmallDesktop ? '180px' : '200px';
 
   return (
     <LayoutDashboard>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-        gap: '2rem',
-        marginBottom: '2rem'
+        gridTemplateColumns: `repeat(auto-fit, minmax(${cardMinWidth}, 1fr))`,
+        gap: cardGap,
+        marginBottom: cardGap,
+        padding: isSmallDesktop ? '0.75rem' : '1rem'
       }}>
         {/* Tarjeta de Bienvenida */}
         <div style={{
@@ -121,13 +135,13 @@ const Dashboard = () => {
         {/* Tarjeta de Información de la Empresa */}
         <div style={{
           background: 'white',
-          padding: '2rem',
+          padding: cardPadding,
           borderRadius: '16px',
           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
           border: '1px solid #e2e8f0'
         }}>
           <h3 style={{
-            fontSize: '1.25rem',
+            fontSize: isSmallDesktop ? '1.125rem' : '1.25rem',
             fontWeight: '600',
             margin: '0 0 1.5rem',
             color: '#2d3748',
@@ -171,13 +185,14 @@ const Dashboard = () => {
       {/* Sección de Acciones Rápidas */}
       <div style={{
         background: 'white',
-        padding: '2rem',
+        padding: cardPadding,
         borderRadius: '16px',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
-        border: '1px solid #e2e8f0'
+        border: '1px solid #e2e8f0',
+        margin: `0 ${isSmallDesktop ? '0.75rem' : '1rem'}`
       }}>
         <h3 style={{
-          fontSize: '1.25rem',
+          fontSize: isSmallDesktop ? '1.125rem' : '1.25rem',
           fontWeight: '600',
           margin: '0 0 1.5rem',
           color: '#2d3748',
@@ -189,8 +204,8 @@ const Dashboard = () => {
         </h3>
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '1rem'
+          gridTemplateColumns: `repeat(auto-fit, minmax(${quickActionMinWidth}, 1fr))`,
+          gap: gridGap
         }}>
           <button style={{
             display: 'flex',

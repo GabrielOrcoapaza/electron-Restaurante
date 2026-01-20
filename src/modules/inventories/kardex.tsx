@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 import { GET_STOCK_MOVEMENTS_REPORT, GET_PRODUCTS_WITH_STOCK } from '../../graphql/queries';
 
 interface StockMovement {
@@ -52,7 +53,24 @@ const dateFormatter = new Intl.DateTimeFormat('es-PE', {
 
 const Kardex: React.FC = () => {
   const { companyData } = useAuth();
+  const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
+
+  // Adaptar según tamaño de pantalla de PC
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  
+  // Tamaños adaptativos
+  const containerPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
+  const containerGap = isSmallDesktop ? '1.5rem' : '2rem';
+  const titleFontSize = isSmallDesktop ? '1.375rem' : '1.5rem';
+  const subtitleFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const cardPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
+  const tableFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const tableCellPadding = isSmallDesktop ? '0.625rem' : '0.75rem';
+  const inputFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const buttonFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const badgeFontSize = isSmallDesktop ? '0.6875rem' : '0.75rem';
+  const badgePadding = isSmallDesktop ? '0.25rem 0.625rem' : '0.25rem 0.625rem';
 
   // Estado para los filtros
   const [startDate, setStartDate] = useState<string>(() => {
@@ -118,7 +136,12 @@ const Kardex: React.FC = () => {
 
   if (!branchId) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: '#dc2626' }}>
+      <div style={{ 
+        padding: containerPadding, 
+        textAlign: 'center', 
+        color: '#dc2626',
+        fontSize: subtitleFontSize
+      }}>
         No se encontró información de la sucursal. Por favor, inicia sesión nuevamente.
       </div>
     );
@@ -130,9 +153,9 @@ const Kardex: React.FC = () => {
         minHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
-        gap: '2rem',
+        gap: containerGap,
         background: 'linear-gradient(160deg, #f0f4ff 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: '1.5rem',
+        padding: containerPadding,
         borderRadius: '18px',
         boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
         position: 'relative',
@@ -145,8 +168,8 @@ const Kardex: React.FC = () => {
           position: 'absolute',
           top: '-120px',
           right: '-120px',
-          width: '260px',
-          height: '260px',
+          width: isSmallDesktop ? '220px' : '260px',
+          height: isSmallDesktop ? '220px' : '260px',
           background: 'radial-gradient(circle at center, rgba(102,126,234,0.25), transparent 70%)',
           filter: 'blur(2px)',
           zIndex: 0,
@@ -157,8 +180,8 @@ const Kardex: React.FC = () => {
           position: 'absolute',
           bottom: '-80px',
           left: '-80px',
-          width: '220px',
-          height: '220px',
+          width: isSmallDesktop ? '180px' : '220px',
+          height: isSmallDesktop ? '180px' : '220px',
           background: 'radial-gradient(circle at center, rgba(72,219,251,0.18), transparent 70%)',
           filter: 'blur(2px)',
           zIndex: 0,
@@ -172,18 +195,18 @@ const Kardex: React.FC = () => {
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          marginBottom: '2rem'
+          marginBottom: containerGap
         }}>
           <div>
             <h2 style={{ 
               margin: 0, 
-              fontSize: '1.5rem', 
+              fontSize: titleFontSize, 
               fontWeight: 700, 
               color: '#1e293b' 
             }}>
               📋 Kardex
             </h2>
-            <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.875rem' }}>
+            <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: subtitleFontSize }}>
               Registro de movimientos de inventario
             </p>
           </div>
@@ -193,22 +216,22 @@ const Kardex: React.FC = () => {
         <div style={{
           backgroundColor: 'white',
           borderRadius: '16px',
-          padding: '1.5rem',
+          padding: cardPadding,
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
           border: '1px solid #e2e8f0',
-          marginBottom: '1.5rem'
+          marginBottom: isSmallDesktop ? '1.25rem' : '1.5rem'
         }}>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '1rem',
+            gridTemplateColumns: `repeat(auto-fit, minmax(${isSmallDesktop ? '180px' : '200px'}, 1fr))`,
+            gap: isSmallDesktop ? '0.875rem' : '1rem',
             alignItems: 'end'
           }}>
             <div>
               <label style={{
                 display: 'block',
                 marginBottom: '0.5rem',
-                fontSize: '0.875rem',
+                fontSize: inputFontSize,
                 fontWeight: 500,
                 color: '#374151'
               }}>
@@ -220,10 +243,10 @@ const Kardex: React.FC = () => {
                 onChange={(e) => setStartDate(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '0.625rem',
+                  padding: isSmallDesktop ? '0.5625rem' : '0.625rem',
                   border: '1px solid #d1d5db',
                   borderRadius: '8px',
-                  fontSize: '0.875rem',
+                  fontSize: inputFontSize,
                   outline: 'none',
                   transition: 'all 0.2s'
                 }}
@@ -235,7 +258,7 @@ const Kardex: React.FC = () => {
               <label style={{
                 display: 'block',
                 marginBottom: '0.5rem',
-                fontSize: '0.875rem',
+                fontSize: inputFontSize,
                 fontWeight: 500,
                 color: '#374151'
               }}>
@@ -247,10 +270,10 @@ const Kardex: React.FC = () => {
                 onChange={(e) => setEndDate(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '0.625rem',
+                  padding: isSmallDesktop ? '0.5625rem' : '0.625rem',
                   border: '1px solid #d1d5db',
                   borderRadius: '8px',
-                  fontSize: '0.875rem',
+                  fontSize: inputFontSize,
                   outline: 'none',
                   transition: 'all 0.2s'
                 }}
@@ -262,7 +285,7 @@ const Kardex: React.FC = () => {
               <label style={{
                 display: 'block',
                 marginBottom: '0.5rem',
-                fontSize: '0.875rem',
+                fontSize: inputFontSize,
                 fontWeight: 500,
                 color: '#374151'
               }}>
@@ -273,10 +296,10 @@ const Kardex: React.FC = () => {
                 onChange={(e) => setSelectedProductId(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '0.625rem',
+                  padding: isSmallDesktop ? '0.5625rem' : '0.625rem',
                   border: '1px solid #d1d5db',
                   borderRadius: '8px',
-                  fontSize: '0.875rem',
+                  fontSize: inputFontSize,
                   outline: 'none',
                   transition: 'all 0.2s',
                   backgroundColor: 'white'
@@ -298,12 +321,12 @@ const Kardex: React.FC = () => {
                 disabled={loading}
                 style={{
                   width: '100%',
-                  padding: '0.625rem 1rem',
+                  padding: isSmallDesktop ? '0.5625rem 0.875rem' : '0.625rem 1rem',
                   backgroundColor: loading ? '#9ca3af' : '#667eea',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
-                  fontSize: '0.875rem',
+                  fontSize: buttonFontSize,
                   fontWeight: 500,
                   cursor: loading ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s'
@@ -325,27 +348,51 @@ const Kardex: React.FC = () => {
         <div style={{
           backgroundColor: 'white',
           borderRadius: '16px',
-          padding: '1.5rem',
+          padding: cardPadding,
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
           border: '1px solid #e2e8f0',
           overflowX: 'auto'
         }}>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+            <div style={{ 
+              textAlign: 'center', 
+              padding: isSmallDesktop ? '2rem' : '3rem', 
+              color: '#64748b',
+              fontSize: tableFontSize
+            }}>
               <p>Cargando movimientos...</p>
             </div>
           ) : error ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: '#dc2626' }}>
+            <div style={{ 
+              textAlign: 'center', 
+              padding: isSmallDesktop ? '2rem' : '3rem', 
+              color: '#dc2626',
+              fontSize: tableFontSize
+            }}>
               <p>Error al cargar los movimientos: {error.message}</p>
             </div>
           ) : movements.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+            <div style={{ 
+              textAlign: 'center', 
+              padding: isSmallDesktop ? '2rem' : '3rem', 
+              color: '#64748b',
+              fontSize: tableFontSize
+            }}>
               <p>No se encontraron movimientos en el rango de fechas seleccionado.</p>
             </div>
           ) : (
             <>
-              <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>
+              <div style={{ 
+                marginBottom: isSmallDesktop ? '0.875rem' : '1rem', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center' 
+              }}>
+                <p style={{ 
+                  margin: 0, 
+                  fontSize: tableFontSize, 
+                  color: '#64748b' 
+                }}>
                   Total de movimientos: <strong>{movements.length}</strong>
                 </p>
               </div>
@@ -353,22 +400,103 @@ const Kardex: React.FC = () => {
                 <table style={{
                   width: '100%',
                   borderCollapse: 'collapse',
-                  fontSize: '0.875rem'
+                  fontSize: tableFontSize
                 }}>
                   <thead>
                     <tr style={{
                       backgroundColor: '#f8fafc',
                       borderBottom: '2px solid #e2e8f0'
                     }}>
-                      <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#374151' }}>Fecha</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#374151' }}>Producto</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#374151' }}>Tipo</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#374151' }}>Cantidad</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#374151' }}>Costo Unit.</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#374151' }}>Costo Total</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#374151' }}>Stock Actual</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#374151' }}>Usuario</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#374151' }}>Motivo</th>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'center', 
+                        fontWeight: 600, 
+                        color: '#374151',
+                        fontSize: tableFontSize,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Fecha
+                      </th>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'center', 
+                        fontWeight: 600, 
+                        color: '#374151',
+                        fontSize: tableFontSize,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Producto
+                      </th>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'center', 
+                        fontWeight: 600, 
+                        color: '#374151',
+                        fontSize: tableFontSize,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Tipo
+                      </th>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'center', 
+                        fontWeight: 600, 
+                        color: '#374151',
+                        fontSize: tableFontSize,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Cantidad
+                      </th>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'center', 
+                        fontWeight: 600, 
+                        color: '#374151',
+                        fontSize: tableFontSize,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Costo Unit.
+                      </th>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'center', 
+                        fontWeight: 600, 
+                        color: '#374151',
+                        fontSize: tableFontSize,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Costo Total
+                      </th>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'center', 
+                        fontWeight: 600, 
+                        color: '#374151',
+                        fontSize: tableFontSize,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Stock Actual
+                      </th>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'center', 
+                        fontWeight: 600, 
+                        color: '#374151',
+                        fontSize: tableFontSize,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Usuario
+                      </th>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'center', 
+                        fontWeight: 600, 
+                        color: '#374151',
+                        fontSize: tableFontSize,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Motivo
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -384,21 +512,45 @@ const Kardex: React.FC = () => {
                           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
                           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
-                          <td style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b' }}>
+                          <td style={{ 
+                            padding: tableCellPadding, 
+                            textAlign: 'center', 
+                            color: '#64748b',
+                            fontSize: tableFontSize
+                          }}>
                             {dateFormatter.format(new Date(movement.createdAt))}
                           </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                          <td style={{ 
+                            padding: tableCellPadding, 
+                            textAlign: 'center',
+                            fontSize: tableFontSize
+                          }}>
                             <div style={{ display: 'inline-block', textAlign: 'left' }}>
-                              <div style={{ fontWeight: 500, color: '#1e293b' }}>{movement.productName}</div>
-                              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{movement.productCode}</div>
+                              <div style={{ 
+                                fontWeight: 500, 
+                                color: '#1e293b',
+                                fontSize: tableFontSize
+                              }}>
+                                {movement.productName}
+                              </div>
+                              <div style={{ 
+                                fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', 
+                                color: '#64748b' 
+                              }}>
+                                {movement.productCode}
+                              </div>
                             </div>
                           </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                          <td style={{ 
+                            padding: tableCellPadding, 
+                            textAlign: 'center',
+                            fontSize: tableFontSize
+                          }}>
                             <span style={{
                               display: 'inline-block',
-                              padding: '0.25rem 0.625rem',
+                              padding: badgePadding,
                               borderRadius: '6px',
-                              fontSize: '0.75rem',
+                              fontSize: badgeFontSize,
                               fontWeight: 500,
                               backgroundColor: typeColor.bg,
                               color: typeColor.text,
@@ -407,22 +559,55 @@ const Kardex: React.FC = () => {
                               {movement.movementTypeDisplay}
                             </span>
                           </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'center', color: '#1e293b', fontWeight: 500 }}>
+                          <td style={{ 
+                            padding: tableCellPadding, 
+                            textAlign: 'center', 
+                            color: '#1e293b', 
+                            fontWeight: 500,
+                            fontSize: tableFontSize
+                          }}>
                             {formatNumber(movement.quantity)}
                           </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b' }}>
+                          <td style={{ 
+                            padding: tableCellPadding, 
+                            textAlign: 'center', 
+                            color: '#64748b',
+                            fontSize: tableFontSize
+                          }}>
                             {currencyFormatter.format(movement.unitCost)}
                           </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'center', color: '#1e293b', fontWeight: 500 }}>
+                          <td style={{ 
+                            padding: tableCellPadding, 
+                            textAlign: 'center', 
+                            color: '#1e293b', 
+                            fontWeight: 500,
+                            fontSize: tableFontSize
+                          }}>
                             {currencyFormatter.format(movement.totalCost)}
                           </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b' }}>
+                          <td style={{ 
+                            padding: tableCellPadding, 
+                            textAlign: 'center', 
+                            color: '#64748b',
+                            fontSize: tableFontSize
+                          }}>
                             {formatNumber(movement.currentQuantity)}
                           </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b' }}>
+                          <td style={{ 
+                            padding: tableCellPadding, 
+                            textAlign: 'center', 
+                            color: '#64748b',
+                            fontSize: tableFontSize
+                          }}>
                             {movement.userName || 'N/A'}
                           </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', maxWidth: '200px' }}>
+                          <td style={{ 
+                            padding: tableCellPadding, 
+                            textAlign: 'center', 
+                            color: '#64748b', 
+                            maxWidth: isSmallDesktop ? '150px' : '200px',
+                            fontSize: tableFontSize
+                          }}>
                             {movement.reason || '-'}
                           </td>
                         </tr>

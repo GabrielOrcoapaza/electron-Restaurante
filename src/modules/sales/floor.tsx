@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 import { useWebSocket } from '../../context/WebSocketContext';
 import type { Table, ProcessedTableColors } from '../../types/table';
 import { GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries';
@@ -12,6 +13,18 @@ type FloorProps = {
 
 const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   const { companyData, user } = useAuth();
+  const { breakpoint } = useResponsive();
+  
+  // Adaptar según tamaño de pantalla de PC
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
+  
+  // Tamaños adaptativos
+  const floorCardMinWidth = isSmallDesktop ? '220px' : isMediumDesktop ? '250px' : '280px';
+  const floorCardPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
+  const floorCardGap = isSmallDesktop ? '1.25rem' : '1.5rem';
+  const titleFontSize = isSmallDesktop ? '1.375rem' : '1.5rem';
+  const floorNameFontSize = isSmallDesktop ? '1.125rem' : '1.25rem';
   
   // CSS para animación de pulso (adaptable a diferentes colores)
   const pulseKeyframes = `
@@ -319,7 +332,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
           border: '1px solid #e2e8f0'
         }}>
           <h2 style={{
-            fontSize: '1.5rem',
+            fontSize: titleFontSize,
             fontWeight: '700',
             color: '#2d3748',
             marginBottom: '1rem',
@@ -329,7 +342,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
           </h2>
           
           <p style={{
-            fontSize: '1rem',
+            fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
             color: '#718096',
             marginBottom: '2rem',
             textAlign: 'center'
@@ -340,19 +353,19 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
           {floorsData?.floorsByBranch?.length === 0 ? (
             <div style={{
               textAlign: 'center',
-              padding: '3rem',
+              padding: isSmallDesktop ? '2.5rem' : '3rem',
               color: '#718096'
             }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏢</div>
-              <p style={{ fontSize: '1.125rem', margin: 0 }}>
+              <div style={{ fontSize: isSmallDesktop ? '2.5rem' : '3rem', marginBottom: '1rem' }}>🏢</div>
+              <p style={{ fontSize: isSmallDesktop ? '1rem' : '1.125rem', margin: 0 }}>
                 No hay pisos disponibles para esta sucursal
               </p>
             </div>
           ) : (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-              gap: '1.5rem'
+              gridTemplateColumns: `repeat(auto-fit, minmax(${floorCardMinWidth}, 1fr))`,
+              gap: floorCardGap
             }}>
               {floorsData?.floorsByBranch?.map((floor: any) => (
                 <div
@@ -362,7 +375,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                     backgroundColor: '#f7fafc',
                     border: '2px solid #e2e8f0',
                     borderRadius: '12px',
-                    padding: '1.5rem',
+                    padding: floorCardPadding,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     textAlign: 'center',
@@ -383,14 +396,14 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                   }}
                 >
                   <div style={{
-                    fontSize: '2.5rem',
+                    fontSize: isSmallDesktop ? '2rem' : '2.5rem',
                     marginBottom: '1rem'
                   }}>
                     🏢
                   </div>
                   
                   <h3 style={{
-                    fontSize: '1.25rem',
+                    fontSize: floorNameFontSize,
                     fontWeight: '600',
                     color: '#2d3748',
                     margin: '0 0 0.5rem 0'
@@ -449,7 +462,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
       <div style={{
         backgroundColor: 'white',
         borderRadius: '12px',
-        padding: '2rem',
+        padding: isSmallDesktop ? '1.5rem' : '2rem',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
         border: '1px solid #e2e8f0'
       }}>
@@ -458,13 +471,15 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: '2rem',
+          marginBottom: isSmallDesktop ? '1.5rem' : '2rem',
           paddingBottom: '1rem',
-          borderBottom: '1px solid #e2e8f0'
+          borderBottom: '1px solid #e2e8f0',
+          flexWrap: isSmallDesktop ? 'wrap' : 'nowrap',
+          gap: isSmallDesktop ? '1rem' : '0'
         }}>
           <div>
             <h2 style={{
-              fontSize: '1.5rem',
+              fontSize: titleFontSize,
               fontWeight: '700',
               color: '#2d3748',
               margin: 0
@@ -472,7 +487,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
               {selectedFloor?.name}
             </h2>
             <p style={{
-              fontSize: '1rem',
+              fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
               color: '#718096',
               margin: '0.25rem 0 0 0'
             }}>
@@ -486,13 +501,13 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
-              padding: '0.75rem 1.5rem',
+              padding: isSmallDesktop ? '0.625rem 1.25rem' : '0.75rem 1.5rem',
               backgroundColor: '#f7fafc',
               border: '1px solid #e2e8f0',
               borderRadius: '8px',
               color: '#4a5568',
               cursor: 'pointer',
-              fontSize: '0.875rem',
+              fontSize: isSmallDesktop ? '0.8125rem' : '0.875rem',
               fontWeight: '500',
               transition: 'all 0.2s ease'
             }}
@@ -547,8 +562,8 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         ) : (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-            gap: '2rem',
+            gridTemplateColumns: `repeat(auto-fill, minmax(${isSmallDesktop ? '280px' : isMediumDesktop ? '300px' : '320px'}, 1fr))`,
+            gap: isSmallDesktop ? '1.5rem' : '2rem',
             width: '100%'
           }}>
             {tablesData?.tablesByFloor?.map((table: Table) => {
@@ -564,7 +579,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                     backgroundColor: colors.backgroundColor,
                     border: `3px solid ${colors.borderColor}`,
                     borderRadius: isRoundTable ? '50%' : '16px',
-                    padding: '2.5rem',
+                    padding: isSmallDesktop ? '2rem' : '2.5rem',
                     textAlign: 'center',
                     transition: 'all 0.2s ease',
                     cursor: canAccessTable(table).canAccess ? 'pointer' : 'not-allowed',
@@ -594,7 +609,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                   }}
                 >
                 <div style={{
-                  fontSize: '3rem',
+                  fontSize: isSmallDesktop ? '2.5rem' : '3rem',
                   marginBottom: '1rem',
                   position: 'relative'
                 }}>
@@ -613,11 +628,11 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                     position: 'absolute',
                     top: '-0.5rem',
                     right: '-0.5rem',
-                    fontSize: '1.25rem',
+                    fontSize: isSmallDesktop ? '1.125rem' : '1.25rem',
                     backgroundColor: colors.badgeColor,
                     borderRadius: '50%',
-                    width: '2rem',
-                    height: '2rem',
+                    width: isSmallDesktop ? '1.75rem' : '2rem',
+                    height: isSmallDesktop ? '1.75rem' : '2rem',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -634,7 +649,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 </div>
                 
                 <h4 style={{
-                  fontSize: '1.5rem',
+                  fontSize: isSmallDesktop ? '1.375rem' : '1.5rem',
                   fontWeight: '700',
                   color: colors.textColor,
                   margin: '0 0 1rem 0'
@@ -643,7 +658,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 </h4>
                 
                 <div style={{
-                  fontSize: '1.125rem',
+                  fontSize: isSmallDesktop ? '1rem' : '1.125rem',
                   color: '#718096',
                   marginBottom: '1.5rem',
                   fontWeight: '500'
@@ -653,9 +668,9 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 
                 <div style={{
                   display: 'inline-block',
-                  padding: '0.5rem 1.25rem',
+                  padding: isSmallDesktop ? '0.45rem 1.125rem' : '0.5rem 1.25rem',
                   borderRadius: '25px',
-                  fontSize: '1rem',
+                  fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
                   fontWeight: '700',
                   backgroundColor: colors.badgeColor,
                   color: colors.badgeTextColor
@@ -670,11 +685,11 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 {/* Solo mostrar el nombre del mozo si la mesa NO está disponible */}
                 {table.userName && table.status !== 'AVAILABLE' && (
                   <div style={{
-                    fontSize: '1rem',
+                    fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
                     color: colors.textColor,
                     marginTop: '1rem',
                     backgroundColor: colors.badgeColor,
-                    padding: '0.5rem 1rem',
+                    padding: isSmallDesktop ? '0.45rem 0.875rem' : '0.5rem 1rem',
                     borderRadius: '15px',
                     fontWeight: '600',
                     opacity: 0.9

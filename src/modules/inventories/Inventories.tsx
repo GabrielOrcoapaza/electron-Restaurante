@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@apollo/client';
 import { GET_PRODUCTS_WITH_STOCK, GET_CATEGORIES_BY_BRANCH } from '../../graphql/queries';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 
 interface Product {
   id: string;
@@ -57,9 +58,19 @@ const getSafeNumber = (value: number | null | undefined, defaultValue: number = 
 
 const Inventories: React.FC = () => {
   const { companyData } = useAuth();
+  const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  
+  // Adaptar según tamaño de pantalla de PC
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  
+  // Tamaños adaptativos
+  const containerPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
+  const containerGap = isSmallDesktop ? '1.5rem' : '2rem';
+  const titleFontSize = isSmallDesktop ? '1.375rem' : '1.5rem';
+  const subtitleFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
 
   const { data: productsData, loading: productsLoading, error: productsError } = useQuery(
     GET_PRODUCTS_WITH_STOCK,
@@ -146,9 +157,9 @@ const Inventories: React.FC = () => {
         minHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
-        gap: '2rem',
+        gap: containerGap,
         background: 'linear-gradient(160deg, #f0f4ff 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: '1.5rem',
+        padding: containerPadding,
         borderRadius: '18px',
         boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
         position: 'relative',
@@ -188,18 +199,20 @@ const Inventories: React.FC = () => {
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          marginBottom: '2rem'
+          marginBottom: isSmallDesktop ? '1.5rem' : '2rem',
+          flexWrap: isSmallDesktop ? 'wrap' : 'nowrap',
+          gap: isSmallDesktop ? '1rem' : '0'
         }}>
           <div>
             <h2 style={{ 
               margin: 0, 
-              fontSize: '1.5rem', 
+              fontSize: titleFontSize, 
               fontWeight: 700, 
               color: '#1e293b' 
             }}>
               📦 Gestión de Inventario
             </h2>
-            <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.875rem' }}>
+            <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: subtitleFontSize }}>
               Controla el stock de tus productos
             </p>
           </div>
@@ -209,13 +222,13 @@ const Inventories: React.FC = () => {
         <div style={{
           backgroundColor: 'white',
           borderRadius: '12px',
-          padding: '1.5rem',
-          marginBottom: '1.5rem',
+          padding: isSmallDesktop ? '1.25rem' : '1.5rem',
+          marginBottom: isSmallDesktop ? '1.25rem' : '1.5rem',
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
           border: '1px solid #e2e8f0',
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '1rem'
+          gridTemplateColumns: isSmallDesktop ? '1fr' : '1fr 1fr',
+          gap: isSmallDesktop ? '0.875rem' : '1rem'
         }}>
           <div>
             <label style={{ 

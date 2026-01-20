@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useWebSocket } from '../../context/WebSocketContext';
+import { useResponsive } from '../../hooks/useResponsive';
 import type { Table } from '../../types/table';
-import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CREATE_OPERATION, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION, PRINT_PRECUENTA, PRINT_PARTIAL_PRECUENTA } from '../../graphql/mutations';
-import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR, GET_PERSONS_BY_BRANCH } from '../../graphql/queries';
-import CreateClient from '../user/createClient';
+import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION, PRINT_PRECUENTA, PRINT_PARTIAL_PRECUENTA } from '../../graphql/mutations';
+import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries';
 
 type CashPayProps = {
   table: Table | null;
@@ -23,6 +23,12 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTableChange }) => {
   const { companyData, user, deviceId, getMacAddress, updateTableInContext } = useAuth();
   const { sendMessage, subscribe } = useWebSocket();
+  const { breakpoint } = useResponsive();
+  
+  // Solo para diferentes tamaños de pantalla de PC (desktop)
+  // lg: 1024px-1279px, xl: 1280px-1535px, 2xl: >=1536px
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
   
   // Función para verificar si el usuario puede acceder a una mesa específica
   const canAccessTable = (tableItem: any): { canAccess: boolean; reason?: string } => {
@@ -62,8 +68,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
   const [selectedSerialId, setSelectedSerialId] = useState<string>('');
   const [selectedCashRegisterId, setSelectedCashRegisterId] = useState<string>('');
-  const [selectedPersonId, setSelectedPersonId] = useState<string>('');
-  const [showCreateClientModal, setShowCreateClientModal] = useState(false);
   
   // Estado para múltiples pagos
   type Payment = {
@@ -135,15 +139,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     skip: !companyData?.branch.id
   });
 
-  // Obtener clientes (personas que no son proveedores)
-  const { data: personsData, refetch: refetchClients } = useQuery(GET_PERSONS_BY_BRANCH, {
-    variables: { branchId: companyData?.branch.id || '' },
-    skip: !companyData?.branch.id
-  });
-
-  // Filtrar solo clientes (personas con isSupplier = false o null)
-  const clients = (personsData?.personsByBranch || []).filter((person: any) => !person.isSupplier && person.isActive !== false);
-
   // Obtener pisos para el modal de cambio de mesa
   const { data: floorsData, loading: floorsLoading } = useQuery(GET_FLOORS_BY_BRANCH, {
     variables: { branchId: companyData?.branch.id || '' },
@@ -172,7 +167,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [changeOperationTableMutation] = useMutation(CHANGE_OPERATION_TABLE);
   const [changeOperationUserMutation] = useMutation(CHANGE_OPERATION_USER);
   const [transferItemsMutation] = useMutation(TRANSFER_ITEMS);
-  const [createOperationMutation] = useMutation(CREATE_OPERATION);
   const [cancelOperationDetailMutation] = useMutation(CANCEL_OPERATION_DETAIL);
   const [updateTableStatusMutation] = useMutation(UPDATE_TABLE_STATUS);
   const [cancelOperationMutation] = useMutation(CANCEL_OPERATION);
@@ -1143,7 +1137,25 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       console.log(`   - TableId para pago: ${tableIdForPayment || 'null (no liberar mesa)'}`);
       console.log('');
       console.log('📄 INFORMACIÓN DEL DOCUMENTO:');
+      // ✅ Obtener información completa del documento seleccionado
+      const selectedDocument = documents.find((doc: any) => doc.id === selectedDocumentId);
+      const documentCode = selectedDocument?.code || 'N/A';
+      const documentDescription = selectedDocument?.description || 'N/A';
+      const isBillableDocument = documentCode === '01' || documentCode === '03'; // FACTURA o BOLETA
       console.log(`   - Document ID: ${selectedDocumentId}`);
+      console.log(`   - Document Code: ${documentCode} (${documentDescription})`);
+      console.log(`   - Es documento facturable (01/FACTURA o 03/BOLETA): ${isBillableDocument ? 'SÍ ✅' : 'NO ⚠️'}`);
+      console.log(`   - Branch is_billing habilitado: ${companyData?.branch?.isBilling ? 'SÍ ✅' : 'NO ⚠️'}`);
+      if (isBillableDocument && companyData?.branch?.isBilling) {
+        console.log(`   ✅ Este documento será enviado a SUNAT automáticamente`);
+      } else {
+        if (!isBillableDocument) {
+          console.log(`   ⚠️ Documento con código '${documentCode}' NO se enviará a SUNAT (solo se envían 01/FACTURA y 03/BOLETA)`);
+        }
+        if (!companyData?.branch?.isBilling) {
+          console.log(`   ⚠️ Facturación electrónica deshabilitada en esta sucursal`);
+        }
+      }
       console.log(`   - Serial: ${serial}`);
       console.log(`   - Branch ID: ${companyData?.branch.id}`);
       console.log(`   - User ID: ${user.id}`);
@@ -1227,6 +1239,29 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       if (result.data?.createIssuedDocument?.success) {
         // El documento (boleta/factura) se ha creado exitosamente
         // El backend debería haber impreso el documento si deviceId estaba disponible
+        
+        // ✅ VERIFICAR SI EL DOCUMENTO SERÁ ENVIADO A SUNAT
+        const selectedDocument = documents.find((doc: any) => doc.id === selectedDocumentId);
+        const documentCode = selectedDocument?.code || '';
+        const documentDescription = selectedDocument?.description || '';
+        const isBillableDocument = documentCode === '01' || documentCode === '03'; // FACTURA o BOLETA
+        const isBranchBillingEnabled = companyData?.branch?.isBilling || false;
+        
+        if (isBillableDocument && isBranchBillingEnabled) {
+          console.log('✅ SUNAT: El documento será enviado a facturación electrónica');
+          console.log(`   - Tipo: ${documentDescription} (Código: ${documentCode})`);
+          console.log(`   - Serial: ${result.data?.createIssuedDocument?.issuedDocument?.serial || 'N/A'}`);
+          console.log(`   - Número: ${result.data?.createIssuedDocument?.issuedDocument?.number || 'N/A'}`);
+          console.log(`   - Proceso: ${isPartialPayment ? 'PAGO PARCIAL' : 'PAGO COMPLETO'}`);
+        } else {
+          if (!isBillableDocument) {
+            console.log(`ℹ️ SUNAT: Documento "${documentDescription}" (Código: ${documentCode}) no se enviará a SUNAT`);
+            console.log('   - Solo se envían FACTURAS (01) y BOLETAS (03)');
+          }
+          if (!isBranchBillingEnabled) {
+            console.log('ℹ️ SUNAT: La sucursal no tiene facturación electrónica habilitada');
+          }
+        }
         
         // ✅ GUARDAR información de facturación en sessionStorage para pago parcial
         if (isPartialPayment && operation?.id) {
@@ -2380,14 +2415,15 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             <div
               style={{
                 display: 'flex',
-                gap: '2rem',
+                flexDirection: 'row',
+                gap: isSmallDesktop ? '1.5rem' : '2rem',
                 alignItems: 'flex-start'
               }}
             >
               {/* Tabla de productos */}
               <div
                 style={{
-                  flex: '1 1 60%',
+                  flex: isSmallDesktop ? '1 1 55%' : isMediumDesktop ? '1 1 58%' : '1 1 60%',
                   border: '1px solid rgba(226,232,240,0.9)',
                   borderRadius: '18px',
                   overflow: 'hidden',
@@ -2398,12 +2434,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '0.3fr 1.2fr 0.4fr 0.6fr 0.6fr 1fr',
+                    gridTemplateColumns: isSmallDesktop 
+                      ? '0.4fr 1.5fr 0.5fr 0.7fr 0.7fr 1.2fr'
+                      : isMediumDesktop
+                      ? '0.35fr 1.3fr 0.45fr 0.65fr 0.65fr 1.1fr'
+                      : '0.3fr 1.2fr 0.4fr 0.6fr 0.6fr 1fr',
                     background: 'linear-gradient(135deg, rgba(102,126,234,0.12), rgba(129,140,248,0.12))',
-                    padding: '0.9rem 1.2rem',
+                    padding: isSmallDesktop ? '0.85rem 1.1rem' : '0.9rem 1.2rem',
                     fontWeight: 700,
                     color: '#2d3748',
-                    fontSize: '0.92rem',
+                    fontSize: isSmallDesktop ? '0.9rem' : '0.92rem',
                     letterSpacing: '0.01em'
                   }}
                 >
@@ -2429,9 +2469,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                       key={detail.id || `${detail.productId}-${detail.productCode}`}
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '0.3fr 1.2fr 0.4fr 0.6fr 0.6fr 1fr',
-                        padding: '1rem 1.2rem',
-                        fontSize: '0.9rem',
+                        gridTemplateColumns: isSmallDesktop 
+                          ? '0.4fr 1.5fr 0.5fr 0.7fr 0.7fr 1.2fr'
+                          : isMediumDesktop
+                          ? '0.35fr 1.3fr 0.45fr 0.65fr 0.65fr 1.1fr'
+                          : '0.3fr 1.2fr 0.4fr 0.6fr 0.6fr 1fr',
+                        padding: isSmallDesktop ? '0.9rem 1.1rem' : '1rem 1.2rem',
+                        fontSize: isSmallDesktop ? '0.88rem' : '0.9rem',
                         alignItems: 'center',
                         color: '#1a202c',
                         backgroundColor: isSelected 
@@ -2444,7 +2488,11 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                         transition: 'all 0.2s ease'
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'center', 
+                        alignItems: 'center'
+                      }}>
                         <input
                           type="checkbox"
                           checked={isSelected || false}
@@ -2457,8 +2505,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                           }}
                         />
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '0.35rem'
+                      }}>
+                        <div style={{ fontWeight: 700, fontSize: isSmallDesktop ? '0.93rem' : '0.95rem' }}>
                           {detail.productName || 'Producto'}
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8rem' }}>
@@ -2495,7 +2547,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                           textAlign: 'center',
                           fontWeight: 700,
                           color: '#4c51bf',
-                          fontSize: '1.05rem'
+                          fontSize: isSmallDesktop ? '1rem' : '1.05rem'
                         }}
                       >
                         {quantity}
@@ -2512,7 +2564,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                         style={{
                           textAlign: 'right',
                           fontWeight: 700,
-                          fontSize: '1.05rem',
+                          fontSize: isSmallDesktop ? '1rem' : '1.05rem',
                           color: '#1a202c'
                         }}
                       >
@@ -2654,10 +2706,10 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               {/* Selectores de Documento, Serie, Caja Registradora y Método de Pago */}
               <div
                 style={{
-                  flex: '1 1 40%',
+                  flex: isSmallDesktop ? '1 1 45%' : isMediumDesktop ? '1 1 42%' : '1 1 40%',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '1.5rem'
+                  gap: isSmallDesktop ? '1.25rem' : '1.5rem'
                 }}
               >
                 {/* Documento */}

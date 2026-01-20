@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 import CreateProduct from './createProduct';
 import EditProduct from './editProduct';
 import ListProduct from './listProduct';
@@ -17,10 +18,22 @@ interface Product {
 
 const Products: React.FC = () => {
   const { companyData } = useAuth();
+  const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Adaptar según tamaño de pantalla de PC
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  
+  // Tamaños adaptativos
+  const containerPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
+  const containerGap = isSmallDesktop ? '1.5rem' : '2rem';
+  const titleFontSize = isSmallDesktop ? '1.375rem' : '1.5rem';
+  const subtitleFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const buttonPadding = isSmallDesktop ? '0.625rem 1.25rem' : '0.75rem 1.5rem';
+  const buttonFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
 
   const handleEdit = (product: Product) => {
     setSelectedProduct(product);
@@ -49,14 +62,14 @@ const Products: React.FC = () => {
   }
 
   return (
-    <div
+      <div
       style={{
         minHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
-        gap: '2rem',
+        gap: containerGap,
         background: 'linear-gradient(160deg, #f0f4ff 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: '1.5rem',
+        padding: containerPadding,
         borderRadius: '18px',
         boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
         position: 'relative',
@@ -96,32 +109,34 @@ const Products: React.FC = () => {
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          marginBottom: '2rem'
+          marginBottom: isSmallDesktop ? '1.5rem' : '2rem',
+          flexWrap: isSmallDesktop ? 'wrap' : 'nowrap',
+          gap: isSmallDesktop ? '1rem' : '0'
         }}>
           <div>
             <h2 style={{ 
               margin: 0, 
-              fontSize: '1.5rem', 
+              fontSize: titleFontSize, 
               fontWeight: 700, 
               color: '#1e293b' 
             }}>
               🍽️ Gestión de Productos
             </h2>
-            <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.875rem' }}>
+            <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: subtitleFontSize }}>
               Administra los productos de tu menú
             </p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
             style={{
-              padding: '0.75rem 1.5rem',
+              padding: buttonPadding,
               background: 'linear-gradient(135deg, #667eea, #764ba2)',
               color: 'white',
               border: 'none',
               borderRadius: '10px',
               fontWeight: 600,
               cursor: 'pointer',
-              fontSize: '0.875rem',
+              fontSize: buttonFontSize,
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',

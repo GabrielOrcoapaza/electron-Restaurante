@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@apollo/client';
 import { GET_PRODUCTS_BY_BRANCH, GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS } from '../../graphql/queries';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 import RecipeModal from './recipe';
 
 interface Product {
@@ -39,7 +40,25 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 
 const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => {
   const { companyData } = useAuth();
+  const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
+
+  // Adaptar según tamaño de pantalla de PC
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  
+  // Tamaños adaptativos
+  const cardPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
+  const gapSize = isSmallDesktop ? '0.875rem' : '1rem';
+  const titleFontSize = isSmallDesktop ? '1rem' : '1.1rem';
+  const labelFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const inputFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const inputPadding = isSmallDesktop ? '0.5625rem 0.75rem' : '0.625rem 0.875rem';
+  const tableFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const tableCellPadding = isSmallDesktop ? '0.625rem' : '0.75rem';
+  const buttonPadding = isSmallDesktop ? '0.5rem 0.875rem' : '0.5rem 1rem';
+  const buttonFontSize = isSmallDesktop ? '0.75rem' : '0.75rem';
+  const badgeFontSize = isSmallDesktop ? '0.6875rem' : '0.75rem';
+
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedProductType, setSelectedProductType] = useState<string>('');
   const [selectedProductForRecipe, setSelectedProductForRecipe] = useState<{ id: string; name: string } | null>(null);
@@ -137,7 +156,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
       {/* Filtros */}
       <div style={{
         display: 'flex',
-        gap: '1rem',
+        gap: gapSize,
         marginBottom: '1.5rem',
         flexWrap: 'wrap'
       }}>
@@ -146,17 +165,17 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
           <div style={{
             backgroundColor: 'white',
             borderRadius: '12px',
-            padding: '1rem',
+            padding: cardPadding,
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
             border: '1px solid #e2e8f0',
             flex: '1',
-            minWidth: '250px'
+            minWidth: isSmallDesktop ? '200px' : '250px'
           }}>
             <label style={{ 
               display: 'block', 
               marginBottom: '0.5rem', 
               fontWeight: 500, 
-              fontSize: '0.875rem', 
+              fontSize: labelFontSize, 
               color: '#475569' 
             }}>
               Filtrar por categoría:
@@ -166,10 +185,10 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
               onChange={(e) => setSelectedCategory(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.625rem 0.875rem',
+                padding: inputPadding,
                 border: '1px solid #e2e8f0',
                 borderRadius: '8px',
-                fontSize: '0.875rem',
+                fontSize: inputFontSize,
                 boxSizing: 'border-box',
                 backgroundColor: 'white'
               }}
@@ -190,17 +209,17 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
         <div style={{
           backgroundColor: 'white',
           borderRadius: '12px',
-          padding: '1rem',
+          padding: cardPadding,
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
           border: '1px solid #e2e8f0',
           flex: '1',
-          minWidth: '250px'
+          minWidth: isSmallDesktop ? '200px' : '250px'
         }}>
           <label style={{ 
             display: 'block', 
             marginBottom: '0.5rem', 
             fontWeight: 500, 
-            fontSize: '0.875rem', 
+            fontSize: labelFontSize, 
             color: '#475569' 
           }}>
             Filtrar por tipo:
@@ -210,10 +229,10 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
             onChange={(e) => setSelectedProductType(e.target.value)}
             style={{
               width: '100%',
-              padding: '0.625rem 0.875rem',
+              padding: inputPadding,
               border: '1px solid #e2e8f0',
               borderRadius: '8px',
-              fontSize: '0.875rem',
+              fontSize: inputFontSize,
               boxSizing: 'border-box',
               backgroundColor: 'white'
             }}
@@ -230,16 +249,16 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
       <div style={{
         backgroundColor: 'white',
         borderRadius: '16px',
-        padding: '1.5rem',
+        padding: cardPadding,
         boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
         border: '1px solid #e2e8f0'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#334155' }}>
+          <h3 style={{ margin: 0, fontSize: titleFontSize, fontWeight: 600, color: '#334155' }}>
             📋 Lista de Productos ({filteredProducts.length})
           </h3>
           {filteredProducts.length > itemsPerPage && (
-            <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>
+            <p style={{ margin: 0, fontSize: inputFontSize, color: '#64748b' }}>
               Página {currentPage} de {totalPages}
             </p>
           )}
@@ -261,24 +280,24 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
             <table style={{ 
               width: '100%', 
               borderCollapse: 'collapse',
-              fontSize: '0.875rem'
+              fontSize: tableFontSize
             }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Imagen</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Código</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Nombre</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Descripción</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Precio</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Tiempo (min)</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Estado</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Acciones</th>
+                  <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Imagen</th>
+                  <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Código</th>
+                  <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Nombre</th>
+                  <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Descripción</th>
+                  <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Precio</th>
+                  <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Tiempo (min)</th>
+                  <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Estado</th>
+                  <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedProducts.map((product) => (
                   <tr key={product.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
                       {product.imageBase64 ? (
                         <img
                           src={`data:image/jpeg;base64,${product.imageBase64}`}
@@ -309,26 +328,26 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                         </div>
                       )}
                     </td>
-                    <td style={{ padding: '0.75rem', textAlign: 'center', color: '#334155', fontFamily: 'monospace' }}>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155', fontFamily: 'monospace', fontSize: tableFontSize }}>
                       {product.code}
                     </td>
-                    <td style={{ padding: '0.75rem', textAlign: 'center', color: '#334155', fontWeight: 500 }}>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155', fontWeight: 500, fontSize: tableFontSize }}>
                       {product.name}
                     </td>
-                    <td style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', maxWidth: '300px' }}>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', maxWidth: '300px', fontSize: tableFontSize }}>
                       {product.description || '-'}
                     </td>
-                    <td style={{ padding: '0.75rem', textAlign: 'center', color: '#334155', fontWeight: 600 }}>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155', fontWeight: 600, fontSize: tableFontSize }}>
                       {currencyFormatter.format(product.salePrice)}
                     </td>
-                    <td style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b' }}>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize }}>
                       {product.preparationTime || '-'}
                     </td>
-                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
                       <span style={{
-                        padding: '0.25rem 0.75rem',
+                        padding: isSmallDesktop ? '0.25rem 0.625rem' : '0.25rem 0.75rem',
                         borderRadius: '9999px',
-                        fontSize: '0.75rem',
+                        fontSize: badgeFontSize,
                         fontWeight: 600,
                         backgroundColor: product.isActive ? '#dcfce7' : '#fee2e2',
                         color: product.isActive ? '#166534' : '#991b1b'
@@ -336,19 +355,19 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                         {product.isActive ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
-                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                         <button
                           onClick={() => onEdit(product)}
                           style={{
-                            padding: '0.5rem 1rem',
+                            padding: buttonPadding,
                             background: '#3b82f6',
                             color: 'white',
                             border: 'none',
                             borderRadius: '8px',
                             fontWeight: 500,
                             cursor: 'pointer',
-                            fontSize: '0.75rem',
+                            fontSize: buttonFontSize,
                             transition: 'all 0.2s'
                           }}
                           onMouseEnter={(e) => e.currentTarget.style.background = '#2563eb'}
@@ -359,14 +378,14 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                         <button
                           onClick={() => setSelectedProductForRecipe({ id: product.id, name: product.name })}
                           style={{
-                            padding: '0.5rem 1rem',
+                            padding: buttonPadding,
                             background: '#10b981',
                             color: 'white',
                             border: 'none',
                             borderRadius: '8px',
                             fontWeight: 500,
                             cursor: 'pointer',
-                            fontSize: '0.75rem',
+                            fontSize: buttonFontSize,
                             transition: 'all 0.2s'
                           }}
                           onMouseEnter={(e) => e.currentTarget.style.background = '#059669'}
@@ -398,14 +417,14 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
               style={{
-                padding: '0.5rem 1rem',
+                padding: buttonPadding,
                 backgroundColor: currentPage === 1 ? '#e2e8f0' : '#667eea',
                 color: currentPage === 1 ? '#94a3b8' : 'white',
                 border: 'none',
                 borderRadius: '8px',
                 fontWeight: 500,
                 cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                fontSize: '0.875rem',
+                fontSize: buttonFontSize,
                 transition: 'all 0.2s'
               }}
               onMouseEnter={(e) => {
@@ -444,15 +463,15 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                     key={page}
                     onClick={() => setCurrentPage(page)}
                     style={{
-                      minWidth: '2.5rem',
-                      padding: '0.5rem',
+                      minWidth: isSmallDesktop ? '2rem' : '2.5rem',
+                      padding: isSmallDesktop ? '0.375rem' : '0.5rem',
                       backgroundColor: page === currentPage ? '#667eea' : 'white',
                       color: page === currentPage ? 'white' : '#374151',
                       border: `1px solid ${page === currentPage ? '#667eea' : '#e2e8f0'}`,
                       borderRadius: '8px',
                       fontWeight: page === currentPage ? 600 : 500,
                       cursor: 'pointer',
-                      fontSize: '0.875rem',
+                      fontSize: buttonFontSize,
                       transition: 'all 0.2s'
                     }}
                     onMouseEnter={(e) => {
@@ -478,14 +497,14 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages}
               style={{
-                padding: '0.5rem 1rem',
+                padding: buttonPadding,
                 backgroundColor: currentPage === totalPages ? '#e2e8f0' : '#667eea',
                 color: currentPage === totalPages ? '#94a3b8' : 'white',
                 border: 'none',
                 borderRadius: '8px',
                 fontWeight: 500,
                 cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                fontSize: '0.875rem',
+                fontSize: buttonFontSize,
                 transition: 'all 0.2s'
               }}
               onMouseEnter={(e) => {

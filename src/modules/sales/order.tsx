@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 import { useWebSocket } from '../../context/WebSocketContext';
 import type { Table } from '../../types/table';
 import { CREATE_OPERATION, ADD_ITEMS_TO_OPERATION, UPDATE_TABLE_STATUS } from '../../graphql/mutations';
@@ -26,8 +27,13 @@ type OrderItem = {
 
 const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const { companyData, user, deviceId, getDeviceId, getMacAddress, updateTableInContext } = useAuth();
+	const { breakpoint } = useResponsive();
 	const { sendMessage } = useWebSocket();
 	const isExistingOrder = Boolean(table?.currentOperationId);
+	
+	// Adaptar según tamaño de pantalla de PC
+	const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+	const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
 	
 	// Función para verificar si el usuario puede acceder a esta mesa
 	const canAccessTable = (): { canAccess: boolean; reason?: string } => {
@@ -916,8 +922,11 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 
 						{/* Grid de productos */}
 						<div style={{
-							display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem',
-							overflowY: 'auto', maxHeight: '100%'
+							display: 'grid', 
+							gridTemplateColumns: `repeat(auto-fill, minmax(${isSmallDesktop ? '140px' : isMediumDesktop ? '150px' : '160px'}, 1fr))`, 
+							gap: isSmallDesktop ? '0.625rem' : '0.75rem',
+							overflowY: 'auto', 
+							maxHeight: '100%'
 						}}>
 							{productsLoading ? (
 								<div style={{

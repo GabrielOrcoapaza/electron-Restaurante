@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 import { SEND_BROADCAST_MESSAGE } from '../../graphql/mutations';
 
 type MessageProps = {
@@ -19,6 +20,16 @@ const RECIPIENT_OPTIONS = [
 
 const Message: React.FC<MessageProps> = ({ onBack, onSuccess }) => {
   const { companyData, user } = useAuth();
+  const { breakpoint } = useResponsive();
+  
+  // Adaptar según tamaño de pantalla de PC
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  
+  // Tamaños adaptativos
+  const containerPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
+  const containerGap = isSmallDesktop ? '1.5rem' : '2rem';
+  const buttonPadding = isSmallDesktop ? '0.625rem 1.25rem' : '0.75rem 1.5rem';
+  const buttonFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
   const [messageText, setMessageText] = useState<string>('');
   const [selectedRecipient, setSelectedRecipient] = useState<string>('ALL');
   const [isSending, setIsSending] = useState<boolean>(false);
@@ -82,9 +93,9 @@ const Message: React.FC<MessageProps> = ({ onBack, onSuccess }) => {
         minHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
-        gap: '2rem',
+        gap: containerGap,
         background: 'linear-gradient(160deg, #f0f4ff 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: '1.5rem',
+        padding: containerPadding,
         borderRadius: '18px',
         boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
         position: 'relative',
@@ -125,13 +136,15 @@ const Message: React.FC<MessageProps> = ({ onBack, onSuccess }) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            marginBottom: '2rem',
+            marginBottom: isSmallDesktop ? '1.5rem' : '2rem',
+            flexWrap: isSmallDesktop ? 'wrap' : 'nowrap',
+            gap: isSmallDesktop ? '1rem' : '0'
           }}
         >
           <div>
             <h2
               style={{
-                fontSize: '1.75rem',
+                fontSize: isSmallDesktop ? '1.5rem' : '1.75rem',
                 fontWeight: 700,
                 color: '#1e293b',
                 margin: 0,
@@ -142,7 +155,7 @@ const Message: React.FC<MessageProps> = ({ onBack, onSuccess }) => {
             </h2>
             <p
               style={{
-                fontSize: '0.95rem',
+                fontSize: isSmallDesktop ? '0.875rem' : '0.95rem',
                 color: '#64748b',
                 margin: 0,
               }}
@@ -154,12 +167,12 @@ const Message: React.FC<MessageProps> = ({ onBack, onSuccess }) => {
             <button
               onClick={onBack}
               style={{
-                padding: '0.75rem 1.5rem',
+                padding: buttonPadding,
                 background: '#f1f5f9',
                 border: 'none',
                 borderRadius: '10px',
                 color: '#475569',
-                fontSize: '0.95rem',
+                fontSize: buttonFontSize,
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'all 0.2s',
@@ -182,11 +195,11 @@ const Message: React.FC<MessageProps> = ({ onBack, onSuccess }) => {
             style={{
               background: '#ffffff',
               borderRadius: '16px',
-              padding: '2rem',
+              padding: isSmallDesktop ? '1.5rem' : '2rem',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
               display: 'flex',
               flexDirection: 'column',
-              gap: '1.5rem',
+              gap: isSmallDesktop ? '1.25rem' : '1.5rem',
             }}
           >
             {/* Selector de destinatarios */}

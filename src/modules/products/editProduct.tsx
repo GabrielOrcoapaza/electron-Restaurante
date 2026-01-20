@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@apollo/client';
 import { UPDATE_PRODUCT } from '../../graphql/mutations';
 import { GET_CATEGORIES_BY_BRANCH } from '../../graphql/queries';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 
 interface Product {
   id: string;
@@ -47,7 +48,20 @@ interface Category {
 
 const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }) => {
   const { companyData } = useAuth();
+  const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
+
+  // Adaptar según tamaño de pantalla de PC
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  
+  // Tamaños adaptativos
+  const modalPadding = isSmallDesktop ? '1.5rem' : '2rem';
+  const modalMaxWidth = isSmallDesktop ? '600px' : '700px';
+  const inputFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const inputPadding = isSmallDesktop ? '0.5625rem 0.75rem' : '0.625rem 0.875rem';
+  const buttonPadding = isSmallDesktop ? '0.625rem 1.25rem' : '0.75rem 1.5rem';
+  const buttonFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const gapSize = isSmallDesktop ? '0.875rem' : '1rem';
 
   const [formData, setFormData] = useState({
     categoryId: '',
@@ -161,8 +175,8 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
         style={{
           backgroundColor: 'white',
           borderRadius: '20px',
-          padding: '2rem',
-          maxWidth: '700px',
+          padding: modalPadding,
+          maxWidth: modalMaxWidth,
           width: '100%',
           maxHeight: '90vh',
           overflowY: 'auto',
@@ -221,9 +235,9 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
         )}
 
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: gapSize }}>
             {/* Categoría y Subcategoría */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: gapSize }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
                   Categoría
@@ -234,10 +248,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                   onChange={handleChange}
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box',
                     backgroundColor: 'white'
                   }}
@@ -264,10 +278,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                   disabled={!formData.categoryId}
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box',
                     backgroundColor: formData.categoryId ? 'white' : '#f1f5f9'
                   }}
@@ -309,7 +323,7 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
             </div>
 
             {/* Código y Nombre */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: gapSize }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
                   Código *
@@ -323,10 +337,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                   placeholder="PROD001"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
@@ -345,10 +359,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                   placeholder="Nombre del producto"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
@@ -395,10 +409,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                   placeholder="0.00"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
@@ -418,10 +432,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                   placeholder="0.00"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
@@ -429,7 +443,7 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
             </div>
 
             {/* Unidad de Medida y Tiempo de preparación */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: gapSize }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
                   Unidad de Medida
@@ -440,10 +454,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                   onChange={handleChange}
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box',
                     backgroundColor: 'white'
                   }}
@@ -468,10 +482,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                   placeholder="0"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
@@ -479,7 +493,7 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
             </div>
 
             {/* Stock */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: gapSize }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
                   Stock Mínimo
@@ -494,10 +508,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                   placeholder="0"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
@@ -517,10 +531,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                   placeholder="0"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
@@ -540,10 +554,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                   placeholder="0"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
@@ -606,14 +620,14 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                 type="button"
                 onClick={onClose}
                 style={{
-                  padding: '0.75rem 1.5rem',
+                  padding: buttonPadding,
                   background: '#f1f5f9',
                   color: '#475569',
                   border: 'none',
                   borderRadius: '10px',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  fontSize: '0.875rem'
+                  fontSize: buttonFontSize
                 }}
               >
                 Cancelar

@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@apollo/client';
 import { GET_RECIPES_BY_PRODUCT, GET_PRODUCTS_WITH_STOCK } from '../../graphql/queries';
 import { ADD_RECIPE, REMOVE_RECIPE } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 
 interface Recipe {
   id: string;
@@ -37,7 +38,23 @@ interface RecipeModalProps {
 
 const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClose }) => {
   const { companyData } = useAuth();
+  const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
+
+  // Adaptar según tamaño de pantalla de PC
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  
+  // Tamaños adaptativos
+  const modalPadding = isSmallDesktop ? '1.5rem' : '2rem';
+  const modalMaxWidth = isSmallDesktop ? '550px' : '600px';
+  const labelFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const inputFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const inputPadding = isSmallDesktop ? '0.5625rem 0.75rem' : '0.625rem 0.875rem';
+  const buttonPadding = isSmallDesktop ? '0.625rem 1.25rem' : '0.625rem 1.25rem';
+  const buttonFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const tableFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const tableCellPadding = isSmallDesktop ? '0.625rem' : '0.75rem';
+  const gapSize = isSmallDesktop ? '0.875rem' : '1rem';
   
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -169,8 +186,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
         style={{
           backgroundColor: 'white',
           borderRadius: '20px',
-          padding: '2rem',
-          maxWidth: '600px',
+          padding: modalPadding,
+          maxWidth: modalMaxWidth,
           width: '100%',
           maxHeight: '90vh',
           overflowY: 'auto',
@@ -240,14 +257,14 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
             <button
               onClick={() => setShowAddForm(true)}
               style={{
-                padding: '0.75rem 1.5rem',
+                padding: buttonPadding,
                 background: 'linear-gradient(135deg, #10b981, #059669)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '8px',
                 fontWeight: 500,
                 cursor: 'pointer',
-                fontSize: '0.875rem',
+                fontSize: buttonFontSize,
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
@@ -265,12 +282,12 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
         {showAddForm && (
           <div style={{ 
             marginBottom: '1.5rem', 
-            padding: '1.5rem', 
+            padding: modalPadding, 
             backgroundColor: '#f8fafc', 
             borderRadius: '12px',
             border: '1px solid #e2e8f0'
           }}>
-            <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600, color: '#334155' }}>
+            <h3 style={{ margin: '0 0 1rem', fontSize: isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#334155' }}>
               Agregar Nuevo Ingrediente
             </h3>
             <form onSubmit={handleAddIngredient}>
@@ -278,7 +295,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                 <label style={{ 
                   display: 'block', 
                   marginBottom: '0.5rem', 
-                  fontSize: '0.875rem', 
+                  fontSize: labelFontSize, 
                   fontWeight: 500, 
                   color: '#475569' 
                 }}>
@@ -290,10 +307,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                   required
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box',
                     backgroundColor: 'white'
                   }}
@@ -312,12 +329,12 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                 )}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: gapSize, marginBottom: '1rem' }}>
                 <div>
                   <label style={{ 
                     display: 'block', 
                     marginBottom: '0.5rem', 
-                    fontSize: '0.875rem', 
+                    fontSize: labelFontSize, 
                     fontWeight: 500, 
                     color: '#475569' 
                   }}>
@@ -333,10 +350,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                     placeholder="0.00"
                     style={{
                       width: '100%',
-                      padding: '0.625rem 0.875rem',
+                      padding: inputPadding,
                       border: '1px solid #e2e8f0',
                       borderRadius: '8px',
-                      fontSize: '0.875rem',
+                      fontSize: inputFontSize,
                       boxSizing: 'border-box'
                     }}
                   />
@@ -345,7 +362,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                   <label style={{ 
                     display: 'block', 
                     marginBottom: '0.5rem', 
-                    fontSize: '0.875rem', 
+                    fontSize: labelFontSize, 
                     fontWeight: 500, 
                     color: '#475569' 
                   }}>
@@ -357,10 +374,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                     required
                     style={{
                       width: '100%',
-                      padding: '0.625rem 0.875rem',
+                      padding: inputPadding,
                       border: '1px solid #e2e8f0',
                       borderRadius: '8px',
-                      fontSize: '0.875rem',
+                      fontSize: inputFontSize,
                       boxSizing: 'border-box',
                       backgroundColor: 'white'
                     }}
@@ -380,7 +397,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                 <label style={{ 
                   display: 'block', 
                   marginBottom: '0.5rem', 
-                  fontSize: '0.875rem', 
+                  fontSize: labelFontSize, 
                   fontWeight: 500, 
                   color: '#475569' 
                 }}>
@@ -393,10 +410,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                   rows={2}
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box',
                     resize: 'vertical',
                     fontFamily: 'inherit'
@@ -413,14 +430,14 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                     setMessage(null);
                   }}
                   style={{
-                    padding: '0.625rem 1.25rem',
+                    padding: buttonPadding,
                     background: '#64748b',
                     color: 'white',
                     border: 'none',
                     borderRadius: '8px',
                     fontWeight: 500,
                     cursor: 'pointer',
-                    fontSize: '0.875rem',
+                    fontSize: buttonFontSize,
                     transition: 'all 0.2s'
                   }}
                 >
@@ -430,14 +447,14 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                   type="submit"
                   disabled={addingRecipe || filteredIngredients.length === 0}
                   style={{
-                    padding: '0.625rem 1.25rem',
+                    padding: buttonPadding,
                     background: addingRecipe || filteredIngredients.length === 0 ? '#94a3b8' : 'linear-gradient(135deg, #10b981, #059669)',
                     color: 'white',
                     border: 'none',
                     borderRadius: '8px',
                     fontWeight: 500,
                     cursor: addingRecipe || filteredIngredients.length === 0 ? 'not-allowed' : 'pointer',
-                    fontSize: '0.875rem',
+                    fontSize: buttonFontSize,
                     transition: 'all 0.2s'
                   }}
                 >
@@ -493,39 +510,43 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
               <table style={{ 
                 width: '100%', 
                 borderCollapse: 'collapse',
-                fontSize: '0.875rem'
+                fontSize: tableFontSize
               }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
                     <th style={{ 
-                      padding: '0.75rem', 
+                      padding: tableCellPadding, 
                       textAlign: 'left', 
                       color: '#64748b', 
-                      fontWeight: 600 
+                      fontWeight: 600,
+                      fontSize: tableFontSize
                     }}>
                       Ingrediente
                     </th>
                     <th style={{ 
-                      padding: '0.75rem', 
+                      padding: tableCellPadding, 
                       textAlign: 'right', 
                       color: '#64748b', 
-                      fontWeight: 600 
+                      fontWeight: 600,
+                      fontSize: tableFontSize
                     }}>
                       Cantidad
                     </th>
                     <th style={{ 
-                      padding: '0.75rem', 
+                      padding: tableCellPadding, 
                       textAlign: 'left', 
                       color: '#64748b', 
-                      fontWeight: 600 
+                      fontWeight: 600,
+                      fontSize: tableFontSize
                     }}>
                       Notas
                     </th>
                     <th style={{ 
-                      padding: '0.75rem', 
+                      padding: tableCellPadding, 
                       textAlign: 'center', 
                       color: '#64748b', 
-                      fontWeight: 600 
+                      fontWeight: 600,
+                      fontSize: tableFontSize
                     }}>
                       Acciones
                     </th>
@@ -540,14 +561,15 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                       }}
                     >
                       <td style={{ 
-                        padding: '0.75rem', 
+                        padding: tableCellPadding, 
                         color: '#334155', 
-                        fontWeight: 500 
+                        fontWeight: 500,
+                        fontSize: tableFontSize
                       }}>
                         {recipe.ingredient.name}
                         <span style={{ 
                           color: '#94a3b8', 
-                          fontSize: '0.75rem',
+                          fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem',
                           marginLeft: '0.5rem',
                           fontFamily: 'monospace'
                         }}>
@@ -555,37 +577,38 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                         </span>
                       </td>
                       <td style={{ 
-                        padding: '0.75rem', 
+                        padding: tableCellPadding, 
                         textAlign: 'right', 
                         color: '#334155',
-                        fontWeight: 600
+                        fontWeight: 600,
+                        fontSize: tableFontSize
                       }}>
                         {recipe.quantity} {recipe.unitMeasure || recipe.ingredient.unitMeasure || 'und'}
                       </td>
                       <td style={{ 
-                        padding: '0.75rem', 
+                        padding: tableCellPadding, 
                         color: '#64748b',
-                        fontSize: '0.8rem',
+                        fontSize: isSmallDesktop ? '0.75rem' : '0.8rem',
                         fontStyle: recipe.notes ? 'normal' : 'italic'
                       }}>
                         {recipe.notes || '-'}
                       </td>
                       <td style={{ 
-                        padding: '0.75rem', 
+                        padding: tableCellPadding, 
                         textAlign: 'center'
                       }}>
                         <button
                           onClick={() => handleRemoveIngredient(recipe.id)}
                           disabled={removingRecipe}
                           style={{
-                            padding: '0.5rem 1rem',
+                            padding: buttonPadding,
                             background: removingRecipe ? '#94a3b8' : '#ef4444',
                             color: 'white',
                             border: 'none',
                             borderRadius: '6px',
                             fontWeight: 500,
                             cursor: removingRecipe ? 'not-allowed' : 'pointer',
-                            fontSize: '0.75rem',
+                            fontSize: buttonFontSize,
                             transition: 'all 0.2s'
                           }}
                           onMouseEnter={(e) => {
@@ -633,14 +656,14 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
           <button
             onClick={onClose}
             style={{
-              padding: '0.75rem 1.5rem',
+              padding: buttonPadding,
               background: '#64748b',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
               fontWeight: 500,
               cursor: 'pointer',
-              fontSize: '0.875rem',
+              fontSize: buttonFontSize,
               transition: 'all 0.2s'
             }}
             onMouseEnter={(e) => e.currentTarget.style.background = '#475569'}
