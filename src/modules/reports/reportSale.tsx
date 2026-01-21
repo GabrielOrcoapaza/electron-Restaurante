@@ -92,12 +92,6 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
   minimumFractionDigits: 2
 });
 
-const dateFormatter = new Intl.DateTimeFormat('es-PE', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit'
-});
-
 const ReportSale: React.FC = () => {
   const { companyData } = useAuth();
   const { breakpoint } = useResponsive();
@@ -151,19 +145,6 @@ const ReportSale: React.FC = () => {
   const reportData: SalesReportData | null = data?.salesReport || null;
   const summary: SalesReportSummary | null = reportData?.summary || null;
   const salesDocuments: IssuedDocument[] = reportData?.documents || [];
-
-  // Función para obtener el nombre del método de pago
-  const getPaymentMethodName = (method: string) => {
-    const methods: { [key: string]: string } = {
-      'CASH': 'Efectivo',
-      'YAPE': 'Yape',
-      'PLIN': 'Plin',
-      'CARD': 'Tarjeta',
-      'TRANSFER': 'Transferencia',
-      'OTROS': 'Otros'
-    };
-    return methods[method] || method;
-  };
 
   // Función para manejar búsqueda
   const handleSearch = () => {
@@ -564,7 +545,6 @@ const ReportSale: React.FC = () => {
             loading={loading}
             error={error}
             isSmallDesktop={isSmallDesktop}
-            onRefetch={refetch}
           />
         )}
 
