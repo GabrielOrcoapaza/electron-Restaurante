@@ -907,3 +907,96 @@ export const CREATE_PERSON = gql`
     }
   }
 `;
+
+// Mutación para crear subcategoría
+export const CREATE_SUBCATEGORY = gql`
+  mutation CreateSubcategory(
+    $categoryId: ID!
+    $name: String!
+    $description: String
+    $order: Int
+    $isActive: Boolean
+  ) {
+    createSubcategory(
+      categoryId: $categoryId
+      name: $name
+      description: $description
+      order: $order
+      isActive: $isActive
+    ) {
+      success
+      message
+      subcategory {
+        id
+        name
+        description
+        order
+        isActive
+        category {
+          id
+          name
+        }
+      }
+    }
+  }
+`;
+
+// Mutación para crear modificador (observación)
+export const CREATE_MODIFIER = gql`
+  mutation CreateModifier(
+    $subcategoryId: ID!
+    $note: String!
+    $isActive: Boolean
+  ) {
+    createModifier(
+      subcategoryId: $subcategoryId
+      note: $note
+      isActive: $isActive
+    ) {
+      success
+      message
+      modifier {
+        id
+        note
+        isActive
+        subcategory {
+          id
+          name
+          category {
+            id
+            name
+          }
+        }
+      }
+    }
+  }
+`;
+
+// Mutación para cancelar documento emitido (boleta/factura)
+export const CANCEL_ISSUED_DOCUMENT = gql`
+  mutation CancelIssuedDocument(
+    $issuedDocumentId: ID!
+    $userId: ID!
+    $cancellationReason: String!
+    $cancellationDescription: String
+  ) {
+    cancelIssuedDocument(
+      issuedDocumentId: $issuedDocumentId
+      userId: $userId
+      cancellationReason: $cancellationReason
+      cancellationDescription: $cancellationDescription
+    ) {
+      success
+      message
+      issuedDocument {
+        id
+        serial
+        number
+        billingStatus
+        cancellationReason
+        cancellationDescription
+        cancellationDate
+      }
+    }
+  }
+`;

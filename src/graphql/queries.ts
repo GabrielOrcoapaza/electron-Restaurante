@@ -542,3 +542,135 @@ export const GET_PURCHASE_OPERATION = gql`
   }
 `;
 
+// Query para obtener reporte de ventas (documentos emitidos)
+export const GET_SALES_REPORT = gql`
+  query GetSalesReport(
+    $branchId: ID!
+    $startDate: Date!
+    $endDate: Date!
+    $documentId: ID
+  ) {
+    salesReport(
+      branchId: $branchId
+      startDate: $startDate
+      endDate: $endDate
+      documentId: $documentId
+    ) {
+      documents {
+        id
+        serial
+        number
+        emissionDate
+        emissionTime
+        totalAmount
+        totalDiscount
+        billingStatus
+        igvAmount
+        notes
+        document {
+          id
+          code
+          description
+        }
+        person {
+          id
+          name
+          documentNumber
+          documentType
+        }
+        operation {
+          id
+          order
+          status
+        }
+        items {
+          id
+          quantity
+          unitValue
+          unitPrice
+          discount
+          subtotal
+          total
+          operationDetail {
+            id
+            notes
+            product {
+              id
+              code
+              name
+            }
+          }
+        }
+        payments {
+          id
+          paymentMethod
+          paidAmount
+          paymentDate
+          status
+        }
+        user {
+          id
+          fullName
+        }
+        branch {
+          id
+          name
+        }
+      }
+      summary {
+        totalDocuments
+        totalAmount
+        totalCash
+        totalYape
+        totalPlin
+        totalCard
+        totalTransfer
+        totalOthers
+      }
+    }
+  }
+`;
+
+// Query para obtener subcategorías con sus modificadores
+export const GET_SUBCATEGORIES_WITH_MODIFIERS = gql`
+  query GetSubcategoriesWithModifiers($branchId: ID!) {
+    categoriesByBranch(branchId: $branchId) {
+      id
+      name
+      subcategories {
+        id
+        name
+        description
+        order
+        isActive
+        notes {
+          id
+          note
+          isActive
+        }
+      }
+    }
+  }
+`;
+
+// Query para obtener modificadores de una subcategoría
+export const GET_MODIFIERS_BY_SUBCATEGORY = gql`
+  query GetModifiersBySubcategory($subcategoryId: ID!) {
+    modifiersBySubcategory(subcategoryId: $subcategoryId) {
+      id
+      note
+      isActive
+      createdAt
+      updatedAt
+      subcategory {
+        id
+        name
+        category {
+          id
+          name
+        }
+      }
+    }
+  }
+`;
+
