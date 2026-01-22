@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@apollo/client';
 import { COMPANY_LOGIN } from '../graphql/mutations';
@@ -6,12 +6,27 @@ import { useAuth } from '../hooks/useAuth';
 
 const LoginCompany: React.FC = () => {
   const navigate = useNavigate();
-  const { loginCompany } = useAuth();
+  const { loginCompany, getMacAddress } = useAuth();
   const [formData, setFormData] = useState({
     ruc: '',
     email: '',
     password: ''
   });
+  const [macAddress, setMacAddress] = useState<string>('Cargando...');
+
+  // Obtener la MAC address al cargar el componente
+  useEffect(() => {
+    const fetchMacAddress = async () => {
+      try {
+        const mac = await getMacAddress();
+        setMacAddress(mac);
+      } catch (error) {
+        console.error('Error al obtener MAC address:', error);
+        setMacAddress('No disponible');
+      }
+    };
+    fetchMacAddress();
+  }, [getMacAddress]);
 
   const [companyLoginMutation, { loading }] = useMutation(COMPANY_LOGIN);
 
@@ -374,6 +389,27 @@ const LoginCompany: React.FC = () => {
               }}>
                 Ingresa los datos de tu empresa
               </p>
+              <div style={{
+                marginTop: '1rem',
+                padding: '0.75rem 1rem',
+                backgroundColor: '#f7fafc',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem'
+              }}>
+                <span style={{ fontSize: 'clamp(14px, 2.5vw, 16px)' }}>🖥️</span>
+                <span style={{ 
+                  color: '#4a5568', 
+                  fontSize: 'clamp(12px, 2vw, 14px)',
+                  fontWeight: '600',
+                  fontFamily: 'monospace'
+                }}>
+                  MAC: {macAddress}
+                </span>
+              </div>
             </div>
         
             <form onSubmit={handleSubmit}>

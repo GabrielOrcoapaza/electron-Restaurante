@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, session } from 'electron';
 import * as path from 'path';
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
@@ -32,15 +32,43 @@ function createWindow() {
     });
   } else {
     // En producción: cargar desde archivos estáticos
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    // Limpiar caché antes de cargar para asegurar que se carguen los últimos cambios
+    mainWindow.webContents.session.clearCache().then(() => {
+      mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    });
   }
 }
 
 app.whenReady().then(() => {
+  // Desactivar caché en producción para asegurar que se carguen los últimos cambios
+  if (!isDev) {
+    // Limpiar caché y almacenamiento al iniciar
+    session.defaultSession.clearCache();
+    session.defaultSession.clearStorageData();
+    
+    // Interceptar solicitudes para desactivar caché (solo una vez al iniciar)
+    session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+      callback({
+        requestHeaders: {
+          ...details.requestHeaders,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+    });
+  }
+  
   createWindow();
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      // Limpiar caché también al reactivar
+      if (!isDev) {
+        session.defaultSession.clearCache();
+      }
+      createWindow();
+    }
   });
 });
 

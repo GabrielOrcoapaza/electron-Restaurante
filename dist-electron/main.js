@@ -64,14 +64,39 @@ function createWindow() {
     }
     else {
         // En producción: cargar desde archivos estáticos
-        mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+        // Limpiar caché antes de cargar para asegurar que se carguen los últimos cambios
+        mainWindow.webContents.session.clearCache().then(() => {
+            mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+        });
     }
 }
 electron_1.app.whenReady().then(() => {
+    // Desactivar caché en producción para asegurar que se carguen los últimos cambios
+    if (!isDev) {
+        // Limpiar caché y almacenamiento al iniciar
+        electron_1.session.defaultSession.clearCache();
+        electron_1.session.defaultSession.clearStorageData();
+        // Interceptar solicitudes para desactivar caché (solo una vez al iniciar)
+        electron_1.session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+            callback({
+                requestHeaders: {
+                    ...details.requestHeaders,
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            });
+        });
+    }
     createWindow();
     electron_1.app.on('activate', () => {
-        if (electron_1.BrowserWindow.getAllWindows().length === 0)
+        if (electron_1.BrowserWindow.getAllWindows().length === 0) {
+            // Limpiar caché también al reactivar
+            if (!isDev) {
+                electron_1.session.defaultSession.clearCache();
+            }
             createWindow();
+        }
     });
 });
 electron_1.app.on('window-all-closed', () => {

@@ -14,6 +14,7 @@ import Inventories from '../modules/inventories/Inventories';
 import Kardex from '../modules/inventories/kardex';
 import Purchase from '../modules/purchase/Purchase';
 import ReportSale from '../modules/reports/reportSale';
+import Observation from '../modules/configuration/observation';
 import { GET_MY_UNREAD_MESSAGES } from '../graphql/queries';
 import { MARK_MESSAGE_READ } from '../graphql/mutations';
 import type { Table } from '../types/table';
@@ -80,7 +81,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const headerPadding = isSmallDesktop ? '1rem 1.5rem' : isMediumDesktop ? '1rem 1.75rem' : '1rem 2rem';
   const headerFontSize = isSmallDesktop ? '1.375rem' : '1.5rem';
   const headerSubFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration'>('dashboard');
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
@@ -285,7 +286,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     setSidebarOpen(!sidebarOpen);
   };
 
-  const handleMenuClick = (view: 'dashboard' | 'floors' | 'messages' | 'employees' | 'cashs' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports') => {
+  const handleMenuClick = (view: 'dashboard' | 'floors' | 'messages' | 'employees' | 'cashs' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration') => {
     setCurrentView(view);
     setSelectedCashTable(null);
   };
@@ -321,6 +322,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       ? 'Compras'
       : currentView === 'reports'
       ? 'Reportes'
+      : currentView === 'configuration'
+      ? 'Configuración'
       : 'Caja';
 
   const headerSubtitle =
@@ -344,6 +347,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       ? 'Gestiona las compras a proveedores y controla el stock.'
       : currentView === 'reports'
       ? 'Visualiza reportes de ventas y documentos emitidos.'
+      : currentView === 'configuration'
+      ? 'Configura las observaciones y modificadores de tus productos.'
       : selectedCashTable
       ? `Procesa el pago de ${selectedCashTable.name}.`
       : 'Selecciona una mesa para revisar su orden.';
@@ -617,14 +622,15 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
             </button>
                             
             <button
+              onClick={() => handleMenuClick('configuration')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.75rem',
                 padding: '0.75rem 1.5rem',
-                background: 'transparent',
+                background: currentView === 'configuration' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
                 border: 'none',
-                color: '#a0aec0',
+                color: currentView === 'configuration' ? '#667eea' : '#a0aec0',
                 cursor: 'pointer',
                 fontSize: '0.875rem',
                 fontWeight: '500',
@@ -633,16 +639,20 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                 width: '100%'
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                e.currentTarget.style.color = 'white';
+                if (currentView !== 'configuration') {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.color = 'white';
+                }
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#a0aec0';
+                if (currentView !== 'configuration') {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#a0aec0';
+                }
               }}
             >
-              <span style={{ fontSize: '1.25rem' }}>📈</span>
-              {sidebarOpen && 'Configuracion'}
+              <span style={{ fontSize: '1.25rem' }}>⚙️</span>
+              {sidebarOpen && 'Configuración'}
             </button>
 
             <button
@@ -1296,6 +1306,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
           {currentView === 'kardex' && <Kardex />}
           {currentView === 'purchase' && <Purchase />}
           {currentView === 'reports' && <ReportSale />}
+          {currentView === 'configuration' && <Observation />}
         </main>
       </div>
     </div>
