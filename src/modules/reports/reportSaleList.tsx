@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useMutation } from '@apollo/client';
 import { CANCEL_ISSUED_DOCUMENT } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 
 interface IssuedDocument {
   id: string;
@@ -87,10 +88,17 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   documents, 
   loading, 
   error,
-  isSmallDesktop,
+  isSmallDesktop: propIsSmallDesktop,
   onRefetch
 }) => {
   const { user } = useAuth();
+  const { breakpoint } = useResponsive();
+  
+  // Usar el breakpoint del hook si no se pasa como prop, o usar el prop
+  const isSmallDesktop = propIsSmallDesktop !== undefined 
+    ? propIsSmallDesktop 
+    : breakpoint === 'lg';
+  const isMediumDesktop = breakpoint === 'xl';
   const [expandedDocument, setExpandedDocument] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -150,11 +158,11 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   });
 
   // Tamaños adaptativos
-  const cardPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
-  const tableFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const tableCellPadding = isSmallDesktop ? '0.625rem' : '0.75rem';
-  const badgeFontSize = isSmallDesktop ? '0.6875rem' : '0.75rem';
-  const inputFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const cardPadding = isSmallDesktop ? '1rem' : isMediumDesktop ? '1.25rem' : '1.5rem';
+  const tableFontSize = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
+  const tableCellPadding = isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem';
+  const badgeFontSize = isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.6875rem' : '0.75rem';
+  const inputFontSize = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
 
   // Función para obtener el nombre del método de pago
   const getPaymentMethodName = (method: string) => {
@@ -454,9 +462,9 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                   </div>
                 </div>
 
-                <div style={{ textAlign: 'right' }}>
+                <div style={{ textAlign: 'right', minWidth: isSmallDesktop ? '120px' : '150px' }}>
                   <div style={{
-                    fontSize: isSmallDesktop ? '1.125rem' : '1.25rem',
+                    fontSize: isSmallDesktop ? '1rem' : isMediumDesktop ? '1.125rem' : '1.25rem',
                     fontWeight: 700,
                     color: '#1e293b',
                     marginBottom: '0.5rem'
@@ -758,8 +766,10 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
               backgroundColor: 'white',
               borderRadius: '16px',
               padding: cardPadding,
-              maxWidth: isSmallDesktop ? '500px' : '600px',
+              maxWidth: isSmallDesktop ? '90%' : isMediumDesktop ? '550px' : '600px',
               width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
               border: '1px solid #e2e8f0'
             }}
@@ -775,7 +785,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
               </div>
               <h3 style={{
                 margin: '0 0 0.5rem',
-                fontSize: isSmallDesktop ? '1.25rem' : '1.5rem',
+                fontSize: isSmallDesktop ? '1.125rem' : isMediumDesktop ? '1.25rem' : '1.5rem',
                 fontWeight: 700,
                 color: '#1e293b',
                 textAlign: 'center'

@@ -63,14 +63,24 @@ const Inventories: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
   
-  // Adaptar según tamaño de pantalla de PC
+  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  const isSmall = breakpoint === 'sm'; // 640px - 767px
+  const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
   
   // Tamaños adaptativos
-  const containerPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
-  const containerGap = isSmallDesktop ? '1.5rem' : '2rem';
-  const titleFontSize = isSmallDesktop ? '1.375rem' : '1.5rem';
-  const subtitleFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const containerPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const containerGap = isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2rem';
+  const titleFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const subtitleFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const labelFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : isMediumDesktop ? '0.625rem 0.875rem' : '0.625rem 0.875rem';
+  const tableFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const tableCellPadding = isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
+  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const badgeFontSize = isSmall ? '0.625rem' : isMedium ? '0.6875rem' : isSmallDesktop ? '0.6875rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
 
   const { data: productsData, loading: productsLoading, error: productsError } = useQuery(
     GET_PRODUCTS_WITH_STOCK,
@@ -155,6 +165,8 @@ const Inventories: React.FC = () => {
     <div
       style={{
         minHeight: '100%',
+        width: '100%',
+        maxWidth: '100%',
         display: 'flex',
         flexDirection: 'column',
         gap: containerGap,
@@ -164,6 +176,7 @@ const Inventories: React.FC = () => {
         boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
         position: 'relative',
         overflow: 'hidden',
+        boxSizing: 'border-box',
       }}
     >
       {/* Elementos decorativos de fondo */}
@@ -198,10 +211,11 @@ const Inventories: React.FC = () => {
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: isSmallDesktop ? '1.5rem' : '2rem',
-          flexWrap: isSmallDesktop ? 'wrap' : 'nowrap',
-          gap: isSmallDesktop ? '1rem' : '0'
+          alignItems: isSmall ? 'flex-start' : 'center',
+          flexDirection: isSmall ? 'column' : 'row',
+          marginBottom: isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : '2rem',
+          flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap',
+          gap: isSmall || isMedium ? '1rem' : '0'
         }}>
           <div>
             <h2 style={{ 
@@ -222,20 +236,20 @@ const Inventories: React.FC = () => {
         <div style={{
           backgroundColor: 'white',
           borderRadius: '12px',
-          padding: isSmallDesktop ? '1.25rem' : '1.5rem',
-          marginBottom: isSmallDesktop ? '1.25rem' : '1.5rem',
+          padding: cardPadding,
+          marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : '1.5rem',
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
           border: '1px solid #e2e8f0',
           display: 'grid',
-          gridTemplateColumns: isSmallDesktop ? '1fr' : '1fr 1fr',
-          gap: isSmallDesktop ? '0.875rem' : '1rem'
+          gridTemplateColumns: isSmall ? '1fr' : '1fr 1fr',
+          gap: isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '0.875rem' : '1rem'
         }}>
           <div>
             <label style={{ 
               display: 'block', 
               marginBottom: '0.5rem', 
               fontWeight: 500, 
-              fontSize: '0.875rem', 
+              fontSize: labelFontSize, 
               color: '#475569' 
             }}>
               Filtrar por categoría:
@@ -245,10 +259,10 @@ const Inventories: React.FC = () => {
               onChange={(e) => setSelectedCategory(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.625rem 0.875rem',
+                padding: inputPadding,
                 border: '1px solid #e2e8f0',
                 borderRadius: '8px',
-                fontSize: '0.875rem',
+                fontSize: inputFontSize,
                 boxSizing: 'border-box',
                 backgroundColor: 'white'
               }}
@@ -269,7 +283,7 @@ const Inventories: React.FC = () => {
               display: 'block', 
               marginBottom: '0.5rem', 
               fontWeight: 500, 
-              fontSize: '0.875rem', 
+              fontSize: labelFontSize, 
               color: '#475569' 
             }}>
               Buscar producto:
@@ -281,10 +295,10 @@ const Inventories: React.FC = () => {
               placeholder="Buscar por nombre, código o descripción..."
               style={{
                 width: '100%',
-                padding: '0.625rem 0.875rem',
+                padding: inputPadding,
                 border: '1px solid #e2e8f0',
                 borderRadius: '8px',
-                fontSize: '0.875rem',
+                fontSize: inputFontSize,
                 boxSizing: 'border-box'
               }}
             />
@@ -295,39 +309,50 @@ const Inventories: React.FC = () => {
         <div style={{
           backgroundColor: 'white',
           borderRadius: '16px',
-          padding: '1.5rem',
+          padding: cardPadding,
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
           border: '1px solid #e2e8f0'
         }}>
-          <h3 style={{ margin: '0 0 1rem', fontSize: '1.1rem', fontWeight: 600, color: '#334155' }}>
+          <h3 style={{ 
+            margin: '0 0 1rem', 
+            fontSize: isSmall ? '1rem' : isMedium ? '1.05rem' : isSmallDesktop ? '1.05rem' : '1.1rem', 
+            fontWeight: 600, 
+            color: '#334155' 
+          }}>
             📋 Inventario de Productos ({filteredProducts.length})
           </h3>
           
           {filteredProducts.length === 0 ? (
             <div style={{ 
               textAlign: 'center', 
-              padding: '3rem', 
+              padding: isSmall ? '2rem' : isMedium ? '2.5rem' : '3rem', 
               color: '#64748b' 
             }}>
-              <p style={{ fontSize: '1rem', margin: 0 }}>No hay productos en el inventario</p>
+              <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem', margin: 0 }}>No hay productos en el inventario</p>
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ 
+              overflowX: 'auto',
+              width: '100%',
+              maxWidth: '100%',
+              boxSizing: 'border-box'
+            }}>
               <table style={{ 
                 width: '100%', 
                 borderCollapse: 'collapse',
-                fontSize: '0.875rem'
+                fontSize: tableFontSize,
+                tableLayout: 'auto'
               }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Imagen</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Código</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Nombre</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Stock Actual</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Stock Mín.</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Stock Máx.</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Unidad</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Estado</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Imagen</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Código</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Nombre</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Stock Actual</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Stock Mín.</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Stock Máx.</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Unidad</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Estado</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -335,57 +360,60 @@ const Inventories: React.FC = () => {
                     const stockStatus = getStockStatus(product);
                     return (
                       <tr key={product.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '0.75rem' }}>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
                           {product.imageBase64 ? (
                             <img
                               src={`data:image/jpeg;base64,${product.imageBase64}`}
                               alt={product.name}
                               style={{
-                                width: '50px',
-                                height: '50px',
+                                width: isSmall ? '40px' : isMedium ? '45px' : '50px',
+                                height: isSmall ? '40px' : isMedium ? '45px' : '50px',
                                 objectFit: 'cover',
-                                borderRadius: '8px'
+                                borderRadius: '8px',
+                                margin: '0 auto',
+                                display: 'block'
                               }}
                             />
                           ) : (
                             <div style={{
-                              width: '50px',
-                              height: '50px',
+                              width: isSmall ? '40px' : isMedium ? '45px' : '50px',
+                              height: isSmall ? '40px' : isMedium ? '45px' : '50px',
                               backgroundColor: '#f1f5f9',
                               borderRadius: '8px',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               color: '#94a3b8',
-                              fontSize: '1.5rem'
+                              fontSize: isSmall ? '1.25rem' : isMedium ? '1.375rem' : '1.5rem',
+                              margin: '0 auto'
                             }}>
                               🖼️
                             </div>
                           )}
                         </td>
-                        <td style={{ padding: '0.75rem', color: '#334155', fontFamily: 'monospace' }}>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155', fontFamily: 'monospace', fontSize: tableFontSize }}>
                           {product.code}
                         </td>
-                        <td style={{ padding: '0.75rem', color: '#334155', fontWeight: 500 }}>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155', fontWeight: 500, fontSize: tableFontSize }}>
                           {product.name}
                         </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center', color: '#334155', fontWeight: 600 }}>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155', fontWeight: 600, fontSize: tableFontSize }}>
                           {formatNumber(product.currentStock)}
                         </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b' }}>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize }}>
                           {formatNumber(product.stockMin)}
                         </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b' }}>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize }}>
                           {formatNumber(product.stockMax)}
                         </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b' }}>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize }}>
                           {product.unitMeasure}
                         </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
                           <span style={{
-                            padding: '0.25rem 0.75rem',
+                            padding: isSmall ? '0.25rem 0.5rem' : isMedium ? '0.25rem 0.625rem' : '0.25rem 0.75rem',
                             borderRadius: '9999px',
-                            fontSize: '0.75rem',
+                            fontSize: badgeFontSize,
                             fontWeight: 600,
                             backgroundColor: stockStatus.bgColor,
                             color: stockStatus.color

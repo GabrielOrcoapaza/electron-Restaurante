@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useQuery } from '@apollo/client';
 import { GET_USERS_BY_BRANCH } from '../../graphql/queries';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 
 interface User {
   id: string;
@@ -17,7 +18,21 @@ interface User {
 
 const ListUser: React.FC = () => {
   const { companyData } = useAuth();
+  const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
+  
+  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  const isSmall = breakpoint === 'sm'; // 640px - 767px
+  const isMedium = breakpoint === 'md'; // 768px - 1023px
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
+  
+  // Tamaños adaptativos
+  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const tableFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const tableCellPadding = isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
+  const titleFontSize = isSmall ? '1rem' : isMedium ? '1.05rem' : isSmallDesktop ? '1.05rem' : '1.1rem';
+  const badgeFontSize = isSmall ? '0.625rem' : isMedium ? '0.6875rem' : isSmallDesktop ? '0.6875rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
 
   const { data, loading, error } = useQuery(GET_USERS_BY_BRANCH, {
     variables: { branchId: branchId! },
@@ -96,42 +111,56 @@ const ListUser: React.FC = () => {
 
   return (
     <div style={{
+      width: '100%',
+      maxWidth: '100%',
       backgroundColor: 'white',
       borderRadius: '16px',
-      padding: '1.5rem',
+      padding: cardPadding,
       boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-      border: '1px solid #e2e8f0'
+      border: '1px solid #e2e8f0',
+      boxSizing: 'border-box'
     }}>
-      <h3 style={{ margin: '0 0 1rem', fontSize: '1.1rem', fontWeight: 600, color: '#334155' }}>
+      <h3 style={{ 
+        margin: '0 0 1rem', 
+        fontSize: titleFontSize, 
+        fontWeight: 600, 
+        color: '#334155' 
+      }}>
         📋 Lista de Empleados ({users.length})
       </h3>
       
       {users.length === 0 ? (
         <div style={{ 
           textAlign: 'center', 
-          padding: '3rem', 
+          padding: isSmall ? '2rem' : isMedium ? '2.5rem' : '3rem', 
           color: '#64748b' 
         }}>
-          <p style={{ fontSize: '1rem', margin: 0 }}>No hay empleados registrados</p>
-          <p style={{ fontSize: '0.875rem', margin: '0.5rem 0 0' }}>
+          <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem', margin: 0 }}>No hay empleados registrados</p>
+          <p style={{ fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem', margin: '0.5rem 0 0' }}>
             Haz clic en "Nuevo Empleado" para agregar uno
           </p>
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ 
+          overflowX: 'auto',
+          width: '100%',
+          maxWidth: '100%',
+          boxSizing: 'border-box'
+        }}>
           <table style={{ 
             width: '100%', 
             borderCollapse: 'collapse',
-            fontSize: '0.875rem'
+            fontSize: tableFontSize,
+            tableLayout: 'auto'
           }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>DNI</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Nombre</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Email</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Teléfono</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Rol</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Estado</th>
+                <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>DNI</th>
+                <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Nombre</th>
+                <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Email</th>
+                <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Teléfono</th>
+                <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Rol</th>
+                <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Estado</th>
               </tr>
             </thead>
             <tbody>
@@ -139,15 +168,15 @@ const ListUser: React.FC = () => {
                 const badgeColors = getRoleBadgeColor(user.role);
                 return (
                   <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '0.75rem', color: '#334155' }}>{user.dni}</td>
-                    <td style={{ padding: '0.75rem', color: '#334155', fontWeight: 500 }}>{user.fullName}</td>
-                    <td style={{ padding: '0.75rem', color: '#64748b' }}>{user.email}</td>
-                    <td style={{ padding: '0.75rem', color: '#64748b' }}>{user.phone || '-'}</td>
-                    <td style={{ padding: '0.75rem' }}>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155', fontSize: tableFontSize }}>{user.dni}</td>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155', fontWeight: 500, fontSize: tableFontSize }}>{user.fullName}</td>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize }}>{user.email}</td>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize }}>{user.phone || '-'}</td>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
                       <span style={{
-                        padding: '0.25rem 0.75rem',
+                        padding: isSmall ? '0.25rem 0.5rem' : isMedium ? '0.25rem 0.625rem' : '0.25rem 0.75rem',
                         borderRadius: '9999px',
-                        fontSize: '0.75rem',
+                        fontSize: badgeFontSize,
                         fontWeight: 600,
                         backgroundColor: badgeColors.bg,
                         color: badgeColors.color
@@ -155,11 +184,11 @@ const ListUser: React.FC = () => {
                         {getRoleLabel(user.role)}
                       </span>
                     </td>
-                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                    <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
                       <span style={{
-                        padding: '0.25rem 0.75rem',
+                        padding: isSmall ? '0.25rem 0.5rem' : isMedium ? '0.25rem 0.625rem' : '0.25rem 0.75rem',
                         borderRadius: '9999px',
-                        fontSize: '0.75rem',
+                        fontSize: badgeFontSize,
                         fontWeight: 600,
                         backgroundColor: user.isActive ? '#dcfce7' : '#fee2e2',
                         color: user.isActive ? '#166534' : '#991b1b'

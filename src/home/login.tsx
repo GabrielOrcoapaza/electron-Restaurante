@@ -4,10 +4,12 @@ import { useMutation, useQuery } from '@apollo/client';
 import { USER_LOGIN } from '../graphql/mutations';
 import { GET_USERS_BY_BRANCH } from '../graphql/queries';
 import { useAuth } from '../hooks/useAuth';
+import { useResponsive } from '../hooks/useResponsive';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { loginUser, companyData, getMacAddress, clearCompanyData } = useAuth();
+  const { breakpoint, isMobile} = useResponsive();
   const [formData, setFormData] = useState({
     selectedEmployee: '',
     password: ''
@@ -140,6 +142,60 @@ const Login: React.FC = () => {
       [e.target.name]: e.target.value
     });
   };
+
+  // Tamaños adaptativos según breakpoint
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
+  
+  const containerPadding = isSmallDesktop ? '1rem' : isMediumDesktop ? '1.5rem' : '2rem';
+  const formMaxWidth = isSmallDesktop ? '380px' : isMediumDesktop ? '420px' : '450px';
+  const titleFontSize = isSmallDesktop ? 'clamp(22px, 3.5vw, 28px)' : isMediumDesktop ? 'clamp(26px, 3.5vw, 32px)' : 'clamp(28px, 3.5vw, 36px)';
+  const subtitleFontSize = isSmallDesktop ? 'clamp(13px, 2vw, 15px)' : 'clamp(14px, 2vw, 16px)';
+  const inputFontSize = isSmallDesktop ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
+  const labelFontSize = isSmallDesktop ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
+  const buttonFontSize = isSmallDesktop ? 'clamp(15px, 2.5vw, 17px)' : 'clamp(16px, 2.5vw, 18px)';
+
+  // Bloquear acceso en móviles
+  if (isMobile) {
+    return (
+      <div style={{
+        height: '100vh',
+        width: '100vw',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #42a5f5 0%, #66bb6a 25%, #ffa726 50%, #ff6b6b 75%, #ab47bc 100%)',
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+        padding: '2rem',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.95)',
+          borderRadius: '20px',
+          padding: '3rem 2rem',
+          maxWidth: '500px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+        }}>
+          <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>📱</div>
+          <h1 style={{
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            color: '#1e293b',
+            marginBottom: '1rem'
+          }}>
+            Acceso no disponible en móviles
+          </h1>
+          <p style={{
+            fontSize: '1rem',
+            color: '#64748b',
+            lineHeight: '1.6'
+          }}>
+            Esta aplicación está diseñada para ser usada en tablets y computadoras. Por favor, accede desde un dispositivo con pantalla más grande.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ 
@@ -318,9 +374,9 @@ const Login: React.FC = () => {
         }}>
           <div className="form-container" style={{
             width: '100%',
-            maxWidth: '400px',
+            maxWidth: formMaxWidth,
             position: 'relative',
-            padding: '0.5rem',
+            padding: containerPadding,
             boxSizing: 'border-box'
           }}>
             {/* Elementos decorativos del formulario */}
@@ -368,7 +424,7 @@ const Login: React.FC = () => {
               <h2 style={{ 
                 margin: '0',
                 color: '#2d3748',
-                fontSize: '32px',
+                fontSize: titleFontSize,
                 fontWeight: '800',
                 background: 'linear-gradient(135deg, #42a5f5, #66bb6a)',
                 WebkitBackgroundClip: 'text',
@@ -380,7 +436,7 @@ const Login: React.FC = () => {
               <p style={{ 
                 color: '#718096', 
                 margin: '0.5rem 0 0',
-                fontSize: '16px',
+                fontSize: subtitleFontSize,
                 fontWeight: '500'
               }}>
                 Selecciona tu empleado y contraseña
@@ -394,7 +450,7 @@ const Login: React.FC = () => {
                   display: 'block', 
                   marginBottom: '1rem', 
                   color: '#2d3748',
-                  fontSize: '16px',
+                  fontSize: labelFontSize,
                   fontWeight: '700',
                   textAlign: 'center'
                 }}>
@@ -412,7 +468,7 @@ const Login: React.FC = () => {
                       padding: '1rem 1rem 1rem 3rem',
                       border: '2px solid #e2e8f0',
                       borderRadius: '12px',
-                      fontSize: 'clamp(14px, 3vw, 16px)',
+                      fontSize: inputFontSize,
                       backgroundColor: '#f8fafc',
                       transition: 'all 0.3s ease',
                       outline: 'none',
@@ -437,7 +493,7 @@ const Login: React.FC = () => {
                     left: '1rem',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    fontSize: 'clamp(16px, 3vw, 20px)'
+                    fontSize: isSmallDesktop ? '18px' : '20px'
                   }}>🔍</div>
                 </div>
                 {searchTerm && (
@@ -459,7 +515,7 @@ const Login: React.FC = () => {
                   display: 'block', 
                   marginBottom: '1rem', 
                   color: '#2d3748',
-                  fontSize: '16px',
+                  fontSize: labelFontSize,
                   fontWeight: '700',
                   textAlign: 'center'
                 }}>
@@ -596,7 +652,7 @@ const Login: React.FC = () => {
                   display: 'block', 
                   marginBottom: '1rem', 
                   color: '#2d3748',
-                  fontSize: 'clamp(14px, 3vw, 16px)',
+                  fontSize: labelFontSize,
                   fontWeight: '700'
                 }}>
                   🔒 Contraseña
@@ -615,7 +671,7 @@ const Login: React.FC = () => {
                       padding: '1rem 1rem 1rem 3rem',
                       border: '2px solid #e2e8f0',
                       borderRadius: '12px',
-                      fontSize: 'clamp(14px, 3vw, 16px)',
+                      fontSize: inputFontSize,
                       backgroundColor: '#f8fafc',
                       transition: 'all 0.3s ease',
                       outline: 'none',
@@ -640,7 +696,7 @@ const Login: React.FC = () => {
                     left: '1rem',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    fontSize: 'clamp(16px, 3vw, 20px)'
+                    fontSize: isSmallDesktop ? '18px' : '20px'
                   }}>🔒</div>
                 </div>
               </div>
@@ -655,7 +711,7 @@ const Login: React.FC = () => {
                   color: 'white',
                   border: 'none',
                   borderRadius: '16px',
-                  fontSize: '18px',
+                  fontSize: buttonFontSize,
                   fontWeight: '700',
                   cursor: loading ? 'not-allowed' : 'pointer',
                   transition: 'all 0.3s ease',
@@ -756,8 +812,8 @@ const Login: React.FC = () => {
           50% { transform: translateY(-10px); }
         }
         
-        /* Media queries para responsividad */
-        @media (min-width: 1024px) {
+        /* Media queries para responsividad - Solo tablets y desktop */
+        @media (min-width: 1536px) {
           .main-container {
             flex-direction: row !important;
             height: 100vh !important;
@@ -772,7 +828,37 @@ const Login: React.FC = () => {
           }
         }
         
-        @media (max-width: 1023px) {
+        @media (min-width: 1280px) and (max-width: 1535px) {
+          .main-container {
+            flex-direction: row !important;
+            height: 100vh !important;
+          }
+          .left-panel {
+            display: flex !important;
+            height: 100vh !important;
+          }
+          .form-panel {
+            height: 100vh !important;
+            overflow: hidden !important;
+          }
+        }
+        
+        @media (min-width: 1024px) and (max-width: 1279px) {
+          .main-container {
+            flex-direction: row !important;
+            height: 100vh !important;
+          }
+          .left-panel {
+            display: flex !important;
+            height: 100vh !important;
+          }
+          .form-panel {
+            height: 100vh !important;
+            overflow: hidden !important;
+          }
+        }
+        
+        @media (min-width: 768px) and (max-width: 1023px) {
           .left-panel {
             display: none !important;
           }
@@ -781,34 +867,6 @@ const Login: React.FC = () => {
             width: 100vw !important;
             max-width: 100vw !important;
             overflow: hidden !important;
-          }
-        }
-        
-        @media (max-width: 768px) {
-          .form-container {
-            padding: 0.25rem !important;
-            max-width: 350px !important;
-          }
-          .form-inputs {
-            padding: 0.75rem 0.75rem 0.75rem 2.5rem !important;
-            font-size: 14px !important;
-          }
-          .form-labels {
-            font-size: 14px !important;
-          }
-        }
-        
-        @media (max-width: 480px) {
-          .form-container {
-            padding: 0.125rem !important;
-            max-width: 300px !important;
-          }
-          .form-inputs {
-            padding: 0.5rem 0.5rem 0.5rem 2rem !important;
-            font-size: 13px !important;
-          }
-          .form-labels {
-            font-size: 13px !important;
           }
         }
       `}</style>

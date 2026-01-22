@@ -34,17 +34,20 @@ const Observation: React.FC = () => {
   const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
 
-  const isSmallDesktop = breakpoint === 'lg';
+  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  const isSmall = breakpoint === 'sm'; // 640px - 767px
+  const isMedium = breakpoint === 'md'; // 768px - 1023px
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   
   // Tamaños adaptativos
-  const cardPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
-  const labelFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const inputFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const inputPadding = isSmallDesktop ? '0.5625rem 0.75rem' : '0.625rem 0.875rem';
-  const buttonPadding = isSmallDesktop ? '0.625rem 1.25rem' : '0.75rem 1.5rem';
-  const buttonFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const tableFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const tableCellPadding = isSmallDesktop ? '0.625rem' : '0.75rem';
+  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : '1.5rem';
+  const labelFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : '0.625rem 0.875rem';
+  const buttonPadding = isSmall ? '0.5rem 1rem' : isMedium ? '0.625rem 1.25rem' : isSmallDesktop ? '0.625rem 1.25rem' : '0.75rem 1.5rem';
+  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const tableFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const tableCellPadding = isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : '0.75rem';
 
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>('');
   const [formData, setFormData] = useState({
@@ -213,7 +216,7 @@ const Observation: React.FC = () => {
         }}>
           <div>
             <h1 style={{ 
-              fontSize: isSmallDesktop ? '1.5rem' : '1.875rem',
+              fontSize: isSmall ? '1.25rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : '1.875rem',
               fontWeight: 700,
               color: '#1e293b',
               margin: 0,
@@ -430,7 +433,7 @@ const Observation: React.FC = () => {
             }}
           >
             <h2 style={{
-              fontSize: isSmallDesktop ? '1.125rem' : '1.25rem',
+              fontSize: isSmall ? '1rem' : isMedium ? '1.125rem' : isSmallDesktop ? '1.125rem' : '1.25rem',
               fontWeight: 600,
               color: '#1e293b',
               marginBottom: '1rem',

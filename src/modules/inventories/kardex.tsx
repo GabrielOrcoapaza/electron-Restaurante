@@ -56,21 +56,26 @@ const Kardex: React.FC = () => {
   const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
 
-  // Adaptar según tamaño de pantalla de PC
+  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  const isSmall = breakpoint === 'sm'; // 640px - 767px
+  const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
   
   // Tamaños adaptativos
-  const containerPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
-  const containerGap = isSmallDesktop ? '1.5rem' : '2rem';
-  const titleFontSize = isSmallDesktop ? '1.375rem' : '1.5rem';
-  const subtitleFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const cardPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
-  const tableFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const tableCellPadding = isSmallDesktop ? '0.625rem' : '0.75rem';
-  const inputFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const buttonFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const badgeFontSize = isSmallDesktop ? '0.6875rem' : '0.75rem';
-  const badgePadding = isSmallDesktop ? '0.25rem 0.625rem' : '0.25rem 0.625rem';
+  const containerPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const containerGap = isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2rem';
+  const titleFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const subtitleFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const tableFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const tableCellPadding = isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
+  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : isMediumDesktop ? '0.625rem 0.875rem' : '0.625rem 0.875rem';
+  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const buttonPadding = isSmall ? '0.5625rem 0.875rem' : isMedium ? '0.625rem 1rem' : isSmallDesktop ? '0.625rem 1rem' : isMediumDesktop ? '0.75rem 1.25rem' : '0.75rem 1.25rem';
+  const badgeFontSize = isSmall ? '0.625rem' : isMedium ? '0.6875rem' : isSmallDesktop ? '0.6875rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
+  const badgePadding = isSmall ? '0.25rem 0.5rem' : isMedium ? '0.25rem 0.625rem' : isSmallDesktop ? '0.25rem 0.625rem' : '0.25rem 0.75rem';
 
   // Estado para los filtros
   const [startDate, setStartDate] = useState<string>(() => {
@@ -223,8 +228,8 @@ const Kardex: React.FC = () => {
         }}>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: `repeat(auto-fit, minmax(${isSmallDesktop ? '180px' : '200px'}, 1fr))`,
-            gap: isSmallDesktop ? '0.875rem' : '1rem',
+            gridTemplateColumns: isSmall ? '1fr' : `repeat(auto-fit, minmax(${isMedium ? '180px' : isSmallDesktop ? '180px' : '200px'}, 1fr))`,
+            gap: isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '0.875rem' : '1rem',
             alignItems: 'end'
           }}>
             <div>
@@ -243,12 +248,13 @@ const Kardex: React.FC = () => {
                 onChange={(e) => setStartDate(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: isSmallDesktop ? '0.5625rem' : '0.625rem',
+                  padding: inputPadding,
                   border: '1px solid #d1d5db',
                   borderRadius: '8px',
                   fontSize: inputFontSize,
                   outline: 'none',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  boxSizing: 'border-box'
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#667eea'}
                 onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
@@ -270,12 +276,13 @@ const Kardex: React.FC = () => {
                 onChange={(e) => setEndDate(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: isSmallDesktop ? '0.5625rem' : '0.625rem',
+                  padding: inputPadding,
                   border: '1px solid #d1d5db',
                   borderRadius: '8px',
                   fontSize: inputFontSize,
                   outline: 'none',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  boxSizing: 'border-box'
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#667eea'}
                 onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
@@ -296,13 +303,14 @@ const Kardex: React.FC = () => {
                 onChange={(e) => setSelectedProductId(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: isSmallDesktop ? '0.5625rem' : '0.625rem',
+                  padding: inputPadding,
                   border: '1px solid #d1d5db',
                   borderRadius: '8px',
                   fontSize: inputFontSize,
                   outline: 'none',
                   transition: 'all 0.2s',
-                  backgroundColor: 'white'
+                  backgroundColor: 'white',
+                  boxSizing: 'border-box'
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#667eea'}
                 onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
@@ -321,7 +329,7 @@ const Kardex: React.FC = () => {
                 disabled={loading}
                 style={{
                   width: '100%',
-                  padding: isSmallDesktop ? '0.5625rem 0.875rem' : '0.625rem 1rem',
+                  padding: buttonPadding,
                   backgroundColor: loading ? '#9ca3af' : '#667eea',
                   color: 'white',
                   border: 'none',
@@ -356,7 +364,7 @@ const Kardex: React.FC = () => {
           {loading ? (
             <div style={{ 
               textAlign: 'center', 
-              padding: isSmallDesktop ? '2rem' : '3rem', 
+              padding: isSmall ? '2rem' : isMedium ? '2.5rem' : isSmallDesktop ? '2rem' : '3rem', 
               color: '#64748b',
               fontSize: tableFontSize
             }}>
@@ -365,7 +373,7 @@ const Kardex: React.FC = () => {
           ) : error ? (
             <div style={{ 
               textAlign: 'center', 
-              padding: isSmallDesktop ? '2rem' : '3rem', 
+              padding: isSmall ? '2rem' : isMedium ? '2.5rem' : isSmallDesktop ? '2rem' : '3rem', 
               color: '#dc2626',
               fontSize: tableFontSize
             }}>
@@ -374,7 +382,7 @@ const Kardex: React.FC = () => {
           ) : movements.length === 0 ? (
             <div style={{ 
               textAlign: 'center', 
-              padding: isSmallDesktop ? '2rem' : '3rem', 
+              padding: isSmall ? '2rem' : isMedium ? '2.5rem' : isSmallDesktop ? '2rem' : '3rem', 
               color: '#64748b',
               fontSize: tableFontSize
             }}>
@@ -383,10 +391,11 @@ const Kardex: React.FC = () => {
           ) : (
             <>
               <div style={{ 
-                marginBottom: isSmallDesktop ? '0.875rem' : '1rem', 
+                marginBottom: isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '0.875rem' : '1rem', 
                 display: 'flex', 
                 justifyContent: 'space-between', 
-                alignItems: 'center' 
+                alignItems: 'center',
+                flexWrap: isSmall ? 'wrap' : 'nowrap'
               }}>
                 <p style={{ 
                   margin: 0, 
@@ -396,11 +405,17 @@ const Kardex: React.FC = () => {
                   Total de movimientos: <strong>{movements.length}</strong>
                 </p>
               </div>
-              <div style={{ overflowX: 'auto' }}>
+              <div style={{ 
+                overflowX: 'auto',
+                width: '100%',
+                maxWidth: '100%',
+                boxSizing: 'border-box'
+              }}>
                 <table style={{
                   width: '100%',
                   borderCollapse: 'collapse',
-                  fontSize: tableFontSize
+                  fontSize: tableFontSize,
+                  tableLayout: 'auto'
                 }}>
                   <thead>
                     <tr style={{
@@ -605,8 +620,9 @@ const Kardex: React.FC = () => {
                             padding: tableCellPadding, 
                             textAlign: 'center', 
                             color: '#64748b', 
-                            maxWidth: isSmallDesktop ? '150px' : '200px',
-                            fontSize: tableFontSize
+                            maxWidth: isSmall ? '120px' : isMedium ? '150px' : isSmallDesktop ? '150px' : '200px',
+                            fontSize: tableFontSize,
+                            wordBreak: 'break-word'
                           }}>
                             {movement.reason || '-'}
                           </td>

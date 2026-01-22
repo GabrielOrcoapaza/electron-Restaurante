@@ -72,15 +72,17 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const { breakpoint } = useResponsive();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   
-  // Adaptar según tamaño de pantalla de PC
+  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  const isSmall = breakpoint === 'sm'; // 640px - 767px
+  const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
   
   // Tamaños adaptativos
-  const sidebarWidth = sidebarOpen ? (isSmallDesktop ? '260px' : '280px') : '80px';
-  const headerPadding = isSmallDesktop ? '1rem 1.5rem' : isMediumDesktop ? '1rem 1.75rem' : '1rem 2rem';
-  const headerFontSize = isSmallDesktop ? '1.375rem' : '1.5rem';
-  const headerSubFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const sidebarWidth = sidebarOpen ? (isSmall ? '240px' : isMedium ? '260px' : isSmallDesktop ? '260px' : '280px') : '80px';
+  const headerPadding = isSmall ? '0.75rem 1rem' : isMedium ? '1rem 1.25rem' : isSmallDesktop ? '1rem 1.5rem' : isMediumDesktop ? '1rem 1.75rem' : '1rem 2rem';
+  const headerFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : '1.5rem';
+  const headerSubFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
   const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration'>('dashboard');
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -384,7 +386,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       }}>
         {/* Header del Sidebar */}
         <div style={{
-          padding: isSmallDesktop ? '1.25rem' : '1.5rem',
+          padding: isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : '1.5rem',
           borderBottom: '1px solid #2d3748',
           display: 'flex',
           alignItems: 'center',
@@ -393,7 +395,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
           {sidebarOpen && (
             <div>
               <h2 style={{
-                fontSize: isSmallDesktop ? '1.125rem' : '1.25rem',
+                fontSize: isSmall ? '1rem' : isMedium ? '1.125rem' : isSmallDesktop ? '1.125rem' : '1.25rem',
                 fontWeight: '700',
                 margin: 0,
                 background: 'linear-gradient(135deg, #667eea, #764ba2)',
@@ -404,7 +406,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                 AppSuma
               </h2>
               <p style={{
-                fontSize: isSmallDesktop ? '0.8125rem' : '0.875rem',
+                fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem',
                 color: '#a0aec0',
                 margin: '0.25rem 0 0',
                 fontWeight: '500'
@@ -936,13 +938,15 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       <div style={{
         marginLeft: sidebarWidth,
         width: `calc(100vw - ${sidebarWidth})`,
+        maxWidth: `calc(100vw - ${sidebarWidth})`,
+        minWidth: 0,
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
         overflowY: 'auto',
         overflowX: 'hidden',
-        transition: 'margin-left 0.3s ease, width 0.3s ease',
-        minWidth: '1024px' // Mínimo para pantallas de PC
+        transition: 'margin-left 0.3s ease, width 0.3s ease, max-width 0.3s ease',
+        boxSizing: 'border-box'
       }}>
         {/* Header Principal */}
         <header style={{
@@ -1264,13 +1268,18 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
         {/* Contenido */}
         <main style={{
           flex: 1,
-          padding: currentView === 'dashboard' ? '2rem' : '1rem',
+          padding: currentView === 'dashboard' 
+            ? (isSmall ? '1rem' : isMedium ? '1.5rem' : '2rem')
+            : (isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem'),
           backgroundColor: '#f8fafc',
           overflowY: 'auto',
           overflowX: 'hidden',
           width: '100%',
+          maxWidth: '100%',
           boxSizing: 'border-box',
-          minHeight: 0
+          minHeight: 0,
+          minWidth: 0, // Permite que el contenido se comprima si es necesario
+          position: 'relative'
         }}>
           {currentView === 'dashboard' && children}
           {currentView === 'floors' && <Floor onOpenCash={handleOpenCash} />}

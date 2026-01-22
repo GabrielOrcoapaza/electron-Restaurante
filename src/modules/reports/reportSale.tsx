@@ -97,17 +97,18 @@ const ReportSale: React.FC = () => {
   const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
 
-  // Adaptar según tamaño de pantalla de PC
+  // Adaptar según tamaño de pantalla
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
   
   // Tamaños adaptativos
-  const containerPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
-  const containerGap = isSmallDesktop ? '1.5rem' : '2rem';
-  const titleFontSize = isSmallDesktop ? '1.375rem' : '1.5rem';
-  const subtitleFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const cardPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
-  const inputFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const buttonFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const containerPadding = isSmallDesktop ? '1rem' : isMediumDesktop ? '1.25rem' : '1.5rem';
+  const containerGap = isSmallDesktop ? '1rem' : isMediumDesktop ? '1.5rem' : '2rem';
+  const titleFontSize = isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.375rem' : '1.5rem';
+  const subtitleFontSize = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
+  const cardPadding = isSmallDesktop ? '1rem' : isMediumDesktop ? '1.25rem' : '1.5rem';
+  const inputFontSize = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
+  const buttonFontSize = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
 
   // Estado para los filtros
   const [startDate, setStartDate] = useState<string>(() => {
@@ -247,7 +248,11 @@ const ReportSale: React.FC = () => {
         >
           <div style={{
             display: 'grid',
-            gridTemplateColumns: isSmallDesktop ? '1fr 1fr 1fr auto' : '1fr 1fr 1fr auto',
+            gridTemplateColumns: isSmallDesktop 
+              ? '1fr' 
+              : isMediumDesktop 
+                ? '1fr 1fr' 
+                : '1fr 1fr 1fr auto',
             gap: '1rem',
             alignItems: 'end'
           }}>
@@ -403,7 +408,11 @@ const ReportSale: React.FC = () => {
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: isSmallDesktop ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+              gridTemplateColumns: isSmallDesktop 
+                ? '1fr' 
+                : isMediumDesktop 
+                  ? 'repeat(2, 1fr)' 
+                  : 'repeat(4, 1fr)',
               gap: '1rem',
               marginBottom: '1.5rem'
             }}>
@@ -448,7 +457,11 @@ const ReportSale: React.FC = () => {
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: isSmallDesktop ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+              gridTemplateColumns: isSmallDesktop 
+                ? '1fr' 
+                : isMediumDesktop 
+                  ? 'repeat(2, 1fr)' 
+                  : 'repeat(3, 1fr)',
               gap: '1rem'
             }}>
               <div style={{

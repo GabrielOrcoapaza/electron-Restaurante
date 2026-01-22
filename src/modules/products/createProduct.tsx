@@ -34,18 +34,22 @@ const CreateProduct: React.FC<CreateProductProps> = ({ onClose, onSuccess }) => 
   const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
 
-  // Adaptar según tamaño de pantalla de PC
+  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  const isSmall = breakpoint === 'sm'; // 640px - 767px
+  const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
   
   // Tamaños adaptativos
-  const modalPadding = isSmallDesktop ? '1.5rem' : '2rem';
-  const modalMaxWidth = isSmallDesktop ? '600px' : '700px';
-  const labelFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const inputFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const inputPadding = isSmallDesktop ? '0.5625rem 0.75rem' : '0.625rem 0.875rem';
-  const buttonPadding = isSmallDesktop ? '0.625rem 1.25rem' : '0.75rem 1.5rem';
-  const buttonFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const gapSize = isSmallDesktop ? '0.875rem' : '1rem';
+  const modalPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '1.75rem' : '2rem';
+  const modalMaxWidth = isSmall ? '95%' : isMedium ? '550px' : isSmallDesktop ? '600px' : isMediumDesktop ? '650px' : '700px';
+  const labelFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : isMediumDesktop ? '0.625rem 0.875rem' : '0.625rem 0.875rem';
+  const buttonPadding = isSmall ? '0.5625rem 1rem' : isMedium ? '0.625rem 1.25rem' : isSmallDesktop ? '0.625rem 1.25rem' : isMediumDesktop ? '0.75rem 1.5rem' : '0.75rem 1.5rem';
+  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const gapSize = isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '0.875rem' : isMediumDesktop ? '1rem' : '1rem';
+  const titleFontSize = isSmall ? '1.25rem' : isMedium ? '1.375rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
 
   const [formData, setFormData] = useState({
     categoryId: '',
@@ -205,7 +209,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({ onClose, onSuccess }) => 
 
         <h2 style={{ 
           margin: '0 0 1.5rem', 
-          fontSize: '1.5rem', 
+          fontSize: titleFontSize, 
           fontWeight: 700, 
           color: '#1e293b' 
         }}>
@@ -229,7 +233,11 @@ const CreateProduct: React.FC<CreateProductProps> = ({ onClose, onSuccess }) => 
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {/* Categoría y Subcategoría */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: gapSize }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isSmall ? '1fr' : '1fr 1fr', 
+              gap: gapSize 
+            }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
                   Categoría
@@ -315,7 +323,11 @@ const CreateProduct: React.FC<CreateProductProps> = ({ onClose, onSuccess }) => 
             </div>
 
             {/* Código y Nombre */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: gapSize }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isSmall ? '1fr' : '1fr 2fr', 
+              gap: gapSize 
+            }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
                   Código *
@@ -386,7 +398,11 @@ const CreateProduct: React.FC<CreateProductProps> = ({ onClose, onSuccess }) => 
             </div>
 
             {/* Precios */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: gapSize }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isSmall ? '1fr' : '1fr 1fr', 
+              gap: gapSize 
+            }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
                   Precio de Venta
@@ -435,7 +451,11 @@ const CreateProduct: React.FC<CreateProductProps> = ({ onClose, onSuccess }) => 
             </div>
 
             {/* Unidad de Medida y Tiempo de preparación */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isSmall ? '1fr' : '1fr 1fr', 
+              gap: gapSize 
+            }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
                   Unidad de Medida
@@ -485,7 +505,11 @@ const CreateProduct: React.FC<CreateProductProps> = ({ onClose, onSuccess }) => 
             </div>
 
             {/* Stock */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: gapSize }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : '1fr 1fr 1fr', 
+              gap: gapSize 
+            }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
                   Stock Mínimo
@@ -557,7 +581,12 @@ const CreateProduct: React.FC<CreateProductProps> = ({ onClose, onSuccess }) => 
             </div>
 
             {/* Botones */}
-            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: isSmall ? 'column' : 'row',
+              gap: '0.75rem', 
+              marginTop: '1rem' 
+            }}>
               <button
                 type="submit"
                 disabled={loading}

@@ -24,16 +24,19 @@ const Products: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   
-  // Adaptar según tamaño de pantalla de PC
+  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  const isSmall = breakpoint === 'sm'; // 640px - 767px
+  const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
   
   // Tamaños adaptativos
-  const containerPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
-  const containerGap = isSmallDesktop ? '1.5rem' : '2rem';
-  const titleFontSize = isSmallDesktop ? '1.375rem' : '1.5rem';
-  const subtitleFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const buttonPadding = isSmallDesktop ? '0.625rem 1.25rem' : '0.75rem 1.5rem';
-  const buttonFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const containerPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const containerGap = isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2rem';
+  const titleFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const subtitleFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const buttonPadding = isSmall ? '0.5625rem 1rem' : isMedium ? '0.625rem 1.25rem' : isSmallDesktop ? '0.625rem 1.25rem' : isMediumDesktop ? '0.75rem 1.5rem' : '0.75rem 1.5rem';
+  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
 
   const handleEdit = (product: Product) => {
     setSelectedProduct(product);
@@ -65,6 +68,8 @@ const Products: React.FC = () => {
       <div
       style={{
         minHeight: '100%',
+        width: '100%',
+        maxWidth: '100%',
         display: 'flex',
         flexDirection: 'column',
         gap: containerGap,
@@ -74,6 +79,7 @@ const Products: React.FC = () => {
         boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
         position: 'relative',
         overflow: 'hidden',
+        boxSizing: 'border-box',
       }}
     >
       {/* Elementos decorativos de fondo */}
@@ -108,10 +114,11 @@ const Products: React.FC = () => {
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: isSmallDesktop ? '1.5rem' : '2rem',
-          flexWrap: isSmallDesktop ? 'wrap' : 'nowrap',
-          gap: isSmallDesktop ? '1rem' : '0'
+          alignItems: isSmall ? 'flex-start' : 'center',
+          flexDirection: isSmall ? 'column' : 'row',
+          marginBottom: isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : '2rem',
+          flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap',
+          gap: isSmall || isMedium ? '1rem' : '0'
         }}>
           <div>
             <h2 style={{ 

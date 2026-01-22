@@ -3,16 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@apollo/client';
 import { COMPANY_LOGIN } from '../graphql/mutations';
 import { useAuth } from '../hooks/useAuth';
+import { useResponsive } from '../hooks/useResponsive';
 
 const LoginCompany: React.FC = () => {
   const navigate = useNavigate();
   const { loginCompany, getMacAddress } = useAuth();
+  const { breakpoint, isMobile } = useResponsive();
   const [formData, setFormData] = useState({
     ruc: '',
     email: '',
     password: ''
   });
   const [macAddress, setMacAddress] = useState<string>('Cargando...');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
   // Obtener la MAC address al cargar el componente
   useEffect(() => {
@@ -29,6 +32,62 @@ const LoginCompany: React.FC = () => {
   }, [getMacAddress]);
 
   const [companyLoginMutation, { loading }] = useMutation(COMPANY_LOGIN);
+
+  // Tamaños adaptativos según breakpoint
+  const isSmall = breakpoint === 'sm'; // 640px - 767px
+  const isMedium = breakpoint === 'md'; // 768px - 1023px
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
+  
+  const containerPadding = isSmall ? '0.75rem' : isMedium ? '1rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '2rem';
+  const formMaxWidth = isSmall ? '340px' : isMedium ? '380px' : isSmallDesktop ? '420px' : isMediumDesktop ? '450px' : '480px';
+  const titleFontSize = isSmall ? 'clamp(20px, 3.5vw, 24px)' : isMedium ? 'clamp(22px, 3.5vw, 28px)' : isSmallDesktop ? 'clamp(24px, 3.5vw, 30px)' : isMediumDesktop ? 'clamp(26px, 3.5vw, 32px)' : 'clamp(28px, 3.5vw, 36px)';
+  const subtitleFontSize = isSmall ? 'clamp(12px, 2vw, 14px)' : isMedium ? 'clamp(13px, 2vw, 15px)' : 'clamp(14px, 2vw, 16px)';
+  const inputFontSize = isSmall ? 'clamp(12px, 2.5vw, 14px)' : isMedium ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
+  const labelFontSize = isSmall ? 'clamp(12px, 2.5vw, 14px)' : isMedium ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
+  const buttonFontSize = isSmall ? 'clamp(14px, 2.5vw, 16px)' : isMedium ? 'clamp(15px, 2.5vw, 17px)' : 'clamp(16px, 2.5vw, 18px)';
+
+  // Bloquear acceso en móviles
+  if (isMobile) {
+    return (
+      <div style={{
+        height: '100vh',
+        width: '100vw',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #ff6b6b 0%, #ffa726 25%, #66bb6a 50%, #42a5f5 75%, #ab47bc 100%)',
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+        padding: '2rem',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.95)',
+          borderRadius: '20px',
+          padding: '3rem 2rem',
+          maxWidth: '500px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+        }}>
+          <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>📱</div>
+          <h1 style={{
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            color: '#1e293b',
+            marginBottom: '1rem'
+          }}>
+            Acceso no disponible en móviles
+          </h1>
+          <p style={{
+            fontSize: '1rem',
+            color: '#64748b',
+            lineHeight: '1.6'
+          }}>
+            Esta aplicación está diseñada para ser usada en tablets y computadoras. Por favor, accede desde un dispositivo con pantalla más grande.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -318,13 +377,14 @@ const LoginCompany: React.FC = () => {
           width: '100%',
           maxWidth: '100%',
           boxSizing: 'border-box',
-          overflow: 'hidden'
+          overflowY: 'auto',
+          overflowX: 'hidden'
         }}>
           <div className="form-container" style={{
             width: '100%',
-            maxWidth: '400px',
+            maxWidth: formMaxWidth,
             position: 'relative',
-            padding: '0.5rem',
+            padding: containerPadding,
             boxSizing: 'border-box'
           }}>
             {/* Elementos decorativos del formulario */}
@@ -372,7 +432,7 @@ const LoginCompany: React.FC = () => {
               <h2 style={{ 
                 margin: '0',
                 color: '#2d3748',
-                fontSize: 'clamp(24px, 4vw, 32px)',
+                fontSize: titleFontSize,
                 fontWeight: '800',
                 background: 'linear-gradient(135deg, #ff6b6b, #ffa726)',
                 WebkitBackgroundClip: 'text',
@@ -384,7 +444,7 @@ const LoginCompany: React.FC = () => {
               <p style={{ 
                 color: '#718096', 
                 margin: '0.5rem 0 0',
-                fontSize: 'clamp(14px, 2.5vw, 16px)',
+                fontSize: subtitleFontSize,
                 fontWeight: '500'
               }}>
                 Ingresa los datos de tu empresa
@@ -418,7 +478,7 @@ const LoginCompany: React.FC = () => {
                   display: 'block', 
                   marginBottom: '1rem', 
                   color: '#2d3748',
-                  fontSize: 'clamp(14px, 3vw, 16px)',
+                  fontSize: labelFontSize,
                   fontWeight: '700'
                 }}>
                   🏛️ RUC de la Empresa
@@ -437,7 +497,7 @@ const LoginCompany: React.FC = () => {
                       padding: '1rem 1rem 1rem 3rem',
                       border: '2px solid #e2e8f0',
                       borderRadius: '12px',
-                      fontSize: 'clamp(14px, 3vw, 16px)',
+                      fontSize: inputFontSize,
                       backgroundColor: '#f8fafc',
                       transition: 'all 0.3s ease',
                       outline: 'none',
@@ -462,7 +522,7 @@ const LoginCompany: React.FC = () => {
                     left: '1rem',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    fontSize: 'clamp(16px, 3vw, 20px)'
+                    fontSize: isSmall ? '16px' : isMedium ? '18px' : isSmallDesktop ? '18px' : '20px'
                   }}>🏢</div>
                 </div>
               </div>
@@ -472,7 +532,7 @@ const LoginCompany: React.FC = () => {
                   display: 'block', 
                   marginBottom: '1rem', 
                   color: '#2d3748',
-                  fontSize: 'clamp(14px, 3vw, 16px)',
+                  fontSize: labelFontSize,
                   fontWeight: '700'
                 }}>
                   📧 Email de la Empresa
@@ -491,7 +551,7 @@ const LoginCompany: React.FC = () => {
                       padding: '1rem 1rem 1rem 3rem',
                       border: '2px solid #e2e8f0',
                       borderRadius: '12px',
-                      fontSize: 'clamp(14px, 3vw, 16px)',
+                      fontSize: inputFontSize,
                       backgroundColor: '#f8fafc',
                       transition: 'all 0.3s ease',
                       outline: 'none',
@@ -516,7 +576,7 @@ const LoginCompany: React.FC = () => {
                     left: '1rem',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    fontSize: 'clamp(16px, 3vw, 20px)'
+                    fontSize: isSmall ? '16px' : isMedium ? '18px' : isSmallDesktop ? '18px' : '20px'
                   }}>📧</div>
                 </div>
               </div>
@@ -526,14 +586,14 @@ const LoginCompany: React.FC = () => {
                   display: 'block', 
                   marginBottom: '1rem', 
                   color: '#2d3748',
-                  fontSize: 'clamp(14px, 3vw, 16px)',
+                  fontSize: labelFontSize,
                   fontWeight: '700'
                 }}>
                   🔒 Contraseña
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
@@ -542,10 +602,10 @@ const LoginCompany: React.FC = () => {
                     className="form-inputs"
                     style={{
                       width: '100%',
-                      padding: '1rem 1rem 1rem 3rem',
+                      padding: '1rem 3rem 1rem 3rem',
                       border: '2px solid #e2e8f0',
                       borderRadius: '12px',
-                      fontSize: 'clamp(14px, 3vw, 16px)',
+                      fontSize: inputFontSize,
                       backgroundColor: '#f8fafc',
                       transition: 'all 0.3s ease',
                       outline: 'none',
@@ -570,8 +630,38 @@ const LoginCompany: React.FC = () => {
                     left: '1rem',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    fontSize: 'clamp(16px, 3vw, 20px)'
+                    fontSize: isSmall ? '16px' : isMedium ? '18px' : isSmallDesktop ? '18px' : '20px',
+                    pointerEvents: 'none'
                   }}>🔒</div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '1rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '0.25rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: isSmall ? '16px' : isMedium ? '18px' : isSmallDesktop ? '18px' : '20px',
+                      color: '#64748b',
+                      transition: 'color 0.2s ease'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.color = '#1e293b';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.color = '#64748b';
+                    }}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? '👁️' : '👁️‍🗨️'}
+                  </button>
                 </div>
               </div>
               
@@ -585,7 +675,7 @@ const LoginCompany: React.FC = () => {
                   color: 'white',
                   border: 'none',
                   borderRadius: '16px',
-                  fontSize: '18px',
+                  fontSize: buttonFontSize,
                   fontWeight: '700',
                   cursor: loading ? 'not-allowed' : 'pointer',
                   transition: 'all 0.3s ease',
@@ -650,8 +740,8 @@ const LoginCompany: React.FC = () => {
           50% { transform: translateY(-10px); }
         }
         
-        /* Media queries para responsividad */
-        @media (min-width: 1024px) {
+        /* Media queries para responsividad - sm, md, lg, xl, 2xl (excluye xs/móvil) */
+        @media (min-width: 1536px) {
           .main-container {
             flex-direction: row !important;
             height: 100vh !important;
@@ -662,11 +752,44 @@ const LoginCompany: React.FC = () => {
           }
           .form-panel {
             height: 100vh !important;
-            overflow: hidden !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
           }
         }
         
-        @media (max-width: 1023px) {
+        @media (min-width: 1280px) and (max-width: 1535px) {
+          .main-container {
+            flex-direction: row !important;
+            height: 100vh !important;
+          }
+          .left-panel {
+            display: flex !important;
+            height: 100vh !important;
+          }
+          .form-panel {
+            height: 100vh !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+          }
+        }
+        
+        @media (min-width: 1024px) and (max-width: 1279px) {
+          .main-container {
+            flex-direction: row !important;
+            height: 100vh !important;
+          }
+          .left-panel {
+            display: flex !important;
+            height: 100vh !important;
+          }
+          .form-panel {
+            height: 100vh !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+          }
+        }
+        
+        @media (min-width: 768px) and (max-width: 1023px) {
           .left-panel {
             display: none !important;
           }
@@ -674,35 +797,21 @@ const LoginCompany: React.FC = () => {
             height: 100vh !important;
             width: 100vw !important;
             max-width: 100vw !important;
-            overflow: hidden !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
           }
         }
         
-        @media (max-width: 768px) {
-          .form-container {
-            padding: 0.25rem !important;
-            max-width: 350px !important;
+        @media (min-width: 640px) and (max-width: 767px) {
+          .left-panel {
+            display: none !important;
           }
-          .form-inputs {
-            padding: 0.75rem 0.75rem 0.75rem 2.5rem !important;
-            font-size: 14px !important;
-          }
-          .form-labels {
-            font-size: 14px !important;
-          }
-        }
-        
-        @media (max-width: 480px) {
-          .form-container {
-            padding: 0.125rem !important;
-            max-width: 300px !important;
-          }
-          .form-inputs {
-            padding: 0.5rem 0.5rem 0.5rem 2rem !important;
-            font-size: 13px !important;
-          }
-          .form-labels {
-            font-size: 13px !important;
+          .form-panel {
+            height: 100vh !important;
+            width: 100vw !important;
+            max-width: 100vw !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
           }
         }
       `}</style>

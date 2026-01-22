@@ -31,7 +31,9 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const { sendMessage } = useWebSocket();
 	const isExistingOrder = Boolean(table?.currentOperationId);
 	
-	// Adaptar según tamaño de pantalla de PC
+	// Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+	const isSmall = breakpoint === 'sm'; // 640px - 767px
+	const isMedium = breakpoint === 'md'; // 768px - 1023px
 	const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
 	const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
 	
@@ -923,8 +925,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 						{/* Grid de productos */}
 						<div style={{
 							display: 'grid', 
-							gridTemplateColumns: `repeat(auto-fill, minmax(${isSmallDesktop ? '140px' : isMediumDesktop ? '150px' : '160px'}, 1fr))`, 
-							gap: isSmallDesktop ? '0.625rem' : '0.75rem',
+							gridTemplateColumns: `repeat(auto-fill, minmax(${isSmall ? '120px' : isMedium ? '130px' : isSmallDesktop ? '140px' : isMediumDesktop ? '150px' : '160px'}, 1fr))`, 
+							gap: isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : '0.75rem',
 							overflowY: 'auto', 
 							maxHeight: '100%'
 						}}>

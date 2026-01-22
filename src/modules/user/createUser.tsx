@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useMutation } from '@apollo/client';
 import { CREATE_USER } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 import ListUser from './listUser';
 
 interface Branch {
@@ -12,7 +13,27 @@ interface Branch {
 
 const CreateUser: React.FC = () => {
   const { companyData } = useAuth();
+  const { breakpoint } = useResponsive();
   const [showForm, setShowForm] = useState(false);
+  
+  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  const isSmall = breakpoint === 'sm'; // 640px - 767px
+  const isMedium = breakpoint === 'md'; // 768px - 1023px
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
+  
+  // Tamaños adaptativos
+  const containerPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const containerGap = isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2rem';
+  const titleFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const subtitleFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const labelFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : isMediumDesktop ? '0.625rem 0.875rem' : '0.625rem 0.875rem';
+  const buttonPadding = isSmall ? '0.5625rem 1rem' : isMedium ? '0.625rem 1.25rem' : isSmallDesktop ? '0.625rem 1.25rem' : isMediumDesktop ? '0.75rem 1.5rem' : '0.75rem 1.5rem';
+  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const gapSize = isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '0.875rem' : isMediumDesktop ? '1rem' : '1rem';
   const [formData, setFormData] = useState({
     dni: '',
     email: '',
@@ -105,15 +126,18 @@ const CreateUser: React.FC = () => {
     <div
       style={{
         minHeight: '100%',
+        width: '100%',
+        maxWidth: '100%',
         display: 'flex',
         flexDirection: 'column',
-        gap: '2rem',
+        gap: containerGap,
         background: 'linear-gradient(160deg, #f0f4ff 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: '1.5rem',
+        padding: containerPadding,
         borderRadius: '18px',
         boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
         position: 'relative',
         overflow: 'hidden',
+        boxSizing: 'border-box',
       }}
     >
       {/* Elementos decorativos de fondo */}
@@ -148,37 +172,40 @@ const CreateUser: React.FC = () => {
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '2rem'
+          alignItems: isSmall ? 'flex-start' : 'center',
+          flexDirection: isSmall ? 'column' : 'row',
+          marginBottom: isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : '2rem',
+          gap: isSmall || isMedium ? '1rem' : '0'
         }}>
         <div>
           <h2 style={{ 
             margin: 0, 
-            fontSize: '1.5rem', 
+            fontSize: titleFontSize, 
             fontWeight: 700, 
             color: '#1e293b' 
           }}>
             👥 Gestión de Empleados
           </h2>
-          <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.875rem' }}>
+          <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: subtitleFontSize }}>
             Administra los empleados de tu empresa
           </p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
           style={{
-            padding: '0.75rem 1.5rem',
+            padding: buttonPadding,
             background: showForm ? '#64748b' : 'linear-gradient(135deg, #667eea, #764ba2)',
             color: 'white',
             border: 'none',
             borderRadius: '10px',
             fontWeight: 600,
             cursor: 'pointer',
-            fontSize: '0.875rem',
+            fontSize: buttonFontSize,
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            transition: 'all 0.2s ease'
+            transition: 'all 0.2s ease',
+            width: isSmall ? '100%' : 'auto'
           }}
         >
           {showForm ? '✕ Cancelar' : '+ Nuevo Empleado'}
@@ -204,22 +231,27 @@ const CreateUser: React.FC = () => {
           <div style={{
             backgroundColor: 'white',
             borderRadius: '16px',
-            padding: '1.5rem',
-            marginBottom: '1.5rem',
+            padding: cardPadding,
+            marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
             border: '1px solid #e2e8f0'
           }}>
-          <h3 style={{ margin: '0 0 1.25rem', fontSize: '1.1rem', fontWeight: 600, color: '#334155' }}>
+          <h3 style={{ 
+            margin: '0 0 1.25rem', 
+            fontSize: isSmall ? '1rem' : isMedium ? '1.05rem' : isSmallDesktop ? '1.05rem' : '1.1rem', 
+            fontWeight: 600, 
+            color: '#334155' 
+          }}>
             📝 Nuevo Empleado
           </h3>
           <form onSubmit={handleSubmit}>
             <div style={{ 
               display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-              gap: '1rem' 
+              gridTemplateColumns: isSmall ? '1fr' : isMedium ? 'repeat(auto-fit, minmax(180px, 1fr))' : 'repeat(auto-fit, minmax(200px, 1fr))', 
+              gap: gapSize 
             }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
                   DNI *
                 </label>
                 <input
@@ -232,10 +264,10 @@ const CreateUser: React.FC = () => {
                   placeholder="12345678"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box',
                     transition: 'border-color 0.2s'
                   }}
@@ -243,7 +275,7 @@ const CreateUser: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
                   Email *
                 </label>
                 <input
@@ -255,17 +287,17 @@ const CreateUser: React.FC = () => {
                   placeholder="correo@ejemplo.com"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
                   Contraseña *
                 </label>
                 <input
@@ -277,17 +309,17 @@ const CreateUser: React.FC = () => {
                   placeholder="••••••••"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
                   Nombre *
                 </label>
                 <input
@@ -299,17 +331,17 @@ const CreateUser: React.FC = () => {
                   placeholder="Juan"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
                   Apellido *
                 </label>
                 <input
@@ -321,17 +353,17 @@ const CreateUser: React.FC = () => {
                   placeholder="Pérez"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
                   Teléfono
                 </label>
                 <input
@@ -342,17 +374,17 @@ const CreateUser: React.FC = () => {
                   placeholder="987654321"
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
                   Sucursal *
                 </label>
                 <select
@@ -362,10 +394,10 @@ const CreateUser: React.FC = () => {
                   required
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box',
                     backgroundColor: 'white'
                   }}
@@ -380,7 +412,7 @@ const CreateUser: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
                   Rol *
                 </label>
                 <select
@@ -390,10 +422,10 @@ const CreateUser: React.FC = () => {
                   required
                   style={{
                     width: '100%',
-                    padding: '0.625rem 0.875rem',
+                    padding: inputPadding,
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box',
                     backgroundColor: 'white'
                   }}
@@ -408,7 +440,7 @@ const CreateUser: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+                <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
                   Foto (opcional)
                 </label>
                 <input
@@ -417,29 +449,35 @@ const CreateUser: React.FC = () => {
                   onChange={handlePhotoChange}
                   style={{
                     width: '100%',
-                    padding: '0.5rem',
+                    padding: isSmall ? '0.4375rem' : '0.5rem',
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: '0.875rem',
+                    fontSize: inputFontSize,
                     boxSizing: 'border-box'
                   }}
                 />
               </div>
             </div>
 
-            <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem' }}>
+            <div style={{ 
+              marginTop: '1.25rem', 
+              display: 'flex', 
+              flexDirection: isSmall ? 'column' : 'row',
+              gap: '0.75rem' 
+            }}>
               <button
                 type="submit"
                 disabled={loading}
                 style={{
-                  padding: '0.75rem 1.5rem',
+                  flex: isSmall ? 'none' : 1,
+                  padding: buttonPadding,
                   background: loading ? '#94a3b8' : 'linear-gradient(135deg, #667eea, #764ba2)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '10px',
                   fontWeight: 600,
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  fontSize: '0.875rem'
+                  fontSize: buttonFontSize
                 }}
               >
                 {loading ? 'Guardando...' : '💾 Guardar Empleado'}
@@ -448,14 +486,14 @@ const CreateUser: React.FC = () => {
                 type="button"
                 onClick={() => setShowForm(false)}
                 style={{
-                  padding: '0.75rem 1.5rem',
+                  padding: buttonPadding,
                   background: '#f1f5f9',
                   color: '#475569',
                   border: 'none',
                   borderRadius: '10px',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  fontSize: '0.875rem'
+                  fontSize: buttonFontSize
                 }}
               >
                 Cancelar

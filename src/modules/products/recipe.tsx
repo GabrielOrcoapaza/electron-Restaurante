@@ -41,20 +41,24 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
   const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
 
-  // Adaptar según tamaño de pantalla de PC
+  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  const isSmall = breakpoint === 'sm'; // 640px - 767px
+  const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
   
   // Tamaños adaptativos
-  const modalPadding = isSmallDesktop ? '1.5rem' : '2rem';
-  const modalMaxWidth = isSmallDesktop ? '550px' : '600px';
-  const labelFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const inputFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const inputPadding = isSmallDesktop ? '0.5625rem 0.75rem' : '0.625rem 0.875rem';
-  const buttonPadding = isSmallDesktop ? '0.625rem 1.25rem' : '0.625rem 1.25rem';
-  const buttonFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const tableFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const tableCellPadding = isSmallDesktop ? '0.625rem' : '0.75rem';
-  const gapSize = isSmallDesktop ? '0.875rem' : '1rem';
+  const modalPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '1.75rem' : '2rem';
+  const modalMaxWidth = isSmall ? '95%' : isMedium ? '500px' : isSmallDesktop ? '550px' : isMediumDesktop ? '600px' : '600px';
+  const labelFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : isMediumDesktop ? '0.625rem 0.875rem' : '0.625rem 0.875rem';
+  const buttonPadding = isSmall ? '0.5625rem 1rem' : isMedium ? '0.625rem 1.25rem' : isSmallDesktop ? '0.625rem 1.25rem' : isMediumDesktop ? '0.75rem 1.5rem' : '0.75rem 1.5rem';
+  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const tableFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const tableCellPadding = isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
+  const gapSize = isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '0.875rem' : isMediumDesktop ? '1rem' : '1rem';
+  const titleFontSize = isSmall ? '1.25rem' : isMedium ? '1.375rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
   
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -224,7 +228,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
 
         <h2 style={{ 
           margin: '0 0 1.5rem', 
-          fontSize: '1.5rem', 
+          fontSize: titleFontSize, 
           fontWeight: 700, 
           color: '#1e293b' 
         }}>
@@ -232,7 +236,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
         </h2>
 
         <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
-          <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>
+          <p style={{ margin: 0, fontSize: labelFontSize, color: '#64748b' }}>
             <strong style={{ color: '#334155' }}>Producto:</strong> {productName}
           </p>
         </div>
@@ -287,7 +291,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
             borderRadius: '12px',
             border: '1px solid #e2e8f0'
           }}>
-            <h3 style={{ margin: '0 0 1rem', fontSize: isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#334155' }}>
+            <h3 style={{ margin: '0 0 1rem', fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#334155' }}>
               Agregar Nuevo Ingrediente
             </h3>
             <form onSubmit={handleAddIngredient}>
@@ -507,51 +511,58 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
               padding: '1rem',
               border: '1px solid #e2e8f0'
             }}>
-              <table style={{ 
-                width: '100%', 
-                borderCollapse: 'collapse',
-                fontSize: tableFontSize
+              <div style={{ 
+                overflowX: 'auto',
+                width: '100%',
+                maxWidth: '100%',
+                boxSizing: 'border-box'
               }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                    <th style={{ 
-                      padding: tableCellPadding, 
-                      textAlign: 'left', 
-                      color: '#64748b', 
-                      fontWeight: 600,
-                      fontSize: tableFontSize
-                    }}>
-                      Ingrediente
-                    </th>
-                    <th style={{ 
-                      padding: tableCellPadding, 
-                      textAlign: 'right', 
-                      color: '#64748b', 
-                      fontWeight: 600,
-                      fontSize: tableFontSize
-                    }}>
-                      Cantidad
-                    </th>
-                    <th style={{ 
-                      padding: tableCellPadding, 
-                      textAlign: 'left', 
-                      color: '#64748b', 
-                      fontWeight: 600,
-                      fontSize: tableFontSize
-                    }}>
-                      Notas
-                    </th>
-                    <th style={{ 
-                      padding: tableCellPadding, 
-                      textAlign: 'center', 
-                      color: '#64748b', 
-                      fontWeight: 600,
-                      fontSize: tableFontSize
-                    }}>
-                      Acciones
-                    </th>
-                  </tr>
-                </thead>
+                <table style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse',
+                  fontSize: tableFontSize,
+                  tableLayout: 'auto'
+                }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'left', 
+                        color: '#64748b', 
+                        fontWeight: 600,
+                        fontSize: tableFontSize
+                      }}>
+                        Ingrediente
+                      </th>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'right', 
+                        color: '#64748b', 
+                        fontWeight: 600,
+                        fontSize: tableFontSize
+                      }}>
+                        Cantidad
+                      </th>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'left', 
+                        color: '#64748b', 
+                        fontWeight: 600,
+                        fontSize: tableFontSize
+                      }}>
+                        Notas
+                      </th>
+                      <th style={{ 
+                        padding: tableCellPadding, 
+                        textAlign: 'center', 
+                        color: '#64748b', 
+                        fontWeight: 600,
+                        fontSize: tableFontSize
+                      }}>
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
                 <tbody>
                   {recipes.map((recipe, index) => (
                     <tr 
@@ -569,7 +580,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                         {recipe.ingredient.name}
                         <span style={{ 
                           color: '#94a3b8', 
-                          fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem',
+                          fontSize: isSmall ? '0.625rem' : isMedium ? '0.6875rem' : isSmallDesktop ? '0.6875rem' : '0.75rem',
                           marginLeft: '0.5rem',
                           fontFamily: 'monospace'
                         }}>
@@ -588,7 +599,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                       <td style={{ 
                         padding: tableCellPadding, 
                         color: '#64748b',
-                        fontSize: isSmallDesktop ? '0.75rem' : '0.8rem',
+                        fontSize: isSmall ? '0.6875rem' : isMedium ? '0.75rem' : isSmallDesktop ? '0.75rem' : '0.8rem',
                         fontStyle: recipe.notes ? 'normal' : 'italic'
                       }}>
                         {recipe.notes || '-'}
@@ -629,6 +640,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
 
             <div style={{ 
@@ -640,7 +652,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
             }}>
               <p style={{ 
                 margin: 0, 
-                fontSize: '0.875rem', 
+                fontSize: labelFontSize, 
                 color: '#166534',
                 textAlign: 'center',
                 fontWeight: 500
@@ -678,4 +690,5 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
 };
 
 export default RecipeModal;
+export { RecipeModal };
 

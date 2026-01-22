@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 import { CREATE_PERSON } from '../../graphql/mutations';
 
 type CreateClientProps = {
@@ -10,6 +11,24 @@ type CreateClientProps = {
 
 const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
   const { companyData } = useAuth();
+  const { breakpoint } = useResponsive();
+  
+  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  const isSmall = breakpoint === 'sm'; // 640px - 767px
+  const isMedium = breakpoint === 'md'; // 768px - 1023px
+  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
+  
+  // Tamaños adaptativos
+  const modalPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '1.75rem' : '2rem';
+  const modalMaxWidth = isSmall ? '95%' : isMedium ? '450px' : isSmallDesktop ? '500px' : isMediumDesktop ? '550px' : '600px';
+  const titleFontSize = isSmall ? '1.25rem' : isMedium ? '1.375rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const labelFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : isMediumDesktop ? '0.625rem 0.875rem' : '0.75rem';
+  const buttonPadding = isSmall ? '0.5625rem 1rem' : isMedium ? '0.625rem 1.25rem' : isSmallDesktop ? '0.625rem 1.25rem' : isMediumDesktop ? '0.75rem 1.5rem' : '0.75rem 1.5rem';
+  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  
   const [formData, setFormData] = useState({
     name: '',
     documentType: 'DNI',
@@ -107,8 +126,8 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
         style={{
           backgroundColor: 'white',
           borderRadius: '12px',
-          padding: '2rem',
-          maxWidth: '500px',
+          padding: modalPadding,
+          maxWidth: modalMaxWidth,
           width: '100%',
           maxHeight: '90vh',
           overflow: 'auto',
@@ -116,8 +135,8 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: '#1e293b' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem' }}>
+          <h2 style={{ margin: 0, fontSize: titleFontSize, fontWeight: 700, color: '#1e293b' }}>
             Nuevo Cliente
           </h2>
           <button
@@ -148,7 +167,7 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
               color: message.type === 'success' ? '#166534' : '#991b1b',
               border: `1px solid ${message.type === 'success' ? '#86efac' : '#fecaca'}`,
-              fontSize: '0.875rem'
+              fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem'
             }}
           >
             {message.text}
@@ -160,7 +179,7 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
             <label
               style={{
                 display: 'block',
-                fontSize: '0.875rem',
+                fontSize: labelFontSize,
                 fontWeight: 600,
                 color: '#374151',
                 marginBottom: '0.5rem'
@@ -176,10 +195,11 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               required
               style={{
                 width: '100%',
-                padding: '0.75rem',
+                padding: inputPadding,
                 borderRadius: '8px',
                 border: '1px solid #d1d5db',
-                fontSize: '0.875rem'
+                fontSize: inputFontSize,
+                boxSizing: 'border-box'
               }}
             />
           </div>
@@ -188,7 +208,7 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
             <label
               style={{
                 display: 'block',
-                fontSize: '0.875rem',
+                fontSize: labelFontSize,
                 fontWeight: 600,
                 color: '#374151',
                 marginBottom: '0.5rem'
@@ -203,11 +223,12 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               required
               style={{
                 width: '100%',
-                padding: '0.75rem',
+                padding: inputPadding,
                 borderRadius: '8px',
                 border: '1px solid #d1d5db',
-                fontSize: '0.875rem',
-                backgroundColor: 'white'
+                fontSize: inputFontSize,
+                backgroundColor: 'white',
+                boxSizing: 'border-box'
               }}
             >
               <option value="DNI">DNI</option>
@@ -221,7 +242,7 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
             <label
               style={{
                 display: 'block',
-                fontSize: '0.875rem',
+                fontSize: labelFontSize,
                 fontWeight: 600,
                 color: '#374151',
                 marginBottom: '0.5rem'
@@ -237,10 +258,11 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               required
               style={{
                 width: '100%',
-                padding: '0.75rem',
+                padding: inputPadding,
                 borderRadius: '8px',
                 border: '1px solid #d1d5db',
-                fontSize: '0.875rem'
+                fontSize: inputFontSize,
+                boxSizing: 'border-box'
               }}
             />
           </div>
@@ -249,7 +271,7 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
             <label
               style={{
                 display: 'block',
-                fontSize: '0.875rem',
+                fontSize: labelFontSize,
                 fontWeight: 600,
                 color: '#374151',
                 marginBottom: '0.5rem'
@@ -264,10 +286,11 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               onChange={handleChange}
               style={{
                 width: '100%',
-                padding: '0.75rem',
+                padding: inputPadding,
                 borderRadius: '8px',
                 border: '1px solid #d1d5db',
-                fontSize: '0.875rem'
+                fontSize: inputFontSize,
+                boxSizing: 'border-box'
               }}
             />
           </div>
@@ -276,7 +299,7 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
             <label
               style={{
                 display: 'block',
-                fontSize: '0.875rem',
+                fontSize: labelFontSize,
                 fontWeight: 600,
                 color: '#374151',
                 marginBottom: '0.5rem'
@@ -291,19 +314,20 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               onChange={handleChange}
               style={{
                 width: '100%',
-                padding: '0.75rem',
+                padding: inputPadding,
                 borderRadius: '8px',
                 border: '1px solid #d1d5db',
-                fontSize: '0.875rem'
+                fontSize: inputFontSize,
+                boxSizing: 'border-box'
               }}
             />
           </div>
 
-          <div style={{ marginBottom: '1.5rem' }}>
+          <div style={{ marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem' }}>
             <label
               style={{
                 display: 'block',
-                fontSize: '0.875rem',
+                fontSize: labelFontSize,
                 fontWeight: 600,
                 color: '#374151',
                 marginBottom: '0.5rem'
@@ -318,29 +342,36 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               onChange={handleChange}
               style={{
                 width: '100%',
-                padding: '0.75rem',
+                padding: inputPadding,
                 borderRadius: '8px',
                 border: '1px solid #d1d5db',
-                fontSize: '0.875rem'
+                fontSize: inputFontSize,
+                boxSizing: 'border-box'
               }}
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: isSmall ? 'column' : 'row',
+            gap: '1rem', 
+            justifyContent: 'flex-end' 
+          }}>
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
               style={{
-                padding: '0.75rem 1.5rem',
+                padding: buttonPadding,
                 borderRadius: '8px',
                 border: '1px solid #d1d5db',
                 backgroundColor: 'white',
                 color: '#374151',
-                fontSize: '0.875rem',
+                fontSize: buttonFontSize,
                 fontWeight: 600,
                 cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.6 : 1
+                opacity: loading ? 0.6 : 1,
+                width: isSmall ? '100%' : 'auto'
               }}
             >
               Cancelar
@@ -349,15 +380,16 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               type="submit"
               disabled={loading}
               style={{
-                padding: '0.75rem 1.5rem',
+                padding: buttonPadding,
                 borderRadius: '8px',
                 border: 'none',
                 backgroundColor: loading ? '#9ca3af' : '#667eea',
                 color: 'white',
-                fontSize: '0.875rem',
+                fontSize: buttonFontSize,
                 fontWeight: 600,
                 cursor: loading ? 'not-allowed' : 'pointer',
-                transition: 'background 0.2s'
+                transition: 'background 0.2s',
+                width: isSmall ? '100%' : 'auto'
               }}
             >
               {loading ? 'Creando...' : 'Crear Cliente'}

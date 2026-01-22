@@ -13,9 +13,12 @@ interface UseResponsiveReturn {
 
 /**
  * Hook para detectar el tamaño de pantalla y proporcionar breakpoints responsive
- * Solo para pantallas de PC (desktop), no para móviles o tablets
+ * Soporta tablets pequeñas, medianas y pantallas de PC (excluye móviles/xs)
  * 
- * Breakpoints (solo desktop):
+ * Breakpoints:
+ * - xs: < 640px (móviles - bloqueado)
+ * - sm: 640px - 767px (tablets pequeñas)
+ * - md: 768px - 1023px (tablets medianas)
  * - lg: 1024px - 1279px (desktop pequeño/monitores pequeños)
  * - xl: 1280px - 1535px (desktop medio/monitores estándar)
  * - 2xl: >= 1536px (desktop grande/monitores grandes y ultra wide)

@@ -118,21 +118,23 @@ const Cashs: React.FC = () => {
   const { breakpoint, isMobile, isTablet } = useResponsive();
   const branchId = companyData?.branch?.id;
 
-  // Adaptar según tamaño de pantalla
+  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  const isSmall = breakpoint === 'sm'; // 640px - 767px
+  const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
 
   // Tamaños adaptativos
-  const containerPadding = isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '2rem';
-  const cardPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
-  const titleFontSize = isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.75rem';
-  const subtitleFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const sectionTitleFontSize = isSmallDesktop ? '1rem' : '1.125rem';
-  const gridGap = isSmallDesktop ? '1rem' : '1.5rem';
-  const statCardMinWidth = isSmallDesktop ? '180px' : isMediumDesktop ? '200px' : '220px';
-  const cashCardMinWidth = isSmallDesktop ? '280px' : isMediumDesktop ? '300px' : '320px';
-  const buttonPadding = isSmallDesktop ? '0.5rem 1rem' : '0.75rem 1.5rem';
-  const buttonFontSize = isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const containerPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '2rem';
+  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : '1.5rem';
+  const titleFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.75rem';
+  const subtitleFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
+  const sectionTitleFontSize = isSmall ? '0.9375rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '1.125rem';
+  const gridGap = isSmall ? '0.75rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '1.5rem';
+  const statCardMinWidth = isSmall ? '160px' : isMedium ? '180px' : isSmallDesktop ? '180px' : isMediumDesktop ? '200px' : '220px';
+  const cashCardMinWidth = isSmall ? '240px' : isMedium ? '260px' : isSmallDesktop ? '280px' : isMediumDesktop ? '300px' : '320px';
+  const buttonPadding = isSmall ? '0.5rem 0.875rem' : isMedium ? '0.5rem 1rem' : isSmallDesktop ? '0.5rem 1rem' : '0.75rem 1.5rem';
+  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
 
   const [selectedCashRegister, setSelectedCashRegister] = useState<string>('');
   const [showPreview, setShowPreview] = useState(false);
@@ -532,7 +534,7 @@ const Cashs: React.FC = () => {
 
               {/* Balances por tipo de caja */}
               <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
-                <h4 style={{ margin: '0 0 1rem', fontSize: isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
+                <h4 style={{ margin: '0 0 1rem', fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
                   Balances por Tipo de Caja
                 </h4>
                 <div style={{
@@ -649,10 +651,10 @@ const Cashs: React.FC = () => {
               {cashRegisters.length === 0 ? (
                 <div style={{
                   textAlign: 'center',
-                  padding: isSmallDesktop ? '2rem' : '3rem',
+                  padding: isSmall ? '1.5rem' : isMedium ? '2rem' : isSmallDesktop ? '2rem' : '3rem',
                   color: '#64748b'
                 }}>
-                  <p style={{ fontSize: isSmallDesktop ? '0.9375rem' : '1rem', margin: 0 }}>No hay cajas registradas</p>
+                  <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', margin: 0 }}>No hay cajas registradas</p>
                 </div>
               ) : (
                 <div style={{
@@ -686,7 +688,7 @@ const Cashs: React.FC = () => {
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
                           <div>
-                            <h4 style={{ margin: '0 0 0.5rem', fontSize: isSmallDesktop ? '1rem' : '1.125rem', fontWeight: 700, color: typeColors.color }}>
+                            <h4 style={{ margin: '0 0 0.5rem', fontSize: isSmall ? '0.9375rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '1.125rem', fontWeight: 700, color: typeColors.color }}>
                               {cashRegister.name}
                             </h4>
                             <span style={{
@@ -751,7 +753,7 @@ const Cashs: React.FC = () => {
           border: '1px solid #e2e8f0'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-            <h3 style={{ margin: 0, fontSize: isSmallDesktop ? '1.125rem' : '1.25rem', fontWeight: 700, color: '#1e293b' }}>
+            <h3 style={{ margin: 0, fontSize: isSmall ? '1rem' : isMedium ? '1.125rem' : isSmallDesktop ? '1.125rem' : '1.25rem', fontWeight: 700, color: '#1e293b' }}>
               🔍 Preview de Cierre de Caja
             </h3>
             <button
@@ -844,7 +846,7 @@ const Cashs: React.FC = () => {
                 border: '1px solid #e2e8f0',
                 marginBottom: gridGap
               }}>
-                <h4 style={{ margin: '0 0 1rem', fontSize: isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
+                <h4 style={{ margin: '0 0 1rem', fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
                   Totales Generales
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${statCardMinWidth}, 1fr))`, gap: gridGap }}>
@@ -872,7 +874,7 @@ const Cashs: React.FC = () => {
               {/* Métodos de Pago Generales */}
               {preview.generalPaymentMethods && preview.generalPaymentMethods.length > 0 && (
                 <div style={{ marginBottom: gridGap }}>
-                  <h4 style={{ margin: '0 0 1rem', fontSize: isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
+                  <h4 style={{ margin: '0 0 1rem', fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
                     Métodos de Pago - Totales Generales
                   </h4>
                   <div style={{ overflowX: 'auto' }}>
@@ -916,7 +918,7 @@ const Cashs: React.FC = () => {
               {/* Resumen por Usuario */}
               {preview.usersSummary && preview.usersSummary.length > 0 && (
                 <div style={{ marginBottom: gridGap }}>
-                  <h4 style={{ margin: '0 0 1rem', fontSize: isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
+                  <h4 style={{ margin: '0 0 1rem', fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
                     Resumen por Usuario
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: gridGap }}>
@@ -1099,7 +1101,7 @@ const Cashs: React.FC = () => {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <h3 style={{ margin: '0 0 0.5rem', fontSize: isSmallDesktop ? '1.125rem' : '1.25rem', fontWeight: 700, color: '#1e293b' }}>
+              <h3 style={{ margin: '0 0 0.5rem', fontSize: isSmall ? '1rem' : isMedium ? '1.125rem' : isSmallDesktop ? '1.125rem' : '1.25rem', fontWeight: 700, color: '#1e293b' }}>
                 📜 Historial de Cierres de Caja
               </h3>
               <p style={{ margin: 0, fontSize: subtitleFontSize, color: '#64748b' }}>
@@ -1326,7 +1328,7 @@ const Cashs: React.FC = () => {
               backgroundColor: 'white',
               borderRadius: '16px',
               padding: cardPadding,
-              maxWidth: isSmallDesktop ? '450px' : '500px',
+              maxWidth: isSmall ? '400px' : isMedium ? '450px' : isSmallDesktop ? '450px' : '500px',
               width: '100%',
               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
               border: '1px solid #e2e8f0'
@@ -1335,7 +1337,7 @@ const Cashs: React.FC = () => {
           >
             <div style={{ marginBottom: '1.5rem' }}>
               <div style={{
-                fontSize: isSmallDesktop ? '2.5rem' : '3rem',
+                fontSize: isSmall ? '2rem' : isMedium ? '2.5rem' : isSmallDesktop ? '2.5rem' : '3rem',
                 textAlign: 'center',
                 marginBottom: '1rem'
               }}>
@@ -1343,7 +1345,7 @@ const Cashs: React.FC = () => {
               </div>
               <h3 style={{
                 margin: '0 0 0.5rem',
-                fontSize: isSmallDesktop ? '1.25rem' : '1.5rem',
+                fontSize: isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : '1.5rem',
                 fontWeight: 700,
                 color: '#1e293b',
                 textAlign: 'center'
@@ -1352,7 +1354,7 @@ const Cashs: React.FC = () => {
               </h3>
               <p style={{
                 margin: 0,
-                fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
+                fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem',
                 color: '#64748b',
                 textAlign: 'center',
                 lineHeight: '1.5'

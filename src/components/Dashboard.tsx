@@ -20,11 +20,14 @@ const Dashboard = () => {
   return (
     <LayoutDashboard>
       <div style={{
+        width: '100%',
+        maxWidth: '100%',
         display: 'grid',
         gridTemplateColumns: `repeat(auto-fit, minmax(${cardMinWidth}, 1fr))`,
         gap: cardGap,
         marginBottom: cardGap,
-        padding: isSmallDesktop ? '0.75rem' : '1rem'
+        padding: isSmallDesktop ? '0.75rem' : '1rem',
+        boxSizing: 'border-box'
       }}>
         {/* Tarjeta de Bienvenida */}
         <div style={{
@@ -184,12 +187,15 @@ const Dashboard = () => {
 
       {/* Sección de Acciones Rápidas */}
       <div style={{
+        width: '100%',
+        maxWidth: '100%',
         background: 'white',
         padding: cardPadding,
         borderRadius: '16px',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
         border: '1px solid #e2e8f0',
-        margin: `0 ${isSmallDesktop ? '0.75rem' : '1rem'}`
+        margin: `0 ${isSmallDesktop ? '0.75rem' : '1rem'}`,
+        boxSizing: 'border-box'
       }}>
         <h3 style={{
           fontSize: isSmallDesktop ? '1.125rem' : '1.25rem',
