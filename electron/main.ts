@@ -42,9 +42,9 @@ function createWindow() {
 app.whenReady().then(() => {
   // Desactivar caché en producción para asegurar que se carguen los últimos cambios
   if (!isDev) {
-    // Limpiar caché y almacenamiento al iniciar
+    // Limpiar solo el caché (NO el localStorage para mantener datos de autenticación)
     session.defaultSession.clearCache();
-    session.defaultSession.clearStorageData();
+    // NO limpiar clearStorageData() para mantener companyData y otros datos de autenticación
     
     // Interceptar solicitudes para desactivar caché (solo una vez al iniciar)
     session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
