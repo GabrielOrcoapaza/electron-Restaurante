@@ -447,7 +447,10 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   // Funciones para manejar múltiples pagos
   const addPayment = () => {
     const newId = String(Date.now());
-    setPayments([...payments, { id: newId, method: 'CASH', amount: 0, referenceNumber: '' }]);
+    // Calcular el monto restante para el nuevo pago
+    const currentTotalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const remainingAmount = Math.max(0, total - currentTotalPaid);
+    setPayments([...payments, { id: newId, method: 'CASH', amount: remainingAmount, referenceNumber: '' }]);
   };
 
   const removePayment = (id: string) => {
@@ -650,10 +653,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         d.id?.includes(`${originalId}-split`) && d.id !== splitDetailId
       );
       
-      // Si no quedan más copias, remover la marca de dividido
+      // Si no quedan más copias, remover la marca de dividido y marcar el original como seleccionado
       if (remainingSplits.length === 0) {
         const newAssignments = { ...prev };
         delete newAssignments[originalId];
+        // Marcar el producto original como seleccionado
+        newAssignments[originalId] = true;
         return newAssignments;
       }
       return prev;
@@ -912,10 +917,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       return newDetails;
     });
 
-    // Remover la marca de dividido
+    // Remover la marca de dividido y marcar el producto original como seleccionado
     setItemAssignments(prev => {
       const newAssignments = { ...prev };
       delete newAssignments[originalDetailId];
+      // Marcar el producto original como seleccionado
+      newAssignments[originalDetailId] = true;
       return newAssignments;
     });
   };
@@ -2560,21 +2567,21 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   style={{
                     display: 'grid',
                     gridTemplateColumns: isSmallDesktop 
-                      ? '0.4fr 1.5fr 0.5fr 0.7fr 0.7fr 1.2fr'
+                      ? '0.4fr 0.5fr 1.5fr 0.7fr 0.7fr 1.2fr'
                       : isMediumDesktop
-                      ? '0.35fr 1.3fr 0.45fr 0.65fr 0.65fr 1.1fr'
-                      : '0.3fr 1.2fr 0.4fr 0.6fr 0.6fr 1fr',
+                      ? '0.35fr 0.45fr 1.3fr 0.65fr 0.65fr 1.1fr'
+                      : '0.3fr 0.4fr 1.2fr 0.6fr 0.6fr 1fr',
                     background: 'linear-gradient(135deg, rgba(102,126,234,0.12), rgba(129,140,248,0.12))',
-                    padding: isSmallDesktop ? '0.85rem 1.1rem' : '0.9rem 1.2rem',
+                    padding: isSmallDesktop ? '0.6rem 0.9rem' : '0.7rem 1rem',
                     fontWeight: 700,
                     color: '#2d3748',
-                    fontSize: isSmallDesktop ? '0.9rem' : '0.92rem',
+                    fontSize: isSmallDesktop ? '0.75rem' : '0.8rem',
                     letterSpacing: '0.01em'
                   }}
                 >
                   <span style={{ textAlign: 'center' }}>Sel.</span>
-                  <span>Producto</span>
                   <span style={{ textAlign: 'center' }}>Cant.</span>
+                  <span>Producto</span>
                   <span style={{ textAlign: 'right' }}>P. Unit.</span>
                   <span style={{ textAlign: 'right' }}>Total</span>
                   <span style={{ textAlign: 'center' }}>Dividir</span>
@@ -2595,12 +2602,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                       style={{
                         display: 'grid',
                         gridTemplateColumns: isSmallDesktop 
-                          ? '0.4fr 1.5fr 0.5fr 0.7fr 0.7fr 1.2fr'
+                          ? '0.4fr 0.5fr 1.5fr 0.7fr 0.7fr 1.2fr'
                           : isMediumDesktop
-                          ? '0.35fr 1.3fr 0.45fr 0.65fr 0.65fr 1.1fr'
-                          : '0.3fr 1.2fr 0.4fr 0.6fr 0.6fr 1fr',
-                        padding: isSmallDesktop ? '0.9rem 1.1rem' : '1rem 1.2rem',
-                        fontSize: isSmallDesktop ? '0.88rem' : '0.9rem',
+                          ? '0.35fr 0.45fr 1.3fr 0.65fr 0.65fr 1.1fr'
+                          : '0.3fr 0.4fr 1.2fr 0.6fr 0.6fr 1fr',
+                        padding: isSmallDesktop ? '0.6rem 0.9rem' : '0.7rem 1rem',
+                        fontSize: isSmallDesktop ? '0.75rem' : '0.8rem',
                         alignItems: 'center',
                         color: '#1a202c',
                         backgroundColor: isSelected 
@@ -2623,64 +2630,52 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                           checked={isSelected || false}
                           onChange={() => handleToggleItemSelection(detail.id || '')}
                           style={{
-                            width: '1.25rem',
-                            height: '1.25rem',
+                            width: isSmallDesktop ? '1rem' : '1.1rem',
+                            height: isSmallDesktop ? '1rem' : '1.1rem',
                             cursor: 'pointer',
                             accentColor: '#8b5cf6'
                           }}
                         />
-                      </div>
-                      <div style={{ 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: '0.35rem'
-                      }}>
-                        <div style={{ fontWeight: 700, fontSize: isSmallDesktop ? '0.93rem' : '0.95rem' }}>
-                          {detail.productName || 'Producto'}
-                        </div>
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8rem' }}>
-                          {detail.productCode && (
-                            <span
-                              style={{
-                                backgroundColor: 'rgba(237,242,247,0.9)',
-                                color: '#4a5568',
-                                padding: '0.25rem 0.55rem',
-                                borderRadius: '999px',
-                                fontWeight: 600
-                              }}
-                            >
-                              Código {detail.productCode}
-                            </span>
-                          )}
-                          {detail.notes && (
-                            <span
-                              style={{
-                                backgroundColor: 'rgba(255,255,255,0.85)',
-                                border: '1px dashed rgba(102,126,234,0.5)',
-                                color: '#434190',
-                                padding: '0.3rem 0.55rem',
-                                borderRadius: '10px'
-                              }}
-                            >
-                              Nota: {detail.notes}
-                            </span>
-                          )}
-                        </div>
                       </div>
                       <span
                         style={{
                           textAlign: 'center',
                           fontWeight: 700,
                           color: '#4c51bf',
-                          fontSize: isSmallDesktop ? '1rem' : '1.05rem'
+                          fontSize: isSmallDesktop ? '0.85rem' : '0.9rem'
                         }}
                       >
                         {quantity}
                       </span>
+                      <div style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '0.25rem'
+                      }}>
+                        <div style={{ fontWeight: 700, fontSize: isSmallDesktop ? '0.8rem' : '0.85rem' }}>
+                          {detail.productName || 'Producto'}
+                        </div>
+                        {detail.notes && (
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.7rem' }}>
+                            <span
+                              style={{
+                                backgroundColor: 'rgba(255,255,255,0.85)',
+                                border: '1px dashed rgba(102,126,234,0.5)',
+                                color: '#434190',
+                                padding: '0.2rem 0.45rem',
+                                borderRadius: '8px'
+                              }}
+                            >
+                              Nota: {detail.notes}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                       <span
                         style={{
                           textAlign: 'right',
-                          color: '#2d3748'
+                          color: '#2d3748',
+                          fontSize: isSmallDesktop ? '0.8rem' : '0.85rem'
                         }}
                       >
                         {currencyFormatter.format(unitPrice)}
@@ -2689,7 +2684,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                         style={{
                           textAlign: 'right',
                           fontWeight: 700,
-                          fontSize: isSmallDesktop ? '1rem' : '1.05rem',
+                          fontSize: isSmallDesktop ? '0.85rem' : '0.9rem',
                           color: '#1a202c'
                         }}
                       >
@@ -2708,18 +2703,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                           <button
                             onClick={() => handleSplitItem(detail.id)}
                             style={{
-                              padding: '0.5rem 1rem',
-                              borderRadius: '8px',
+                              padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
+                              borderRadius: '6px',
                               border: 'none',
                               background: 'rgba(139, 92, 246, 0.15)',
                               color: '#8b5cf6',
-                              fontWeight: 700,
-                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
                               cursor: 'pointer',
                               transition: 'all 0.2s',
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '0.35rem'
+                              gap: '0.25rem'
                             }}
                             onMouseOver={(e) => {
                               e.currentTarget.style.background = 'rgba(139, 92, 246, 0.25)';
@@ -2735,18 +2730,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                           <button
                             onClick={() => handleMergeItem(detail.id)}
                             style={{
-                              padding: '0.5rem 1rem',
-                              borderRadius: '8px',
+                              padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
+                              borderRadius: '6px',
                               border: 'none',
                               background: 'linear-gradient(130deg, #10b981, #059669)',
                               color: 'white',
-                              fontWeight: 700,
-                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
                               cursor: 'pointer',
                               transition: 'all 0.2s',
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '0.35rem'
+                              gap: '0.25rem'
                             }}
                             onMouseOver={(e) => {
                               e.currentTarget.style.background = 'linear-gradient(130deg, #059669, #047857)';
@@ -2762,18 +2757,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                           <button
                             onClick={() => handleMergeAll(detail.id)}
                             style={{
-                              padding: '0.5rem 1rem',
-                              borderRadius: '8px',
+                              padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
+                              borderRadius: '6px',
                               border: 'none',
                               background: 'linear-gradient(130deg, #f59e0b, #d97706)',
                               color: 'white',
-                              fontWeight: 700,
-                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
                               cursor: 'pointer',
                               transition: 'all 0.2s',
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '0.35rem'
+                              gap: '0.25rem'
                             }}
                             onMouseOver={(e) => {
                               e.currentTarget.style.background = 'linear-gradient(130deg, #d97706, #b45309)';
@@ -2788,18 +2783,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                         <button
                           onClick={() => handleDeleteItem(detail.id)}
                           style={{
-                            padding: '0.5rem 1rem',
-                            borderRadius: '8px',
+                            padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
+                            borderRadius: '6px',
                             border: 'none',
                             background: 'linear-gradient(130deg, #ef4444, #dc2626)',
                             color: 'white',
-                            fontWeight: 700,
-                            fontSize: '0.85rem',
+                            fontWeight: 600,
+                            fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
                             cursor: 'pointer',
                             transition: 'all 0.2s',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.35rem'
+                            gap: '0.25rem'
                           }}
                           onMouseOver={(e) => {
                             e.currentTarget.style.background = 'linear-gradient(130deg, #dc2626, #b91c1c)';
@@ -3145,8 +3140,21 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                         type="number"
                         step="0.01"
                         min="0"
-                        value={payment.amount}
-                        onChange={(e) => updatePayment(payment.id, 'amount', parseFloat(e.target.value) || 0)}
+                        value={payment.amount === 0 ? '' : payment.amount}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === '' || value === null || value === undefined) {
+                            updatePayment(payment.id, 'amount', 0);
+                          } else {
+                            const numValue = parseFloat(value);
+                            updatePayment(payment.id, 'amount', isNaN(numValue) ? 0 : numValue);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value === '' || e.target.value === null || e.target.value === undefined) {
+                            updatePayment(payment.id, 'amount', 0);
+                          }
+                        }}
                         disabled={isProcessing}
                         placeholder="0.00"
                         style={{

@@ -593,7 +593,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                   onClick={() => handleTableClick(table)}
                   style={{
                     backgroundColor: colors.backgroundColor,
-                    border: `1.5px solid ${colors.borderColor}`,
+                    border: isRoundTable ? `3px solid ${colors.borderColor}` : `1.5px solid ${colors.borderColor}`,
                     borderRadius: isRoundTable ? '50%' : '8px',
                     padding: isSmall ? '0.25rem' : isMedium ? '0.375rem' : isSmallDesktop ? '0.5rem' : '0.625rem',
                     textAlign: 'center',
@@ -610,8 +610,13 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                     animation: table.status === 'OCCUPIED' ? 'pulse 2s infinite' : 
                                table.status === 'TO_PAY' ? 'pulseYellow 2s infinite' :
                                table.status === 'IN_PROCESS' ? 'pulseBlue 2s infinite' : 'none',
-                    boxShadow: (table.status === 'OCCUPIED' || table.status === 'TO_PAY' || table.status === 'IN_PROCESS') 
-                               ? `0 0 0 0 ${colors.borderColor}` : '0 2px 8px rgba(0, 0, 0, 0.1)',
+                    boxShadow: isRoundTable 
+                      ? (table.status === 'OCCUPIED' || table.status === 'TO_PAY' || table.status === 'IN_PROCESS')
+                        ? `0 0 0 0 ${colors.borderColor}` 
+                        : `0 4px 12px rgba(0, 0, 0, 0.2), 0 0 0 2px ${colors.borderColor}40`
+                      : (table.status === 'OCCUPIED' || table.status === 'TO_PAY' || table.status === 'IN_PROCESS')
+                        ? `0 0 0 0 ${colors.borderColor}` 
+                        : '0 2px 8px rgba(0, 0, 0, 0.1)',
                     minWidth: 0,
                     overflow: 'hidden',
                     boxSizing: 'border-box'
@@ -627,47 +632,6 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                     e.currentTarget.style.transform = 'translateY(0)';
                   }}
                 >
-                <div style={{
-                  fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '1rem' : '1.125rem',
-                  marginBottom: '0.125rem',
-                  position: 'relative',
-                  lineHeight: 1
-                }}>
-                  {/* Icono principal de la mesa */}
-                  <div style={{
-                    display: 'inline-block',
-                    transform: (table.status === 'OCCUPIED' || table.status === 'TO_PAY' || table.status === 'IN_PROCESS') 
-                              ? 'scale(1.05)' : 'scale(1)',
-                    transition: 'transform 0.2s ease'
-                  }}>
-                    {isRoundTable ? '⭕' : '🟦'}
-                  </div>
-                  
-                  {/* Indicador de estado con icono */}
-                  <div style={{
-                    position: 'absolute',
-                    top: '-0.125rem',
-                    right: '-0.125rem',
-                    fontSize: isSmall ? '0.5rem' : isMedium ? '0.5625rem' : isSmallDesktop ? '0.625rem' : '0.6875rem',
-                    backgroundColor: colors.badgeColor,
-                    borderRadius: '50%',
-                    width: isSmall ? '0.875rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '1.125rem',
-                    height: isSmall ? '0.875rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '1.125rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: colors.badgeTextColor,
-                    fontWeight: 'bold',
-                    border: `1.5px solid ${colors.borderColor}`
-                  }}>
-                    {table.status === 'AVAILABLE' ? '✓' : 
-                     table.status === 'OCCUPIED' ? '👤' : 
-                     table.status === 'TO_PAY' ? '💰' :
-                     table.status === 'IN_PROCESS' ? '⚙️' :
-                     table.status === 'MAINTENANCE' ? '🔧' : '❓'}
-                  </div>
-                </div>
-                
                 <h4 style={{
                   fontSize: isSmall ? '0.5625rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem',
                   fontWeight: '700',
@@ -683,10 +647,10 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 </h4>
                 
                 <div style={{
-                  fontSize: isSmall ? '0.5rem' : isMedium ? '0.5625rem' : isSmallDesktop ? '0.5625rem' : '0.625rem',
+                  fontSize: isSmall ? '0.5rem' : isMedium ? '0.6rem' : isSmallDesktop ? '0.65rem' : '0.7rem',
                   color: '#718096',
                   marginBottom: '0.25rem',
-                  fontWeight: '500',
+                  fontWeight: '700',
                   lineHeight: 1.2
                 }}>
                   {table.capacity}
@@ -734,17 +698,6 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                   </div>
                 )}
                 
-                {/* Indicador de que es clickeable */}
-                <div style={{
-                  position: 'absolute',
-                  top: '0.25rem',
-                  right: '0.25rem',
-                  fontSize: isSmall ? '0.5rem' : isMedium ? '0.5625rem' : isSmallDesktop ? '0.5625rem' : '0.625rem',
-                  color: '#667eea',
-                  fontWeight: '600'
-                }}>
-                  ✏️
-                </div>
               </div>
               );
             })}

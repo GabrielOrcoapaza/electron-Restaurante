@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -35,7 +35,6 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const isSmall = breakpoint === 'sm'; // 640px - 767px
 	const isMedium = breakpoint === 'md'; // 768px - 1023px
 	const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
-	const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
 	
 	// Función para verificar si el usuario puede acceder a esta mesa
 	const canAccessTable = (): { canAccess: boolean; reason?: string } => {
@@ -92,6 +91,9 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const [initializedFromExistingOrder, setInitializedFromExistingOrder] = useState(false);
 	const [isSaving, setIsSaving] = useState(false);
 	const [saveError, setSaveError] = useState<string | null>(null);
+	const [lastAddedItemId, setLastAddedItemId] = useState<string | null>(null);
+	const orderListContainerRef = useRef<HTMLDivElement>(null);
+	const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
 	// Mutación para crear la operación
 	const [createOperationMutation] = useMutation(CREATE_OPERATION);
@@ -272,9 +274,11 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				updatedItems[existingNewItemIndex].quantity = validQuantity;
 				updatedItems[existingNewItemIndex].total = validPrice * validQuantity;
 				setOrderItems(updatedItems);
+				setLastAddedItemId(existingItem.id);
 			} else {
 				// Si no hay un item nuevo, crear una nueva fila (no afecta items guardados)
 				setOrderItems([...orderItems, newItem]);
+				setLastAddedItemId(newItem.id);
 			}
 		} else {
 			// Para nuevas órdenes, agrupar productos por productId (aumentar cantidad si existe)
@@ -290,9 +294,11 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				updatedItems[existingItemIndex].total = validPrice * validQuantity;
 				updatedItems[existingItemIndex].isNew = true;
 				setOrderItems(updatedItems);
+				setLastAddedItemId(existingItem.id);
 			} else {
 				// Si el producto no existe, agregarlo como nueva fila
 				setOrderItems([...orderItems, newItem]);
+				setLastAddedItemId(newItem.id);
 			}
 		}
 
@@ -379,6 +385,37 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			})
 		);
 	};
+
+	// Efecto para hacer scroll automático al agregar un producto
+	useEffect(() => {
+		if (lastAddedItemId && itemRefs.current[lastAddedItemId] && orderListContainerRef.current) {
+			const itemElement = itemRefs.current[lastAddedItemId];
+			const container = orderListContainerRef.current;
+			
+			// Pequeño delay para asegurar que el DOM se haya actualizado
+			setTimeout(() => {
+				if (itemElement && container) {
+					const itemTop = itemElement.offsetTop;
+					const itemHeight = itemElement.offsetHeight;
+					const containerTop = container.scrollTop;
+					const containerHeight = container.clientHeight;
+					
+					// Verificar si el item está fuera de la vista
+					if (itemTop < containerTop || itemTop + itemHeight > containerTop + containerHeight) {
+						// Hacer scroll suave hasta el item
+						itemElement.scrollIntoView({ 
+							behavior: 'smooth', 
+							block: 'nearest',
+							inline: 'nearest'
+						});
+					}
+				}
+			}, 100);
+			
+			// Limpiar el ID después de hacer scroll
+			setTimeout(() => setLastAddedItemId(null), 500);
+		}
+	}, [lastAddedItemId, orderItems]);
 
 	// Calcular totales
 	const orderItemsTotal = orderItems.reduce((sum, item) => {
@@ -947,8 +984,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 						{/* Grid de productos */}
 						<div style={{
 							display: 'grid', 
-							gridTemplateColumns: `repeat(auto-fill, minmax(${isSmall ? '100px' : isMedium ? '110px' : isSmallDesktop ? '140px' : isMediumDesktop ? '150px' : '160px'}, 1fr))`, 
-							gap: isSmall ? '0.375rem' : isMedium ? '0.5rem' : isSmallDesktop ? '0.625rem' : '0.75rem',
+							gridTemplateColumns: 'repeat(4, 1fr)', 
+							gap: isSmall ? '0.375rem' : isMedium ? '0.5rem' : isSmallDesktop ? '0.5rem' : '0.625rem',
 							overflowY: 'auto', 
 							maxHeight: isSmall ? '200px' : isMedium ? '250px' : '100%'
 						}}>
@@ -978,12 +1015,12 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 										style={{
 											background: 'white',
 											border: '1px solid #e2e8f0',
-											borderRadius: 14,
-											padding: '0.75rem',
+											borderRadius: isSmall ? '10px' : isMedium ? '12px' : '14px',
+											padding: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem',
 											cursor: 'pointer',
 											transition: 'transform 120ms ease',
 											display: 'grid',
-											gap: '0.35rem',
+											gap: isSmall ? '0.25rem' : isMedium ? '0.3rem' : '0.35rem',
 											textAlign: 'center'
 										}}
 										onMouseEnter={(e) => {
@@ -1001,7 +1038,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 												alt={product.name}
 												style={{
 													width: '100%',
-													height: '100px',
+													height: isSmall ? '70px' : isMedium ? '80px' : '90px',
 													objectFit: 'cover',
 													borderRadius: '8px',
 													backgroundColor: '#f7fafc'
@@ -1009,8 +1046,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 											/>
 										) : (
 											<div style={{
-												fontSize: '2rem',
-												height: '100px',
+												fontSize: isSmall ? '1.5rem' : isMedium ? '1.75rem' : '2rem',
+												height: isSmall ? '70px' : isMedium ? '80px' : '90px',
 												display: 'flex',
 												alignItems: 'center',
 												justifyContent: 'center',
@@ -1020,15 +1057,29 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 												🍽️
 											</div>
 										)}
-										<div style={{ fontWeight: 700, color: '#2d3748', fontSize: '0.9rem' }}>
+										<div style={{ 
+											fontWeight: 700, 
+											color: '#2d3748', 
+											fontSize: isSmall ? '0.7rem' : isMedium ? '0.8rem' : '0.85rem',
+											lineHeight: '1.2',
+											overflow: 'hidden',
+											textOverflow: 'ellipsis',
+											display: '-webkit-box',
+											WebkitLineClamp: 2,
+											WebkitBoxOrient: 'vertical'
+										}}>
 											{product.name}
 										</div>
-										<div style={{ fontWeight: 700, color: '#667eea', fontSize: '1rem' }}>
+										<div style={{ 
+											fontWeight: 700, 
+											color: '#667eea', 
+											fontSize: isSmall ? '0.8rem' : isMedium ? '0.9rem' : '0.95rem' 
+										}}>
 											S/ {parseFloat(product.salePrice).toFixed(2)}
 										</div>
 										{product.preparationTime > 0 && (
 											<div style={{
-												fontSize: '0.75rem',
+												fontSize: isSmall ? '0.65rem' : isMedium ? '0.7rem' : '0.75rem',
 												color: '#718096',
 												display: 'flex',
 												alignItems: 'center',
@@ -1053,15 +1104,17 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 						overflow: 'hidden',
 						minHeight: 0
 					}}>
-						<div style={{ 
-							background: 'white', 
-							border: '1px solid #e2e8f0', 
-							borderRadius: isSmall ? '10px' : isMedium ? '12px' : '14px', 
-							padding: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem', 
-							flex: '1 1 auto',
-							overflowY: 'auto',
-							minHeight: 0
-						}}>
+						<div 
+							ref={orderListContainerRef}
+							style={{ 
+								background: 'white', 
+								border: '1px solid #e2e8f0', 
+								borderRadius: isSmall ? '10px' : isMedium ? '12px' : '14px', 
+								padding: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem', 
+								flex: '1 1 auto',
+								overflowY: 'auto',
+								minHeight: 0
+							}}>
 							<h4 style={{ 
 								margin: `0 0 ${isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem'} 0`, 
 								color: '#2d3748',
@@ -1095,191 +1148,195 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 									Aquí aparecerán los ítems agregados.
 								</div>
 							) : (
-								<div style={{ display: 'flex', flexDirection: 'column', gap: isSmall ? '0.375rem' : isMedium ? '0.5rem' : '0.625rem' }}>
+								<div style={{ display: 'flex', flexDirection: 'column', gap: isSmall ? '0.2rem' : isMedium ? '0.3rem' : '0.4rem' }}>
 									{orderItems.map((item) => {
 										const isEditable = !isExistingOrder || item.isNew;
 										const canEditNotes = !isExistingOrder || item.isNew;
 										return (
-										<div key={item.id} style={{
+										<div 
+											key={item.id}
+											ref={(el) => {
+												if (el) {
+													itemRefs.current[item.id] = el;
+												}
+											}}
+											style={{
 											border: '1px solid #e2e8f0',
-											borderRadius: isSmall ? '8px' : isMedium ? '10px' : '12px',
-											padding: isSmall ? '0.375rem' : isMedium ? '0.5rem' : '0.625rem',
-											background: '#f7fafc'
+											borderRadius: isSmall ? '6px' : isMedium ? '8px' : '10px',
+											padding: isSmall ? '0.2rem' : isMedium ? '0.3rem' : '0.35rem',
+											background: isExistingOrder && !item.isNew ? '#d4edda' : '#f7fafc'
 										}}>
-											<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: isSmall ? '0.25rem' : isMedium ? '0.375rem' : '0.375rem' }}>
-												<div style={{ flex: 1 }}>
+											{/* Una sola fila: Nombre, Cantidad, Precio + Tachito, Botón notas */}
+											<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.2rem' : isMedium ? '0.3rem' : '0.35rem', justifyContent: 'flex-start', flexWrap: 'nowrap', width: '100%', overflow: 'hidden' }}>
+												{/* Nombre del producto */}
+												<div style={{ flex: '0 1 auto', minWidth: 0, maxWidth: '35%' }}>
 													<div style={{ 
 														fontWeight: 700, 
 														color: '#2d3748', 
-														fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8125rem', 
-														marginBottom: isSmall ? '0.1rem' : '0.15rem' 
+														fontSize: isSmall ? '0.6rem' : isMedium ? '0.65rem' : '0.7rem',
+														overflow: 'hidden',
+														textOverflow: 'ellipsis',
+														whiteSpace: 'nowrap',
+														flexShrink: 1
 													}}>
 														{item.name}
 													</div>
+												</div>
+												
+												{/* Controles de cantidad */}
+												<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.15rem' : isMedium ? '0.2rem' : '0.25rem', flexShrink: 0 }}>
+													<button
+														onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+														disabled={!isEditable}
+														style={{
+															width: isSmall ? '18px' : isMedium ? '20px' : '22px',
+															height: isSmall ? '18px' : isMedium ? '20px' : '22px',
+															borderRadius: isSmall ? '4px' : '6px',
+															border: '1px solid #cbd5e0',
+															background: isEditable ? 'white' : '#edf2f7',
+															cursor: isEditable ? 'pointer' : 'not-allowed',
+															fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8rem',
+															display: 'flex',
+															alignItems: 'center',
+															justifyContent: 'center',
+															padding: 0,
+															flexShrink: 0
+														}}
+													>
+														−
+													</button>
+													<input
+														type="number"
+														value={item.quantity}
+														onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 0)}
+														disabled={!isEditable}
+														min="0"
+														style={{
+															width: isSmall ? '35px' : isMedium ? '40px' : '45px',
+															textAlign: 'center',
+															border: '1px solid #cbd5e0',
+															borderRadius: isSmall ? '4px' : '6px',
+															padding: isSmall ? '0.1rem' : isMedium ? '0.15rem' : '0.2rem',
+															fontWeight: 600,
+															background: isEditable ? 'white' : '#edf2f7',
+															color: isEditable ? '#1a202c' : '#a0aec0',
+															fontSize: isSmall ? '0.6rem' : isMedium ? '0.65rem' : '0.7rem',
+															flexShrink: 0
+														}}
+													/>
+													<button
+														onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+														disabled={!isEditable}
+														style={{
+															width: isSmall ? '18px' : isMedium ? '20px' : '22px',
+															height: isSmall ? '18px' : isMedium ? '20px' : '22px',
+															borderRadius: isSmall ? '4px' : '6px',
+															border: '1px solid #cbd5e0',
+															background: isEditable ? 'white' : '#edf2f7',
+															cursor: isEditable ? 'pointer' : 'not-allowed',
+															fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8rem',
+															display: 'flex',
+															alignItems: 'center',
+															justifyContent: 'center',
+															padding: 0,
+															flexShrink: 0
+														}}
+													>
+														+
+													</button>
+												</div>
+												
+												{/* Precio total y tachito juntos */}
+												<div style={{ 
+													display: 'flex',
+													alignItems: 'center',
+													gap: isSmall ? '0.2rem' : isMedium ? '0.3rem' : '0.35rem',
+													flexShrink: 0,
+													minWidth: isSmall ? '55px' : isMedium ? '65px' : '75px',
+													marginLeft: 'auto'
+												}}>
 													<div style={{ 
 														fontWeight: 700, 
-														color: '#667eea', 
-														fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8125rem' 
+														color: '#2d3748', 
+														fontSize: isSmall ? '0.65rem' : isMedium ? '0.7rem' : '0.75rem',
+														textAlign: 'right'
 													}}>
-														S/ {item.price.toFixed(2)}
+														S/ {item.total.toFixed(2)}
 													</div>
-													<div style={{ marginTop: '0.375rem', display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
-														<button
-															type="button"
-															onClick={() => handleToggleNotes(item.id)}
-															style={{
-																padding: '0.2rem 0.5rem',
-																borderRadius: 999,
-																border: '1px solid #cbd5e0',
-																background: expandedNotes[item.id]
-																	? '#e0e7ff'
-																	: canEditNotes
-																		? '#edf2f7'
-																		: '#f1f5f9',
-																color: canEditNotes ? '#3730a3' : '#64748b',
-																fontSize: '0.7rem',
-																fontWeight: 600,
-																cursor: 'pointer'
-															}}
-														>
-															Notas {item.notes ? '•' : ''}
-														</button>
-														{item.notes && !expandedNotes[item.id] && (
-															<span style={{
-																fontSize: '0.7rem',
-																color: '#4a5568',
-																background: '#e2e8f0',
-																padding: '0.15rem 0.4rem',
-																borderRadius: 999,
-																maxWidth: '220px',
-																whiteSpace: 'nowrap',
-																overflow: 'hidden',
-																textOverflow: 'ellipsis'
-															}}>
-																{item.notes}
-															</span>
-														)}
-													</div>
-													{expandedNotes[item.id] && (
-														<div style={{ marginTop: '0.375rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-															<textarea
-																value={item.notes}
-																onChange={(e) => handleUpdateNotes(item.id, e.target.value)}
-																disabled={!canEditNotes}
-																placeholder="Agregar nota u observación (ej: sin ají, bien cocido)"
-																style={{
-																	width: '100%',
-																	minHeight: '50px',
-																	borderRadius: 8,
-																	border: '1px solid #cbd5e0',
-																	padding: '0.375rem',
-																	fontSize: '0.75rem',
-																	resize: 'vertical',
-																	background: canEditNotes ? 'white' : '#edf2f7',
-																	color: canEditNotes ? '#1a202c' : '#718096'
-																}}
-															/>
-															{!canEditNotes && item.notes && (
-																<span style={{ fontSize: '0.65rem', color: '#a0aec0' }}>
-																	Notas registradas anteriormente
-																</span>
-															)}
-														</div>
-													)}
-													{isExistingOrder && (
-														<div style={{ marginTop: '0.25rem' }}>
-															<span style={{
-																padding: '0.15rem 0.5rem',
-																borderRadius: '999px',
-																fontSize: '0.65rem',
-																fontWeight: 600,
-																backgroundColor: item.isNew ? '#c6f6d5' : '#e2e8f0',
-																color: item.isNew ? '#22543d' : '#4a5568'
-															}}>
-																{item.isNew ? 'Nuevo (sin guardar)' : 'Registrado'}
-															</span>
-														</div>
-													)}
+													<button
+														onClick={() => handleRemoveItem(item.id)}
+														disabled={!isEditable}
+														style={{
+															background: 'transparent',
+															border: 'none',
+															color: isEditable ? '#dc2626' : '#cbd5e0',
+															cursor: isEditable ? 'pointer' : 'not-allowed',
+															fontSize: isSmall ? '0.75rem' : isMedium ? '0.8rem' : '0.875rem',
+															padding: '0.1rem',
+															flexShrink: 0,
+															display: 'flex',
+															alignItems: 'center',
+															justifyContent: 'center',
+															lineHeight: 1
+														}}
+													>
+														🗑️
+													</button>
 												</div>
+												
+												{/* Botón notas */}
 												<button
-													onClick={() => handleRemoveItem(item.id)}
-													disabled={!isEditable}
+													type="button"
+													onClick={() => handleToggleNotes(item.id)}
 													style={{
-														background: 'transparent',
-														border: 'none',
-														color: isEditable ? '#dc2626' : '#cbd5e0',
-														cursor: isEditable ? 'pointer' : 'not-allowed',
-														fontSize: '1rem',
-														padding: '0.15rem'
-													}}
-												>
-													🗑️
-												</button>
-											</div>
-											<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.25rem' : '0.375rem', justifyContent: 'space-between' }}>
-												<button
-													onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-													disabled={!isEditable}
-													style={{
-														width: isSmall ? '22px' : isMedium ? '24px' : '26px',
-														height: isSmall ? '22px' : isMedium ? '24px' : '26px',
-														borderRadius: isSmall ? '4px' : '6px',
+														padding: isSmall ? '0.1rem 0.35rem' : isMedium ? '0.15rem 0.4rem' : '0.15rem 0.45rem',
+														borderRadius: 999,
 														border: '1px solid #cbd5e0',
-														background: isEditable ? 'white' : '#edf2f7',
-														cursor: isEditable ? 'pointer' : 'not-allowed',
-														fontSize: isSmall ? '0.8rem' : isMedium ? '0.9rem' : '1rem',
-														display: 'flex',
-														alignItems: 'center',
-														justifyContent: 'center'
-													}}
-												>
-													−
-												</button>
-												<input
-													type="number"
-													value={item.quantity}
-													onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 0)}
-													disabled={!isEditable}
-													min="0"
-													style={{
-														width: isSmall ? '45px' : isMedium ? '50px' : '55px',
-														textAlign: 'center',
-														border: '1px solid #cbd5e0',
-														borderRadius: isSmall ? '4px' : '6px',
-														padding: isSmall ? '0.2rem' : isMedium ? '0.25rem' : '0.3rem',
+														background: expandedNotes[item.id]
+															? '#e0e7ff'
+															: canEditNotes
+																? '#edf2f7'
+																: '#f1f5f9',
+														color: canEditNotes ? '#3730a3' : '#64748b',
+														fontSize: isSmall ? '0.6rem' : isMedium ? '0.65rem' : '0.65rem',
 														fontWeight: 600,
-														background: isEditable ? 'white' : '#edf2f7',
-														color: isEditable ? '#1a202c' : '#a0aec0',
-														fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.875rem'
-													}}
-												/>
-												<button
-													onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-													disabled={!isEditable}
-													style={{
-														width: isSmall ? '22px' : isMedium ? '24px' : '26px',
-														height: isSmall ? '22px' : isMedium ? '24px' : '26px',
-														borderRadius: isSmall ? '4px' : '6px',
-														border: '1px solid #cbd5e0',
-														background: isEditable ? 'white' : '#edf2f7',
-														cursor: isEditable ? 'pointer' : 'not-allowed',
-														fontSize: isSmall ? '0.8rem' : isMedium ? '0.9rem' : '1rem',
-														display: 'flex',
-														alignItems: 'center',
-														justifyContent: 'center'
+														cursor: 'pointer',
+														flexShrink: 0,
+														lineHeight: 1
 													}}
 												>
-													+
+													{item.notes ? '📝' : '📄'}
 												</button>
-												<div style={{ 
-													marginLeft: 'auto', 
-													fontWeight: 700, 
-													color: '#2d3748', 
-													fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem' 
-												}}>
-													S/ {item.total.toFixed(2)}
-												</div>
 											</div>
+											
+											{/* Notas expandidas */}
+											{expandedNotes[item.id] && (
+												<div style={{ marginTop: '0.375rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+													<textarea
+														value={item.notes}
+														onChange={(e) => handleUpdateNotes(item.id, e.target.value)}
+														disabled={!canEditNotes}
+														placeholder="Agregar nota..."
+														style={{
+															width: '100%',
+															minHeight: '40px',
+															borderRadius: 6,
+															border: '1px solid #cbd5e0',
+															padding: '0.375rem',
+															fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.75rem',
+															resize: 'vertical',
+															background: canEditNotes ? 'white' : '#edf2f7',
+															color: canEditNotes ? '#1a202c' : '#718096'
+														}}
+													/>
+													{!canEditNotes && item.notes && (
+														<span style={{ fontSize: '0.65rem', color: '#a0aec0' }}>
+															Notas registradas anteriormente
+														</span>
+													)}
+												</div>
+											)}
+											
 										</div>
 									)})}
 								</div>

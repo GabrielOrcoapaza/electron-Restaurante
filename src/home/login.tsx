@@ -633,21 +633,21 @@ const Login: React.FC = () => {
                 
                 {formData.selectedEmployee && (
                   <div style={{
-                    marginTop: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.875rem' : '1rem',
-                    padding: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.875rem' : '1rem',
+                    marginTop: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem',
+                    padding: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem',
                     backgroundColor: '#e8f5e8',
                     border: '2px solid #4caf50',
                     borderRadius: '12px',
                     textAlign: 'center'
                   }}>
-                    <span style={{ color: '#2e7d32', fontSize: isSmallDesktop ? '14px' : isMediumDesktop ? '15px' : '16px', fontWeight: '600' }}>
+                    <span style={{ color: '#2e7d32', fontSize: isSmallDesktop ? '12px' : isMediumDesktop ? '13px' : '14px', fontWeight: '600' }}>
                       ✅ Empleado seleccionado
                     </span>
                   </div>
                 )}
               </div>
           
-              <div style={{ marginBottom: isSmallDesktop ? '3.5rem' : isMediumDesktop ? '4rem' : '4.5rem', marginTop: isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2.5rem' }}>
+              <div style={{ marginBottom: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '1rem' : '1.25rem', marginTop: isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2.5rem' }}>
                 <label className="form-labels" style={{ 
                   display: 'block', 
                   marginBottom: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.75rem' : '1rem', 
