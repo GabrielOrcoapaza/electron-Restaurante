@@ -39,8 +39,8 @@ const LoginCompany: React.FC = () => {
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
   
-  const containerPadding = isSmall ? '0.75rem' : isMedium ? '1rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '2rem';
-  const formMaxWidth = isSmall ? '340px' : isMedium ? '380px' : isSmallDesktop ? '420px' : isMediumDesktop ? '450px' : '480px';
+  const containerPadding = isSmall ? '0.5rem' : isMedium ? '0.75rem' : isSmallDesktop ? '1rem' : isMediumDesktop ? '1.25rem' : '1.5rem';
+  const formMaxWidth = isSmall ? '100%' : isMedium ? '100%' : isSmallDesktop ? '420px' : isMediumDesktop ? '450px' : '480px';
   const titleFontSize = isSmall ? 'clamp(20px, 3.5vw, 24px)' : isMedium ? 'clamp(22px, 3.5vw, 28px)' : isSmallDesktop ? 'clamp(24px, 3.5vw, 30px)' : isMediumDesktop ? 'clamp(26px, 3.5vw, 32px)' : 'clamp(28px, 3.5vw, 36px)';
   const subtitleFontSize = isSmall ? 'clamp(12px, 2vw, 14px)' : isMedium ? 'clamp(13px, 2vw, 15px)' : 'clamp(14px, 2vw, 16px)';
   const inputFontSize = isSmall ? 'clamp(12px, 2.5vw, 14px)' : isMedium ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
@@ -369,7 +369,7 @@ const LoginCompany: React.FC = () => {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          padding: '0.5rem',
+          padding: isSmall ? '0.25rem' : isMedium ? '0.5rem' : '0.5rem',
           background: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           position: 'relative',
@@ -412,17 +412,17 @@ const LoginCompany: React.FC = () => {
               animation: 'float 6s ease-in-out infinite reverse'
             }}></div>
 
-            <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: isSmall ? '1rem' : isMedium ? '1.5rem' : '2rem' }}>
               <div style={{
-                width: '80px',
-                height: '80px',
+                width: isSmall ? '60px' : isMedium ? '70px' : '80px',
+                height: isSmall ? '60px' : isMedium ? '70px' : '80px',
                 background: 'linear-gradient(135deg, #ff6b6b, #ffa726)',
                 borderRadius: '20px',
-                margin: '0 auto 1.5rem',
+                margin: `0 auto ${isSmall ? '0.75rem' : isMedium ? '1rem' : '1.5rem'}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '32px',
+                fontSize: isSmall ? '24px' : isMedium ? '28px' : '32px',
                 color: 'white',
                 boxShadow: '0 15px 30px rgba(255, 107, 107, 0.4)',
                 animation: 'bounce 3s ease-in-out infinite'
@@ -450,8 +450,8 @@ const LoginCompany: React.FC = () => {
                 Ingresa los datos de tu empresa
               </p>
               <div style={{
-                marginTop: '1rem',
-                padding: '0.75rem 1rem',
+                marginTop: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
+                padding: isSmall ? '0.5rem 0.75rem' : isMedium ? '0.625rem 0.875rem' : '0.75rem 1rem',
                 backgroundColor: '#f7fafc',
                 borderRadius: '8px',
                 border: '1px solid #e2e8f0',
@@ -460,10 +460,10 @@ const LoginCompany: React.FC = () => {
                 justifyContent: 'center',
                 gap: '0.5rem'
               }}>
-                <span style={{ fontSize: 'clamp(14px, 2.5vw, 16px)' }}>🖥️</span>
+                <span style={{ fontSize: isSmall ? '14px' : isMedium ? '15px' : 'clamp(14px, 2.5vw, 16px)' }}>🖥️</span>
                 <span style={{ 
                   color: '#4a5568', 
-                  fontSize: 'clamp(12px, 2vw, 14px)',
+                  fontSize: isSmall ? '11px' : isMedium ? '12px' : 'clamp(12px, 2vw, 14px)',
                   fontWeight: '600',
                   fontFamily: 'monospace'
                 }}>
@@ -494,7 +494,7 @@ const LoginCompany: React.FC = () => {
                     className="form-inputs"
                     style={{
                       width: '100%',
-                      padding: '1rem 1rem 1rem 3rem',
+                      padding: isSmall ? '0.75rem 0.75rem 0.75rem 2.5rem' : isMedium ? '0.875rem 0.875rem 0.875rem 2.75rem' : '1rem 1rem 1rem 3rem',
                       border: '2px solid #e2e8f0',
                       borderRadius: '12px',
                       fontSize: inputFontSize,
@@ -527,10 +527,10 @@ const LoginCompany: React.FC = () => {
                 </div>
               </div>
               
-              <div style={{ marginBottom: '2rem' }}>
+              <div style={{ marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem' }}>
                 <label className="form-labels" style={{ 
                   display: 'block', 
-                  marginBottom: '1rem', 
+                  marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem', 
                   color: '#2d3748',
                   fontSize: labelFontSize,
                   fontWeight: '700'
@@ -548,7 +548,7 @@ const LoginCompany: React.FC = () => {
                     className="form-inputs"
                     style={{
                       width: '100%',
-                      padding: '1rem 1rem 1rem 3rem',
+                      padding: isSmall ? '0.75rem 0.75rem 0.75rem 2.5rem' : isMedium ? '0.875rem 0.875rem 0.875rem 2.75rem' : '1rem 1rem 1rem 3rem',
                       border: '2px solid #e2e8f0',
                       borderRadius: '12px',
                       fontSize: inputFontSize,
@@ -581,10 +581,10 @@ const LoginCompany: React.FC = () => {
                 </div>
               </div>
               
-              <div style={{ marginBottom: '2.5rem' }}>
+              <div style={{ marginBottom: isSmall ? '1.25rem' : isMedium ? '1.5rem' : '2rem' }}>
                 <label className="form-labels" style={{ 
                   display: 'block', 
-                  marginBottom: '1rem', 
+                  marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem', 
                   color: '#2d3748',
                   fontSize: labelFontSize,
                   fontWeight: '700'
@@ -602,7 +602,7 @@ const LoginCompany: React.FC = () => {
                     className="form-inputs"
                     style={{
                       width: '100%',
-                      padding: '1rem 3rem 1rem 3rem',
+                      padding: isSmall ? '0.75rem 2.5rem 0.75rem 2.5rem' : isMedium ? '0.875rem 2.75rem 0.875rem 2.75rem' : '1rem 3rem 1rem 3rem',
                       border: '2px solid #e2e8f0',
                       borderRadius: '12px',
                       fontSize: inputFontSize,
@@ -670,7 +670,7 @@ const LoginCompany: React.FC = () => {
                 disabled={loading}
                 style={{
                   width: '100%',
-                  padding: '1.25rem',
+                  padding: isSmall ? '1rem' : isMedium ? '1.125rem' : '1.25rem',
                   background: loading ? '#ccc' : 'linear-gradient(135deg, #ff6b6b 0%, #ffa726 50%, #66bb6a 100%)',
                   color: 'white',
                   border: 'none',

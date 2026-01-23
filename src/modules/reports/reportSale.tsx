@@ -398,10 +398,10 @@ const ReportSale: React.FC = () => {
             }}
           >
             <h2 style={{
-              fontSize: isSmallDesktop ? '1.125rem' : '1.25rem',
+              fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
               fontWeight: 600,
               color: '#1e293b',
-              marginBottom: '1.5rem'
+              marginBottom: '0.75rem'
             }}>
               Resumen General
             </h2>
@@ -413,44 +413,44 @@ const ReportSale: React.FC = () => {
                 : isMediumDesktop 
                   ? 'repeat(2, 1fr)' 
                   : 'repeat(4, 1fr)',
-              gap: '1rem',
-              marginBottom: '1.5rem'
+              gap: '0.5rem',
+              marginBottom: '0.75rem'
             }}>
               <div style={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                borderRadius: '10px',
-                padding: '1rem',
+                borderRadius: '6px',
+                padding: '0.5rem',
                 color: 'white'
               }}>
-                <div style={{ fontSize: subtitleFontSize, opacity: 0.9, marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', opacity: 0.9, marginBottom: '0.25rem' }}>
                   Total Documentos
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '1.5rem' : '1.75rem', fontWeight: 700 }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 700 }}>
                   {summary.totalDocuments}
                 </div>
               </div>
 
               <div style={{
                 background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                borderRadius: '10px',
-                padding: '1rem',
+                borderRadius: '6px',
+                padding: '0.5rem',
                 color: 'white'
               }}>
-                <div style={{ fontSize: subtitleFontSize, opacity: 0.9, marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', opacity: 0.9, marginBottom: '0.25rem' }}>
                   Total General
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '1.5rem' : '1.75rem', fontWeight: 700 }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 700 }}>
                   {currencyFormatter.format(summary.totalAmount)}
                 </div>
               </div>
             </div>
 
             <h3 style={{
-              fontSize: isSmallDesktop ? '1rem' : '1.125rem',
+              fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem',
               fontWeight: 600,
               color: '#1e293b',
-              marginBottom: '1rem',
-              marginTop: '1rem'
+              marginBottom: '0.75rem',
+              marginTop: '0.75rem'
             }}>
               Totales por Método de Pago
             </h3>
@@ -462,88 +462,88 @@ const ReportSale: React.FC = () => {
                 : isMediumDesktop 
                   ? 'repeat(2, 1fr)' 
                   : 'repeat(3, 1fr)',
-              gap: '1rem'
+              gap: '0.5rem'
             }}>
               <div style={{
                 background: '#f0f9ff',
-                border: '2px solid #0ea5e9',
-                borderRadius: '8px',
-                padding: '1rem'
+                border: '1.5px solid #0ea5e9',
+                borderRadius: '6px',
+                padding: '0.5rem'
               }}>
-                <div style={{ fontSize: subtitleFontSize, color: '#0c4a6e', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#0c4a6e', marginBottom: '0.25rem' }}>
                   Efectivo
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '1.25rem' : '1.5rem', fontWeight: 700, color: '#0369a1' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#0369a1' }}>
                   {currencyFormatter.format(summary.totalCash)}
                 </div>
               </div>
 
               <div style={{
                 background: '#f0fdf4',
-                border: '2px solid #10b981',
-                borderRadius: '8px',
-                padding: '1rem'
+                border: '1.5px solid #10b981',
+                borderRadius: '6px',
+                padding: '0.5rem'
               }}>
-                <div style={{ fontSize: subtitleFontSize, color: '#064e3b', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#064e3b', marginBottom: '0.25rem' }}>
                   Yape
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '1.25rem' : '1.5rem', fontWeight: 700, color: '#047857' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#047857' }}>
                   {currencyFormatter.format(summary.totalYape)}
                 </div>
               </div>
 
               <div style={{
                 background: '#fef3c7',
-                border: '2px solid #f59e0b',
-                borderRadius: '8px',
-                padding: '1rem'
+                border: '1.5px solid #f59e0b',
+                borderRadius: '6px',
+                padding: '0.5rem'
               }}>
-                <div style={{ fontSize: subtitleFontSize, color: '#78350f', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#78350f', marginBottom: '0.25rem' }}>
                   Plin
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '1.25rem' : '1.5rem', fontWeight: 700, color: '#b45309' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#b45309' }}>
                   {currencyFormatter.format(summary.totalPlin)}
                 </div>
               </div>
 
               <div style={{
                 background: '#fef2f2',
-                border: '2px solid #ef4444',
-                borderRadius: '8px',
-                padding: '1rem'
+                border: '1.5px solid #ef4444',
+                borderRadius: '6px',
+                padding: '0.5rem'
               }}>
-                <div style={{ fontSize: subtitleFontSize, color: '#7f1d1d', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#7f1d1d', marginBottom: '0.25rem' }}>
                   Tarjeta
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '1.25rem' : '1.5rem', fontWeight: 700, color: '#b91c1c' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#b91c1c' }}>
                   {currencyFormatter.format(summary.totalCard)}
                 </div>
               </div>
 
               <div style={{
                 background: '#f3e8ff',
-                border: '2px solid #a855f7',
-                borderRadius: '8px',
-                padding: '1rem'
+                border: '1.5px solid #a855f7',
+                borderRadius: '6px',
+                padding: '0.5rem'
               }}>
-                <div style={{ fontSize: subtitleFontSize, color: '#581c87', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#581c87', marginBottom: '0.25rem' }}>
                   Transferencia
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '1.25rem' : '1.5rem', fontWeight: 700, color: '#7e22ce' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#7e22ce' }}>
                   {currencyFormatter.format(summary.totalTransfer)}
                 </div>
               </div>
 
               <div style={{
                 background: '#f1f5f9',
-                border: '2px solid #64748b',
-                borderRadius: '8px',
-                padding: '1rem'
+                border: '1.5px solid #64748b',
+                borderRadius: '6px',
+                padding: '0.5rem'
               }}>
-                <div style={{ fontSize: subtitleFontSize, color: '#1e293b', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#1e293b', marginBottom: '0.25rem' }}>
                   Otros
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '1.25rem' : '1.5rem', fontWeight: 700, color: '#334155' }}>
+                <div style={{ fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#334155' }}>
                   {currencyFormatter.format(summary.totalOthers)}
                 </div>
               </div>

@@ -2315,6 +2315,107 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             >
               {isProcessing ? '🖨️ Imprimiendo...' : '🧾 Precuenta'}
             </button>
+            {/* Botones de acción rápida */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: '0.5rem',
+              marginLeft: '0.5rem'
+            }}>
+              <button
+                onClick={() => setShowChangeTableModal(true)}
+                disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: operation?.status === 'COMPLETED'
+                    ? '#cbd5e0' 
+                    : 'linear-gradient(130deg, #10b981, #059669)',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                  cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
+                }}
+                onMouseOver={(e) => {
+                  if (operation?.status !== 'COMPLETED' && !isProcessing) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(16,185,129,0.4)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(16,185,129,0.3)';
+                }}
+              >
+                {isProcessing ? '...' : operation?.status === 'COMPLETED' ? 'Mesa' : 'Cambiar Mesa'}
+              </button>
+              <button
+                onClick={() => setShowTransferPlatesModal(true)}
+                disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: operation?.status === 'COMPLETED'
+                    ? '#cbd5e0' 
+                    : 'linear-gradient(130deg, #3b82f6, #2563eb)',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                  cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 12px rgba(59,130,246,0.3)',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
+                }}
+                onMouseOver={(e) => {
+                  if (operation?.status !== 'COMPLETED' && !isProcessing) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(59,130,246,0.4)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(59,130,246,0.3)';
+                }}
+              >
+                Transferir
+              </button>
+              <button
+                onClick={() => setShowChangeUserModal(true)}
+                disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: operation?.status === 'COMPLETED'
+                    ? '#cbd5e0' 
+                    : 'linear-gradient(130deg, #8b5cf6, #7c3aed)',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                  cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 12px rgba(139,92,246,0.3)',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
+                }}
+                onMouseOver={(e) => {
+                  if (operation?.status !== 'COMPLETED' && !isProcessing) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(139,92,246,0.4)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(139,92,246,0.3)';
+                }}
+              >
+                {isProcessing ? '...' : operation?.status === 'COMPLETED' ? 'Mozo' : 'Cambiar Mozo'}
+              </button>
+            </div>
             <button
               onClick={onBack}
               style={{
@@ -3184,133 +3285,34 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   <span>{currencyFormatter.format(total)}</span>
                 </div>
                 <button
-                  onClick={() => setShowChangeTableModal(true)}
-                  disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
-                  style={{
-                    width: '100%',
-                    marginTop: '0.75rem',
-                    padding: '0.95rem 1.25rem',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: operation?.status === 'COMPLETED'
-                      ? '#cbd5e0' 
-                      : 'linear-gradient(130deg, #10b981, #059669)',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '0.95rem',
-                    cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 16px 28px -12px rgba(16,185,129,0.55)',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                    opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
-                  }}
-                  onMouseOver={(e) => {
-                    if (operation?.status !== 'COMPLETED' && !isProcessing) {
-                      e.currentTarget.style.transform = 'translateY(-3px)';
-                      e.currentTarget.style.boxShadow = '0 20px 32px -10px rgba(16,185,129,0.6)';
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 16px 28px -12px rgba(16,185,129,0.55)';
-                  }}
-                >
-                  {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Cambio de mesa' : 'Cambiar Mesa'}
-                </button>
-                <button
-                  onClick={() => setShowTransferPlatesModal(true)}
-                  disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
-                  style={{
-                    width: '100%',
-                    marginTop: '0.75rem',
-                    padding: '0.95rem 1.25rem',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: operation?.status === 'COMPLETED'
-                      ? '#cbd5e0' 
-                      : 'linear-gradient(130deg, #3b82f6, #2563eb)',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '0.95rem',
-                    cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 16px 28px -12px rgba(59,130,246,0.55)',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                    opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
-                  }}
-                  onMouseOver={(e) => {
-                    if (operation?.status !== 'COMPLETED' && !isProcessing) {
-                      e.currentTarget.style.transform = 'translateY(-3px)';
-                      e.currentTarget.style.boxShadow = '0 20px 32px -10px rgba(59,130,246,0.6)';
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 16px 28px -12px rgba(59,130,246,0.55)';
-                  }}
-                >
-                  Transferir Platos
-                </button>
-                <button
-                  onClick={() => setShowChangeUserModal(true)}
-                  disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
-                  style={{
-                    width: '100%',
-                    marginTop: '0.75rem',
-                    padding: '0.95rem 1.25rem',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: operation?.status === 'COMPLETED'
-                      ? '#cbd5e0' 
-                      : 'linear-gradient(130deg, #8b5cf6, #7c3aed)',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '0.95rem',
-                    cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 16px 28px -12px rgba(139,92,246,0.55)',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                    opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
-                  }}
-                  onMouseOver={(e) => {
-                    if (operation?.status !== 'COMPLETED' && !isProcessing) {
-                      e.currentTarget.style.transform = 'translateY(-3px)';
-                      e.currentTarget.style.boxShadow = '0 20px 32px -10px rgba(139,92,246,0.6)';
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 16px 28px -12px rgba(139,92,246,0.55)';
-                  }}
-                >
-                  {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Cambio de mozo' : 'Cambiar Mozo'}
-                </button>
-                <button
                   onClick={handleProcessPayment}
                   disabled={!operation || operation.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing || !isPaymentComplete}
                   style={{
                     width: '100%',
                     marginTop: '0.75rem',
-                    padding: '0.95rem 1.25rem',
-                    borderRadius: '12px',
+                    padding: '0.625rem 1rem',
+                    borderRadius: '10px',
                     border: 'none',
                     background: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || !isPaymentComplete
                       ? '#cbd5e0' 
                       : 'linear-gradient(130deg, #4fd1c5, #63b3ed)',
                     color: 'white',
                     fontWeight: 700,
-                    fontSize: '0.95rem',
+                    fontSize: '0.8125rem',
                     cursor: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing || !isPaymentComplete ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 16px 28px -12px rgba(79,209,197,0.55)',
+                    boxShadow: '0 8px 16px rgba(79,209,197,0.4)',
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                     opacity: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || !isPaymentComplete ? 0.6 : 1
                   }}
                   onMouseOver={(e) => {
                     if (operation?.status !== 'COMPLETED' && selectedDocumentId && selectedSerialId && !isProcessing && isPaymentComplete) {
-                      e.currentTarget.style.transform = 'translateY(-3px)';
-                      e.currentTarget.style.boxShadow = '0 20px 32px -10px rgba(79,209,197,0.6)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 12px 20px rgba(79,209,197,0.5)';
                     }
                   }}
                   onMouseOut={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 16px 28px -12px rgba(79,209,197,0.55)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(79,209,197,0.4)';
                   }}
                 >
                   {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Orden ya pagada' : !isPaymentComplete ? 'Completa los pagos' : 'Procesar pago'}
@@ -3321,29 +3323,29 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   style={{
                     width: '100%',
                     marginTop: '0.75rem',
-                    padding: '0.95rem 1.25rem',
-                    borderRadius: '12px',
+                    padding: '0.625rem 1rem',
+                    borderRadius: '10px',
                     border: 'none',
                     background: operation?.status === 'COMPLETED'
                       ? '#cbd5e0' 
                       : 'linear-gradient(130deg, #ef4444, #dc2626)',
                     color: 'white',
                     fontWeight: 700,
-                    fontSize: '0.95rem',
+                    fontSize: '0.8125rem',
                     cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 16px 28px -12px rgba(239,68,68,0.55)',
+                    boxShadow: '0 8px 16px rgba(239,68,68,0.4)',
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                     opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
                   }}
                   onMouseOver={(e) => {
                     if (operation?.status !== 'COMPLETED' && !isProcessing) {
-                      e.currentTarget.style.transform = 'translateY(-3px)';
-                      e.currentTarget.style.boxShadow = '0 20px 32px -10px rgba(239,68,68,0.6)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 12px 20px rgba(239,68,68,0.5)';
                     }
                   }}
                   onMouseOut={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 16px 28px -12px rgba(239,68,68,0.55)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(239,68,68,0.4)';
                   }}
                 >
                   {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Orden ya pagada' : 'Anular Orden'}

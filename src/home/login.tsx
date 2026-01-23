@@ -148,8 +148,8 @@ const Login: React.FC = () => {
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
   
-  const containerPadding = isSmallDesktop ? '1rem' : isMediumDesktop ? '1.5rem' : '2rem';
-  const formMaxWidth = isSmallDesktop ? '380px' : isMediumDesktop ? '420px' : '450px';
+  const containerPadding = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '1rem' : '1.5rem';
+  const formMaxWidth = isSmallDesktop ? '100%' : isMediumDesktop ? '420px' : '450px';
   const titleFontSize = isSmallDesktop ? 'clamp(22px, 3.5vw, 28px)' : isMediumDesktop ? 'clamp(26px, 3.5vw, 32px)' : 'clamp(28px, 3.5vw, 36px)';
   const subtitleFontSize = isSmallDesktop ? 'clamp(13px, 2vw, 15px)' : 'clamp(14px, 2vw, 16px)';
   const inputFontSize = isSmallDesktop ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
@@ -363,7 +363,7 @@ const Login: React.FC = () => {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          padding: '0.5rem',
+          padding: isSmallDesktop ? '0.25rem' : isMediumDesktop ? '0.5rem' : '0.5rem',
           background: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           position: 'relative',
@@ -405,17 +405,17 @@ const Login: React.FC = () => {
               animation: 'float 6s ease-in-out infinite reverse'
             }}></div>
 
-            <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: isSmallDesktop ? '1rem' : isMediumDesktop ? '1.5rem' : '2rem' }}>
               <div style={{
-                width: '80px',
-                height: '80px',
+                width: isSmallDesktop ? '60px' : isMediumDesktop ? '70px' : '80px',
+                height: isSmallDesktop ? '60px' : isMediumDesktop ? '70px' : '80px',
                 background: 'linear-gradient(135deg, #42a5f5, #66bb6a)',
                 borderRadius: '20px',
-                margin: '0 auto 1.5rem',
+                margin: `0 auto ${isSmallDesktop ? '0.75rem' : isMediumDesktop ? '1rem' : '1.5rem'}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '32px',
+                fontSize: isSmallDesktop ? '24px' : isMediumDesktop ? '28px' : '32px',
                 color: 'white',
                 boxShadow: '0 15px 30px rgba(66, 165, 246, 0.4)',
                 animation: 'bounce 3s ease-in-out infinite'
@@ -446,12 +446,12 @@ const Login: React.FC = () => {
         
             <form onSubmit={handleSubmit}>
               {/* Buscador de Empleados */}
-              <div style={{ marginBottom: '2rem' }}>
+              <div style={{ marginBottom: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.875rem' : '1rem' }}>
                 <label style={{ 
                   display: 'block', 
-                  marginBottom: '1rem', 
+                  marginBottom: isSmallDesktop ? '0.375rem' : isMediumDesktop ? '0.5rem' : '0.625rem', 
                   color: '#2d3748',
-                  fontSize: labelFontSize,
+                  fontSize: isSmallDesktop ? 'clamp(12px, 2vw, 13px)' : isMediumDesktop ? 'clamp(12.5px, 2vw, 14px)' : 'clamp(13px, 2vw, 15px)',
                   fontWeight: '700',
                   textAlign: 'center'
                 }}>
@@ -466,10 +466,10 @@ const Login: React.FC = () => {
                     className="form-inputs"
                     style={{
                       width: '100%',
-                      padding: '1rem 1rem 1rem 3rem',
+                      padding: isSmallDesktop ? '0.75rem 0.75rem 0.75rem 2.5rem' : isMediumDesktop ? '0.875rem 0.875rem 0.875rem 2.75rem' : '0.875rem 0.875rem 0.875rem 2.75rem',
                       border: '2px solid #e2e8f0',
-                      borderRadius: '12px',
-                      fontSize: inputFontSize,
+                      borderRadius: '10px',
+                      fontSize: isSmallDesktop ? 'clamp(12px, 2vw, 13px)' : isMediumDesktop ? 'clamp(12.5px, 2vw, 14px)' : 'clamp(13px, 2vw, 15px)',
                       backgroundColor: '#f8fafc',
                       transition: 'all 0.3s ease',
                       outline: 'none',
@@ -491,16 +491,16 @@ const Login: React.FC = () => {
                   />
                   <div style={{
                     position: 'absolute',
-                    left: '1rem',
+                    left: '0.75rem',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    fontSize: isSmallDesktop ? '18px' : '20px'
+                    fontSize: isSmallDesktop ? '16px' : isMediumDesktop ? '17px' : '18px'
                   }}>🔍</div>
                 </div>
                 {searchTerm && (
                   <div style={{
-                    marginTop: '0.5rem',
-                    fontSize: '14px',
+                    marginTop: isSmallDesktop ? '0.375rem' : isMediumDesktop ? '0.5rem' : '0.5rem',
+                    fontSize: isSmallDesktop ? '12px' : isMediumDesktop ? '13px' : '14px',
                     color: '#718096',
                     textAlign: 'center',
                     fontWeight: '500'
@@ -526,9 +526,9 @@ const Login: React.FC = () => {
                 {employeesLoading ? (
                   <div style={{ 
                     color: '#42a5f5', 
-                    fontSize: '16px', 
+                    fontSize: isSmallDesktop ? '14px' : isMediumDesktop ? '15px' : '16px', 
                     textAlign: 'center',
-                    padding: '2rem',
+                    padding: isSmallDesktop ? '1rem' : isMediumDesktop ? '1.5rem' : '2rem',
                     backgroundColor: '#e3f2fd',
                     borderRadius: '16px',
                     border: '2px solid #90caf9',
@@ -539,9 +539,9 @@ const Login: React.FC = () => {
                 ) : filteredEmployees.length === 0 ? (
                   <p style={{ 
                     color: '#e53e3e', 
-                    fontSize: '16px', 
+                    fontSize: isSmallDesktop ? '14px' : isMediumDesktop ? '15px' : '16px', 
                     textAlign: 'center',
-                    padding: '2rem',
+                    padding: isSmallDesktop ? '1rem' : isMediumDesktop ? '1.5rem' : '2rem',
                     backgroundColor: '#fef2f2',
                     borderRadius: '16px',
                     border: '2px solid #fecaca',
@@ -556,12 +556,12 @@ const Login: React.FC = () => {
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: '1rem',
-                    maxHeight: '250px',
+                    gap: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem',
+                    maxHeight: isSmallDesktop ? '200px' : isMediumDesktop ? '225px' : '250px',
                     overflowY: 'auto',
-                    padding: '1rem',
+                    padding: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem',
                     backgroundColor: '#f8fafc',
-                    borderRadius: '16px',
+                    borderRadius: '12px',
                     border: '2px solid #e2e8f0'
                   }}>
                     {filteredEmployees.map((employee: any) => (
@@ -570,23 +570,23 @@ const Login: React.FC = () => {
                         type="button"
                         onClick={() => setFormData({ ...formData, selectedEmployee: employee.dni })}
                         style={{
-                          padding: '1.25rem',
+                          padding: isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.75rem' : '0.875rem',
                           border: formData.selectedEmployee === employee.dni 
                             ? '2px solid #42a5f5' 
                             : '2px solid #e2e8f0',
-                          borderRadius: '12px',
+                          borderRadius: '10px',
                           backgroundColor: formData.selectedEmployee === employee.dni 
                             ? '#e3f2fd' 
                             : 'white',
                           cursor: 'pointer',
                           transition: 'all 0.3s ease',
                           textAlign: 'left',
-                          fontSize: '14px',
+                          fontSize: isSmallDesktop ? '12px' : isMediumDesktop ? '12.5px' : '13px',
                           fontWeight: '600',
                           color: '#2d3748',
                           boxShadow: formData.selectedEmployee === employee.dni 
-                            ? '0 8px 20px rgba(66, 165, 246, 0.3)' 
-                            : '0 4px 8px rgba(0, 0, 0, 0.1)',
+                            ? '0 6px 16px rgba(66, 165, 246, 0.3)' 
+                            : '0 2px 6px rgba(0, 0, 0, 0.1)',
                           transform: formData.selectedEmployee === employee.dni 
                             ? 'translateY(-2px)' 
                             : 'translateY(0)'
@@ -596,7 +596,7 @@ const Login: React.FC = () => {
                             e.currentTarget.style.borderColor = '#42a5f5';
                             e.currentTarget.style.backgroundColor = '#e3f2fd';
                             e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = '0 8px 20px rgba(66, 165, 246, 0.2)';
+                            e.currentTarget.style.boxShadow = '0 6px 16px rgba(66, 165, 246, 0.2)';
                           }
                         }}
                         onMouseOut={(e) => {
@@ -604,25 +604,25 @@ const Login: React.FC = () => {
                             e.currentTarget.style.borderColor = '#e2e8f0';
                             e.currentTarget.style.backgroundColor = 'white';
                             e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+                            e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.1)';
                           }
                         }}
                       >
                         <div style={{ 
                           display: 'flex', 
                           alignItems: 'center', 
-                          gap: '0.75rem',
-                          marginBottom: '0.5rem'
+                          gap: '0.5rem',
+                          marginBottom: '0.375rem'
                         }}>
-                          <span style={{ fontSize: '18px' }}>👤</span>
-                          <span style={{ fontWeight: '700' }}>
+                          <span style={{ fontSize: '16px' }}>👤</span>
+                          <span style={{ fontWeight: '700', fontSize: 'inherit' }}>
                             {employee.firstName} {employee.lastName}
                           </span>
                         </div>
                         <div style={{ 
-                          fontSize: '13px', 
+                          fontSize: isSmallDesktop ? '11px' : isMediumDesktop ? '11.5px' : '12px', 
                           color: '#718096',
-                          marginLeft: '2.25rem',
+                          marginLeft: '1.75rem',
                           fontWeight: '500'
                         }}>
                           DNI: {employee.dni}
@@ -634,24 +634,24 @@ const Login: React.FC = () => {
                 
                 {formData.selectedEmployee && (
                   <div style={{
-                    marginTop: '1rem',
-                    padding: '1rem',
+                    marginTop: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.875rem' : '1rem',
+                    padding: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.875rem' : '1rem',
                     backgroundColor: '#e8f5e8',
                     border: '2px solid #4caf50',
                     borderRadius: '12px',
                     textAlign: 'center'
                   }}>
-                    <span style={{ color: '#2e7d32', fontSize: '16px', fontWeight: '600' }}>
+                    <span style={{ color: '#2e7d32', fontSize: isSmallDesktop ? '14px' : isMediumDesktop ? '15px' : '16px', fontWeight: '600' }}>
                       ✅ Empleado seleccionado
                     </span>
                   </div>
                 )}
               </div>
           
-              <div style={{ marginBottom: '2.5rem' }}>
+              <div style={{ marginBottom: isSmallDesktop ? '3.5rem' : isMediumDesktop ? '4rem' : '4.5rem', marginTop: isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2.5rem' }}>
                 <label className="form-labels" style={{ 
                   display: 'block', 
-                  marginBottom: '1rem', 
+                  marginBottom: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.75rem' : '1rem', 
                   color: '#2d3748',
                   fontSize: labelFontSize,
                   fontWeight: '700'
@@ -669,7 +669,7 @@ const Login: React.FC = () => {
                     className="form-inputs"
                     style={{
                       width: '100%',
-                      padding: '1rem 3.5rem 1rem 3rem',
+                      padding: isSmallDesktop ? '0.75rem 2.5rem 0.75rem 2.5rem' : isMediumDesktop ? '0.875rem 2.75rem 0.875rem 2.75rem' : '1rem 3.5rem 1rem 3rem',
                       border: '2px solid #e2e8f0',
                       borderRadius: '12px',
                       fontSize: inputFontSize,
@@ -734,82 +734,87 @@ const Login: React.FC = () => {
                 </div>
               </div>
               
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '1.25rem',
-                  background: loading ? '#ccc' : 'linear-gradient(135deg, #42a5f5 0%, #66bb6a 50%, #ffa726 100%)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '16px',
-                  fontSize: buttonFontSize,
-                  fontWeight: '700',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.3s ease',
-                  boxShadow: '0 15px 30px rgba(66, 165, 246, 0.4)',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  marginBottom: '1rem',
-                  opacity: loading ? 0.7 : 1,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}
-                onMouseOver={(e) => {
-                  if (!loading) {
-                    e.currentTarget.style.transform = 'translateY(-3px)';
-                    e.currentTarget.style.boxShadow = '0 20px 40px rgba(66, 165, 246, 0.6)';
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #1976d2 0%, #4caf50 50%, #ff9800 100%)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  if (!loading) {
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem'
+              }}>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={{
+                    width: '100%',
+                    padding: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.875rem' : '1rem',
+                    background: loading ? '#ccc' : 'linear-gradient(135deg, #42a5f5 0%, #66bb6a 50%, #ffa726 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontSize: isSmallDesktop ? 'clamp(12px, 2vw, 14px)' : isMediumDesktop ? 'clamp(13px, 2vw, 15px)' : 'clamp(14px, 2vw, 16px)',
+                    fontWeight: '700',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 15px 30px rgba(66, 165, 246, 0.4)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    opacity: loading ? 0.7 : 1,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.3px'
+                  }}
+                  onMouseOver={(e) => {
+                    if (!loading) {
+                      e.currentTarget.style.transform = 'translateY(-3px)';
+                      e.currentTarget.style.boxShadow = '0 20px 40px rgba(66, 165, 246, 0.6)';
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #1976d2 0%, #4caf50 50%, #ff9800 100%)';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    if (!loading) {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 15px 30px rgba(66, 165, 246, 0.4)';
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #42a5f5 0%, #66bb6a 50%, #ffa726 100%)';
+                    }
+                  }}
+                >
+                  <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem', fontSize: 'inherit' }}>
+                    {loading ? '⏳' : '✨'} {loading ? 'Autenticando...' : 'Iniciar Sesión'}
+                  </span>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={handleBackToCompany}
+                  style={{
+                    width: '100%',
+                    padding: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.875rem' : '1rem',
+                    background: 'rgba(108, 117, 125, 0.1)',
+                    color: '#6c757d',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '12px',
+                    fontSize: isSmallDesktop ? 'clamp(12px, 2vw, 14px)' : isMediumDesktop ? 'clamp(13px, 2vw, 15px)' : 'clamp(14px, 2vw, 16px)',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(108, 117, 125, 0.2)';
+                    e.currentTarget.style.borderColor = '#6c757d';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(108, 117, 125, 0.2)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(108, 117, 125, 0.1)';
+                    e.currentTarget.style.borderColor = '#e2e8f0';
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 15px 30px rgba(66, 165, 246, 0.4)';
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #42a5f5 0%, #66bb6a 50%, #ffa726 100%)';
-                  }
-                }}
-              >
-                <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                  {loading ? '⏳ Autenticando...' : '✨ Iniciar Sesión'}
-                </span>
-              </button>
-              
-              <button
-                type="button"
-                onClick={handleBackToCompany}
-                style={{
-                  width: '100%',
-                  padding: '1.25rem',
-                  background: 'rgba(108, 117, 125, 0.1)',
-                  color: '#6c757d',
-                  border: '2px solid #e2e8f0',
-                  borderRadius: '16px',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(108, 117, 125, 0.2)';
-                  e.currentTarget.style.borderColor = '#6c757d';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 8px 20px rgba(108, 117, 125, 0.2)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(108, 117, 125, 0.1)';
-                  e.currentTarget.style.borderColor = '#e2e8f0';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                  🔙 Volver a Login Empresa
-                </span>
-              </button>
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem', fontSize: 'inherit' }}>
+                    🔙 Volver
+                  </span>
+                </button>
+              </div>
             </form>
           </div>
         </div>

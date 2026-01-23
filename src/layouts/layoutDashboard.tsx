@@ -70,7 +70,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const { user, companyData, logout } = useAuth();
   const { disconnect, subscribe } = useWebSocket();
   const { breakpoint } = useResponsive();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   
   // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
   const isSmall = breakpoint === 'sm'; // 640px - 767px

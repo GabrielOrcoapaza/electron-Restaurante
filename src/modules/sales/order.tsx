@@ -728,14 +728,14 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			justifyContent: 'center',
 			alignItems: 'center',
 			zIndex: 1100,
-			padding: '1rem'
+			padding: isSmall ? '0.25rem' : isMedium ? '0.5rem' : '1rem'
 		}}>
 			<div style={{
 				background: 'rgba(255,255,255,0.9)',
-				borderRadius: '16px',
+				borderRadius: isSmall ? '12px' : isMedium ? '14px' : '16px',
 				width: '100%',
 				maxWidth: '1400px',
-				height: '92vh',
+				height: isSmall ? '98vh' : isMedium ? '95vh' : '92vh',
 				boxShadow: '0 25px 80px rgba(0,0,0,0.20)',
 				overflow: 'hidden',
 				border: '1px solid rgba(226,232,240,0.8)',
@@ -745,28 +745,32 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				{/* Header */}
 				<div style={{
 					background: 'linear-gradient(135deg, #667eea, #764ba2)',
-					padding: '1rem 1.25rem',
+					padding: isSmall ? '0.5rem 0.75rem' : isMedium ? '0.75rem 1rem' : '1rem 1.25rem',
 					color: 'white',
 					display: 'flex',
 					alignItems: 'center',
-					justifyContent: 'space-between'
+					justifyContent: 'space-between',
+					flexWrap: 'wrap',
+					gap: isSmall ? '0.5rem' : '0.75rem'
 				}}>
-					<div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+					<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.5rem' : '0.75rem', flexWrap: 'wrap' }}>
 						<div style={{
 							backgroundColor: 'rgba(255,255,255,0.15)',
-							borderRadius: 12,
-							padding: '0.35rem 0.6rem',
-							fontWeight: 700
+							borderRadius: isSmall ? '8px' : '12px',
+							padding: isSmall ? '0.25rem 0.5rem' : '0.35rem 0.6rem',
+							fontWeight: 700,
+							fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem'
 						}}>
 							{isExistingOrder ? '🍽️ Orden Actual' : '🍽️ Nueva Orden'}
 						</div>
-						<h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Mesa {table.name.replace('MESA ','')}</h3>
-						<span style={{ opacity: 0.9 }}>•</span>
+						<h3 style={{ margin: 0, fontSize: isSmall ? '0.875rem' : isMedium ? '1rem' : '1.15rem', fontWeight: 800 }}>Mesa {table.name.replace('MESA ','')}</h3>
+						<span style={{ opacity: 0.9, fontSize: isSmall ? '0.75rem' : '1rem' }}>•</span>
 						<div style={{
 							backgroundColor: 'rgba(255,255,255,0.15)',
-							borderRadius: 12,
-							padding: '0.35rem 0.6rem',
-							fontWeight: 600
+							borderRadius: isSmall ? '8px' : '12px',
+							padding: isSmall ? '0.25rem 0.5rem' : '0.35rem 0.6rem',
+							fontWeight: 600,
+							fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem'
 						}}>
 							Capacidad {table.capacity}
 						</div>
@@ -797,27 +801,45 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 						background: 'rgba(255,255,255,0.15)',
 						border: '1px solid rgba(255,255,255,0.35)',
 						color: 'white',
-						padding: '0.45rem 0.9rem',
-						borderRadius: 10,
+						padding: isSmall ? '0.35rem 0.75rem' : isMedium ? '0.4rem 0.85rem' : '0.45rem 0.9rem',
+						borderRadius: isSmall ? '8px' : '10px',
 						cursor: 'pointer',
-						fontWeight: 600
+						fontWeight: 600,
+						fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem'
 					}}>
 						Cerrar
 					</button>
 				</div>
 
 				{/* Body */}
-				<div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '1rem', padding: '1rem', flex: 1, overflow: 'hidden' }}>
+				<div style={{ 
+					display: 'grid', 
+					gridTemplateColumns: isSmall || isMedium ? '1fr' : '1.4fr 1fr', 
+					gap: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem', 
+					padding: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem', 
+					flex: 1, 
+					overflow: 'hidden' 
+				}}>
 					{/* Col izquierda: búsqueda y catálogo */}
-					<div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflow: 'hidden' }}>
+					<div style={{ 
+						display: 'flex', 
+						flexDirection: 'column', 
+						gap: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem', 
+						overflow: 'hidden',
+						order: isSmall || isMedium ? 2 : 1
+					}}>
 						<div style={{
 							background: 'white',
 							border: '1px solid #e2e8f0',
-							borderRadius: 14,
-							padding: '0.85rem 0.9rem',
+							borderRadius: isSmall ? '10px' : isMedium ? '12px' : '14px',
+							padding: isSmall ? '0.5rem 0.625rem' : isMedium ? '0.625rem 0.75rem' : '0.85rem 0.9rem',
 							flexShrink: 0
 						}}>
-							<div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: '0.75rem' }}>
+							<div style={{ 
+								display: 'grid', 
+								gridTemplateColumns: isSmall || isMedium ? '1fr' : '1fr 180px', 
+								gap: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem' 
+							}}>
 								<div style={{ position: 'relative' }}>
 									<span style={{ position: 'absolute', left: 10, top: 10, opacity: 0.6 }}>🔎</span>
 									<input 
@@ -925,10 +947,10 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 						{/* Grid de productos */}
 						<div style={{
 							display: 'grid', 
-							gridTemplateColumns: `repeat(auto-fill, minmax(${isSmall ? '120px' : isMedium ? '130px' : isSmallDesktop ? '140px' : isMediumDesktop ? '150px' : '160px'}, 1fr))`, 
-							gap: isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : '0.75rem',
+							gridTemplateColumns: `repeat(auto-fill, minmax(${isSmall ? '100px' : isMedium ? '110px' : isSmallDesktop ? '140px' : isMediumDesktop ? '150px' : '160px'}, 1fr))`, 
+							gap: isSmall ? '0.375rem' : isMedium ? '0.5rem' : isSmallDesktop ? '0.625rem' : '0.75rem',
 							overflowY: 'auto', 
-							maxHeight: '100%'
+							maxHeight: isSmall ? '200px' : isMedium ? '250px' : '100%'
 						}}>
 							{productsLoading ? (
 								<div style={{
@@ -1002,7 +1024,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 											{product.name}
 										</div>
 										<div style={{ fontWeight: 700, color: '#667eea', fontSize: '1rem' }}>
-											$ {parseFloat(product.salePrice).toFixed(2)}
+											S/ {parseFloat(product.salePrice).toFixed(2)}
 										</div>
 										{product.preparationTime > 0 && (
 											<div style={{
@@ -1023,9 +1045,28 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					</div>
 
 					{/* Col derecha: resumen de orden */}
-					<div style={{ display: 'grid', gap: '1rem' }}>
-						<div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 14, padding: '1rem', maxHeight: '400px', overflowY: 'auto' }}>
-							<h4 style={{ margin: '0 0 0.75rem 0', color: '#2d3748' }}>Detalle</h4>
+					<div style={{ 
+						display: 'flex', 
+						flexDirection: 'column',
+						gap: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
+						order: isSmall || isMedium ? 1 : 2,
+						overflow: 'hidden',
+						minHeight: 0
+					}}>
+						<div style={{ 
+							background: 'white', 
+							border: '1px solid #e2e8f0', 
+							borderRadius: isSmall ? '10px' : isMedium ? '12px' : '14px', 
+							padding: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem', 
+							flex: '1 1 auto',
+							overflowY: 'auto',
+							minHeight: 0
+						}}>
+							<h4 style={{ 
+								margin: `0 0 ${isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem'} 0`, 
+								color: '#2d3748',
+								fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem'
+							}}>Detalle</h4>
 							{isLoadingExistingOrder ? (
 								<div style={{
 									border: '1px dashed #cbd5e0',
@@ -1054,31 +1095,40 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 									Aquí aparecerán los ítems agregados.
 								</div>
 							) : (
-								<div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+								<div style={{ display: 'flex', flexDirection: 'column', gap: isSmall ? '0.375rem' : isMedium ? '0.5rem' : '0.625rem' }}>
 									{orderItems.map((item) => {
 										const isEditable = !isExistingOrder || item.isNew;
 										const canEditNotes = !isExistingOrder || item.isNew;
 										return (
 										<div key={item.id} style={{
 											border: '1px solid #e2e8f0',
-											borderRadius: 12,
-											padding: '0.75rem',
+											borderRadius: isSmall ? '8px' : isMedium ? '10px' : '12px',
+											padding: isSmall ? '0.375rem' : isMedium ? '0.5rem' : '0.625rem',
 											background: '#f7fafc'
 										}}>
-											<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
+											<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: isSmall ? '0.25rem' : isMedium ? '0.375rem' : '0.375rem' }}>
 												<div style={{ flex: 1 }}>
-													<div style={{ fontWeight: 700, color: '#2d3748', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
+													<div style={{ 
+														fontWeight: 700, 
+														color: '#2d3748', 
+														fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8125rem', 
+														marginBottom: isSmall ? '0.1rem' : '0.15rem' 
+													}}>
 														{item.name}
 													</div>
-													<div style={{ fontWeight: 700, color: '#667eea', fontSize: '0.9rem' }}>
-														$ {item.price.toFixed(2)}
+													<div style={{ 
+														fontWeight: 700, 
+														color: '#667eea', 
+														fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8125rem' 
+													}}>
+														S/ {item.price.toFixed(2)}
 													</div>
-													<div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+													<div style={{ marginTop: '0.375rem', display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
 														<button
 															type="button"
 															onClick={() => handleToggleNotes(item.id)}
 															style={{
-																padding: '0.25rem 0.65rem',
+																padding: '0.2rem 0.5rem',
 																borderRadius: 999,
 																border: '1px solid #cbd5e0',
 																background: expandedNotes[item.id]
@@ -1087,7 +1137,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 																		? '#edf2f7'
 																		: '#f1f5f9',
 																color: canEditNotes ? '#3730a3' : '#64748b',
-																fontSize: '0.75rem',
+																fontSize: '0.7rem',
 																fontWeight: 600,
 																cursor: 'pointer'
 															}}
@@ -1096,10 +1146,10 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 														</button>
 														{item.notes && !expandedNotes[item.id] && (
 															<span style={{
-																fontSize: '0.75rem',
+																fontSize: '0.7rem',
 																color: '#4a5568',
 																background: '#e2e8f0',
-																padding: '0.2rem 0.5rem',
+																padding: '0.15rem 0.4rem',
 																borderRadius: 999,
 																maxWidth: '220px',
 																whiteSpace: 'nowrap',
@@ -1111,7 +1161,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 														)}
 													</div>
 													{expandedNotes[item.id] && (
-														<div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+														<div style={{ marginTop: '0.375rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
 															<textarea
 																value={item.notes}
 																onChange={(e) => handleUpdateNotes(item.id, e.target.value)}
@@ -1119,29 +1169,29 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 																placeholder="Agregar nota u observación (ej: sin ají, bien cocido)"
 																style={{
 																	width: '100%',
-																	minHeight: '60px',
+																	minHeight: '50px',
 																	borderRadius: 8,
 																	border: '1px solid #cbd5e0',
-																	padding: '0.5rem',
-																	fontSize: '0.85rem',
+																	padding: '0.375rem',
+																	fontSize: '0.75rem',
 																	resize: 'vertical',
 																	background: canEditNotes ? 'white' : '#edf2f7',
 																	color: canEditNotes ? '#1a202c' : '#718096'
 																}}
 															/>
 															{!canEditNotes && item.notes && (
-																<span style={{ fontSize: '0.7rem', color: '#a0aec0' }}>
+																<span style={{ fontSize: '0.65rem', color: '#a0aec0' }}>
 																	Notas registradas anteriormente
 																</span>
 															)}
 														</div>
 													)}
 													{isExistingOrder && (
-														<div style={{ marginTop: '0.35rem' }}>
+														<div style={{ marginTop: '0.25rem' }}>
 															<span style={{
-																padding: '0.2rem 0.6rem',
+																padding: '0.15rem 0.5rem',
 																borderRadius: '999px',
-																fontSize: '0.7rem',
+																fontSize: '0.65rem',
 																fontWeight: 600,
 																backgroundColor: item.isNew ? '#c6f6d5' : '#e2e8f0',
 																color: item.isNew ? '#22543d' : '#4a5568'
@@ -1159,25 +1209,25 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 														border: 'none',
 														color: isEditable ? '#dc2626' : '#cbd5e0',
 														cursor: isEditable ? 'pointer' : 'not-allowed',
-														fontSize: '1.2rem',
-														padding: '0.25rem'
+														fontSize: '1rem',
+														padding: '0.15rem'
 													}}
 												>
 													🗑️
 												</button>
 											</div>
-											<div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'space-between' }}>
+											<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.25rem' : '0.375rem', justifyContent: 'space-between' }}>
 												<button
 													onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
 													disabled={!isEditable}
 													style={{
-														width: '28px',
-														height: '28px',
-														borderRadius: '6px',
+														width: isSmall ? '22px' : isMedium ? '24px' : '26px',
+														height: isSmall ? '22px' : isMedium ? '24px' : '26px',
+														borderRadius: isSmall ? '4px' : '6px',
 														border: '1px solid #cbd5e0',
 														background: isEditable ? 'white' : '#edf2f7',
 														cursor: isEditable ? 'pointer' : 'not-allowed',
-														fontSize: '1.1rem',
+														fontSize: isSmall ? '0.8rem' : isMedium ? '0.9rem' : '1rem',
 														display: 'flex',
 														alignItems: 'center',
 														justifyContent: 'center'
@@ -1192,27 +1242,28 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 													disabled={!isEditable}
 													min="0"
 													style={{
-														width: '60px',
+														width: isSmall ? '45px' : isMedium ? '50px' : '55px',
 														textAlign: 'center',
 														border: '1px solid #cbd5e0',
-														borderRadius: '6px',
-														padding: '0.35rem',
+														borderRadius: isSmall ? '4px' : '6px',
+														padding: isSmall ? '0.2rem' : isMedium ? '0.25rem' : '0.3rem',
 														fontWeight: 600,
 														background: isEditable ? 'white' : '#edf2f7',
-														color: isEditable ? '#1a202c' : '#a0aec0'
+														color: isEditable ? '#1a202c' : '#a0aec0',
+														fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.875rem'
 													}}
 												/>
 												<button
 													onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
 													disabled={!isEditable}
 													style={{
-														width: '28px',
-														height: '28px',
-														borderRadius: '6px',
+														width: isSmall ? '22px' : isMedium ? '24px' : '26px',
+														height: isSmall ? '22px' : isMedium ? '24px' : '26px',
+														borderRadius: isSmall ? '4px' : '6px',
 														border: '1px solid #cbd5e0',
 														background: isEditable ? 'white' : '#edf2f7',
 														cursor: isEditable ? 'pointer' : 'not-allowed',
-														fontSize: '1.1rem',
+														fontSize: isSmall ? '0.8rem' : isMedium ? '0.9rem' : '1rem',
 														display: 'flex',
 														alignItems: 'center',
 														justifyContent: 'center'
@@ -1220,8 +1271,13 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 												>
 													+
 												</button>
-												<div style={{ marginLeft: 'auto', fontWeight: 700, color: '#2d3748', fontSize: '1rem' }}>
-													$ {item.total.toFixed(2)}
+												<div style={{ 
+													marginLeft: 'auto', 
+													fontWeight: 700, 
+													color: '#2d3748', 
+													fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem' 
+												}}>
+													S/ {item.total.toFixed(2)}
 												</div>
 											</div>
 										</div>
@@ -1230,51 +1286,79 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							)}
 						</div>
 
-						<div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 14, padding: '1rem', display: 'grid', gap: '0.5rem' }}>
-							<div style={{ display: 'flex', justifyContent: 'space-between', color: '#4a5568' }}>
+						<div style={{ 
+							background: 'linear-gradient(135deg, #667eea, #764ba2)', 
+							border: '2px solid #667eea', 
+							borderRadius: isSmall ? '10px' : isMedium ? '12px' : '14px', 
+							padding: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem', 
+							display: 'grid', 
+							gap: isSmall ? '0.25rem' : isMedium ? '0.375rem' : '0.5rem',
+							boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+							flexShrink: 0
+						}}>
+							<div style={{ 
+								display: 'flex', 
+								justifyContent: 'space-between', 
+								color: 'rgba(255,255,255,0.9)',
+								fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem'
+							}}>
 								<span>Subtotal</span>
-								<b>$ {subtotal.toFixed(2)}</b>
+								<b>S/ {subtotal.toFixed(2)}</b>
 							</div>
-							<div style={{ display: 'flex', justifyContent: 'space-between', color: '#4a5568' }}>
+							<div style={{ 
+								display: 'flex', 
+								justifyContent: 'space-between', 
+								color: 'rgba(255,255,255,0.9)',
+								fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem'
+							}}>
 								<span>Impuestos</span>
-								<b>$ {taxes.toFixed(2)}</b>
+								<b>S/ {taxes.toFixed(2)}</b>
 							</div>
-							<div style={{ height: 1, background: '#e2e8f0', margin: '0.25rem 0' }} />
-							<div style={{ display: 'flex', justifyContent: 'space-between', color: '#2d3748', fontSize: 18, fontWeight: 800 }}>
-								<span>Total</span>
-								<span>$ {total.toFixed(2)}</span>
+							<div style={{ height: 1, background: 'rgba(255,255,255,0.3)', margin: isSmall ? '0.125rem 0' : isMedium ? '0.25rem 0' : '0.25rem 0' }} />
+							<div style={{ 
+								display: 'flex', 
+								justifyContent: 'space-between', 
+								color: 'white', 
+								fontSize: isSmall ? '1rem' : isMedium ? '1.125rem' : '1.25rem', 
+								fontWeight: 900,
+								textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+							}}>
+								<span>TOTAL</span>
+								<span>S/ {total.toFixed(2)}</span>
 							</div>
 						</div>
 
-						<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+						<div style={{ 
+							display: 'grid', 
+							gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : '1fr 1fr', 
+							gap: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem',
+							flexShrink: 0
+						}}>
 							<button 
 								onClick={() => handleSaveOrder('PROCESSING')}
 								disabled={isSaving || orderItems.length === 0}
 								style={{ 
-									padding: '0.85rem', 
-									background: isSaving || orderItems.length === 0 ? '#cbd5e0' : '#f7fafc', 
-									border: '1px solid #e2e8f0', 
-									borderRadius: 12, 
-									cursor: isSaving || orderItems.length === 0 ? 'not-allowed' : 'pointer', 
-									fontWeight: 700, 
-									color: '#4a5568',
-									opacity: isSaving || orderItems.length === 0 ? 0.6 : 1
-								}}
-							>
-								{isSaving ? 'Cambiando...' : 'Cambiar de mesa'}
-							</button>
-							<button 
-								onClick={() => handleSaveOrder('PROCESSING')}
-								disabled={isSaving || orderItems.length === 0}
-								style={{ 
-									padding: '0.85rem', 
+									padding: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem', 
 									background: isSaving || orderItems.length === 0 ? '#cbd5e0' : '#edf2ff', 
-									border: '1px solid #c3dafe', 
+									border: '2px solid #c3dafe', 
 									color: '#3730a3', 
-									borderRadius: 12, 
+									borderRadius: isSmall ? '8px' : isMedium ? '10px' : '12px', 
 									cursor: isSaving || orderItems.length === 0 ? 'not-allowed' : 'pointer', 
 									fontWeight: 800,
-									opacity: isSaving || orderItems.length === 0 ? 0.6 : 1
+									opacity: isSaving || orderItems.length === 0 ? 0.6 : 1,
+									fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
+									boxShadow: isSaving || orderItems.length === 0 ? 'none' : '0 2px 6px rgba(59, 130, 246, 0.25)',
+									transition: 'all 0.2s ease'
+								}}
+								onMouseEnter={(e) => {
+									if (!isSaving && orderItems.length > 0) {
+										e.currentTarget.style.transform = 'translateY(-2px)';
+										e.currentTarget.style.boxShadow = '0 4px 10px rgba(59, 130, 246, 0.35)';
+									}
+								}}
+								onMouseLeave={(e) => {
+									e.currentTarget.style.transform = 'translateY(0)';
+									e.currentTarget.style.boxShadow = isSaving || orderItems.length === 0 ? 'none' : '0 2px 6px rgba(59, 130, 246, 0.25)';
 								}}
 							>
 								{isSaving ? 'Guardando...' : 'Enviar a cocina'}
@@ -1283,14 +1367,28 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 								onClick={() => handleSaveOrder('TO_PAY')}
 								disabled={isSaving || orderItems.length === 0}
 								style={{ 
-									padding: '0.85rem', 
+									padding: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem', 
 									background: isSaving || orderItems.length === 0 ? '#cbd5e0' : 'linear-gradient(135deg,#667eea,#764ba2)', 
 									color: 'white', 
 									border: 'none', 
-									borderRadius: 12, 
+									borderRadius: isSmall ? '8px' : isMedium ? '10px' : '12px', 
 									cursor: isSaving || orderItems.length === 0 ? 'not-allowed' : 'pointer', 
 									fontWeight: 800,
-									opacity: isSaving || orderItems.length === 0 ? 0.6 : 1
+									opacity: isSaving || orderItems.length === 0 ? 0.6 : 1,
+									fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
+									boxShadow: isSaving || orderItems.length === 0 ? 'none' : '0 3px 10px rgba(102, 126, 234, 0.35)',
+									transition: 'all 0.2s ease',
+									textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+								}}
+								onMouseEnter={(e) => {
+									if (!isSaving && orderItems.length > 0) {
+										e.currentTarget.style.transform = 'translateY(-2px)';
+										e.currentTarget.style.boxShadow = '0 5px 14px rgba(102, 126, 234, 0.45)';
+									}
+								}}
+								onMouseLeave={(e) => {
+									e.currentTarget.style.transform = 'translateY(0)';
+									e.currentTarget.style.boxShadow = isSaving || orderItems.length === 0 ? 'none' : '0 3px 10px rgba(102, 126, 234, 0.35)';
 								}}
 							>
 								{isSaving ? 'Cancelando...' : 'Cancelar Orden'}
@@ -1315,9 +1413,19 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 
 				{/* Footer hints */}
 				<div style={{
-					padding: '0.6rem 1rem', display: 'flex', justifyContent: 'center', gap: '1rem', borderTop: '1px solid #e2e8f0', background: 'rgba(255,255,255,0.85)'
+					padding: isSmall ? '0.375rem 0.5rem' : isMedium ? '0.5rem 0.75rem' : '0.6rem 1rem', 
+					display: 'flex', 
+					justifyContent: 'center', 
+					gap: '1rem', 
+					borderTop: '1px solid #e2e8f0', 
+					background: 'rgba(255,255,255,0.85)'
 				}}>
-					<span style={{ color: '#718096', fontSize: 12 }}>Atajos: ⏎ Agregar • Ctrl+K Buscar • Esc Cerrar</span>
+					<span style={{ 
+						color: '#718096', 
+						fontSize: isSmall ? '10px' : isMedium ? '11px' : '12px' 
+					}}>
+						{isSmall || isMedium ? 'Atajos: ⏎ Agregar • Esc Cerrar' : 'Atajos: ⏎ Agregar • Ctrl+K Buscar • Esc Cerrar'}
+					</span>
 				</div>
 			</div>
 		</div>
