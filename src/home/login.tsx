@@ -154,7 +154,6 @@ const Login: React.FC = () => {
   const subtitleFontSize = isSmallDesktop ? 'clamp(13px, 2vw, 15px)' : 'clamp(14px, 2vw, 16px)';
   const inputFontSize = isSmallDesktop ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
   const labelFontSize = isSmallDesktop ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
-  const buttonFontSize = isSmallDesktop ? 'clamp(15px, 2.5vw, 17px)' : 'clamp(16px, 2.5vw, 18px)';
 
   // Bloquear acceso en móviles
   if (isMobile) {

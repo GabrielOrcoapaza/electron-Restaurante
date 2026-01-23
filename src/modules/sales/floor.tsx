@@ -19,14 +19,9 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   const isSmall = breakpoint === 'sm'; // 640px - 767px
   const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
-  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
   
   // Tamaños adaptativos - reducidos para que quepan al menos 10 por fila
-  const floorCardMinWidth = isSmall ? '120px' : isMedium ? '140px' : isSmallDesktop ? '150px' : isMediumDesktop ? '160px' : '170px';
-  const floorCardPadding = isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '1rem' : '1rem';
-  const floorCardGap = isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '1rem' : '1rem';
   const titleFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : '1.5rem';
-  const floorNameFontSize = isSmall ? '1rem' : isMedium ? '1.125rem' : isSmallDesktop ? '1.125rem' : '1.25rem';
   
   // CSS para animación de pulso (adaptable a diferentes colores)
   const pulseKeyframes = `
