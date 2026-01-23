@@ -5,7 +5,8 @@ import { useWebSocket } from '../../context/WebSocketContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import type { Table } from '../../types/table';
 import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION, PRINT_PRECUENTA, PRINT_PARTIAL_PRECUENTA } from '../../graphql/mutations';
-import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries';
+import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR, GET_PERSONS_BY_BRANCH } from '../../graphql/queries';
+import CreateClient from '../user/createClient';
 
 type CashPayProps = {
   table: Table | null;
@@ -68,6 +69,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
   const [selectedSerialId, setSelectedSerialId] = useState<string>('');
   const [selectedCashRegisterId, setSelectedCashRegisterId] = useState<string>('');
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [showCreateClientModal, setShowCreateClientModal] = useState(false);
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
   
   // Estado para múltiples pagos
   type Payment = {
@@ -163,6 +167,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     skip: !selectedTransferFloorId
   });
 
+  // Obtener clientes (personas con isCustomer=true)
+  const { data: clientsData, loading: clientsLoading, refetch: refetchClients } = useQuery(GET_PERSONS_BY_BRANCH, {
+    variables: { branchId: companyData?.branch.id || '' },
+    skip: !companyData?.branch.id
+  });
+
   const [createIssuedDocumentMutation] = useMutation(CREATE_ISSUED_DOCUMENT);
   const [changeOperationTableMutation] = useMutation(CHANGE_OPERATION_TABLE);
   const [changeOperationUserMutation] = useMutation(CHANGE_OPERATION_USER);
@@ -226,6 +236,20 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   // Filtrar solo documentos y series activos (aunque el backend ya debería filtrarlos)
   const documents = (documentsData?.documentsByBranch || []).filter((doc: any) => doc.isActive !== false);
   const serials = (serialsData?.serialsByDocument || []).filter((ser: any) => ser.isActive !== false);
+  
+  // Filtrar clientes (personas con isCustomer=true, no proveedores) y activos
+  const allClients = (clientsData?.personsByBranch || []).filter((person: any) => 
+    !person.isSupplier && person.isActive !== false
+  );
+  
+  // Filtrar clientes por término de búsqueda
+  const filteredClients = allClients.filter((client: any) => {
+    if (!clientSearchTerm) return true;
+    const search = clientSearchTerm.toLowerCase();
+    const name = (client.name || '').toLowerCase();
+    const documentNumber = (client.documentNumber || '').toLowerCase();
+    return name.includes(search) || documentNumber.includes(search);
+  });
   const cashRegisters = cashRegistersData?.cashRegistersByBranch || [];
 
   // Debug: Log para verificar datos
@@ -1101,7 +1125,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         branchId: companyData?.branch.id,
         documentId: selectedDocumentId,
         serial: serial,
-        personId: null,
+        personId: selectedClientId || null,
         userId: user.id,
         emissionDate: emissionDate,
         emissionTime: emissionTime,
@@ -2819,6 +2843,87 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 </div>
               )}
 
+              {/* Cliente */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      color: '#2d3748',
+                      margin: 0
+                    }}
+                  >
+                    Cliente
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateClientModal(true)}
+                    disabled={isProcessing}
+                    style={{
+                      padding: '0.4rem 0.75rem',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: isProcessing ? 'not-allowed' : 'pointer',
+                      opacity: isProcessing ? 0.6 : 1
+                    }}
+                  >
+                    + Nuevo Cliente
+                  </button>
+                </div>
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <input
+                    type="text"
+                    value={clientSearchTerm}
+                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                    placeholder="Buscar cliente por nombre o documento..."
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e0',
+                      fontSize: '0.85rem',
+                      backgroundColor: 'white',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                <select
+                  value={selectedClientId}
+                  onChange={(e) => setSelectedClientId(e.target.value)}
+                  disabled={clientsLoading || isProcessing}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e0',
+                    fontSize: '0.85rem',
+                    backgroundColor: 'white',
+                    cursor: clientsLoading || isProcessing ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {clientsLoading ? (
+                    <option value="">Cargando clientes...</option>
+                  ) : filteredClients.length === 0 ? (
+                    <option value="">{clientSearchTerm ? 'No se encontraron clientes' : 'No hay clientes disponibles'}</option>
+                  ) : (
+                    <>
+                      <option value="">Sin cliente (Consumidor final)</option>
+                      {filteredClients.map((client: any) => (
+                        <option key={client.id} value={client.id}>
+                          {client.name} - {client.documentType} {client.documentNumber}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </div>
+
               {/* Pagos Múltiples */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -4490,6 +4595,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             )}
           </div>
         </div>
+      )}
+
+      {/* Modal para crear nuevo cliente */}
+      {showCreateClientModal && (
+        <CreateClient
+          onSuccess={(clientId) => {
+            setSelectedClientId(clientId);
+            refetchClients();
+            setShowCreateClientModal(false);
+          }}
+          onClose={() => setShowCreateClientModal(false)}
+        />
       )}
 
     </div>

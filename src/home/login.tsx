@@ -15,6 +15,7 @@ const Login: React.FC = () => {
     password: ''
   });
   const [searchTerm, setSearchTerm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const [userLoginMutation, { loading }] = useMutation(USER_LOGIN);
 
@@ -659,7 +660,7 @@ const Login: React.FC = () => {
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
@@ -668,7 +669,7 @@ const Login: React.FC = () => {
                     className="form-inputs"
                     style={{
                       width: '100%',
-                      padding: '1rem 1rem 1rem 3rem',
+                      padding: '1rem 3.5rem 1rem 3rem',
                       border: '2px solid #e2e8f0',
                       borderRadius: '12px',
                       fontSize: inputFontSize,
@@ -696,8 +697,40 @@ const Login: React.FC = () => {
                     left: '1rem',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    fontSize: isSmallDesktop ? '18px' : '20px'
+                    fontSize: isSmallDesktop ? '18px' : '20px',
+                    pointerEvents: 'none'
                   }}>🔒</div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '1rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '0.5rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: isSmallDesktop ? '18px' : '20px',
+                      color: '#718096',
+                      transition: 'all 0.2s ease',
+                      borderRadius: '8px'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#f1f5f9';
+                      e.currentTarget.style.color = '#2d3748';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = '#718096';
+                    }}
+                  >
+                    {showPassword ? '👁️' : '👁️‍🗨️'}
+                  </button>
                 </div>
               </div>
               
