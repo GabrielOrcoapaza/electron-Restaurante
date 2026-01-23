@@ -1166,23 +1166,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 											padding: isSmall ? '0.2rem' : isMedium ? '0.3rem' : '0.35rem',
 											background: isExistingOrder && !item.isNew ? '#d4edda' : '#f7fafc'
 										}}>
-											{/* Una sola fila: Nombre, Cantidad, Precio + Tachito, Botón notas */}
+											{/* Una sola fila: Cantidad, Producto, Precio + Tachito, Botón notas */}
 											<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.2rem' : isMedium ? '0.3rem' : '0.35rem', justifyContent: 'flex-start', flexWrap: 'nowrap', width: '100%', overflow: 'hidden' }}>
-												{/* Nombre del producto */}
-												<div style={{ flex: '0 1 auto', minWidth: 0, maxWidth: '35%' }}>
-													<div style={{ 
-														fontWeight: 700, 
-														color: '#2d3748', 
-														fontSize: isSmall ? '0.6rem' : isMedium ? '0.65rem' : '0.7rem',
-														overflow: 'hidden',
-														textOverflow: 'ellipsis',
-														whiteSpace: 'nowrap',
-														flexShrink: 1
-													}}>
-														{item.name}
-													</div>
-												</div>
-												
 												{/* Controles de cantidad */}
 												<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.15rem' : isMedium ? '0.2rem' : '0.25rem', flexShrink: 0 }}>
 													<button
@@ -1244,6 +1229,21 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 													>
 														+
 													</button>
+												</div>
+
+												{/* Nombre del producto */}
+												<div style={{ flex: '0 1 auto', minWidth: 0, maxWidth: '35%' }}>
+													<div style={{ 
+														fontWeight: 700, 
+														color: '#2d3748', 
+														fontSize: isSmall ? '0.6rem' : isMedium ? '0.65rem' : '0.7rem',
+														overflow: 'hidden',
+														textOverflow: 'ellipsis',
+														whiteSpace: 'nowrap',
+														flexShrink: 1
+													}}>
+														{item.name}
+													</div>
 												</div>
 												
 												{/* Precio total y tachito juntos */}

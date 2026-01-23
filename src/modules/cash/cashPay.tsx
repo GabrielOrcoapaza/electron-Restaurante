@@ -2171,7 +2171,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             zIndex: 1
           }}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '0.75rem', alignItems: 'center', flexWrap: 'nowrap' }}>
             <span
               style={{
                 display: 'inline-flex',
@@ -2184,46 +2184,39 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 fontSize: '0.8rem',
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
-                fontWeight: 600
+                fontWeight: 600,
+                flexShrink: 0
               }}
             >
               💳 Caja Activa
             </span>
             <h2
               style={{
-                fontSize: '2rem',
+                fontSize: '1.5rem',
                 fontWeight: 700,
                 margin: 0,
-                textShadow: '0 6px 18px rgba(0,0,0,0.20)'
+                textShadow: '0 6px 18px rgba(0,0,0,0.20)',
+                flexShrink: 0
               }}
             >
               {table.name}
             </h2>
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '0.75rem',
-                fontSize: '0.95rem',
-                color: 'rgba(255,255,255,0.85)'
-              }}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                🪑 <strong>{table.capacity} plazas</strong>
-              </span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                🕒 {operation?.operationDate ? new Date(operation.operationDate).toLocaleString() : 'Sin horario'}
-              </span>
-            </div>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, fontSize: '0.9rem', color: 'rgba(255,255,255,0.85)' }}>
+              🪑 <strong>{table.capacity} plazas</strong>
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, fontSize: '0.9rem', color: 'rgba(255,255,255,0.85)' }}>
+              🕒 {operation?.operationDate ? new Date(operation.operationDate).toLocaleString() : 'Sin horario'}
+            </span>
             {operation?.order && (
               <span
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
-                  fontSize: '0.95rem',
+                  fontSize: '0.9rem',
                   fontWeight: 600,
-                  color: '#fefcbf'
+                  color: '#fefcbf',
+                  flexShrink: 0
                 }}
               >
                 🔖 Orden #{operation.order}
@@ -2231,7 +2224,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'nowrap', alignItems: 'center' }}>
             <span
               style={{
                 padding: '0.6rem 1.1rem',
@@ -2262,17 +2255,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               onClick={refetch}
               disabled={!hasSelection || loading}
               style={{
-                padding: '0.85rem 1.45rem',
+                padding: '0.5rem 0.9rem',
                 borderRadius: '999px',
                 border: 'none',
                 background: 'linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.75))',
                 color: '#4c51bf',
                 cursor: loading ? 'not-allowed' : 'pointer',
                 fontWeight: 700,
-                fontSize: '0.92rem',
-                boxShadow: '0 12px 24px rgba(15,23,42,0.18)',
+                fontSize: '0.75rem',
+                boxShadow: '0 8px 16px rgba(15,23,42,0.18)',
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                opacity: loading ? 0.7 : 1
+                opacity: loading ? 0.7 : 1,
+                flexShrink: 0
               }}
               onMouseOver={(e) => {
                 if (!loading) {
@@ -2291,7 +2285,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               onClick={handlePrecuenta}
               disabled={!operation || operation.status === 'COMPLETED' || loading || isProcessing}
               style={{
-                padding: '0.85rem 1.45rem',
+                padding: '0.5rem 0.9rem',
                 borderRadius: '999px',
                 border: 'none',
                 background: !operation || operation.status === 'COMPLETED' || loading || isProcessing
@@ -2300,12 +2294,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 color: 'white',
                 cursor: !operation || operation.status === 'COMPLETED' || loading || isProcessing ? 'not-allowed' : 'pointer',
                 fontWeight: 700,
-                fontSize: '0.92rem',
+                fontSize: '0.75rem',
                 boxShadow: !operation || operation.status === 'COMPLETED' || loading || isProcessing
-                  ? '0 8px 16px rgba(0,0,0,0.1)'
-                  : '0 12px 24px rgba(245,158,11,0.3)',
+                  ? '0 6px 12px rgba(0,0,0,0.1)'
+                  : '0 8px 16px rgba(245,158,11,0.3)',
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                opacity: !operation || operation.status === 'COMPLETED' || loading || isProcessing ? 0.6 : 1
+                opacity: !operation || operation.status === 'COMPLETED' || loading || isProcessing ? 0.6 : 1,
+                flexShrink: 0
               }}
               onMouseOver={(e) => {
                 if (operation && operation.status !== 'COMPLETED' && !loading && !isProcessing) {
@@ -2324,16 +2319,15 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             </button>
             {/* Botones de acción rápida */}
             <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
-              gap: '0.5rem',
-              marginLeft: '0.5rem'
+              display: 'flex',
+              gap: '0.4rem',
+              flexShrink: 0
             }}>
               <button
                 onClick={() => setShowChangeTableModal(true)}
                 disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
                 style={{
-                  padding: '0.5rem 0.75rem',
+                  padding: '0.4rem 0.65rem',
                   borderRadius: '8px',
                   border: 'none',
                   background: operation?.status === 'COMPLETED'
@@ -2341,11 +2335,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     : 'linear-gradient(130deg, #10b981, #059669)',
                   color: 'white',
                   fontWeight: 600,
-                  fontSize: '0.75rem',
+                  fontSize: '0.7rem',
                   cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+                  boxShadow: '0 3px 8px rgba(16,185,129,0.3)',
                   transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                  opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
+                  opacity: operation?.status === 'COMPLETED' ? 0.6 : 1,
+                  flexShrink: 0
                 }}
                 onMouseOver={(e) => {
                   if (operation?.status !== 'COMPLETED' && !isProcessing) {
@@ -2364,7 +2359,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 onClick={() => setShowTransferPlatesModal(true)}
                 disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
                 style={{
-                  padding: '0.5rem 0.75rem',
+                  padding: '0.4rem 0.65rem',
                   borderRadius: '8px',
                   border: 'none',
                   background: operation?.status === 'COMPLETED'
@@ -2372,11 +2367,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     : 'linear-gradient(130deg, #3b82f6, #2563eb)',
                   color: 'white',
                   fontWeight: 600,
-                  fontSize: '0.75rem',
+                  fontSize: '0.7rem',
                   cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 12px rgba(59,130,246,0.3)',
+                  boxShadow: '0 3px 8px rgba(59,130,246,0.3)',
                   transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                  opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
+                  opacity: operation?.status === 'COMPLETED' ? 0.6 : 1,
+                  flexShrink: 0
                 }}
                 onMouseOver={(e) => {
                   if (operation?.status !== 'COMPLETED' && !isProcessing) {
@@ -2395,7 +2391,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 onClick={() => setShowChangeUserModal(true)}
                 disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
                 style={{
-                  padding: '0.5rem 0.75rem',
+                  padding: '0.4rem 0.65rem',
                   borderRadius: '8px',
                   border: 'none',
                   background: operation?.status === 'COMPLETED'
@@ -2403,11 +2399,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     : 'linear-gradient(130deg, #8b5cf6, #7c3aed)',
                   color: 'white',
                   fontWeight: 600,
-                  fontSize: '0.75rem',
+                  fontSize: '0.7rem',
                   cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 12px rgba(139,92,246,0.3)',
+                  boxShadow: '0 3px 8px rgba(139,92,246,0.3)',
                   transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                  opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
+                  opacity: operation?.status === 'COMPLETED' ? 0.6 : 1,
+                  flexShrink: 0
                 }}
                 onMouseOver={(e) => {
                   if (operation?.status !== 'COMPLETED' && !isProcessing) {
@@ -2426,16 +2423,17 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             <button
               onClick={onBack}
               style={{
-                padding: '0.85rem 1.45rem',
+                padding: '0.5rem 0.9rem',
                 borderRadius: '999px',
                 border: 'none',
                 background: 'rgba(255,255,255,0.12)',
                 color: 'white',
                 cursor: 'pointer',
                 fontWeight: 700,
-                fontSize: '0.92rem',
-                boxShadow: '0 12px 24px rgba(0,0,0,0.15)',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                fontSize: '0.75rem',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                flexShrink: 0
               }}
               onMouseOver={(e) => {
                 e.currentTarget.style.transform = 'translateY(-2px)';
@@ -2555,7 +2553,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               {/* Tabla de productos */}
               <div
                 style={{
-                  flex: isSmallDesktop ? '1 1 55%' : isMediumDesktop ? '1 1 58%' : '1 1 60%',
+                  flex: isSmallDesktop ? '1 1 68%' : isMediumDesktop ? '1 1 72%' : '1 1 75%',
                   border: '1px solid rgba(226,232,240,0.9)',
                   borderRadius: '18px',
                   overflow: 'hidden',
@@ -2723,7 +2721,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                               e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)';
                             }}
                           >
-                            ✂️ Dividir
+                            ✂️ 
                           </button>
                         )}
                         {detail.id?.includes('-split') && (
@@ -2750,7 +2748,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                               e.currentTarget.style.background = 'linear-gradient(130deg, #10b981, #059669)';
                             }}
                           >
-                            🔗 Unir
+                            🔗
                           </button>
                         )}
                         {!detail.id?.includes('-split') && quantity <= 1 && modifiedDetails.some((d: any) => d.id?.includes(`${detail.id}-split`)) && (
@@ -2777,7 +2775,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                               e.currentTarget.style.background = 'linear-gradient(130deg, #f59e0b, #d97706)';
                             }}
                           >
-                            🔗 Unir todo
+                            🔗
                           </button>
                         )}
                         <button
@@ -2803,7 +2801,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                             e.currentTarget.style.background = 'linear-gradient(130deg, #ef4444, #dc2626)';
                           }}
                         >
-                          🗑️ Eliminar
+                          🗑️
                         </button>
                       </div>
                     </div>
@@ -2826,7 +2824,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               {/* Selectores de Documento, Serie, Caja Registradora y Método de Pago */}
               <div
                 style={{
-                  flex: isSmallDesktop ? '1 1 45%' : isMediumDesktop ? '1 1 42%' : '1 1 40%',
+                  flex: isSmallDesktop ? '1 1 32%' : isMediumDesktop ? '1 1 28%' : '1 1 25%',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: isSmallDesktop ? '1.25rem' : '1.5rem'
@@ -3085,7 +3083,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                             opacity: isProcessing ? 0.6 : 1
                           }}
                         >
-                          Eliminar
+                          🗑️
                         </button>
                       )}
                     </div>
