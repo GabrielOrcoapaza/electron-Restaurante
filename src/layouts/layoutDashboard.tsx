@@ -83,7 +83,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const headerPadding = isSmall ? '0.75rem 1rem' : isMedium ? '1rem 1.25rem' : isSmallDesktop ? '1rem 1.5rem' : isMediumDesktop ? '1rem 1.75rem' : '1rem 2rem';
   const headerFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : '1.5rem';
   const headerSubFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration'>('dashboard');
+  // Verificar si el usuario es mozo para establecer la vista inicial
+  const isWaiterInitial = user?.role?.toUpperCase() === 'WAITER';
+  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration'>(isWaiterInitial ? 'floors' : 'dashboard');
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
@@ -357,6 +359,16 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
 
   const isFloorsSection = currentView === 'floors' || currentView === 'cash';
 
+  // Verificar si el usuario es mozo (WAITER)
+  const isWaiter = user?.role?.toUpperCase() === 'WAITER';
+
+  // Si el usuario es mozo, asegurar que solo vea mesas
+  useEffect(() => {
+    if (isWaiter && currentView !== 'floors' && currentView !== 'cash') {
+      setCurrentView('floors');
+    }
+  }, [isWaiter, currentView]);
+
   return (
     <div style={{
         height: '100vh',
@@ -521,74 +533,81 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
             flexDirection: 'column',
             gap: '0.25rem'
           }}>
-            <button
-              onClick={() => handleMenuClick('dashboard')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1.5rem',
-                background: currentView === 'dashboard' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
-                border: 'none',
-                color: currentView === 'dashboard' ? '#667eea' : '#a0aec0',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                textAlign: 'left',
-                width: '100%'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'dashboard') {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.color = 'white';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'dashboard') {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#a0aec0';
-                }
-              }}
-            >
-              <span style={{ fontSize: '1.25rem' }}>📊</span>
-              {sidebarOpen && 'Dashboard'}
-            </button>
+            {/* Solo mostrar Dashboard si NO es mozo */}
+            {!isWaiter && (
+              <button
+                onClick={() => handleMenuClick('dashboard')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1.5rem',
+                  background: currentView === 'dashboard' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  color: currentView === 'dashboard' ? '#667eea' : '#a0aec0',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'dashboard') {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'dashboard') {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#a0aec0';
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>📊</span>
+                {sidebarOpen && 'Dashboard'}
+              </button>
+            )}
 
-            <button
-              onClick={() => handleMenuClick('products')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1.5rem',
-                background: currentView === 'products' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
-                border: 'none',
-                color: currentView === 'products' ? '#667eea' : '#a0aec0',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                textAlign: 'left',
-                width: '100%'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'products') {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.color = 'white';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'products') {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#a0aec0';
-                }
-              }}
-            >
-              <span style={{ fontSize: '1.25rem' }}>🍽️</span>
-              {sidebarOpen && 'Productos'}
-            </button>   
+            {/* Solo mostrar Productos si NO es mozo */}
+            {!isWaiter && (
+              <button
+                onClick={() => handleMenuClick('products')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1.5rem',
+                  background: currentView === 'products' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  color: currentView === 'products' ? '#667eea' : '#a0aec0',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'products') {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'products') {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#a0aec0';
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>🍽️</span>
+                {sidebarOpen && 'Productos'}
+              </button>
+            )}
 
+            {/* Mesas - siempre visible para todos */}
             <button
               onClick={() => handleMenuClick('floors')}
               style={{
@@ -623,277 +642,301 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               {sidebarOpen && 'Mesas'}
             </button>
                             
-            <button
-              onClick={() => handleMenuClick('configuration')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1.5rem',
-                background: currentView === 'configuration' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
-                border: 'none',
-                color: currentView === 'configuration' ? '#667eea' : '#a0aec0',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                textAlign: 'left',
-                width: '100%'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'configuration') {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.color = 'white';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'configuration') {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#a0aec0';
-                }
-              }}
-            >
-              <span style={{ fontSize: '1.25rem' }}>⚙️</span>
-              {sidebarOpen && 'Configuración'}
-            </button>
+            {/* Solo mostrar Configuración si NO es mozo */}
+            {!isWaiter && (
+              <button
+                onClick={() => handleMenuClick('configuration')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1.5rem',
+                  background: currentView === 'configuration' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  color: currentView === 'configuration' ? '#667eea' : '#a0aec0',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'configuration') {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'configuration') {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#a0aec0';
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>⚙️</span>
+                {sidebarOpen && 'Configuración'}
+              </button>
+            )}
 
-            <button
-              onClick={() => handleMenuClick('messages')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1.5rem',
-                background: currentView === 'messages' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
-                border: 'none',
-                color: currentView === 'messages' ? '#667eea' : '#a0aec0',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                textAlign: 'left',
-                width: '100%'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'messages') {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.color = 'white';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'messages') {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#a0aec0';
-                }
-              }}
-            >
-              <span style={{ fontSize: '1.25rem' }}>💬</span>
-              {sidebarOpen && 'Mensajes'}
-            </button>
+            {/* Solo mostrar Mensajes si NO es mozo */}
+            {!isWaiter && (
+              <button
+                onClick={() => handleMenuClick('messages')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1.5rem',
+                  background: currentView === 'messages' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  color: currentView === 'messages' ? '#667eea' : '#a0aec0',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'messages') {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'messages') {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#a0aec0';
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>💬</span>
+                {sidebarOpen && 'Mensajes'}
+              </button>
+            )}
 
-            <button
-              onClick={() => handleMenuClick('employees')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1.5rem',
-                background: currentView === 'employees' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
-                border: 'none',
-                color: currentView === 'employees' ? '#667eea' : '#a0aec0',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                textAlign: 'left',
-                width: '100%'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'employees') {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.color = 'white';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'employees') {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#a0aec0';
-                }
-              }}
-            >
-              <span style={{ fontSize: '1.25rem' }}>👥</span>
-              {sidebarOpen && 'Empleados'}
-            </button> 
+            {/* Solo mostrar Empleados si NO es mozo */}
+            {!isWaiter && (
+              <button
+                onClick={() => handleMenuClick('employees')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1.5rem',
+                  background: currentView === 'employees' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  color: currentView === 'employees' ? '#667eea' : '#a0aec0',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'employees') {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'employees') {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#a0aec0';
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>👥</span>
+                {sidebarOpen && 'Empleados'}
+              </button>
+            )}
 
-            <button
-              onClick={() => handleMenuClick('purchase')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1.5rem',
-                background: currentView === 'purchase' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
-                border: 'none',
-                color: currentView === 'purchase' ? '#667eea' : '#a0aec0',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                textAlign: 'left',
-                width: '100%'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'purchase') {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.color = 'white';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'purchase') {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#a0aec0';
-                }
-              }}
-            >
-              <span style={{ fontSize: '1.25rem' }}>🛒</span>
-              {sidebarOpen && 'Compras'}
-            </button> 
+            {/* Solo mostrar Compras si NO es mozo */}
+            {!isWaiter && (
+              <button
+                onClick={() => handleMenuClick('purchase')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1.5rem',
+                  background: currentView === 'purchase' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  color: currentView === 'purchase' ? '#667eea' : '#a0aec0',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'purchase') {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'purchase') {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#a0aec0';
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>🛒</span>
+                {sidebarOpen && 'Compras'}
+              </button>
+            )}
 
-            <button
-              onClick={() => handleMenuClick('cashs')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1.5rem',
-                background: currentView === 'cashs' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
-                border: 'none',
-                color: currentView === 'cashs' ? '#667eea' : '#a0aec0',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                textAlign: 'left',
-                width: '100%'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'cashs') {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.color = 'white';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'cashs') {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#a0aec0';
-                }
-              }}
-            >
-              <span style={{ fontSize: '1.25rem' }}>💰</span>
-              {sidebarOpen && 'Caja'}
-            </button>
+            {/* Solo mostrar Caja si NO es mozo */}
+            {!isWaiter && (
+              <button
+                onClick={() => handleMenuClick('cashs')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1.5rem',
+                  background: currentView === 'cashs' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  color: currentView === 'cashs' ? '#667eea' : '#a0aec0',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'cashs') {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'cashs') {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#a0aec0';
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>💰</span>
+                {sidebarOpen && 'Caja'}
+              </button>
+            )}
 
-            <button
-              onClick={() => handleMenuClick('inventory')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1.5rem',
-                background: currentView === 'inventory' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
-                border: 'none',
-                color: currentView === 'inventory' ? '#667eea' : '#a0aec0',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                textAlign: 'left',
-                width: '100%'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'inventory') {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.color = 'white';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'inventory') {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#a0aec0';
-                }
-              }}
-            >
-              <span style={{ fontSize: '1.25rem' }}>📦</span>
-              {sidebarOpen && 'Inventario'}
-            </button>
+            {/* Solo mostrar Inventario si NO es mozo */}
+            {!isWaiter && (
+              <button
+                onClick={() => handleMenuClick('inventory')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1.5rem',
+                  background: currentView === 'inventory' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  color: currentView === 'inventory' ? '#667eea' : '#a0aec0',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'inventory') {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'inventory') {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#a0aec0';
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>📦</span>
+                {sidebarOpen && 'Inventario'}
+              </button>
+            )}
 
-            <button
-              onClick={() => handleMenuClick('kardex')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1.5rem',
-                background: currentView === 'kardex' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
-                border: 'none',
-                color: currentView === 'kardex' ? '#667eea' : '#a0aec0',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                textAlign: 'left',
-                width: '100%'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'kardex') {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.color = 'white';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'kardex') {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#a0aec0';
-                }
-              }}
-            >
-              <span style={{ fontSize: '1.25rem' }}>📋</span>
-              {sidebarOpen && 'Kardex'}
-            </button>
+            {/* Solo mostrar Kardex si NO es mozo */}
+            {!isWaiter && (
+              <button
+                onClick={() => handleMenuClick('kardex')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1.5rem',
+                  background: currentView === 'kardex' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  color: currentView === 'kardex' ? '#667eea' : '#a0aec0',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'kardex') {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'kardex') {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#a0aec0';
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>📋</span>
+                {sidebarOpen && 'Kardex'}
+              </button>
+            )}
 
-            <button
-              onClick={() => handleMenuClick('reports')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1.5rem',
-                background: currentView === 'reports' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
-                border: 'none',
-                color: currentView === 'reports' ? '#667eea' : '#a0aec0',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                textAlign: 'left',
-                width: '100%'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'reports') {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.color = 'white';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'reports') {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#a0aec0';
-                }
-              }}
-            >
-              <span style={{ fontSize: '1.25rem' }}>📊</span>
-              {sidebarOpen && 'Reportes'}
-            </button>
+            {/* Solo mostrar Reportes si NO es mozo */}
+            {!isWaiter && (
+              <button
+                onClick={() => handleMenuClick('reports')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1.5rem',
+                  background: currentView === 'reports' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  color: currentView === 'reports' ? '#667eea' : '#a0aec0',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'reports') {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'reports') {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#a0aec0';
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>📊</span>
+                {sidebarOpen && 'Reportes'}
+              </button>
+            )}
 
           </div>
         </nav>
@@ -1281,41 +1324,66 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
           minWidth: 0, // Permite que el contenido se comprima si es necesario
           position: 'relative'
         }}>
-          {currentView === 'dashboard' && children}
-          {currentView === 'floors' && <Floor onOpenCash={handleOpenCash} />}
-          {currentView === 'cash' && (
-            <CashPay
-              table={selectedCashTable}
-              onBack={handleBackFromCash}
-              onPaymentSuccess={() => {
-                // El WebSocket debería actualizar automáticamente las mesas
-                // pero podemos forzar un refetch si es necesario
-                console.log('✅ Pago procesado exitosamente');
-              }}
-              onTableChange={(newTable) => {
-                // Actualizar la mesa seleccionada cuando se cambia la mesa
-                console.log('🔄 Mesa cambiada a:', newTable.name);
-                setSelectedCashTable(newTable);
-              }}
-            />
+          {/* Si es mozo, solo mostrar floors y cash */}
+          {isWaiter ? (
+            <>
+              {currentView === 'floors' && <Floor onOpenCash={handleOpenCash} />}
+              {currentView === 'cash' && (
+                <CashPay
+                  table={selectedCashTable}
+                  onBack={handleBackFromCash}
+                  onPaymentSuccess={() => {
+                    // El WebSocket debería actualizar automáticamente las mesas
+                    // pero podemos forzar un refetch si es necesario
+                    console.log('✅ Pago procesado exitosamente');
+                  }}
+                  onTableChange={(newTable) => {
+                    // Actualizar la mesa seleccionada cuando se cambia la mesa
+                    console.log('🔄 Mesa cambiada a:', newTable.name);
+                    setSelectedCashTable(newTable);
+                  }}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              {currentView === 'dashboard' && children}
+              {currentView === 'floors' && <Floor onOpenCash={handleOpenCash} />}
+              {currentView === 'cash' && (
+                <CashPay
+                  table={selectedCashTable}
+                  onBack={handleBackFromCash}
+                  onPaymentSuccess={() => {
+                    // El WebSocket debería actualizar automáticamente las mesas
+                    // pero podemos forzar un refetch si es necesario
+                    console.log('✅ Pago procesado exitosamente');
+                  }}
+                  onTableChange={(newTable) => {
+                    // Actualizar la mesa seleccionada cuando se cambia la mesa
+                    console.log('🔄 Mesa cambiada a:', newTable.name);
+                    setSelectedCashTable(newTable);
+                  }}
+                />
+              )}
+              {currentView === 'cashs' && <Cashs />}
+              {currentView === 'messages' && (
+                <Message
+                  onBack={() => handleMenuClick('dashboard')}
+                  onSuccess={() => {
+                    // Opcional: puedes agregar lógica aquí después de enviar un mensaje exitosamente
+                    console.log('✅ Mensaje enviado exitosamente');
+                  }}
+                />
+              )}
+              {currentView === 'employees' && <CreateUser />}
+              {currentView === 'products' && <Products />}
+              {currentView === 'inventory' && <Inventories />}
+              {currentView === 'kardex' && <Kardex />}
+              {currentView === 'purchase' && <Purchase />}
+              {currentView === 'reports' && <ReportSale />}
+              {currentView === 'configuration' && <Observation />}
+            </>
           )}
-          {currentView === 'cashs' && <Cashs />}
-          {currentView === 'messages' && (
-            <Message
-              onBack={() => handleMenuClick('dashboard')}
-              onSuccess={() => {
-                // Opcional: puedes agregar lógica aquí después de enviar un mensaje exitosamente
-                console.log('✅ Mensaje enviado exitosamente');
-              }}
-            />
-          )}
-          {currentView === 'employees' && <CreateUser />}
-          {currentView === 'products' && <Products />}
-          {currentView === 'inventory' && <Inventories />}
-          {currentView === 'kardex' && <Kardex />}
-          {currentView === 'purchase' && <Purchase />}
-          {currentView === 'reports' && <ReportSale />}
-          {currentView === 'configuration' && <Observation />}
         </main>
       </div>
     </div>

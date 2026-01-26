@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useWebSocket } from '../../context/WebSocketContext';
 import type { Table } from '../../types/table';
-import { CREATE_OPERATION, ADD_ITEMS_TO_OPERATION, UPDATE_TABLE_STATUS } from '../../graphql/mutations';
+import { CREATE_OPERATION, ADD_ITEMS_TO_OPERATION, UPDATE_TABLE_STATUS, PRINT_PRECUENTA } from '../../graphql/mutations';
 import { GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS_BY_CATEGORY, GET_PRODUCTS_BY_BRANCH, GET_OPERATION_BY_TABLE, SEARCH_PRODUCTS } from '../../graphql/queries';
 
 type OrderProps = {
@@ -92,6 +92,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const [isSaving, setIsSaving] = useState(false);
 	const [saveError, setSaveError] = useState<string | null>(null);
 	const [lastAddedItemId, setLastAddedItemId] = useState<string | null>(null);
+	const [isPrintingPrecuenta, setIsPrintingPrecuenta] = useState(false);
 	const orderListContainerRef = useRef<HTMLDivElement>(null);
 	const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -99,6 +100,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const [createOperationMutation] = useMutation(CREATE_OPERATION);
 	const [addItemsToOperationMutation] = useMutation(ADD_ITEMS_TO_OPERATION);
 	const [updateTableStatusMutation] = useMutation(UPDATE_TABLE_STATUS);
+	const [printPrecuentaMutation] = useMutation(PRINT_PRECUENTA);
 
 	// Obtener categorías de la sucursal
 	const { data: categoriesData, loading: categoriesLoading } = useQuery(GET_CATEGORIES_BY_BRANCH, {
@@ -752,6 +754,123 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 		}
 	};
 
+	// Función para imprimir precuenta
+	const handlePrecuenta = async () => {
+		if (!existingOperation || !table?.id || !companyData?.branch.id) {
+			setSaveError('No hay una orden disponible para imprimir precuenta');
+			setTimeout(() => setSaveError(null), 3000);
+			return;
+		}
+
+		if (existingOperation.status === 'COMPLETED') {
+			setSaveError('Esta orden ya ha sido completada');
+			setTimeout(() => setSaveError(null), 3000);
+			return;
+		}
+
+		setIsPrintingPrecuenta(true);
+		setSaveError(null);
+
+		try {
+			// Obtener deviceId o MAC address
+			let resolvedDeviceId: string;
+			if (deviceId) {
+				resolvedDeviceId = deviceId;
+			} else {
+				try {
+					resolvedDeviceId = await getMacAddress();
+				} catch (error) {
+					console.error('Error al obtener MAC address:', error);
+					resolvedDeviceId = getDeviceId();
+				}
+			}
+
+			const result = await printPrecuentaMutation({
+				variables: {
+					operationId: existingOperation.id,
+					tableId: table.id,
+					branchId: companyData.branch.id,
+					deviceId: resolvedDeviceId,
+					printerId: null
+				}
+			});
+
+			if (result.data?.printCuenta?.success) {
+				const resultTable = result.data.printCuenta.table;
+				
+				// Actualizar el estado de la mesa a TO_PAY
+				try {
+					await updateTableStatusMutation({
+						variables: {
+							tableId: table.id,
+							status: 'TO_PAY',
+							userId: user?.id
+						}
+					});
+					console.log('✅ Estado de mesa actualizado a TO_PAY mediante mutación');
+				} catch (updateError) {
+					console.warn('⚠️ No se pudo actualizar el estado mediante mutación:', updateError);
+				}
+
+				// Actualizar la mesa en el contexto con el nuevo estado TO_PAY
+				const updatedTableId = resultTable?.id || table.id;
+				const updatedStatus = 'TO_PAY';
+				
+				if (updateTableInContext) {
+					updateTableInContext({
+						id: updatedTableId,
+						status: updatedStatus,
+						currentOperationId: resultTable?.currentOperationId ?? table?.currentOperationId,
+						occupiedById: resultTable?.occupiedById ?? table?.occupiedById,
+						userName: resultTable?.userName ?? table?.userName
+					});
+					console.log(`✅ Mesa ${updatedTableId} actualizada en contexto a estado: ${updatedStatus}`);
+					
+					// Enviar notificación WebSocket
+					setTimeout(() => {
+						sendMessage({
+							type: 'table_status_update',
+							table_id: updatedTableId,
+							status: updatedStatus,
+							current_operation_id: resultTable?.currentOperationId ?? table?.currentOperationId,
+							occupied_by_user_id: resultTable?.occupiedById ?? table?.occupiedById,
+							waiter_name: resultTable?.userName ?? table?.userName
+						});
+						console.log('📡 Notificación WebSocket enviada para mesa:', updatedTableId);
+						
+						// Solicitar snapshot completo de todas las mesas
+						setTimeout(() => {
+							sendMessage({
+								type: 'table_update_request'
+							});
+							console.log('📡 Solicitud de snapshot de mesas enviada');
+						}, 500);
+					}, 300);
+				}
+
+				// Refetch la operación para obtener los datos actualizados
+				await refetchExistingOperation();
+
+				// Llamar callback de éxito si existe
+				if (onSuccess) {
+					onSuccess();
+				}
+
+				setSaveError(null);
+				alert(result.data.printCuenta.message || 'Precuenta enviada a imprimir exitosamente. Estado de mesa actualizado a TO_PAY');
+			} else {
+				setSaveError(result.data?.printCuenta?.message || 'Error al imprimir la precuenta');
+				setTimeout(() => setSaveError(null), 3000);
+			}
+		} catch (err: any) {
+			console.error('Error al imprimir precuenta:', err);
+			setSaveError(err.message || 'Error al imprimir la precuenta');
+			setTimeout(() => setSaveError(null), 3000);
+		} finally {
+			setIsPrintingPrecuenta(false);
+		}
+	};
+
 	return (
 		<div style={{
 			position: 'fixed',
@@ -1387,7 +1506,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 
 						<div style={{ 
 							display: 'grid', 
-							gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : '1fr 1fr', 
+							gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : isExistingOrder ? '1fr 1fr 1fr' : '1fr 1fr', 
 							gap: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem',
 							flexShrink: 0
 						}}>
@@ -1450,6 +1569,45 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							>
 								{isSaving ? 'Cancelando...' : 'Cancelar Orden'}
 							</button>
+							{/* Botón de Precuenta - solo visible cuando hay una orden existente */}
+							{isExistingOrder && (
+								<button 
+									onClick={handlePrecuenta}
+									disabled={!existingOperation || existingOperation.status === 'COMPLETED' || isPrintingPrecuenta || isLoadingExistingOrder}
+									style={{ 
+										padding: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem', 
+										background: !existingOperation || existingOperation.status === 'COMPLETED' || isPrintingPrecuenta || isLoadingExistingOrder
+											? '#cbd5e0'
+											: 'linear-gradient(135deg, rgba(245,158,11,0.9), rgba(217,119,6,0.9))',
+										color: 'white', 
+										border: 'none', 
+										borderRadius: isSmall ? '8px' : isMedium ? '10px' : '12px', 
+										cursor: !existingOperation || existingOperation.status === 'COMPLETED' || isPrintingPrecuenta || isLoadingExistingOrder ? 'not-allowed' : 'pointer', 
+										fontWeight: 800,
+										opacity: !existingOperation || existingOperation.status === 'COMPLETED' || isPrintingPrecuenta || isLoadingExistingOrder ? 0.6 : 1,
+										fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
+										boxShadow: !existingOperation || existingOperation.status === 'COMPLETED' || isPrintingPrecuenta || isLoadingExistingOrder
+											? 'none'
+											: '0 3px 10px rgba(245,158,11,0.35)',
+										transition: 'all 0.2s ease',
+										textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+									}}
+									onMouseEnter={(e) => {
+										if (existingOperation && existingOperation.status !== 'COMPLETED' && !isPrintingPrecuenta && !isLoadingExistingOrder) {
+											e.currentTarget.style.transform = 'translateY(-2px)';
+											e.currentTarget.style.boxShadow = '0 5px 14px rgba(245,158,11,0.45)';
+										}
+									}}
+									onMouseLeave={(e) => {
+										e.currentTarget.style.transform = 'translateY(0)';
+										e.currentTarget.style.boxShadow = !existingOperation || existingOperation.status === 'COMPLETED' || isPrintingPrecuenta || isLoadingExistingOrder
+											? 'none'
+											: '0 3px 10px rgba(245,158,11,0.35)';
+									}}
+								>
+									{isPrintingPrecuenta ? '🖨️ Imprimiendo...' : '🧾 Precuenta'}
+								</button>
+							)}
 						</div>
 						{saveError && (
 							<div style={{
