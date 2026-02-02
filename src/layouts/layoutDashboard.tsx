@@ -197,6 +197,15 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     );
   }, [broadcastMessagesData?.myUnreadMessages, user?.role]);
   
+  const roleDisplay = (role?: string): string => {
+    const r = role?.toUpperCase();
+    if (r === 'CASHIER') return 'Cajero';
+    if (r === 'WAITER') return 'Mozo';
+    if (r === 'COOK') return 'Cocinero';
+    if (r === 'ADMIN') return 'Administrador';
+    return role || '';
+  };
+  
   // Combinar ambas notificaciones
   const allNotifications = useMemo(() => [
     ...unreadKitchenNotifications.map((n: any) => ({ ...n, type: 'kitchen' })),
@@ -307,7 +316,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
 
   const headerTitle =
     currentView === 'dashboard'
-      ? 'Dashboard'
+      ? 'Panel'
       : currentView === 'floors'
       ? 'Mesas'
       : currentView === 'messages'
@@ -484,7 +493,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                   fontSize: '0.75rem',
                   color: '#a0aec0'
                 }}>
-                  {user?.role}
+                  {roleDisplay(user?.role)}
                 </p>
               </div>
             )}
@@ -566,7 +575,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                 }}
               >
                 <span style={{ fontSize: '1.25rem' }}>📊</span>
-                {sidebarOpen && 'Dashboard'}
+                {sidebarOpen && 'Panel'}
               </button>
             )}
 

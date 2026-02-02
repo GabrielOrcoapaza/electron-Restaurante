@@ -5,6 +5,14 @@ import { useResponsive } from '../hooks/useResponsive';
 const Dashboard = () => {
   const { user, companyData } = useAuth();
   const { breakpoint } = useResponsive();
+  const roleDisplay = (role?: string): string => {
+    const r = role?.toUpperCase();
+    if (r === 'CASHIER') return 'Cajero';
+    if (r === 'WAITER') return 'Mozo';
+    if (r === 'COOK') return 'Cocinero';
+    if (r === 'ADMIN') return 'Administrador';
+    return role || '';
+  };
   
   // Adaptar según tamaño de pantalla de PC
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
@@ -122,7 +130,7 @@ const Dashboard = () => {
               borderBottom: '1px solid #f7fafc'
             }}>
               <span style={{ color: '#718096', fontSize: '0.875rem' }}>Rol:</span>
-              <span style={{ color: '#2d3748', fontWeight: '500' }}>{user?.role}</span>
+              <span style={{ color: '#2d3748', fontWeight: '500' }}>{roleDisplay(user?.role)}</span>
             </div>
             <div style={{
               display: 'flex',

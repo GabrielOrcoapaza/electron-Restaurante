@@ -226,8 +226,7 @@ const Cashs: React.FC = () => {
           detailMessage += `\n• Total Egresos: ${currencyFormatter.format(closure.totalExpense)}`;
           detailMessage += `\n• Neto Total: ${currencyFormatter.format(closure.netTotal)}`;
         }
-        
-        alert(detailMessage);
+        console.log(detailMessage);
         
         // Si hay summary, mostrar información adicional en consola
         if (summary) {

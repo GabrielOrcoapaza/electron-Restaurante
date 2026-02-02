@@ -290,6 +290,9 @@ export const CREATE_ISSUED_DOCUMENT = gql`
         id
         status
         statusColors
+        currentOperationId
+        occupiedById
+        userName
       }
     }
   }
@@ -384,7 +387,7 @@ export const CHANGE_OPERATION_USER = gql`
       }
     }
   }
-`; 
+`;
 
 
 // Mutación para transferir items (platos) entre mesas
@@ -403,11 +406,44 @@ export const TRANSFER_ITEMS = gql`
         id
         order
         status
+        tableId 
+        userId 
+        branchId
+        details{
+          id 
+          quantity
+          unitMeasure
+          unitValue
+          unitPrice
+          total
+          notes 
+          productId
+          productName
+          isPrepared
+          isPrinted 
+          isCanceled
+        }
       }
       toOperation {
         id
         order
         status
+        tableId
+        userId
+        branchId
+        details{
+          id 
+          quantity
+          unitMeasure
+          unitPrice
+          unitValue
+          total
+          notes
+          productId
+          productName
+          isPrepared
+          isPrinted
+        }
       }
       oldTable {
         id
@@ -427,7 +463,7 @@ export const TRANSFER_ITEMS = gql`
       }
     }
   }
-`; 
+`;
 
 // Mutación para cancelar un detalle de operación
 export const CANCEL_OPERATION_DETAIL = gql`

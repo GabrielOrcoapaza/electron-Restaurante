@@ -5,11 +5,13 @@ import { USER_LOGIN } from '../graphql/mutations';
 import { GET_USERS_BY_BRANCH } from '../graphql/queries';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
+import { useToast } from '../context/ToastContext';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { loginUser, companyData, getMacAddress, clearCompanyData } = useAuth();
-  const { breakpoint, isMobile} = useResponsive();
+  const { breakpoint, isMobile } = useResponsive();
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     selectedEmployee: '',
     password: ''
@@ -28,7 +30,7 @@ const Login: React.FC = () => {
 
   // Usar los empleados de la query, o fallback a los del companyData si no hay datos aún
   const allEmployees = usersData?.usersByBranch || companyData?.branch?.users || [];
-  
+
   // Filtrar solo empleados activos y por término de búsqueda
   const filteredEmployees = allEmployees
     .filter((employee: any) => employee.isActive !== false) // Solo empleados activos
@@ -73,6 +75,7 @@ const Login: React.FC = () => {
     // Verificar que se haya seleccionado un empleado
     if (!formData.selectedEmployee) {
       console.log('Por favor selecciona un empleado')
+      showToast('Por favor selecciona un empleado', 'warning');
       return;
     }
 
@@ -83,17 +86,17 @@ const Login: React.FC = () => {
         branchId: companyData.branch.id,
         deviceId: deviceId
       };
-      
+
       console.log('📡 Variables completas para USER_LOGIN:', variables);
       console.log('📡 Enviando USER_LOGIN con deviceId (MAC):', deviceId);
       console.log('📡 branchId que se está enviando:', companyData.branch.id);
       console.log('📡 Tipo de branchId:', typeof companyData.branch.id);
       console.log('📡 DNI que se está enviando:', formData.selectedEmployee);
       console.log('📡 Password que se está enviando:', formData.password);
-      
+
       // Debug: Mostrar todos los datos de la empresa
       console.log('🏢 Datos completos de la empresa:', companyData);
-      
+
       const { data } = await userLoginMutation({
         variables: variables
       });
@@ -101,7 +104,7 @@ const Login: React.FC = () => {
       console.log('📥 Respuesta completa del servidor:', data);
       console.log('📥 userLogin object:', data?.userLogin);
       console.log('📥 deviceRegistered value:', data?.userLogin?.deviceRegistered);
-      
+
       if (data?.userLogin?.success) {
         console.log('✅ Login exitoso, deviceRegistered:', data.userLogin.deviceRegistered);
         // Usar el hook useAuth para guardar datos
@@ -111,13 +114,12 @@ const Login: React.FC = () => {
           data.userLogin.user,
           data.userLogin.userPhotoBase64
         );
-        
+
         // Redirigir al dashboard
         navigate('/dashboard');
       } else {
         console.log('❌ Error en el login:', data?.userLogin?.message);
         console.log('❌ deviceRegistered en error:', data?.userLogin?.deviceRegistered);
-        alert(`❌ ${data?.userLogin?.message || 'Error en el login'}`);
       }
     } catch (err: any) {
       console.error('Error en login de usuario:', err);
@@ -147,7 +149,7 @@ const Login: React.FC = () => {
   // Tamaños adaptativos según breakpoint
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
-  
+
   const containerPadding = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '1rem' : '1.5rem';
   const formMaxWidth = isSmallDesktop ? '100%' : isMediumDesktop ? '420px' : '450px';
   const titleFontSize = isSmallDesktop ? 'clamp(22px, 3.5vw, 28px)' : isMediumDesktop ? 'clamp(26px, 3.5vw, 32px)' : 'clamp(28px, 3.5vw, 36px)';
@@ -198,7 +200,7 @@ const Login: React.FC = () => {
   }
 
   return (
-    <div style={{ 
+    <div style={{
       height: '100vh',
       width: '100vw',
       maxWidth: '100vw',
@@ -239,7 +241,7 @@ const Login: React.FC = () => {
         borderRadius: '50%',
         animation: 'pulse 3s ease-in-out infinite'
       }}></div>
-      
+
       <div style={{
         position: 'absolute',
         bottom: '15%',
@@ -297,7 +299,7 @@ const Login: React.FC = () => {
             background: 'linear-gradient(135deg, rgba(66,165,246,0.8) 0%, rgba(102,187,106,0.7) 25%, rgba(255,167,38,0.6) 50%, rgba(255,107,107,0.7) 75%, rgba(171,71,188,0.8) 100%)',
             zIndex: 1
           }}></div>
-          
+
           {/* Contenido del panel izquierdo */}
           <div style={{
             position: 'relative',
@@ -311,7 +313,7 @@ const Login: React.FC = () => {
               textShadow: '0 4px 8px rgba(0,0,0,0.3)',
               animation: 'bounce 2s ease-in-out infinite'
             }}>👨‍🍳</div>
-            
+
             <h1 style={{
               fontSize: '3rem',
               fontWeight: '800',
@@ -324,7 +326,7 @@ const Login: React.FC = () => {
             }}>
               Acceso Personal
             </h1>
-            
+
             <p style={{
               fontSize: '1.2rem',
               marginBottom: '2rem',
@@ -333,7 +335,7 @@ const Login: React.FC = () => {
             }}>
               Selecciona tu empleado y contraseña
             </p>
-            
+
             <div style={{
               display: 'flex',
               justifyContent: 'center',
@@ -391,7 +393,7 @@ const Login: React.FC = () => {
               opacity: 0.1,
               animation: 'pulse 4s ease-in-out infinite'
             }}></div>
-            
+
             <div style={{
               position: 'absolute',
               bottom: '-30px',
@@ -421,7 +423,7 @@ const Login: React.FC = () => {
               }}>
                 👤
               </div>
-              <h2 style={{ 
+              <h2 style={{
                 margin: '0',
                 color: '#2d3748',
                 fontSize: titleFontSize,
@@ -433,8 +435,8 @@ const Login: React.FC = () => {
               }}>
                 Acceso Personal
               </h2>
-              <p style={{ 
-                color: '#718096', 
+              <p style={{
+                color: '#718096',
                 margin: '0.5rem 0 0',
                 fontSize: subtitleFontSize,
                 fontWeight: '500'
@@ -442,13 +444,13 @@ const Login: React.FC = () => {
                 Selecciona tu empleado y contraseña
               </p>
             </div>
-        
+
             <form onSubmit={handleSubmit}>
               {/* Buscador de Empleados */}
               <div style={{ marginBottom: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.875rem' : '1rem' }}>
-                <label style={{ 
-                  display: 'block', 
-                  marginBottom: isSmallDesktop ? '0.375rem' : isMediumDesktop ? '0.5rem' : '0.625rem', 
+                <label style={{
+                  display: 'block',
+                  marginBottom: isSmallDesktop ? '0.375rem' : isMediumDesktop ? '0.5rem' : '0.625rem',
                   color: '#2d3748',
                   fontSize: isSmallDesktop ? 'clamp(12px, 2vw, 13px)' : isMediumDesktop ? 'clamp(12.5px, 2vw, 14px)' : 'clamp(13px, 2vw, 15px)',
                   fontWeight: '700',
@@ -511,9 +513,9 @@ const Login: React.FC = () => {
 
               {/* Selección de Empleados con Botones */}
               <div style={{ marginBottom: '2rem' }}>
-                <label style={{ 
-                  display: 'block', 
-                  marginBottom: '1rem', 
+                <label style={{
+                  display: 'block',
+                  marginBottom: '1rem',
                   color: '#2d3748',
                   fontSize: labelFontSize,
                   fontWeight: '700',
@@ -521,11 +523,11 @@ const Login: React.FC = () => {
                 }}>
                   👥 Selecciona tu Empleado
                 </label>
-                
+
                 {employeesLoading ? (
-                  <div style={{ 
-                    color: '#42a5f5', 
-                    fontSize: isSmallDesktop ? '14px' : isMediumDesktop ? '15px' : '16px', 
+                  <div style={{
+                    color: '#42a5f5',
+                    fontSize: isSmallDesktop ? '14px' : isMediumDesktop ? '15px' : '16px',
                     textAlign: 'center',
                     padding: isSmallDesktop ? '1rem' : isMediumDesktop ? '1.5rem' : '2rem',
                     backgroundColor: '#e3f2fd',
@@ -536,9 +538,9 @@ const Login: React.FC = () => {
                     ⏳ Cargando empleados...
                   </div>
                 ) : filteredEmployees.length === 0 ? (
-                  <p style={{ 
-                    color: '#e53e3e', 
-                    fontSize: isSmallDesktop ? '14px' : isMediumDesktop ? '15px' : '16px', 
+                  <p style={{
+                    color: '#e53e3e',
+                    fontSize: isSmallDesktop ? '14px' : isMediumDesktop ? '15px' : '16px',
                     textAlign: 'center',
                     padding: isSmallDesktop ? '1rem' : isMediumDesktop ? '1.5rem' : '2rem',
                     backgroundColor: '#fef2f2',
@@ -546,7 +548,7 @@ const Login: React.FC = () => {
                     border: '2px solid #fecaca',
                     fontWeight: '500'
                   }}>
-                    {searchTerm 
+                    {searchTerm
                       ? `🔍 No se encontraron empleados con "${searchTerm}"`
                       : '⚠️ No hay empleados activos en esta sucursal'
                     }
@@ -570,12 +572,12 @@ const Login: React.FC = () => {
                         onClick={() => setFormData({ ...formData, selectedEmployee: employee.dni })}
                         style={{
                           padding: isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.75rem' : '0.875rem',
-                          border: formData.selectedEmployee === employee.dni 
-                            ? '2px solid #42a5f5' 
+                          border: formData.selectedEmployee === employee.dni
+                            ? '2px solid #42a5f5'
                             : '2px solid #e2e8f0',
                           borderRadius: '10px',
-                          backgroundColor: formData.selectedEmployee === employee.dni 
-                            ? '#e3f2fd' 
+                          backgroundColor: formData.selectedEmployee === employee.dni
+                            ? '#e3f2fd'
                             : 'white',
                           cursor: 'pointer',
                           transition: 'all 0.3s ease',
@@ -583,11 +585,11 @@ const Login: React.FC = () => {
                           fontSize: isSmallDesktop ? '12px' : isMediumDesktop ? '12.5px' : '13px',
                           fontWeight: '600',
                           color: '#2d3748',
-                          boxShadow: formData.selectedEmployee === employee.dni 
-                            ? '0 6px 16px rgba(66, 165, 246, 0.3)' 
+                          boxShadow: formData.selectedEmployee === employee.dni
+                            ? '0 6px 16px rgba(66, 165, 246, 0.3)'
                             : '0 2px 6px rgba(0, 0, 0, 0.1)',
-                          transform: formData.selectedEmployee === employee.dni 
-                            ? 'translateY(-2px)' 
+                          transform: formData.selectedEmployee === employee.dni
+                            ? 'translateY(-2px)'
                             : 'translateY(0)'
                         }}
                         onMouseOver={(e) => {
@@ -607,9 +609,9 @@ const Login: React.FC = () => {
                           }
                         }}
                       >
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
                           gap: '0.5rem',
                           marginBottom: '0.375rem'
                         }}>
@@ -618,8 +620,8 @@ const Login: React.FC = () => {
                             {employee.firstName} {employee.lastName}
                           </span>
                         </div>
-                        <div style={{ 
-                          fontSize: isSmallDesktop ? '11px' : isMediumDesktop ? '11.5px' : '12px', 
+                        <div style={{
+                          fontSize: isSmallDesktop ? '11px' : isMediumDesktop ? '11.5px' : '12px',
                           color: '#718096',
                           marginLeft: '1.75rem',
                           fontWeight: '500'
@@ -630,7 +632,7 @@ const Login: React.FC = () => {
                     ))}
                   </div>
                 )}
-                
+
                 {formData.selectedEmployee && (
                   <div style={{
                     marginTop: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem',
@@ -646,11 +648,11 @@ const Login: React.FC = () => {
                   </div>
                 )}
               </div>
-          
+
               <div style={{ marginBottom: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '1rem' : '1.25rem', marginTop: isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2.5rem' }}>
-                <label className="form-labels" style={{ 
-                  display: 'block', 
-                  marginBottom: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.75rem' : '1rem', 
+                <label className="form-labels" style={{
+                  display: 'block',
+                  marginBottom: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.75rem' : '1rem',
                   color: '#2d3748',
                   fontSize: labelFontSize,
                   fontWeight: '700'
@@ -732,7 +734,7 @@ const Login: React.FC = () => {
                   </button>
                 </div>
               </div>
-              
+
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
@@ -778,7 +780,7 @@ const Login: React.FC = () => {
                     {loading ? '⏳' : '✨'} {loading ? 'Autenticando...' : 'Iniciar Sesión'}
                   </span>
                 </button>
-                
+
                 <button
                   type="button"
                   onClick={handleBackToCompany}
@@ -818,7 +820,7 @@ const Login: React.FC = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Estilos CSS para animaciones y responsividad */}
       <style>{`
         /* Asegurar que el contenedor principal ocupe toda la pantalla */

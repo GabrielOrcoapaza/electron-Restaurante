@@ -47,6 +47,7 @@ function createWindow() {
             contextIsolation: false,
             nodeIntegration: true,
         },
+        autoHideMenuBar: true, // Ocultar barra de menú (File, Edit, etc)
     });
     // Maximizar la ventana cuando esté lista
     mainWindow.once('ready-to-show', () => {

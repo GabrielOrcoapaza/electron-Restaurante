@@ -36,6 +36,7 @@ export const GET_CASH_REGISTERS = gql`
   }
 `;
 
+
 // Query para obtener la operación activa de una mesa
 export const GET_OPERATION_BY_TABLE = gql`
   query GetOperationByTable($tableId: ID!, $branchId: ID!) {
@@ -47,6 +48,7 @@ export const GET_OPERATION_BY_TABLE = gql`
       subtotal
       igvAmount
       igvPercentage
+      operationType
       operationDate
       user {
         id
@@ -62,10 +64,72 @@ export const GET_OPERATION_BY_TABLE = gql`
         productName
         productDescription
         quantity
+        unitMeasure
+        unitValue
         unitPrice
         total
         notes
+        isCanceled 
+        isPrinted
+        printedAt
+      }
+    }
+  }
+`;
+
+
+// Query para obtener una operación por su ID
+export const GET_OPERATION_BY_ID = gql`
+  query GetOperationById($operationId: ID!) {
+    operationById(pk: $operationId) {
+      id
+      order
+      status
+      operationType
+      operationDate
+      subtotal
+      igvAmount
+      igvPercentage
+      total
+      notes
+      tableId
+      table {
+        id
+        name
+      }
+      userId
+      user {
+        id
+        firstName
+        lastName
+        fullName
+        dni
+      }
+      personId
+      branchId
+      details {
+        id
+        quantity
+        unitMeasure
+        unitValue
+        unitPrice
+        total
+        notes
+        productId
+        productCode
+        productName
+        productDescription
         isCanceled
+        isPrepared
+        isPrinted
+        issuedItems {
+          id
+          quantity
+          issuedDocument {
+            id
+            billingStatus
+          }
+        }
       }
     }
   }
@@ -138,6 +202,7 @@ export const GET_PRODUCTS_BY_CATEGORY = gql`
       preparationTime
       productType
       isActive
+      subcategoryId
     }
   }
 `;
@@ -155,6 +220,7 @@ export const GET_PRODUCTS_BY_BRANCH = gql`
       preparationTime
       productType
       isActive
+      subcategoryId
     }
   }
 `;
@@ -210,6 +276,7 @@ export const SEARCH_PRODUCTS = gql`
       imageBase64
       preparationTime
       isActive
+      subcategoryId
     }
   }
 `;
@@ -656,7 +723,7 @@ export const GET_SUBCATEGORIES_WITH_MODIFIERS = gql`
 // Query para obtener modificadores de una subcategoría
 export const GET_MODIFIERS_BY_SUBCATEGORY = gql`
   query GetModifiersBySubcategory($subcategoryId: ID!) {
-    modifiersBySubcategory(subcategoryId: $subcategoryId) {
+    notesBySubcategory(subcategoryId: $subcategoryId) {
       id
       note
       isActive
@@ -669,6 +736,28 @@ export const GET_MODIFIERS_BY_SUBCATEGORY = gql`
           id
           name
         }
+      }
+    }
+  }
+`;
+
+// Query para buscar persona por documento (DNI/RUC) en local o SUNAT
+export const SEARCH_PERSON_BY_DOCUMENT = gql`
+  query SearchPersonByDocument($documentType: String!, $documentNumber: String!, $branchId: ID!) {
+    searchPersonByDocument(documentType: $documentType, documentNumber: $documentNumber, branchId: $branchId) {
+      foundLocally
+      foundInSunat
+      person {
+        id
+        name
+        documentType
+        documentNumber
+        email
+        phone
+        address
+        isSupplier
+        isActive
+        isCustomer
       }
     }
   }

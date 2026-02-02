@@ -4,11 +4,13 @@ import { useMutation } from '@apollo/client';
 import { COMPANY_LOGIN } from '../graphql/mutations';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
+import { useToast } from '../context/ToastContext';
 
 const LoginCompany: React.FC = () => {
   const navigate = useNavigate();
   const { loginCompany, getMacAddress } = useAuth();
   const { breakpoint, isMobile } = useResponsive();
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     ruc: '',
     email: '',
@@ -38,7 +40,7 @@ const LoginCompany: React.FC = () => {
   const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
-  
+
   const containerPadding = isSmall ? '0.5rem' : isMedium ? '0.75rem' : isSmallDesktop ? '1rem' : isMediumDesktop ? '1.25rem' : '1.5rem';
   const formMaxWidth = isSmall ? '100%' : isMedium ? '100%' : isSmallDesktop ? '420px' : isMediumDesktop ? '450px' : '480px';
   const titleFontSize = isSmall ? 'clamp(20px, 3.5vw, 24px)' : isMedium ? 'clamp(22px, 3.5vw, 28px)' : isSmallDesktop ? 'clamp(24px, 3.5vw, 30px)' : isMediumDesktop ? 'clamp(26px, 3.5vw, 32px)' : 'clamp(28px, 3.5vw, 36px)';
@@ -105,7 +107,7 @@ const LoginCompany: React.FC = () => {
       password: formData.password,
       url: 'http://192.168.1.22:8000/graphql'
     });
-    
+
     try {
       console.log('📡 Enviando mutation companyLogin...');
       const { data } = await companyLoginMutation({
@@ -122,9 +124,9 @@ const LoginCompany: React.FC = () => {
         console.log('✅ Empleados de la sucursal:', data.companyLogin.branch.users);
         console.log('🏢 Pisos de la sucursal:', data.companyLogin.branch.floors);
         console.log('📦 Categorías de la sucursal:', data.companyLogin.branch.categories);
-        
+
         // Extraer todas las mesas de todos los pisos con su información de piso
-        const allTables = (data.companyLogin.branch.floors || []).flatMap((floor: any) => 
+        const allTables = (data.companyLogin.branch.floors || []).flatMap((floor: any) =>
           (floor.tables || []).map((table: any) => ({
             ...table,
             floorId: floor.id,
@@ -132,9 +134,12 @@ const LoginCompany: React.FC = () => {
           }))
         );
         console.log('🪑 Todas las mesas de la sucursal:', allTables);
-        
+
         // Usar el hook useAuth para guardar datos
         console.log('📊 IGV de la sucursal obtenido:', data.companyLogin.branch.igvPercentage, '%');
+
+        showToast('Empresa validada correctamente', 'success');
+
         loginCompany({
           company: data.companyLogin.company,
           branch: {
@@ -154,26 +159,27 @@ const LoginCompany: React.FC = () => {
         navigate('/login-employee');
       } else {
         console.log('❌ Login fallido:', data?.companyLogin?.message);
+        showToast(data?.companyLogin?.message || 'Error al validar empresa', 'error');
       }
     } catch (err: any) {
       console.error('🚨 ===== ERROR EN LOGIN DE EMPRESA =====');
       console.error('Mensaje de error:', err.message);
       console.error('Error completo:', err);
-      
+
       let errorMessage = 'Error al iniciar sesión';
-      
+
       // Error de GraphQL
       if (err.graphQLErrors && err.graphQLErrors.length > 0) {
         console.error('📋 Errores de GraphQL:');
         err.graphQLErrors.forEach((error: any, index: number) => {
           console.error(`  Error ${index + 1}:`, error.message);
           console.error('  Código:', error.extensions?.code);
-          
+
           // Obtener mensaje de error específico
           errorMessage = error.message || errorMessage;
         });
       }
-      
+
       // Error de red
       if (err.networkError) {
         console.error('🌐 Error de red:', err.networkError);
@@ -181,7 +187,7 @@ const LoginCompany: React.FC = () => {
         if (err.networkError.result) {
           console.error('  Resultado:', err.networkError.result);
         }
-        
+
         // Mensajes específicos para errores de red
         if (err.networkError.message?.includes('Failed to fetch')) {
           errorMessage = 'No se pudo conectar con el servidor. Verifica tu conexión a internet.';
@@ -189,11 +195,12 @@ const LoginCompany: React.FC = () => {
           errorMessage = 'Error de conexión con el servidor';
         }
       }
-      
+
       console.error('==============================');
-      
+
       // Mostrar mensaje de error al usuario
-      alert(`❌ ${errorMessage}`);
+      console.error(errorMessage);
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -205,7 +212,7 @@ const LoginCompany: React.FC = () => {
   };
 
   return (
-    <div style={{ 
+    <div style={{
       height: '100vh',
       width: '100vw',
       maxWidth: '100vw',
@@ -246,7 +253,7 @@ const LoginCompany: React.FC = () => {
         borderRadius: '50%',
         animation: 'pulse 3s ease-in-out infinite'
       }}></div>
-      
+
       <div style={{
         position: 'absolute',
         bottom: '15%',
@@ -304,7 +311,7 @@ const LoginCompany: React.FC = () => {
             background: 'linear-gradient(135deg, rgba(255,107,107,0.8) 0%, rgba(255,167,38,0.7) 25%, rgba(102,187,106,0.6) 50%, rgba(66,165,246,0.7) 75%, rgba(171,71,188,0.8) 100%)',
             zIndex: 1
           }}></div>
-          
+
           {/* Contenido del panel izquierdo */}
           <div style={{
             position: 'relative',
@@ -318,7 +325,7 @@ const LoginCompany: React.FC = () => {
               textShadow: '0 4px 8px rgba(0,0,0,0.3)',
               animation: 'bounce 2s ease-in-out infinite'
             }}>🍳</div>
-            
+
             <h1 style={{
               fontSize: '3rem',
               fontWeight: '800',
@@ -331,7 +338,7 @@ const LoginCompany: React.FC = () => {
             }}>
               AppSuma
             </h1>
-            
+
             <p style={{
               fontSize: '1.2rem',
               marginBottom: '2rem',
@@ -340,7 +347,7 @@ const LoginCompany: React.FC = () => {
             }}>
               Sistema de Gestión para Restaurantes
             </p>
-            
+
             <div style={{
               display: 'flex',
               justifyContent: 'center',
@@ -399,7 +406,7 @@ const LoginCompany: React.FC = () => {
               opacity: 0.1,
               animation: 'pulse 4s ease-in-out infinite'
             }}></div>
-            
+
             <div style={{
               position: 'absolute',
               bottom: '-30px',
@@ -429,7 +436,7 @@ const LoginCompany: React.FC = () => {
               }}>
                 🏢
               </div>
-              <h2 style={{ 
+              <h2 style={{
                 margin: '0',
                 color: '#2d3748',
                 fontSize: titleFontSize,
@@ -441,8 +448,8 @@ const LoginCompany: React.FC = () => {
               }}>
                 Acceso Empresarial
               </h2>
-              <p style={{ 
-                color: '#718096', 
+              <p style={{
+                color: '#718096',
                 margin: '0.5rem 0 0',
                 fontSize: subtitleFontSize,
                 fontWeight: '500'
@@ -461,8 +468,8 @@ const LoginCompany: React.FC = () => {
                 gap: '0.5rem'
               }}>
                 <span style={{ fontSize: isSmall ? '14px' : isMedium ? '15px' : 'clamp(14px, 2.5vw, 16px)' }}>🖥️</span>
-                <span style={{ 
-                  color: '#4a5568', 
+                <span style={{
+                  color: '#4a5568',
                   fontSize: isSmall ? '11px' : isMedium ? '12px' : 'clamp(12px, 2vw, 14px)',
                   fontWeight: '600',
                   fontFamily: 'monospace'
@@ -471,12 +478,12 @@ const LoginCompany: React.FC = () => {
                 </span>
               </div>
             </div>
-        
+
             <form onSubmit={handleSubmit}>
               <div style={{ marginBottom: '2rem' }}>
-                <label className="form-labels" style={{ 
-                  display: 'block', 
-                  marginBottom: '1rem', 
+                <label className="form-labels" style={{
+                  display: 'block',
+                  marginBottom: '1rem',
                   color: '#2d3748',
                   fontSize: labelFontSize,
                   fontWeight: '700'
@@ -526,11 +533,11 @@ const LoginCompany: React.FC = () => {
                   }}>🏢</div>
                 </div>
               </div>
-              
+
               <div style={{ marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem' }}>
-                <label className="form-labels" style={{ 
-                  display: 'block', 
-                  marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem', 
+                <label className="form-labels" style={{
+                  display: 'block',
+                  marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
                   color: '#2d3748',
                   fontSize: labelFontSize,
                   fontWeight: '700'
@@ -580,11 +587,11 @@ const LoginCompany: React.FC = () => {
                   }}>📧</div>
                 </div>
               </div>
-              
+
               <div style={{ marginBottom: isSmall ? '1.25rem' : isMedium ? '1.5rem' : '2rem' }}>
-                <label className="form-labels" style={{ 
-                  display: 'block', 
-                  marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem', 
+                <label className="form-labels" style={{
+                  display: 'block',
+                  marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
                   color: '#2d3748',
                   fontSize: labelFontSize,
                   fontWeight: '700'
@@ -664,7 +671,7 @@ const LoginCompany: React.FC = () => {
                   </button>
                 </div>
               </div>
-              
+
               <button
                 type="submit"
                 disabled={loading}
@@ -709,7 +716,7 @@ const LoginCompany: React.FC = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Estilos CSS para animaciones y responsividad */}
       <style>{`
         /* Asegurar que el contenedor principal ocupe toda la pantalla */

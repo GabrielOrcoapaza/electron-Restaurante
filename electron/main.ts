@@ -14,6 +14,7 @@ function createWindow() {
       contextIsolation: false,
       nodeIntegration: true,
     },
+    autoHideMenuBar: true, // Ocultar barra de menú (File, Edit, etc)
   });
 
   // Maximizar la ventana cuando esté lista
@@ -45,7 +46,7 @@ app.whenReady().then(() => {
     // Limpiar solo el caché (NO el localStorage para mantener datos de autenticación)
     session.defaultSession.clearCache();
     // NO limpiar clearStorageData() para mantener companyData y otros datos de autenticación
-    
+
     // Interceptar solicitudes para desactivar caché (solo una vez al iniciar)
     session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
       callback({
@@ -58,7 +59,7 @@ app.whenReady().then(() => {
       });
     });
   }
-  
+
   createWindow();
 
   app.on('activate', () => {

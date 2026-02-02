@@ -56,17 +56,17 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
   const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
-  
-  // Tamaños adaptativos
-  const modalPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '1.75rem' : '2rem';
+
+  // Tamaños adaptativos (Compactados)
+  const modalPadding = isSmall ? '0.75rem' : isMedium ? '1rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.25rem' : '1.5rem';
   const modalMaxWidth = isSmall ? '95%' : isMedium ? '550px' : isSmallDesktop ? '600px' : isMediumDesktop ? '650px' : '700px';
-  const labelFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : isMediumDesktop ? '0.625rem 0.875rem' : '0.625rem 0.875rem';
-  const buttonPadding = isSmall ? '0.5625rem 1rem' : isMedium ? '0.625rem 1.25rem' : isSmallDesktop ? '0.625rem 1.25rem' : isMediumDesktop ? '0.75rem 1.5rem' : '0.75rem 1.5rem';
-  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const gapSize = isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '0.875rem' : isMediumDesktop ? '1rem' : '1rem';
-  const titleFontSize = isSmall ? '1.25rem' : isMedium ? '1.375rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const labelFontSize = isSmall ? '0.7rem' : isMedium ? '0.75rem' : isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8rem' : '0.8rem';
+  const inputFontSize = isSmall ? '0.7rem' : isMedium ? '0.75rem' : isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8rem' : '0.8rem';
+  const inputPadding = isSmall ? '0.4rem 0.5rem' : isMedium ? '0.45rem 0.6rem' : isSmallDesktop ? '0.45rem 0.6rem' : isMediumDesktop ? '0.5rem 0.75rem' : '0.5rem 0.75rem';
+  const buttonPadding = isSmall ? '0.5rem 0.75rem' : isMedium ? '0.5rem 1rem' : isSmallDesktop ? '0.5rem 1rem' : isMediumDesktop ? '0.625rem 1.25rem' : '0.625rem 1.25rem';
+  const buttonFontSize = isSmall ? '0.7rem' : isMedium ? '0.75rem' : isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8rem' : '0.8rem';
+  const gapSize = isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
+  const titleFontSize = isSmall ? '1.1rem' : isMedium ? '1.2rem' : isSmallDesktop ? '1.2rem' : isMediumDesktop ? '1.25rem' : '1.25rem';
 
   const [formData, setFormData] = useState({
     categoryId: '',
@@ -216,11 +216,11 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
           ✕
         </button>
 
-        <h2 style={{ 
-          margin: '0 0 1.5rem', 
-          fontSize: titleFontSize, 
-          fontWeight: 700, 
-          color: '#1e293b' 
+        <h2 style={{
+          margin: '0 0 1rem',
+          fontSize: titleFontSize,
+          fontWeight: 700,
+          color: '#1e293b'
         }}>
           ✏️ Editar Producto
         </h2>
@@ -230,7 +230,7 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
           <div style={{
             padding: '1rem',
             borderRadius: '10px',
-            marginBottom: '1.5rem',
+            marginBottom: '1rem',
             backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
             color: message.type === 'success' ? '#166534' : '#991b1b',
             border: `1px solid ${message.type === 'success' ? '#86efac' : '#fecaca'}`
@@ -240,12 +240,12 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
         )}
 
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: gapSize }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
             {/* Categoría y Subcategoría */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: isSmall ? '1fr' : '1fr 1fr', 
-              gap: gapSize 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: isSmall ? '1fr' : '1fr 1fr',
+              gap: gapSize
             }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
@@ -332,10 +332,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
             </div>
 
             {/* Código y Nombre */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: isSmall ? '1fr' : '1fr 2fr', 
-              gap: gapSize 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: isSmall ? '1fr' : '1fr 2fr',
+              gap: gapSize
             }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
@@ -392,7 +392,7 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                 value={formData.description}
                 onChange={handleChange}
                 placeholder="Descripción del producto"
-                rows={3}
+                rows={2}
                 style={{
                   width: '100%',
                   padding: inputPadding,
@@ -407,10 +407,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
             </div>
 
             {/* Precios */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: isSmall ? '1fr' : '1fr 1fr', 
-              gap: gapSize 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: isSmall ? '1fr' : '1fr 1fr',
+              gap: gapSize
             }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
@@ -460,10 +460,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
             </div>
 
             {/* Unidad de Medida y Tiempo de preparación */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: isSmall ? '1fr' : '1fr 1fr', 
-              gap: gapSize 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: isSmall ? '1fr' : '1fr 1fr',
+              gap: gapSize
             }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
@@ -514,10 +514,10 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
             </div>
 
             {/* Stock */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : '1fr 1fr 1fr', 
-              gap: gapSize 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : '1fr 1fr 1fr',
+              gap: gapSize
             }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
@@ -591,9 +591,9 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
 
             {/* Estado Activo */}
             <div>
-              <label style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
                 gap: '0.5rem',
                 cursor: 'pointer',
                 padding: '0.75rem',
@@ -612,9 +612,9 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                     cursor: 'pointer'
                   }}
                 />
-                <span style={{ 
-                  fontWeight: 500, 
-                  fontSize: labelFontSize, 
+                <span style={{
+                  fontWeight: 500,
+                  fontSize: labelFontSize,
                   color: formData.isActive ? '#166534' : '#991b1b'
                 }}>
                   {formData.isActive ? '✅ Producto Activo' : '❌ Producto Inactivo'}
@@ -623,11 +623,11 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
             </div>
 
             {/* Botones */}
-            <div style={{ 
-              display: 'flex', 
+            <div style={{
+              display: 'flex',
               flexDirection: isSmall ? 'column' : 'row',
-              gap: '0.75rem', 
-              marginTop: '1rem' 
+              gap: '0.75rem',
+              marginTop: '1rem'
             }}>
               <button
                 type="submit"

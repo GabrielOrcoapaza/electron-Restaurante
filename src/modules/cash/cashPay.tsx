@@ -5,8 +5,9 @@ import { useWebSocket } from '../../context/WebSocketContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import type { Table } from '../../types/table';
 import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION, PRINT_PRECUENTA, PRINT_PARTIAL_PRECUENTA } from '../../graphql/mutations';
-import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_TABLE, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR, GET_PERSONS_BY_BRANCH } from '../../graphql/queries';
+import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_ID, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR, GET_PERSONS_BY_BRANCH } from '../../graphql/queries';
 import CreateClient from '../user/createClient';
+import EditClient from '../user/editClient';
 
 type CashPayProps = {
   table: Table | null;
@@ -25,12 +26,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const { companyData, user, deviceId, getMacAddress, updateTableInContext } = useAuth();
   const { sendMessage, subscribe } = useWebSocket();
   const { breakpoint } = useResponsive();
-  
+
   // Solo para diferentes tamaños de pantalla de PC (desktop)
   // lg: 1024px-1279px, xl: 1280px-1535px, 2xl: >=1536px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
-  
+
   // Función para verificar si el usuario puede acceder a una mesa específica
   const canAccessTable = (tableItem: any): { canAccess: boolean; reason?: string } => {
     // Los cajeros siempre pueden acceder (para procesar pagos)
@@ -60,9 +61,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     }
 
     // El usuario no es el que creó la orden
-    return { 
-      canAccess: false, 
-      reason: `Esta mesa está siendo atendida por ${tableItem.userName || 'otro usuario'}.` 
+    return {
+      canAccess: false,
+      reason: `Esta mesa está siendo atendida por ${tableItem.userName || 'otro usuario'}.`
     };
   };
   const hasSelection = Boolean(table?.id && companyData?.branch.id);
@@ -71,8 +72,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [selectedCashRegisterId, setSelectedCashRegisterId] = useState<string>('');
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [showCreateClientModal, setShowCreateClientModal] = useState(false);
+  const [showEditClientModal, setShowEditClientModal] = useState(false);
   const [clientSearchTerm, setClientSearchTerm] = useState('');
-  
+
   // Estado para múltiples pagos
   type Payment = {
     id: string;
@@ -83,7 +85,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [payments, setPayments] = useState<Payment[]>([
     { id: '1', method: 'CASH', amount: 0, referenceNumber: '' }
   ]);
-  
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   // ⚠️ Ref para prevenir dobles clics (más confiable que solo el estado)
@@ -106,12 +108,11 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     loading,
     error,
     refetch
-  } = useQuery(GET_OPERATION_BY_TABLE, {
+  } = useQuery(GET_OPERATION_BY_ID, {
     variables: {
-      tableId: table?.id || '',
-      branchId: companyData?.branch.id || ''
+      operationId: table?.currentOperationId || ''
     },
-    skip: !hasSelection,
+    skip: !table?.currentOperationId,
     fetchPolicy: 'network-only'
   });
 
@@ -123,11 +124,11 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     notifyOnNetworkStatusChange: true,
     onError: (error) => {
       console.error('❌ Error al cargar documentos:', error);
-      console.error('❌ Error details:', JSON.stringify(error, null, 2));
+      console.error('❌ Detalles del error:', JSON.stringify(error, null, 2));
     },
     onCompleted: (data) => {
       console.log('✅ Documentos cargados:', data);
-      console.log('✅ Documents by branch:', data?.documentsByBranch);
+      console.log('✅ Documentos por sucursal:', data?.documentsByBranch);
     }
   });
 
@@ -197,7 +198,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         waiter_name: waiterName || null
       });
       console.log(`📡 Notificación WebSocket enviada para mesa ${tableId}: ${status}`);
-      
+
       // También solicitar un snapshot completo de todas las mesas para asegurar sincronización
       setTimeout(() => {
         sendMessage({
@@ -208,8 +209,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     }, 300);
   };
 
-  const operation = data?.operationByTable;
-  
+  const operation = data?.operationById;
+
   // Suscribirse a eventos WebSocket
   useEffect(() => {
     const unsubscribeOperationCancelled = subscribe('operation_cancelled', (message: any) => {
@@ -236,14 +237,22 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   // Filtrar solo documentos y series activos (aunque el backend ya debería filtrarlos)
   const documents = (documentsData?.documentsByBranch || []).filter((doc: any) => doc.isActive !== false);
   const serials = (serialsData?.serialsByDocument || []).filter((ser: any) => ser.isActive !== false);
-  
+
   // Filtrar clientes (personas con isCustomer=true, no proveedores) y activos
-  const allClients = (clientsData?.personsByBranch || []).filter((person: any) => 
+  const allClients = (clientsData?.personsByBranch || []).filter((person: any) =>
     !person.isSupplier && person.isActive !== false
   );
-  
-  // Filtrar clientes por término de búsqueda
+
+  // Determinar si el documento seleccionado es Factura (01) o Boleta (03)
+  const selectedDocument = documents.find((doc: any) => String(doc.id) === String(selectedDocumentId));
+  const isFactura = selectedDocument?.code === '01';
+  const selectedClient = allClients.find((c: any) => c.id === selectedClientId);
+
+  // Filtrar clientes por término de búsqueda y tipo de documento
   const filteredClients = allClients.filter((client: any) => {
+    // Si es FACTURA, mostrar solo clientes con RUC
+    if (isFactura && client.documentType !== 'RUC') return false;
+
     if (!clientSearchTerm) return true;
     const search = clientSearchTerm.toLowerCase();
     const name = (client.name || '').toLowerCase();
@@ -254,11 +263,11 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
   // Debug: Log para verificar datos
   React.useEffect(() => {
-    console.log('📄 Documents Data:', documentsData);
-    console.log('📄 Documents:', documents);
-    console.log('📄 Documents Loading:', documentsLoading);
-    console.log('📄 Documents Error:', documentsError);
-    console.log('📄 Branch ID:', companyData?.branch.id);
+    console.log('📄 Datos de Documentos:', documentsData);
+    console.log('📄 Documentos:', documents);
+    console.log('📄 Cargando Documentos:', documentsLoading);
+    console.log('📄 Error de Documentos:', documentsError);
+    console.log('📄 ID de Sucursal:', companyData?.branch.id);
   }, [documentsData, documents, documentsLoading, documentsError, companyData?.branch.id]);
 
   if (!table) {
@@ -324,7 +333,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
   // Usar el IGV de la sucursal obtenido en el login de empresa
   const igvPercentage = Number(companyData?.branch?.igvPercentage) || 10;
-  
+
   // Log para verificar que se está usando el IGV de la sucursal
   React.useEffect(() => {
     if (companyData?.branch?.igvPercentage) {
@@ -333,7 +342,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       console.warn('⚠️ IGV de la sucursal no encontrado, usando valor por defecto: 10%');
     }
   }, [companyData?.branch?.igvPercentage]);
-  
+
   // Función helper para obtener información de facturación desde sessionStorage
   const getFacturedItemsFromStorage = (operationId: string): Map<string, number> => {
     try {
@@ -358,19 +367,19 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     try {
       const storageKey = `factured_items_${operationId}`;
       const existingData = getFacturedItemsFromStorage(operationId);
-      
+
       // Combinar con datos existentes (sumar cantidades si el mismo detalle se facturó múltiples veces)
       facturedItemsMap.forEach((quantity, detailId) => {
         const existingQty = existingData.get(detailId) || 0;
         existingData.set(detailId, existingQty + quantity);
       });
-      
+
       // Convertir Map a objeto para guardar en sessionStorage
       const dataToStore: Record<string, number> = {};
       existingData.forEach((value, key) => {
         dataToStore[key] = value;
       });
-      
+
       sessionStorage.setItem(storageKey, JSON.stringify(dataToStore));
       console.log('💾 Facturación guardada en sessionStorage:', dataToStore);
     } catch (error) {
@@ -381,43 +390,53 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   // Función helper para filtrar productos cancelados y completamente facturados
   const filterCanceledDetails = (details: any[], operationId?: string) => {
     if (!details || !Array.isArray(details)) return [];
-    
+
     // Obtener información de facturación desde sessionStorage si tenemos operationId
     const facturedItemsMap = operationId ? getFacturedItemsFromStorage(operationId) : new Map<string, number>();
-    
-    return details.filter((detail: any) => {
-      // 1. Filtrar productos cancelados (isCanceled puede ser true, "true", 1, etc.)
-      const isCanceled = detail.isCanceled === true || detail.isCanceled === 1 || 
-                        detail.isCanceled === "true" || detail.isCanceled === "True" ||
-                        String(detail.isCanceled).toLowerCase() === "true";
-      if (isCanceled) {
-        return false; // Está cancelado, excluirlo
-      }
-      
-      // 2. Filtrar productos completamente facturados
-      // 2a. Si remainingQuantity existe y es <= 0, el producto ya fue completamente facturado
-      if (detail.remainingQuantity !== undefined && detail.remainingQuantity !== null) {
-        const remainingQty = Number(detail.remainingQuantity) || 0;
-        if (remainingQty <= 0) {
-          return false; // Ya fue completamente facturado, excluirlo
-        }
-      }
-      
-      // 2b. Calcular cantidad restante usando sessionStorage si está disponible
+
+    const adjustedDetails: any[] = [];
+    details.forEach((detail: any) => {
+      const isCanceled = detail.isCanceled === true || detail.isCanceled === 1 ||
+        detail.isCanceled === "true" || detail.isCanceled === "True" ||
+        String(detail.isCanceled).toLowerCase() === "true";
+      if (isCanceled) return;
+
       const detailId = String(detail.id);
       const originalQuantity = Number(detail.quantity) || 0;
-      const facturedQuantity = facturedItemsMap.get(detailId) || 0;
-      const remainingQuantity = originalQuantity - facturedQuantity;
-      
-      // Si la cantidad restante es <= 0, el producto ya fue completamente facturado
-      if (remainingQuantity <= 0) {
-        console.log(`   ❌ Detalle ${detail.productName || detailId} excluido: facturado completamente (${facturedQuantity} de ${originalQuantity})`);
-        return false; // Ya fue completamente facturado, excluirlo
+      const paidFromStorage = facturedItemsMap.has(detailId) ? (facturedItemsMap.get(detailId) || 0) : undefined;
+
+      // PRIORIDAD DE FUENTE:
+      // 1) Si es un item dividido (split), usar su propia cantidad (ignorar backend ya que es nuevo en UI)
+      // 2) Si tenemos registro local (sessionStorage), usarlo para calcular lo que falta
+      // 3) Calcular usando issuedItems del backend: quantity - sum(issuedItems.quantity)
+      // 4) En último caso, usar la cantidad original
+      let remainingQty: number;
+
+      // Calcular cuánto se ha facturado ya según el backend (issuedItems)
+      const quantityFacturedBackend = (detail.issuedItems || []).reduce((sum: number, item: any) => {
+        return sum + (Number(item.quantity) || 0);
+      }, 0);
+
+      if (detailId.includes('-split-')) {
+        remainingQty = originalQuantity; // Para splits, la cantidad ya es la correcta (usualmente 1)
+      } else if (paidFromStorage !== undefined) {
+        remainingQty = originalQuantity - paidFromStorage;
+      } else {
+        remainingQty = originalQuantity - quantityFacturedBackend;
       }
-      
-      // Incluir el producto si no está cancelado y tiene cantidad restante
-      return true;
+
+      if (remainingQty <= 0) {
+        console.log(`   ❌ Detalle ${detail.productName || detailId} excluido: facturado completamente (restante=${remainingQty})`);
+        return;
+      }
+
+      adjustedDetails.push({
+        ...detail,
+        quantity: remainingQty,
+        remainingQuantity: remainingQty // Propiedad interna para gestión de splits en UI
+      });
     });
+    return adjustedDetails;
   };
 
   // Calcular totales basados en los detalles modificados (filtrar cancelados)
@@ -426,15 +445,14 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   // Total = suma de (cantidad * precio_unitario) [con IGV incluido]
   // Subtotal = Total / (1 + IGV%)
   // IGV = Total - Subtotal
-  const allDetails = modifiedDetails.length > 0 ? modifiedDetails : (operation?.details || []);
-  const detailsToUse = filterCanceledDetails(allDetails, operation?.id);
-  
+  const detailsToUse = modifiedDetails.length > 0 ? modifiedDetails : filterCanceledDetails(operation?.details || [], operation?.id);
+
   // Obtener productos seleccionados (si hay checkboxes marcados, usar solo esos)
   const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
-  const detailsForTotal = selectedDetailIds.length > 0 
-    ? detailsToUse.filter((detail: any) => selectedDetailIds.includes(detail.id))
+  const detailsForTotal = selectedDetailIds.length > 0
+    ? detailsToUse.filter((detail: any) => selectedDetailIds.includes(String(detail.id)))
     : detailsToUse;
-  
+
   const total = detailsForTotal.reduce((sum: number, detail: any) => {
     const quantity = Number(detail.quantity) || 0;
     const unitPrice = Number(detail.unitPrice) || 0;
@@ -460,7 +478,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   };
 
   const updatePayment = (id: string, field: keyof Payment, value: string | number) => {
-    setPayments(payments.map(p => 
+    setPayments(payments.map(p =>
       p.id === id ? { ...p, [field]: value } : p
     ));
   };
@@ -506,20 +524,34 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     setSelectedSerialId('');
   }, [selectedDocumentId]);
 
+  // Limpiar cliente seleccionado si no es un RUC y se cambia a FACTURA
+  React.useEffect(() => {
+    if (isFactura && selectedClientId && selectedClient) {
+      if (selectedClient.documentType !== 'RUC') {
+        console.log('🔄 Cliente no es RUC, limpiando selección para Factura');
+        setSelectedClientId('');
+      }
+    }
+  }, [isFactura, selectedClientId, selectedClient]);
+
   // Inicializar detalles modificados cuando se carga la operación (filtrar cancelados)
   React.useEffect(() => {
     if (operation?.details && operation?.id) {
+      console.log('🔄 Inicializando detalles para operación:', operation.id);
       const nonCanceledDetails = filterCanceledDetails(operation.details, operation.id);
       setModifiedDetails([...nonCanceledDetails]);
-      
-      // Marcar todos los productos como seleccionados automáticamente cuando se carga la orden
-      const initialAssignments: Record<string, boolean> = {};
-      nonCanceledDetails.forEach((detail: any) => {
-        if (detail.id) {
-          initialAssignments[detail.id] = true;
-        }
-      });
-      setItemAssignments(initialAssignments);
+
+      // Solo marcar automáticamente si no hay selecciones previas
+      const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
+      if (selectedDetailIds.length === 0) {
+        const initialAssignments: Record<string, boolean> = {};
+        nonCanceledDetails.forEach((detail: any) => {
+          if (detail.id) {
+            initialAssignments[String(detail.id)] = true;
+          }
+        });
+        setItemAssignments(initialAssignments);
+      }
     }
   }, [operation?.details, operation?.id]);
 
@@ -527,17 +559,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   React.useEffect(() => {
     if (table?.id && companyData?.branch.id) {
       console.log('🔄 Mesa cambiada, refetching operación para mesa:', table.id);
-      
+
       // Pequeño delay para asegurar que el backend haya procesado el cambio
       const timer = setTimeout(() => {
         refetch({
-          tableId: table.id,
-          branchId: companyData.branch.id
+          operationId: table.currentOperationId
         }).then((result) => {
           console.log('✅ Operación refetched exitosamente para mesa:', table.id);
           // Reinicializar detalles después del refetch (filtrar cancelados)
-          if (result.data?.operationByTable?.details && result.data?.operationByTable?.id) {
-            const nonCanceledDetails = filterCanceledDetails(result.data.operationByTable.details, result.data.operationByTable.id);
+          if (result.data?.operationById?.details && result.data?.operationById?.id) {
+            const nonCanceledDetails = filterCanceledDetails(result.data.operationById.details, result.data.operationById.id);
             setModifiedDetails([...nonCanceledDetails]);
             // Marcar todos los productos como seleccionados automáticamente
             const initialAssignments: Record<string, boolean> = {};
@@ -552,10 +583,11 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           console.error('❌ Error al refetch operación:', error);
         });
       }, 500);
-      
-      // Limpiar selecciones cuando cambia la mesa
+
+      // Limpiar selecciones y detalles modificados cuando cambia la mesa para evitar residuos
       setItemAssignments({});
-      
+      setModifiedDetails([]);
+
       return () => clearTimeout(timer);
     }
   }, [table?.id, companyData?.branch.id, refetch]);
@@ -563,9 +595,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const handleSplitItem = (detailId: string) => {
     const splitTimestamp = Date.now();
     const splitDetailId = `${detailId}-split-${splitTimestamp}`;
-    
+
     setModifiedDetails(prevDetails => {
-      const detailIndex = prevDetails.findIndex((d: any) => d.id === detailId);
+      const detailIndex = prevDetails.findIndex((d: any) => String(d.id) === String(detailId));
       if (detailIndex === -1) return prevDetails;
 
       const detail = prevDetails[detailIndex];
@@ -579,11 +611,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       // Dividir: reducir cantidad del original y crear copia con cantidad 1
       const newDetails = [...prevDetails];
       const originalDetail = { ...detail };
-      
+
       // Reducir cantidad del original en 1
       newDetails[detailIndex] = {
         ...originalDetail,
         quantity: quantity - 1,
+        remainingQuantity: quantity - 1, // ✅ Actualizar también la cantidad restante
         total: (quantity - 1) * Number(originalDetail.unitPrice)
       };
 
@@ -594,21 +627,22 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         id: splitDetailId, // ID único para la copia (solo para UI)
         originalDetailId: detailId, // ID original del detalle en la BD
         quantity: 1,
+        remainingQuantity: 1, // ✅ Resetear cantidad restante para la copia
         total: Number(originalDetail.unitPrice)
       };
 
       // Insertar la copia después del original
       newDetails.splice(detailIndex + 1, 0, splitDetail);
-      
-      // Marcar la copia recién creada como seleccionada
+
+      // Marcar tanto el original como la copia recién creada como seleccionados
       setItemAssignments(prev => {
         return {
           ...prev,
-          [detailId]: true, // Marcar el original como dividido
-          [splitDetailId]: true // Marcar la copia como seleccionada
+          [detailId]: true,
+          [splitDetailId]: true
         };
       });
-      
+
       return newDetails;
     });
   };
@@ -616,43 +650,44 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const handleMergeItem = (splitDetailId: string) => {
     // Extraer el ID original del producto dividido
     const originalId = splitDetailId.split('-split')[0];
-    
+
     setModifiedDetails(prevDetails => {
       const newDetails = [...prevDetails];
-      
+
       // Encontrar el índice de la copia
-      const splitIndex = newDetails.findIndex((d: any) => d.id === splitDetailId);
+      const splitIndex = newDetails.findIndex((d: any) => String(d.id) === String(splitDetailId));
       if (splitIndex === -1) return prevDetails;
-      
+
       // Encontrar el producto original
-      const originalIndex = newDetails.findIndex((d: any) => d.id === originalId);
+      const originalIndex = newDetails.findIndex((d: any) => String(d.id) === String(originalId));
       if (originalIndex === -1) return prevDetails;
-      
+
       const splitDetail = newDetails[splitIndex];
       const originalDetail = newDetails[originalIndex];
-      
+
       // Sumar la cantidad de la copia al original
       const splitQuantity = Number(splitDetail.quantity) || 0;
       const originalQuantity = Number(originalDetail.quantity) || 0;
-      
+
       newDetails[originalIndex] = {
         ...originalDetail,
         quantity: originalQuantity + splitQuantity,
+        remainingQuantity: originalQuantity + splitQuantity, // ✅ Actualizar también la cantidad restante
         total: (originalQuantity + splitQuantity) * Number(originalDetail.unitPrice)
       };
-      
+
       // Eliminar la copia
       newDetails.splice(splitIndex, 1);
-      
+
       return newDetails;
     });
 
     // Verificar si quedan más copias del mismo producto original
     setItemAssignments(prev => {
-      const remainingSplits = modifiedDetails.filter((d: any) => 
-        d.id?.includes(`${originalId}-split`) && d.id !== splitDetailId
+      const remainingSplits = modifiedDetails.filter((d: any) =>
+        String(d.id).includes(`${originalId}-split`) && String(d.id) !== String(splitDetailId)
       );
-      
+
       // Si no quedan más copias, remover la marca de dividido y marcar el original como seleccionado
       if (remainingSplits.length === 0) {
         const newAssignments = { ...prev };
@@ -682,27 +717,27 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     if (detailId?.includes('-split')) {
       // Extraer el ID original del producto (todo antes de '-split')
       const originalDetailId = detailId.split('-split')[0];
-      
+
       // Guardar splits restantes antes de eliminar (para preservarlos después del refetch)
       let remainingSplits: any[] = [];
       setModifiedDetails(prevDetails => {
         // Guardar splits restantes del mismo producto original
-        remainingSplits = prevDetails.filter((d: any) => 
-          d.id?.includes('-split') && 
-          d.id !== detailId && 
-          d.id.startsWith(`${originalDetailId}-split`)
+        remainingSplits = prevDetails.filter((d: any) =>
+          String(d.id).includes('-split') &&
+          String(d.id) !== String(detailId) &&
+          String(d.id).startsWith(`${originalDetailId}-split`)
         );
         // Eliminar el split seleccionado
-        return prevDetails.filter((d: any) => d.id !== detailId);
+        return prevDetails.filter((d: any) => String(d.id) !== String(detailId));
       });
-      
+
       // Limpiar las asignaciones del split eliminado
       setItemAssignments(prev => {
         const newAssignments = { ...prev };
         delete newAssignments[detailId];
         return newAssignments;
       });
-      
+
       try {
         // Llamar a la mutación con cancelación parcial (quantity: 1)
         const result = await cancelOperationDetailMutation({
@@ -717,20 +752,20 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         if (result.data?.cancelOperationDetail?.success) {
           // ✅ Verificar si la operación cambió de estado automáticamente
           const operationCancelled = result.data?.cancelOperationDetail?.operationCancelled;
-          
+
           if (operationCancelled) {
             console.log('✅ Operación cambió de estado automáticamente después de cancelar item');
           }
-          
+
           // Refetch la operación para obtener los datos actualizados
           const refetchResult = await refetch();
           // Actualizar modifiedDetails filtrando cancelados y preservando splits restantes
-          if (refetchResult.data?.operationByTable?.details && refetchResult.data?.operationByTable?.id) {
-            const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationByTable.details, refetchResult.data.operationByTable.id);
+          if (refetchResult.data?.operationById?.details && refetchResult.data?.operationById?.id) {
+            const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationById.details, refetchResult.data.operationById.id);
             // Combinar detalles del backend con splits restantes
             const allDetails = [...nonCanceledDetails, ...remainingSplits];
             setModifiedDetails(allDetails);
-            
+
             // Si no hay detalles (ni del backend ni splits), la mesa queda libre
             if (allDetails.length === 0 && table?.id && updateTableInContext) {
               updateTableInContext({
@@ -750,7 +785,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 onBack();
               }, 500);
             }
-          } else if (!refetchResult.data?.operationByTable && table?.id && updateTableInContext) {
+          } else if (!refetchResult.data?.operationById && table?.id && updateTableInContext) {
             // Si la operación ya no existe, la mesa queda libre
             updateTableInContext({
               id: table.id,
@@ -772,13 +807,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           }
         } else {
           const errorMessage = result.data?.cancelOperationDetail?.message || 'Error al cancelar el item';
-          alert(errorMessage);
+          console.log(errorMessage);
           // Si falla, hacer refetch para restaurar el estado
           await refetch();
         }
       } catch (error: any) {
         console.error('Error cancelando item:', error);
-        alert(error.message || 'Error al cancelar el item');
         // Si falla, hacer refetch para restaurar el estado
         await refetch();
       }
@@ -789,9 +823,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     try {
       // Primero eliminar todos los splits relacionados del estado local si existen
       setModifiedDetails(prevDetails => {
-        return prevDetails.filter((d: any) => !d.id?.includes(`${detailId}-split`));
+        return prevDetails.filter((d: any) => !String(d.id).includes(`${detailId}-split`));
       });
-      
+
       // Limpiar asignaciones de splits relacionados
       setItemAssignments(prev => {
         const newAssignments = { ...prev };
@@ -814,18 +848,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       if (result.data?.cancelOperationDetail?.success) {
         // ✅ Verificar si la operación cambió de estado automáticamente
         const operationCancelled = result.data?.cancelOperationDetail?.operationCancelled;
-        
+
         if (operationCancelled) {
           console.log('✅ Operación cambió de estado automáticamente después de cancelar item');
         }
-        
+
         // Refetch la operación para obtener los datos actualizados
         const refetchResult = await refetch();
         // Actualizar modifiedDetails filtrando cancelados
-        if (refetchResult.data?.operationByTable?.details) {
-          const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationByTable.details);
+        if (refetchResult.data?.operationById?.details) {
+          const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationById.details);
           setModifiedDetails([...nonCanceledDetails]);
-          
+
           // Si no hay detalles, la mesa queda libre
           if (nonCanceledDetails.length === 0 && table?.id && updateTableInContext) {
             updateTableInContext({
@@ -845,7 +879,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               onBack();
             }, 500);
           }
-        } else if (!refetchResult.data?.operationByTable && table?.id && updateTableInContext) {
+        } else if (!refetchResult.data?.operationById && table?.id && updateTableInContext) {
           // Si la operación ya no existe, la mesa queda libre
           updateTableInContext({
             id: table.id,
@@ -873,47 +907,47 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         });
       } else {
         const errorMessage = result.data?.cancelOperationDetail?.message || 'Error al cancelar el item';
-        alert(errorMessage);
+        console.log(errorMessage);
       }
     } catch (error: any) {
       console.error('Error cancelando item:', error);
-      alert(error.message || 'Error al cancelar el item');
     }
   };
 
   const handleMergeAll = (originalDetailId: string) => {
     setModifiedDetails(prevDetails => {
       const newDetails = [...prevDetails];
-      
+
       // Encontrar el producto original
-      const originalIndex = newDetails.findIndex((d: any) => d.id === originalDetailId);
+      const originalIndex = newDetails.findIndex((d: any) => String(d.id) === String(originalDetailId));
       if (originalIndex === -1) return prevDetails;
-      
+
       const originalDetail = newDetails[originalIndex];
       let totalQuantityToAdd = 0;
-      
+
       // Encontrar todas las copias y sumar sus cantidades
       const indicesToRemove: number[] = [];
       newDetails.forEach((d: any, index: number) => {
-        if (d.id?.includes(`${originalDetailId}-split`)) {
+        if (String(d.id).includes(`${originalDetailId}-split`)) {
           totalQuantityToAdd += Number(d.quantity) || 0;
           indicesToRemove.push(index);
         }
       });
-      
+
       // Actualizar la cantidad del original
       const originalQuantity = Number(originalDetail.quantity) || 0;
       newDetails[originalIndex] = {
         ...originalDetail,
         quantity: originalQuantity + totalQuantityToAdd,
+        remainingQuantity: originalQuantity + totalQuantityToAdd, // ✅ Actualizar también la cantidad restante
         total: (originalQuantity + totalQuantityToAdd) * Number(originalDetail.unitPrice)
       };
-      
+
       // Eliminar las copias (de mayor a menor índice para no alterar los índices)
       indicesToRemove.sort((a, b) => b - a).forEach(index => {
         newDetails.splice(index, 1);
       });
-      
+
       return newDetails;
     });
 
@@ -929,7 +963,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
   // Función helper para obtener MAC address del dispositivo
   // ⚠️ IMPORTANTE: Siempre priorizar obtener la MAC, nunca usar deviceId temporal
-  const getDeviceIdOrMac = async (): Promise<string | null> => {
+  const getDeviceIdOrMac = async (): Promise<string> => {
     try {
       // Siempre intentar obtener la MAC primero - es el valor requerido
       const macAddress = await getMacAddress();
@@ -942,11 +976,46 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     } catch (error) {
       console.error('❌ Error al obtener MAC address:', error);
     }
-    
-    // ⚠️ NO usar deviceId como fallback - siempre debe ser MAC
-    // Si no se puede obtener MAC, mostrar error claro
-    console.error('❌ ERROR: No se pudo obtener MAC address. La impresión no funcionará correctamente.');
-    return null;
+
+    // Fallback: usar deviceId del contexto para permitir el pago (impresión puede no funcionar)
+    if (deviceId && String(deviceId).trim() !== '') {
+      console.warn('⚠️ Usando deviceId como fallback para permitir el pago:', deviceId);
+      return String(deviceId);
+    }
+    console.error('❌ No se pudo obtener MAC ni deviceId. Se permitirá pago sin impresión.');
+    return 'UNKNOWN';
+  };
+  // ============================================================================
+  // FUNCIÓN AUXILIAR: Obtener ID real del detalle (agregar ANTES de handleProcessPayment)
+  // ============================================================================
+  const getRealOperationDetailId = (detail: any): string | null => {
+    console.log('🔍 getRealOperationDetailId:', detail.id, detail.productName);
+
+    let realId: string | null = null;
+
+    // PRIORIDAD 1: Si tiene originalDetailId, usar ese
+    if (detail.originalDetailId) {
+      realId = String(detail.originalDetailId);
+      console.log(`  ✅ Usando originalDetailId: ${realId}`);
+    }
+    // PRIORIDAD 2: Si el ID contiene '-split-', extraer la parte antes
+    else if (String(detail.id).includes('-split-')) {
+      realId = String(detail.id).split('-split-')[0];
+      console.log(`  ✅ Extrayendo de ID dividido: ${realId}`);
+    }
+    // PRIORIDAD 3: Usar el ID tal cual
+    else {
+      realId = String(detail.id);
+      console.log(`  ✅ Usando ID directo: ${realId}`);
+    }
+
+    // Validar que sea numérico
+    if (realId && !/^\d+$/.test(realId)) {
+      console.error(`  ❌ ERROR: ID no numérico: "${realId}"`);
+      return null;
+    }
+
+    return realId;
   };
 
   const handleProcessPayment = async () => {
@@ -966,41 +1035,47 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       setPaymentError('Por favor completa todos los campos requeridos');
       return;
     }
-    
+
     // Validar que se haya seleccionado un documento (boleta o factura)
     if (!selectedDocumentId) {
       setPaymentError('Por favor selecciona un documento (Boleta o Factura)');
       return;
     }
-    
+
+    // ✅ VALIDACIONES SUNAT: Boleta vs Factura
+    if (isFactura) {
+      if (!selectedClientId) {
+        setPaymentError('Para emitir una FACTURA debe seleccionar un cliente con RUC');
+        return;
+      }
+      if (selectedClient?.documentType !== 'RUC') {
+        setPaymentError('Para emitir una FACTURA el cliente debe tener un RUC válido');
+        return;
+      }
+    }
+
     // Si no hay caja seleccionada, usar la primera disponible
     const cashRegisterIdToUse = selectedCashRegisterId || (cashRegisters.length > 0 ? cashRegisters[0].id : null);
-    
+
     if (!cashRegisterIdToUse) {
       setPaymentError('No hay cajas registradoras disponibles');
       return;
     }
-    
+
     // ⚠️ ESTABLECER flags INMEDIATAMENTE para prevenir doble ejecución
     isProcessingRef.current = true; // Ref se actualiza síncronamente
     setIsProcessing(true); // Estado puede tener delay
     setPaymentError(null);
-    
-    // ⚠️ Obtener MAC address (requerida para impresión)
+
+    // Obtener MAC address (prioritaria para impresión) o deviceId como fallback
     const resolvedDeviceId = await getDeviceIdOrMac();
-    if (!resolvedDeviceId) {
-      setPaymentError('No se pudo obtener la MAC address del dispositivo. La impresión no funcionará correctamente.');
-      isProcessingRef.current = false;
-      setIsProcessing(false);
-      return;
-    }
-    
+
     // Verificar que sea una MAC válida (formato XX:XX:XX:XX:XX:XX o similar)
     if (!resolvedDeviceId.includes(':')) {
       console.warn('⚠️ El deviceId no parece ser una MAC address válida:', resolvedDeviceId);
       // Continuar de todas formas, pero advertir
     }
-    
+
     console.log('✅ MAC address que se enviará al backend:', resolvedDeviceId);
 
     try {
@@ -1008,71 +1083,98 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       const emissionDate = now.toISOString().split('T')[0];
       const emissionTime = now.toTimeString().split(' ')[0].substring(0, 5);
 
-      // Preparar items del documento usando los detalles modificados
-      const detailsToProcess = modifiedDetails.length > 0 ? modifiedDetails : (operation.details || []);
-      
-      // Filtrar detalles cancelados para obtener solo los disponibles
-      const availableDetails = filterCanceledDetails(detailsToProcess, operation?.id);
-      
+      // Preparar items del documento usando los detalles modificados (evitar doble resta si ya están en modifiedDetails)
+      const availableDetails = modifiedDetails.length > 0 ? modifiedDetails : filterCanceledDetails(operation.details || [], operation?.id);
+
       // Obtener los IDs de los productos seleccionados (checkboxes marcados)
       const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
-      
+
       // Si hay productos seleccionados, filtrar solo esos
       let detailsToPay = availableDetails;
       if (selectedDetailIds.length > 0) {
         detailsToPay = availableDetails.filter((detail: any) => {
           // Verificar si el detail.id está en los seleccionados
-          return selectedDetailIds.includes(detail.id);
+          return selectedDetailIds.includes(String(detail.id));
         });
-        
+
         if (detailsToPay.length === 0) {
           setPaymentError('No hay productos seleccionados para pagar');
           setIsProcessing(false);
           return;
         }
       }
-      
+
       // ✅ VERIFICAR SI ES PAGO PARCIAL O COMPLETO
       // Si se están pagando TODOS los productos disponibles, usar la operación existente
       // Si se están pagando SOLO ALGUNOS productos, también usar la operación existente (NO crear nueva)
       // El backend se encargará de manejar el pago parcial correctamente
       const isPartialPayment = selectedDetailIds.length > 0 && selectedDetailIds.length < availableDetails.length;
-      
+
       // ✅ SIEMPRE usar la operación existente - NO crear nuevas operaciones
       // El backend maneja los pagos parciales a nivel de documento emitido
       const operationToPay = operation;
-      
+
       // Preparar items para el documento usando los detalles seleccionados
       // Agrupar detalles por ID original (sin el sufijo -split si existe)
-      let items: any[] = [];
-      const groupedDetails: Record<string, any[]> = {};
-      
+      // let items: any[] = [];
+      // ==================================================
+      // 🔑 PARTE CRÍTICA: AGRUPAR POR ID REAL
+      // ==================================================
+      const groupedByRealId: Record<string, { details: any[]; totalQuantity: number }> = {};
+      const invalidDetails: any[] = [];
+
       detailsToPay.forEach((detail: any) => {
-        const originalId = detail.id?.includes('-split') 
-          ? detail.id.split('-split')[0] 
-          : detail.id;
-        
-        if (!groupedDetails[originalId]) {
-          groupedDetails[originalId] = [];
+        console.log(`\n📦 Procesando: ${detail.productName}`);
+
+        // ✅ OBTENER ID REAL VALIDADO
+        const realId = getRealOperationDetailId(detail);
+
+        if (!realId) {
+          console.error(`  ❌ No se pudo obtener ID real`);
+          invalidDetails.push(detail);
+          return;
         }
-        groupedDetails[originalId].push(detail);
+
+        if (!groupedByRealId[realId]) {
+          groupedByRealId[realId] = {
+            details: [],
+            totalQuantity: 0
+          };
+        }
+
+        groupedByRealId[realId].details.push(detail);
+        groupedByRealId[realId].totalQuantity += Number(detail.quantity) || 0;
+
+        console.log(`  ✅ Agregado al grupo ${realId} (qty total: ${groupedByRealId[realId].totalQuantity})`);
       });
-       
-      // Crear items agrupados
-      items = Object.entries(groupedDetails).map(([originalId, details]) => {
-        const totalQuantity = details.reduce((sum, d) => sum + (Number(d.quantity) || 0), 0);
-        const firstDetail = details[0];
-        
+
+      // Validar que no haya items inválidos
+      if (invalidDetails.length > 0) {
+        console.error('❌ ITEMS INVÁLIDOS:', invalidDetails.map(d => d.id));
+        setPaymentError('Error: No se pudieron validar todos los productos.');
+        isProcessingRef.current = false;
+        setIsProcessing(false);
+        return;
+      }
+
+      // ==================================================
+      // 🔑 CREAR ITEMS CON IDs REALES
+      // ==================================================
+      const items = Object.entries(groupedByRealId).map(([realId, group]) => {
+        const firstDetail = group.details[0];
+
         return {
-          operationDetailId: originalId, // ✅ Usar IDs de la operación original
-          quantity: totalQuantity,
+          operationDetailId: realId,  // ✅ USAR ID REAL, NO EL ID DIVIDIDO
+          quantity: group.totalQuantity,
           unitValue: Number(firstDetail.unitPrice) || 0,
           unitPrice: Number(firstDetail.unitPrice) || 0,
           discount: 0,
           notes: firstDetail.notes || ''
         };
       });
-      
+
+      console.log('✅ Items a enviar:', items);
+
       // Calcular totales para el pago
       // NOTA: Los precios unitarios ya incluyen IGV
       const paymentTotal = detailsToPay.reduce((sum: number, detail: any) => {
@@ -1105,8 +1207,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           paidAmount: Number(p.amount),
           paymentDate: now.toISOString(),
           dueDate: null,
-          referenceNumber: (p.method === 'YAPE' || p.method === 'PLIN' || p.method === 'TRANSFER') 
-            ? (p.referenceNumber || null) 
+          referenceNumber: (p.method === 'YAPE' || p.method === 'PLIN' || p.method === 'TRANSFER')
+            ? (p.referenceNumber || null)
             : null,
           notes: null
         }));
@@ -1118,7 +1220,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         return;
       }
 
-      const selectedSerial = serials.find((ser: any) => ser.id === selectedSerialId);
+      const selectedSerial = serials.find((ser: any) => String(ser.id) === String(selectedSerialId));
       const serial = selectedSerial?.serial || '';
 
       // Para pagos parciales: NO pasar table_id si hay productos restantes
@@ -1153,7 +1255,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         payments: paymentsToSend,
         notes: null,
         tableId: tableIdForPayment,
-        deviceId: resolvedDeviceId, // Siempre pasar deviceId o MAC para que el backend pueda imprimir el documento (boleta/factura)
+        deviceId: resolvedDeviceId,
         printerId: null // Opcional: se puede agregar selección de impresora si es necesario
       };
 
@@ -1162,21 +1264,21 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       console.log(`💰 ${isPartialPayment ? 'PAGO PARCIAL' : 'PAGO COMPLETO'}`);
       console.log('═══════════════════════════════════════════════════════════');
       console.log('📋 INFORMACIÓN DE LA OPERACIÓN:');
-      console.log(`   - Operation ID: ${operationToPay.id}`);
+      console.log(`   - ID de Operación: ${operationToPay.id}`);
       console.log(`   - Tipo de pago: ${isPartialPayment ? 'PARCIAL' : 'COMPLETO'}`);
       console.log(`   - Mesa ID: ${table?.id || 'N/A'}`);
       console.log(`   - TableId para pago: ${tableIdForPayment || 'null (no liberar mesa)'}`);
       console.log('');
       console.log('📄 INFORMACIÓN DEL DOCUMENTO:');
       // ✅ Obtener información completa del documento seleccionado
-      const selectedDocument = documents.find((doc: any) => doc.id === selectedDocumentId);
+      const selectedDocument = documents.find((doc: any) => String(doc.id) === String(selectedDocumentId));
       const documentCode = selectedDocument?.code || 'N/A';
       const documentDescription = selectedDocument?.description || 'N/A';
       const isBillableDocument = documentCode === '01' || documentCode === '03'; // FACTURA o BOLETA
-      console.log(`   - Document ID: ${selectedDocumentId}`);
-      console.log(`   - Document Code: ${documentCode} (${documentDescription})`);
+      console.log(`   - ID de Documento: ${selectedDocumentId}`);
+      console.log(`   - Código de Documento: ${documentCode} (${documentDescription})`);
       console.log(`   - Es documento facturable (01/FACTURA o 03/BOLETA): ${isBillableDocument ? 'SÍ ✅' : 'NO ⚠️'}`);
-      console.log(`   - Branch is_billing habilitado: ${companyData?.branch?.isBilling ? 'SÍ ✅' : 'NO ⚠️'}`);
+      console.log(`   - Facturación habilitada en sucursal: ${companyData?.branch?.isBilling ? 'SÍ ✅' : 'NO ⚠️'}`);
       if (isBillableDocument && companyData?.branch?.isBilling) {
         console.log(`   ✅ Este documento será enviado a SUNAT automáticamente`);
       } else {
@@ -1187,26 +1289,26 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           console.log(`   ⚠️ Facturación electrónica deshabilitada en esta sucursal`);
         }
       }
-      console.log(`   - Serial: ${serial}`);
-      console.log(`   - Branch ID: ${companyData?.branch.id}`);
-      console.log(`   - User ID: ${user.id}`);
-      console.log(`   - Emission Date: ${emissionDate}`);
-      console.log(`   - Emission Time: ${emissionTime}`);
+      console.log(`   - Serie: ${serial}`);
+      console.log(`   - ID de Sucursal: ${companyData?.branch.id}`);
+      console.log(`   - ID de Usuario: ${user.id}`);
+      console.log(`   - Fecha de Emisión: ${emissionDate}`);
+      console.log(`   - Hora de Emisión: ${emissionTime}`);
       console.log('');
       console.log('📊 CÁLCULOS Y TOTALES:');
-      console.log(`   - IGV Percentage: ${igvPercentage}%`);
+      console.log(`   - Porcentaje de IGV: ${igvPercentage}%`);
       console.log(`   - Subtotal: ${currencyFormatter.format(paymentSubtotal)}`);
-      console.log(`   - IGV Amount: ${currencyFormatter.format(paymentIgvAmount)}`);
-      console.log(`   - Total Amount: ${currencyFormatter.format(paymentTotal)}`);
+      console.log(`   - Monto de IGV: ${currencyFormatter.format(paymentIgvAmount)}`);
+      console.log(`   - Monto Total: ${currencyFormatter.format(paymentTotal)}`);
       console.log('');
       console.log('📦 ITEMS A PAGAR:');
       console.log(`   - Cantidad de items: ${items.length}`);
       items.forEach((item, index) => {
-        console.log(`   ${index + 1}. Operation Detail ID: ${item.operationDetailId}`);
+        console.log(`   ${index + 1}. ID de Detalle de Operación: ${item.operationDetailId}`);
         console.log(`      - Cantidad: ${item.quantity}`);
-        console.log(`      - Unit Value: ${currencyFormatter.format(item.unitValue)}`);
-        console.log(`      - Unit Price: ${currencyFormatter.format(item.unitPrice)}`);
-        console.log(`      - Subtotal Item: ${currencyFormatter.format(item.quantity * item.unitPrice)}`);
+        console.log(`      - Valor Unitario: ${currencyFormatter.format(item.unitValue)}`);
+        console.log(`      - Precio Unitario: ${currencyFormatter.format(item.unitPrice)}`);
+        console.log(`      - Subtotal del Item: ${currencyFormatter.format(item.quantity * item.unitPrice)}`);
         if (item.notes) {
           console.log(`      - Notas: ${item.notes}`);
         }
@@ -1215,20 +1317,20 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       console.log('💳 INFORMACIÓN DE PAGO:');
       paymentsToSend.forEach((payment, index) => {
         console.log(`   Pago ${index + 1}:`);
-        console.log(`      - Cash Register ID: ${payment.cashRegisterId}`);
-        console.log(`      - Payment Type: ${payment.paymentType}`);
-        console.log(`      - Payment Method: ${payment.paymentMethod}`);
-        console.log(`      - Transaction Type: ${payment.transactionType}`);
-        console.log(`      - Total Amount: ${currencyFormatter.format(payment.totalAmount)}`);
-        console.log(`      - Paid Amount: ${currencyFormatter.format(payment.paidAmount)}`);
+        console.log(`      - ID de Caja Registradora: ${payment.cashRegisterId}`);
+        console.log(`      - Tipo de Pago: ${payment.paymentType}`);
+        console.log(`      - Método de Pago: ${payment.paymentMethod}`);
+        console.log(`      - Tipo de Transacción: ${payment.transactionType}`);
+        console.log(`      - Monto Total: ${currencyFormatter.format(payment.totalAmount)}`);
+        console.log(`      - Monto Pagado: ${currencyFormatter.format(payment.paidAmount)}`);
         if (payment.referenceNumber) {
-          console.log(`      - Reference Number: ${payment.referenceNumber}`);
+          console.log(`      - Número de Referencia: ${payment.referenceNumber}`);
         }
       });
       console.log('');
       console.log('🖨️ IMPRESIÓN:');
-      console.log(`   - Device ID: ${resolvedDeviceId || 'No disponible'}`);
-      console.log(`   - Printer ID: No especificado`);
+      console.log(`   - ID del Dispositivo: ${resolvedDeviceId || 'No disponible'}`);
+      console.log(`   - ID de Impresora: No especificado`);
       console.log('');
       if (isPartialPayment) {
         console.log('⚠️ PAGO PARCIAL DETECTADO:');
@@ -1259,25 +1361,25 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         const existingQty = facturedItemsMap.get(detailId) || 0;
         facturedItemsMap.set(detailId, existingQty + qty);
       });
-      
+
       console.log('✅ Enviando mutación al backend...');
       console.log('   - Items facturados (para cálculo local):', Array.from(facturedItemsMap.entries()).map(([id, qty]) => `ID:${id}=${qty}`));
-      
+
       const result = await createIssuedDocumentMutation({
         variables
       });
-        
+
       if (result.data?.createIssuedDocument?.success) {
         // El documento (boleta/factura) se ha creado exitosamente
         // El backend debería haber impreso el documento si deviceId estaba disponible
-        
+
         // ✅ VERIFICAR SI EL DOCUMENTO SERÁ ENVIADO A SUNAT
-        const selectedDocument = documents.find((doc: any) => doc.id === selectedDocumentId);
+        const selectedDocument = documents.find((doc: any) => String(doc.id) === String(selectedDocumentId));
         const documentCode = selectedDocument?.code || '';
         const documentDescription = selectedDocument?.description || '';
         const isBillableDocument = documentCode === '01' || documentCode === '03'; // FACTURA o BOLETA
         const isBranchBillingEnabled = companyData?.branch?.isBilling || false;
-        
+
         if (isBillableDocument && isBranchBillingEnabled) {
           console.log('✅ SUNAT: El documento será enviado a facturación electrónica');
           console.log(`   - Tipo: ${documentDescription} (Código: ${documentCode})`);
@@ -1293,109 +1395,42 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             console.log('ℹ️ SUNAT: La sucursal no tiene facturación electrónica habilitada');
           }
         }
-        
+
         // ✅ GUARDAR información de facturación en sessionStorage para pago parcial
         if (isPartialPayment && operation?.id) {
           saveFacturedItemsToStorage(operation.id, facturedItemsMap);
+        } else if (!isPartialPayment && operation?.id) {
+          // Si es pago total, limpiar la memoria de esta operación
+          sessionStorage.removeItem(`factured_items_${operation.id}`);
         }
-        
+
         // Refetch para obtener la operación actualizada
         // Usar fetchPolicy: 'network-only' para forzar la actualización
         const refetchResult = await refetch({
           fetchPolicy: 'network-only'
         });
-        
+
         // Limpiar selecciones después del pago
         setItemAssignments({});
-        
-        if (isPartialPayment) {
-          // ✅ Pago parcial: La operación original sigue activa con los productos restantes
-          // El backend ya se encargó de crear el documento con solo los items seleccionados
-          // Actualizar los detalles modificados con los nuevos datos del refetch
-          if (refetchResult.data?.operationByTable?.details && refetchResult.data?.operationByTable?.id) {
-            const allDetails = refetchResult.data.operationByTable.details;
-            const currentOperationId = refetchResult.data.operationByTable.id;
-            
-            // Filtrar detalles cancelados (usando sessionStorage para calcular cantidades restantes)
-            // filterCanceledDetails ya calcula remainingQuantity usando sessionStorage
-            const nonCanceledDetails = filterCanceledDetails(allDetails, currentOperationId);
-            
-            // Actualizar cantidades mostradas con las cantidades restantes calculadas
-            const detailsWithRemaining: any[] = [];
-            
-            nonCanceledDetails.forEach((detail: any) => {
-              const detailId = String(detail.id);
-              const originalQuantity = Number(detail.quantity) || 0;
-              
-              // Obtener cantidad facturada total desde sessionStorage
-              const facturedItemsMap = getFacturedItemsFromStorage(currentOperationId);
-              const totalFactured = facturedItemsMap.get(detailId) || 0;
-              const remainingQty = originalQuantity - totalFactured;
-              
-              if (remainingQty > 0) {
-                detailsWithRemaining.push({
-                  ...detail,
-                  quantity: remainingQty, // Actualizar cantidad mostrada con lo que queda
-                  remainingQuantity: remainingQty
-                });
-              } else {
-                console.log(`   ❌ Detalle ${detail.productName || detailId} excluido: facturado completamente (${totalFactured} de ${originalQuantity})`);
-              }
-            });
-            
-            // Debug: mostrar información de los detalles
-            console.log('📊 Detalles después del refetch:');
-            allDetails.forEach((detail: any) => {
-              const detailId = detail.id;
-              const facturedQty = facturedItemsMap.get(detailId) || 0;
-              const originalQty = Number(detail.quantity) || 0;
-              const calculatedRemaining = facturedQty > 0 ? originalQty - facturedQty : originalQty;
-              
-              console.log(`   - ${detail.productName || detail.id} (ID: ${detailId}):`);
-              console.log(`     quantity original: ${originalQty}`);
-              console.log(`     facturado en este pago: ${facturedQty}`);
-              console.log(`     remainingQuantity (backend): ${detail.remainingQuantity ?? 'N/A'}`);
-              console.log(`     remainingQuantity (calculado): ${calculatedRemaining}`);
-              console.log(`     isCanceled: ${detail.isCanceled}`);
-              console.log(`     será incluido: ${calculatedRemaining > 0 ? 'SÍ' : 'NO'}`);
-            });
-            
-            console.log('✅ Pago parcial completado - operación actualizada');
-            console.log('   - Detalles totales:', allDetails.length);
-            console.log('   - Detalles no cancelados:', nonCanceledDetails.length);
-            console.log('   - Detalles restantes (con cantidad pendiente):', detailsWithRemaining.length);
-            console.log('   - Items facturados en este pago:', Array.from(facturedItemsMap.entries()).map(([id, qty]) => `ID:${id}=${qty}`));
-            console.log('   - IDs restantes:', detailsWithRemaining.map((d: any) => `${d.id} (qty:${d.quantity})`));
-            
-            // ⚠️ IMPORTANTE: Actualizar los detalles modificados con los productos restantes
-            setModifiedDetails([...detailsWithRemaining]);
-            
-            // Marcar automáticamente todos los productos restantes como seleccionados
-            const updatedAssignments: Record<string, boolean> = {};
-            detailsWithRemaining.forEach((detail: any) => {
-              if (detail.id) {
-                updatedAssignments[detail.id] = true;
-              }
-            });
-            setItemAssignments(updatedAssignments);
-            
-            console.log('   - Productos marcados automáticamente:', Object.keys(updatedAssignments).length);
-          } else {
-            console.warn('⚠️ No se pudieron obtener los detalles actualizados después del pago parcial');
-            // Intentar refetch nuevamente si no hay datos
-            setTimeout(async () => {
-              const retryRefetch = await refetch({ fetchPolicy: 'network-only' });
-              if (retryRefetch.data?.operationByTable?.details && retryRefetch.data?.operationByTable?.id) {
-                const nonCanceledDetails = filterCanceledDetails(retryRefetch.data.operationByTable.details, retryRefetch.data.operationByTable.id);
-                setModifiedDetails([...nonCanceledDetails]);
-                console.log('✅ Detalles actualizados en el segundo intento:', nonCanceledDetails.length, 'items');
-              }
-            }, 500);
-          }
+
+        if (isPartialPayment && refetchResult.data?.operationById) {
+          // ✅ Después de un pago parcial exitoso y refetch, limpiamos la memoria local 
+          // para que el sistema use la cantidad que devuelva el servidor (la verdad de la BD)
+          const opId = refetchResult.data.operationById.id;
+          sessionStorage.removeItem(`factured_items_${opId}`);
+
+          // Actualizar detalles manualmente con los datos frescos del backend
+          const freshDetails = filterCanceledDetails(
+            refetchResult.data.operationById.details,
+            refetchResult.data.operationById.id
+          );
+          setModifiedDetails(freshDetails);
+
+          console.log('✅ Pago parcial completado - Detalles actualizados desde el backend:', freshDetails.length);
         } else {
           // Si se pagó toda la operación, verificar si la mesa fue liberada
           // (ya hicimos refetch arriba, no necesitamos hacerlo de nuevo)
-          
+
           // Verificar si la mesa fue liberada según la respuesta del backend
           if (result.data?.createIssuedDocument?.wasTableFreed) {
             // Actualizar la mesa en el contexto para limpiar el nombre del mozo
@@ -1409,16 +1444,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 occupiedById: null,
                 userName: null  // Limpiar el nombre del mozo
               });
-              
+
               // Enviar notificación WebSocket para actualizar en tiempo real
               notifyTableUpdate(table.id, freedTable.status || 'AVAILABLE', null, null, null);
-              
+
               console.log('✅ Mesa liberada - nombre del mozo limpiado para mesa:', table.id);
             }
             setTimeout(() => {
               onBack();
             }, 2000);
-          } else if (!refetchResult.data?.operationByTable && table?.id && updateTableInContext) {
+          } else if (!refetchResult.data?.operationById && table?.id && updateTableInContext) {
             // Si la operación ya no existe después del refetch, la mesa queda libre
             // Esto puede pasar si el backend liberó la mesa pero no retornó wasTableFreed
             updateTableInContext({
@@ -1429,35 +1464,36 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               occupiedById: null,
               userName: null
             });
-            
+
             // Enviar notificación WebSocket para actualizar en tiempo real
             notifyTableUpdate(table.id, 'AVAILABLE', null, null, null);
-            
+
             console.log('✅ Mesa liberada - operación ya no existe para mesa:', table.id);
-            
+
             // Notificar al componente padre para que actualice las mesas
             if (onPaymentSuccess) {
               onPaymentSuccess();
             }
-            
+
             // Volver atrás después de un breve delay
             setTimeout(() => {
               onBack();
             }, 500);
           }
         }
-        
+
         // Llamar callback de éxito si existe
         if (onPaymentSuccess) {
           onPaymentSuccess();
         }
-        
+
         // Limpiar errores
         setPaymentError(null);
       } else {
         setPaymentError(result.data?.createIssuedDocument?.message || 'Error al procesar el pago');
       }
     } catch (err: any) {
+      console.error('❌ ERROR:', err);
       console.error('Error procesando pago:', err);
       setPaymentError(err.message || 'Error al procesar el pago');
     } finally {
@@ -1483,10 +1519,10 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
     try {
       const resolvedDeviceId = deviceId || await getMacAddress();
-      
+
       // Obtener los IDs de los items seleccionados
       const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
-      
+
       // Si hay items seleccionados, usar la mutación parcial
       if (selectedDetailIds.length > 0) {
         const result = await printPartialPrecuentaMutation({
@@ -1503,7 +1539,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
         if (result.data?.printPartialPrecuenta?.success) {
           const resultTable = result.data.printPartialPrecuenta.table;
-          
+
           // ✅ FORZAR actualización del estado de la mesa a TO_PAY
           // Primero intentar actualizar usando la mutación UPDATE_TABLE_STATUS
           try {
@@ -1522,7 +1558,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           // Actualizar la mesa en el contexto con el nuevo estado TO_PAY
           const updatedTableId = resultTable?.id || table.id;
           const updatedStatus = 'TO_PAY'; // Siempre forzar a TO_PAY
-          
+
           if (updateTableInContext) {
             updateTableInContext({
               id: updatedTableId,
@@ -1532,7 +1568,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               userName: resultTable?.userName ?? table?.userName
             });
             console.log(`✅ Mesa ${updatedTableId} actualizada en contexto a estado: ${updatedStatus}`);
-            
+
             // Enviar notificación WebSocket
             notifyTableUpdate(
               updatedTableId,
@@ -1553,7 +1589,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
           // Refetch la operación para obtener los datos actualizados
           await refetch();
-          
+
           // Llamar callback de éxito si existe (para que el padre pueda refetch las mesas)
           if (onPaymentSuccess) {
             onPaymentSuccess();
@@ -1561,7 +1597,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
           setPaymentError(null);
           // Mostrar mensaje de éxito
-          alert(result.data.printPartialPrecuenta.message || `Precuenta parcial enviada a imprimir exitosamente (${selectedDetailIds.length} plato(s) seleccionado(s)). Estado de mesa actualizado a TO_PAY`);
+          console.log(result.data.printPartialPrecuenta.message || `Precuenta parcial enviada a imprimir exitosamente (${selectedDetailIds.length} plato(s) seleccionado(s)). Estado de mesa actualizado a TO_PAY`)
         } else {
           setPaymentError(result.data?.printPartialPrecuenta?.message || 'Error al imprimir la precuenta parcial');
         }
@@ -1579,7 +1615,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
         if (result.data?.printCuenta?.success) {
           const resultTable = result.data.printCuenta.table;
-          
+
           // ✅ FORZAR actualización del estado de la mesa a TO_PAY
           // Primero intentar actualizar usando la mutación UPDATE_TABLE_STATUS
           try {
@@ -1598,7 +1634,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           // Actualizar la mesa en el contexto con el nuevo estado TO_PAY
           const updatedTableId = resultTable?.id || table.id;
           const updatedStatus = 'TO_PAY'; // Siempre forzar a TO_PAY
-          
+
           if (updateTableInContext) {
             updateTableInContext({
               id: updatedTableId,
@@ -1608,7 +1644,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               userName: resultTable?.userName ?? table?.userName
             });
             console.log(`✅ Mesa ${updatedTableId} actualizada en contexto a estado: ${updatedStatus}`);
-            
+
             // Enviar notificación WebSocket
             notifyTableUpdate(
               updatedTableId,
@@ -1629,7 +1665,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
           // Refetch la operación para obtener los datos actualizados
           await refetch();
-          
+
           // Llamar callback de éxito si existe (para que el padre pueda refetch las mesas)
           if (onPaymentSuccess) {
             onPaymentSuccess();
@@ -1637,7 +1673,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
           setPaymentError(null);
           // Mostrar mensaje de éxito
-          alert(result.data.printCuenta.message || 'Precuenta enviada a imprimir exitosamente. Estado de mesa actualizado a TO_PAY');
+          console.log(result.data.printCuenta.message || 'Precuenta enviada a imprimir exitosamente. Estado de mesa actualizado a TO_PAY');
         } else {
           setPaymentError(result.data?.printCuenta?.message || 'Error al imprimir la precuenta');
         }
@@ -1677,7 +1713,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         // Obtener datos de la mesa antigua y nueva
         const oldTableData = result.data.changeOperationTable.oldTable;
         const resultNewTable = result.data.changeOperationTable.newTable;
-        
+
         // IMPORTANTE: Actualizar la mesa antigua - limpiar el nombre del mozo
         // Usamos el ID de la mesa actual (table.id) que es la mesa antigua
         if (table?.id && updateTableInContext) {
@@ -1692,15 +1728,15 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           notifyTableUpdate(table.id, oldTableData?.status || 'AVAILABLE', null, null, null);
           console.log('✅ Mesa antigua actualizada - nombre del mozo limpiado para mesa:', table.id);
         }
-        
+
         // Buscar la mesa completa en los datos de las mesas del piso
-        const newTableData = tablesData?.tablesByFloor?.find((t: any) => t.id === selectedTableId);
-        
+        const newTableData = tablesData?.tablesByFloor?.find((t: any) => String(t.id) === String(selectedTableId));
+
         // Obtener el userName del resultado de la mutación, mesa original, o usuario actual
         const currentUserName = resultNewTable?.userName || table?.userName || user?.fullName || '';
         const currentOccupiedById = resultNewTable?.occupiedById || table?.occupiedById || (user?.id ? parseInt(user.id) : undefined);
         const currentOperationId = resultNewTable?.currentOperationId || operation.id;
-        
+
         // Actualizar también la nueva mesa en el contexto
         if (resultNewTable?.id && updateTableInContext) {
           updateTableInContext({
@@ -1720,7 +1756,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           );
           console.log('✅ Mesa nueva actualizada en contexto para mesa:', resultNewTable.id);
         }
-        
+
         if (newTableData && onTableChange) {
           // Crear objeto mesa completo con los datos disponibles
           const newTable: Table = {
@@ -1736,16 +1772,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             occupiedById: currentOccupiedById,
             userName: currentUserName
           };
-          
+
           // Notificar al componente padre sobre el cambio de mesa
           onTableChange(newTable);
         }
-        
+
         // Cerrar modal
         setShowChangeTableModal(false);
         setSelectedFloorId('');
         setSelectedTableId('');
-        
+
         // El useEffect detectará el cambio de mesa y hará el refetch automáticamente
         // Llamar callback de éxito si existe (para que el padre pueda refetch las mesas)
         if (onPaymentSuccess) {
@@ -1788,7 +1824,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
       if (result.data?.changeOperationUser?.success) {
         const resultTable = result.data.changeOperationUser.table;
-        
+
         // Actualizar la mesa en el contexto con el nuevo mozo
         if (resultTable && updateTableInContext) {
           updateTableInContext({
@@ -1800,14 +1836,14 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           });
           console.log('✅ Mesa actualizada con nuevo mozo:', resultTable.userName);
         }
-        
+
         // Cerrar modal
         setShowChangeUserModal(false);
         setSelectedUserId('');
-        
+
         // Refetch la operación para obtener los datos actualizados
         await refetch();
-        
+
         // Llamar callback de éxito si existe (para que el padre pueda refetch las mesas)
         if (onPaymentSuccess) {
           onPaymentSuccess();
@@ -1856,7 +1892,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
       if (result.data?.cancelOperation?.success) {
         const resultTable = result.data.cancelOperation.table;
-        
+
         // Actualizar la mesa en el contexto - liberarla
         if (resultTable && updateTableInContext) {
           updateTableInContext({
@@ -1873,10 +1909,10 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         // Cerrar modal
         setShowCancelOperationModal(false);
         setCancellationReason('');
-        
+
         // Refetch la operación (aunque ya no debería existir)
         await refetch();
-        
+
         // Llamar callback de éxito para que el padre pueda refetch las mesas
         if (onPaymentSuccess) {
           onPaymentSuccess();
@@ -1907,7 +1943,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
     // Obtener los IDs de los productos seleccionados (los que tienen checkbox marcado)
     const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
-    
+
     if (selectedDetailIds.length === 0) {
       setPaymentError('Por favor selecciona al menos un plato para transferir');
       return;
@@ -1929,7 +1965,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       // Primero, agrupar todos los items seleccionados por su ID original
       for (const selectedId of selectedDetailIds) {
         // Buscar el detalle en modifiedDetails
-        const detail = modifiedDetails.find((d: any) => d.id === selectedId);
+        const detail = modifiedDetails.find((d: any) => String(d.id) === String(selectedId));
         if (!detail) continue;
 
         // Si es una copia dividida, usar el originalDetailId o extraer del ID
@@ -1950,7 +1986,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         // Inicializar o actualizar el registro para este ID original
         if (!itemsByOriginalId[originalDetailId]) {
           // Buscar el detalle original para obtener su cantidad total
-          const originalDetail = modifiedDetails.find((d: any) => d.id === originalDetailId && !d.id?.includes('-split-'));
+          const originalDetail = modifiedDetails.find((d: any) => String(d.id) === String(originalDetailId) && !String(d.id).includes('-split-'));
           itemsByOriginalId[originalDetailId] = {
             totalQuantity: selectedQuantity,
             originalQuantity: originalDetail ? Number(originalDetail.quantity) || 0 : selectedQuantity
@@ -1971,7 +2007,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         // necesitamos cancelar la diferencia primero
         if (totalQuantity < originalQuantity) {
           const quantityToCancel = originalQuantity - totalQuantity;
-          
+
           // Cancelar parcialmente el detalle original
           const cancelVariables: any = {
             detailId: originalDetailId,
@@ -1979,7 +2015,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             userId: user?.id || '',
             deviceId: deviceId || undefined
           };
-          
+
           const cancelResult = await cancelOperationDetailMutation({
             variables: cancelVariables
           });
@@ -2019,7 +2055,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       if (result.data?.transferItems?.success) {
         const resultOldTable = result.data.transferItems.oldTable;
         const resultNewTable = result.data.transferItems.newTable;
-        
+
         // Actualizar las mesas en el contexto
         if (resultOldTable && updateTableInContext) {
           updateTableInContext({
@@ -2039,7 +2075,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           );
           console.log('✅ Mesa origen actualizada después de transferir');
         }
-        
+
         if (resultNewTable && updateTableInContext) {
           updateTableInContext({
             id: resultNewTable.id,
@@ -2058,32 +2094,32 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           );
           console.log('✅ Mesa destino actualizada después de transferir');
         }
-        
+
         // Cerrar modal
         setShowTransferPlatesModal(false);
         setSelectedTransferFloorId('');
         setSelectedTransferTableId('');
-        
+
         // Limpiar selecciones
         setItemAssignments({});
-        
+
         // Refetch la operación para obtener los datos actualizados
         const refetchResult = await refetch();
-        
+
         // Actualizar explícitamente los detalles modificados con los datos actualizados
         // Esto asegura que los platos trasladados desaparezcan de la mesa original (filtrar cancelados)
-        if (refetchResult.data?.operationByTable?.details) {
-          if (refetchResult.data?.operationByTable?.details && refetchResult.data?.operationByTable?.id) {
-            const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationByTable.details, refetchResult.data.operationByTable.id);
+        if (refetchResult.data?.operationById?.details) {
+          if (refetchResult.data?.operationById?.details && refetchResult.data?.operationById?.id) {
+            const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationById.details, refetchResult.data.operationById.id);
             setModifiedDetails([...nonCanceledDetails]);
             console.log('✅ Detalles actualizados después del traslado:', nonCanceledDetails);
           }
-        } else if (refetchResult.data?.operationByTable === null) {
+        } else if (refetchResult.data?.operationById === null) {
           // Si la operación ya no existe (todos los platos fueron trasladados), limpiar los detalles
           setModifiedDetails([]);
           console.log('✅ Todos los platos fueron trasladados, limpiando detalles');
         }
-        
+
         // Llamar callback de éxito si existe
         if (onPaymentSuccess) {
           onPaymentSuccess();
@@ -2331,7 +2367,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   borderRadius: '8px',
                   border: 'none',
                   background: operation?.status === 'COMPLETED'
-                    ? '#cbd5e0' 
+                    ? '#cbd5e0'
                     : 'linear-gradient(130deg, #10b981, #059669)',
                   color: 'white',
                   fontWeight: 600,
@@ -2363,7 +2399,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   borderRadius: '8px',
                   border: 'none',
                   background: operation?.status === 'COMPLETED'
-                    ? '#cbd5e0' 
+                    ? '#cbd5e0'
                     : 'linear-gradient(130deg, #3b82f6, #2563eb)',
                   color: 'white',
                   fontWeight: 600,
@@ -2395,7 +2431,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   borderRadius: '8px',
                   border: 'none',
                   background: operation?.status === 'COMPLETED'
-                    ? '#cbd5e0' 
+                    ? '#cbd5e0'
                     : 'linear-gradient(130deg, #8b5cf6, #7c3aed)',
                   color: 'white',
                   fontWeight: 600,
@@ -2462,376 +2498,110 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           zIndex: 1
         }}
       >
+        {/* Sección de Documento, Serie, Cliente y Estado */}
         <div
           style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '1rem',
-            gap: '1rem',
-            flexWrap: 'wrap'
+            background: 'rgba(255,255,255,0.95)',
+            borderRadius: '12px',
+            padding: '1rem 1.25rem',
+            marginBottom: '1.5rem',
+            border: '1px solid rgba(226,232,240,0.8)',
+            boxShadow: '0 4px 12px rgba(15,23,42,0.08)'
           }}
         >
-          <h3
-            style={{
-              margin: 0,
-              fontSize: '1.15rem',
-              fontWeight: 600,
-              color: '#1a202c'
-            }}
-          >
-            Detalle de la orden
-          </h3>
+          {/* Estado en la parte superior */}
           {operation?.status && (
-            <span
-              style={{
-                padding: '0.45rem 1rem',
-                borderRadius: '12px',
-                backgroundColor: 'rgba(102,126,234,0.12)',
-                border: '1px solid rgba(102,126,234,0.35)',
-                color: '#434190',
-                fontSize: '0.88rem',
-                fontWeight: 600,
-                boxShadow: '0 10px 18px rgba(102,126,234,0.15)'
-              }}
-            >
-              Estado de orden: {operation.status}
-            </span>
-          )}
-        </div>
-
-        {error && (
-          <div
-            style={{
-              backgroundColor: '#fed7d7',
-              border: '1px solid #feb2b2',
-              color: '#742a2a',
-              padding: '1rem',
-              borderRadius: '8px',
-              marginBottom: '1rem',
-              fontSize: '0.95rem'
-            }}
-          >
-            Error al cargar la orden: {error.message}
-          </div>
-        )}
-
-        {loading && (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '2rem',
-              color: '#4a5568'
-            }}
-          >
-            Cargando orden...
-          </div>
-        )}
-
-        {!loading && !error && !operation && (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '2rem',
-              color: '#4a5568'
-            }}
-          >
-            No se encontró una orden activa para esta mesa.
-          </div>
-        )}
-
-        {operation && (
-          <>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'row',
-                gap: isSmallDesktop ? '1.5rem' : '2rem',
-                alignItems: 'flex-start'
-              }}
-            >
-              {/* Tabla de productos */}
-              <div
+            <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label
                 style={{
-                  flex: isSmallDesktop ? '1 1 68%' : isMediumDesktop ? '1 1 72%' : '1 1 75%',
-                  border: '1px solid rgba(226,232,240,0.9)',
-                  borderRadius: '18px',
-                  overflow: 'hidden',
-                  background: 'linear-gradient(145deg, rgba(255,255,255,0.95), rgba(248,250,252,0.95))',
-                  boxShadow: '0 18px 28px -14px rgba(15,23,42,0.22)'
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  color: '#2d3748',
+                  margin: 0
                 }}
               >
-                <div
+                Estado:
+              </label>
+              <span
+                style={{
+                  display: 'inline-block',
+                  padding: '0.55rem 1rem',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(102,126,234,0.12)',
+                  border: '1px solid rgba(102,126,234,0.35)',
+                  color: '#434190',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  boxShadow: '0 2px 4px rgba(102,126,234,0.1)'
+                }}
+              >
+                {operation.status}
+              </span>
+            </div>
+          )}
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isSmallDesktop
+                ? '1fr 1.5fr'
+                : isMediumDesktop
+                  ? '1fr 1.8fr'
+                  : '1fr 2fr',
+              gap: '1rem',
+              alignItems: 'start'
+            }}
+          >
+            {/* Contenedor para Serie y Documento apilados verticalmente */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Serie */}
+              <div>
+                <label
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: isSmallDesktop 
-                      ? '0.4fr 0.5fr 1.5fr 0.7fr 0.7fr 1.2fr'
-                      : isMediumDesktop
-                      ? '0.35fr 0.45fr 1.3fr 0.65fr 0.65fr 1.1fr'
-                      : '0.3fr 0.4fr 1.2fr 0.6fr 0.6fr 1fr',
-                    background: 'linear-gradient(135deg, rgba(102,126,234,0.12), rgba(129,140,248,0.12))',
-                    padding: isSmallDesktop ? '0.6rem 0.9rem' : '0.7rem 1rem',
-                    fontWeight: 700,
+                    display: 'block',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
                     color: '#2d3748',
-                    fontSize: isSmallDesktop ? '0.75rem' : '0.8rem',
-                    letterSpacing: '0.01em'
+                    marginBottom: '0.4rem'
                   }}
                 >
-                  <span style={{ textAlign: 'center' }}>Sel.</span>
-                  <span style={{ textAlign: 'center' }}>Cant.</span>
-                  <span>Producto</span>
-                  <span style={{ textAlign: 'right' }}>P. Unit.</span>
-                  <span style={{ textAlign: 'right' }}>Total</span>
-                  <span style={{ textAlign: 'center' }}>Dividir</span>
-                </div>
-
-                {(detailsToUse || []).map((detail: any, index: number) => {
-                  const quantity = Number(detail.quantity) || 0;
-                  const unitPrice = Number(detail.unitPrice) || 0;
-                  const lineTotal =
-                    Number(detail.total) || unitPrice * quantity || 0;
-
-                  const isEvenRow = index % 2 === 0;
-                  const isSelected = itemAssignments[detail.id || ''];
-
-                  return (
-                    <div
-                      key={detail.id || `${detail.productId}-${detail.productCode}`}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: isSmallDesktop 
-                          ? '0.4fr 0.5fr 1.5fr 0.7fr 0.7fr 1.2fr'
-                          : isMediumDesktop
-                          ? '0.35fr 0.45fr 1.3fr 0.65fr 0.65fr 1.1fr'
-                          : '0.3fr 0.4fr 1.2fr 0.6fr 0.6fr 1fr',
-                        padding: isSmallDesktop ? '0.6rem 0.9rem' : '0.7rem 1rem',
-                        fontSize: isSmallDesktop ? '0.75rem' : '0.8rem',
-                        alignItems: 'center',
-                        color: '#1a202c',
-                        backgroundColor: isSelected 
-                          ? 'rgba(139, 92, 246, 0.1)' 
-                          : isEvenRow 
-                          ? 'rgba(247,250,252,0.85)' 
-                          : 'rgba(255,255,255,0.92)',
-                        borderTop: '1px solid rgba(226,232,240,0.7)',
-                        borderLeft: isSelected ? '3px solid #8b5cf6' : 'none',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'center', 
-                        alignItems: 'center'
-                      }}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected || false}
-                          onChange={() => handleToggleItemSelection(detail.id || '')}
-                          style={{
-                            width: isSmallDesktop ? '1rem' : '1.1rem',
-                            height: isSmallDesktop ? '1rem' : '1.1rem',
-                            cursor: 'pointer',
-                            accentColor: '#8b5cf6'
-                          }}
-                        />
-                      </div>
-                      <span
-                        style={{
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          color: '#4c51bf',
-                          fontSize: isSmallDesktop ? '0.85rem' : '0.9rem'
-                        }}
-                      >
-                        {quantity}
-                      </span>
-                      <div style={{ 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: '0.25rem'
-                      }}>
-                        <div style={{ fontWeight: 700, fontSize: isSmallDesktop ? '0.8rem' : '0.85rem' }}>
-                          {detail.productName || 'Producto'}
-                        </div>
-                        {detail.notes && (
-                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.7rem' }}>
-                            <span
-                              style={{
-                                backgroundColor: 'rgba(255,255,255,0.85)',
-                                border: '1px dashed rgba(102,126,234,0.5)',
-                                color: '#434190',
-                                padding: '0.2rem 0.45rem',
-                                borderRadius: '8px'
-                              }}
-                            >
-                              Nota: {detail.notes}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <span
-                        style={{
-                          textAlign: 'right',
-                          color: '#2d3748',
-                          fontSize: isSmallDesktop ? '0.8rem' : '0.85rem'
-                        }}
-                      >
-                        {currencyFormatter.format(unitPrice)}
-                      </span>
-                      <span
-                        style={{
-                          textAlign: 'right',
-                          fontWeight: 700,
-                          fontSize: isSmallDesktop ? '0.85rem' : '0.9rem',
-                          color: '#1a202c'
-                        }}
-                      >
-                        {currencyFormatter.format(lineTotal)}
-                      </span>
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          flexWrap: 'wrap'
-                        }}
-                      >
-                        {!detail.id?.includes('-split') && quantity > 1 && (
-                          <button
-                            onClick={() => handleSplitItem(detail.id)}
-                            style={{
-                              padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
-                              borderRadius: '6px',
-                              border: 'none',
-                              background: 'rgba(139, 92, 246, 0.15)',
-                              color: '#8b5cf6',
-                              fontWeight: 600,
-                              fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.25rem'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.background = 'rgba(139, 92, 246, 0.25)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)';
-                            }}
-                          >
-                            ✂️ 
-                          </button>
-                        )}
-                        {detail.id?.includes('-split') && (
-                          <button
-                            onClick={() => handleMergeItem(detail.id)}
-                            style={{
-                              padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
-                              borderRadius: '6px',
-                              border: 'none',
-                              background: 'linear-gradient(130deg, #10b981, #059669)',
-                              color: 'white',
-                              fontWeight: 600,
-                              fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.25rem'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.background = 'linear-gradient(130deg, #059669, #047857)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.background = 'linear-gradient(130deg, #10b981, #059669)';
-                            }}
-                          >
-                            🔗
-                          </button>
-                        )}
-                        {!detail.id?.includes('-split') && quantity <= 1 && modifiedDetails.some((d: any) => d.id?.includes(`${detail.id}-split`)) && (
-                          <button
-                            onClick={() => handleMergeAll(detail.id)}
-                            style={{
-                              padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
-                              borderRadius: '6px',
-                              border: 'none',
-                              background: 'linear-gradient(130deg, #f59e0b, #d97706)',
-                              color: 'white',
-                              fontWeight: 600,
-                              fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.25rem'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.background = 'linear-gradient(130deg, #d97706, #b45309)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.background = 'linear-gradient(130deg, #f59e0b, #d97706)';
-                            }}
-                          >
-                            🔗
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeleteItem(detail.id)}
-                          style={{
-                            padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
-                            borderRadius: '6px',
-                            border: 'none',
-                            background: 'linear-gradient(130deg, #ef4444, #dc2626)',
-                            color: 'white',
-                            fontWeight: 600,
-                            fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.25rem'
-                          }}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.background = 'linear-gradient(130deg, #dc2626, #b91c1c)';
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.background = 'linear-gradient(130deg, #ef4444, #dc2626)';
-                          }}
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {detailsToUse?.length === 0 && (
-                  <div
-                    style={{
-                      padding: '1.75rem',
-                      textAlign: 'center',
-                      color: '#4a5568'
-                    }}
-                  >
-                    No hay ítems registrados en esta orden.
-                  </div>
-                )}
+                  Serie {selectedDocumentId ? '*' : ''}
+                </label>
+                <select
+                  value={selectedSerialId}
+                  onChange={(e) => setSelectedSerialId(e.target.value)}
+                  disabled={serialsLoading || !selectedDocumentId}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e0',
+                    fontSize: '0.85rem',
+                    backgroundColor: 'white',
+                    cursor: serialsLoading || !selectedDocumentId ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {!selectedDocumentId ? (
+                    <option value="">Seleccione un documento primero</option>
+                  ) : serialsLoading ? (
+                    <option value="">Cargando series...</option>
+                  ) : serials.length === 0 ? (
+                    <option value="">No hay series disponibles</option>
+                  ) : (
+                    <>
+                      <option value="">Seleccione una serie</option>
+                      {serials.map((ser: any) => (
+                        <option key={ser.id} value={ser.id}>
+                          {ser.serial || 'Sin serie'}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
               </div>
 
-              {/* Selectores de Documento, Serie, Caja Registradora y Método de Pago */}
-              <div
-                style={{
-                  flex: isSmallDesktop ? '1 1 32%' : isMediumDesktop ? '1 1 28%' : '1 1 25%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: isSmallDesktop ? '1.25rem' : '1.5rem'
-                }}
-              >
-                {/* Documento */}
-                <div>
+              {/* Documento */}
+              <div>
                 <label
                   style={{
                     display: 'block',
@@ -2890,67 +2660,41 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   )}
                 </select>
               </div>
+            </div>
 
-              {/* Serie */}
-              {selectedDocumentId && (
-                <div>
-                  <label
+            {/* Cliente */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    color: '#2d3748',
+                    margin: 0
+                  }}
+                >
+                  Cliente
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowEditClientModal(true)}
+                    disabled={isProcessing || !selectedClientId}
                     style={{
-                      display: 'block',
-                      fontSize: '0.85rem',
+                      padding: '0.4rem 0.75rem',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: !selectedClientId || isProcessing ? '#9ca3af' : '#667eea',
+                      color: 'white',
+                      fontSize: '0.75rem',
                       fontWeight: 600,
-                      color: '#2d3748',
-                      marginBottom: '0.4rem'
+                      cursor: !selectedClientId || isProcessing ? 'not-allowed' : 'pointer',
+                      opacity: !selectedClientId || isProcessing ? 0.6 : 1
                     }}
                   >
-                    Serie *
-                  </label>
-                  <select
-                    value={selectedSerialId}
-                    onChange={(e) => setSelectedSerialId(e.target.value)}
-                    disabled={serialsLoading || !selectedDocumentId}
-                    style={{
-                      width: '100%',
-                      padding: '0.55rem 0.75rem',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e0',
-                      fontSize: '0.85rem',
-                      backgroundColor: 'white',
-                      cursor: serialsLoading || !selectedDocumentId ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {serialsLoading ? (
-                      <option value="">Cargando series...</option>
-                    ) : serials.length === 0 ? (
-                      <option value="">No hay series disponibles para este documento</option>
-                    ) : (
-                      <>
-                        <option value="">Seleccione una serie</option>
-                        {serials.map((ser: any) => (
-                          <option key={ser.id} value={ser.id}>
-                            {ser.serial || 'Sin serie'}
-                          </option>
-                        ))}
-                      </>
-                    )}
-                  </select>
-                </div>
-              )}
-
-              {/* Cliente */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      color: '#2d3748',
-                      margin: 0
-                    }}
-                  >
-                    Cliente
-                  </label>
+                    ✏️ Editar
+                  </button>
                   <button
                     type="button"
                     onClick={() => setShowCreateClientModal(true)}
@@ -2970,27 +2714,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     + Nuevo Cliente
                   </button>
                 </div>
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <input
-                    type="text"
-                    value={clientSearchTerm}
-                    onChange={(e) => setClientSearchTerm(e.target.value)}
-                    placeholder="Buscar cliente por nombre o documento..."
-                    style={{
-                      width: '100%',
-                      padding: '0.55rem 0.75rem',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e0',
-                      fontSize: '0.85rem',
-                      backgroundColor: 'white',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
-                <select
-                  value={selectedClientId}
-                  onChange={(e) => setSelectedClientId(e.target.value)}
-                  disabled={clientsLoading || isProcessing}
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <input
+                  type="text"
+                  value={clientSearchTerm}
+                  onChange={(e) => setClientSearchTerm(e.target.value)}
+                  placeholder="Buscar cliente..."
                   style={{
                     width: '100%',
                     padding: '0.55rem 0.75rem',
@@ -2998,380 +2728,770 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     border: '1px solid #cbd5e0',
                     fontSize: '0.85rem',
                     backgroundColor: 'white',
-                    cursor: clientsLoading || isProcessing ? 'not-allowed' : 'pointer'
+                    boxSizing: 'border-box'
                   }}
-                >
-                  {clientsLoading ? (
-                    <option value="">Cargando clientes...</option>
-                  ) : filteredClients.length === 0 ? (
-                    <option value="">{clientSearchTerm ? 'No se encontraron clientes' : 'No hay clientes disponibles'}</option>
-                  ) : (
-                    <>
-                      <option value="">Sin cliente (Consumidor final)</option>
-                      {filteredClients.map((client: any) => (
-                        <option key={client.id} value={client.id}>
-                          {client.name} - {client.documentType} {client.documentNumber}
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
+                />
               </div>
+              <select
+                value={selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+                disabled={clientsLoading || isProcessing}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e0',
+                  fontSize: '0.85rem',
+                  backgroundColor: 'white',
+                  cursor: clientsLoading || isProcessing ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {clientsLoading ? (
+                  <option value="">Cargando clientes...</option>
+                ) : filteredClients.length === 0 ? (
+                  <option value="">{clientSearchTerm ? 'No se encontraron clientes' : 'No hay clientes disponibles'}</option>
+                ) : (
+                  <>
+                    {!isFactura && <option value="">Sin cliente (Consumidor final)</option>}
+                    {filteredClients.map((client: any) => (
+                      <option key={client.id} value={client.id}>
+                        {client.name} - {client.documentType} {client.documentNumber}
+                      </option>
+                    ))}
+                  </>
+                )}
+              </select>
+            </div>
+          </div>
+        </div>
 
-              {/* Pagos Múltiples */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      color: '#2d3748',
-                      margin: 0
-                    }}
-                  >
-                    Pagos *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={addPayment}
-                    disabled={isProcessing}
-                    style={{
-                      padding: '0.4rem 0.75rem',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: '#667eea',
-                      color: 'white',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      cursor: isProcessing ? 'not-allowed' : 'pointer',
-                      opacity: isProcessing ? 0.6 : 1
-                    }}
-                  >
-                    + Agregar Pago
-                  </button>
-                </div>
-                
-                {payments.map((payment, index) => (
-                  <div
-                    key={payment.id}
-                    style={{
-                      marginBottom: '1rem',
-                      padding: '1rem',
-                      borderRadius: '8px',
-                      border: '1px solid #e2e8f0',
-                      backgroundColor: '#f7fafc'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d3748' }}>
-                        Pago {index + 1}
-                      </span>
-                      {payments.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removePayment(payment.id)}
-                          disabled={isProcessing}
-                          style={{
-                            padding: '0.25rem 0.5rem',
-                            borderRadius: '4px',
-                            border: 'none',
-                            backgroundColor: '#ef4444',
-                            color: 'white',
-                            fontSize: '0.7rem',
-                            cursor: isProcessing ? 'not-allowed' : 'pointer',
-                            opacity: isProcessing ? 0.6 : 1
-                          }}
-                        >
-                          🗑️
-                        </button>
-                      )}
-                    </div>
-                    
-                    <div style={{ marginBottom: '0.75rem' }}>
-                      <label
-                        style={{
-                          display: 'block',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          color: '#4a5568',
-                          marginBottom: '0.3rem'
-                        }}
-                      >
-                        Método de Pago
-                      </label>
-                      <select
-                        value={payment.method}
-                        onChange={(e) => updatePayment(payment.id, 'method', e.target.value)}
-                        disabled={isProcessing}
-                        style={{
-                          width: '100%',
-                          padding: '0.5rem 0.65rem',
-                          borderRadius: '6px',
-                          border: '1px solid #cbd5e0',
-                          fontSize: '0.8rem',
-                          backgroundColor: 'white',
-                          cursor: isProcessing ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        <option value="CASH">Efectivo</option>
-                        <option value="YAPE">Yape</option>
-                        <option value="PLIN">Plin</option>
-                        <option value="CARD">Tarjeta</option>
-                        <option value="TRANSFER">Transferencia Bancaria</option>
-                      </select>
-                    </div>
-                    
-                    <div style={{ marginBottom: '0.75rem' }}>
-                      <label
-                        style={{
-                          display: 'block',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          color: '#4a5568',
-                          marginBottom: '0.3rem'
-                        }}
-                      >
-                        Monto
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={payment.amount === 0 ? '' : payment.amount}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value === '' || value === null || value === undefined) {
-                            updatePayment(payment.id, 'amount', 0);
-                          } else {
-                            const numValue = parseFloat(value);
-                            updatePayment(payment.id, 'amount', isNaN(numValue) ? 0 : numValue);
-                          }
-                        }}
-                        onBlur={(e) => {
-                          if (e.target.value === '' || e.target.value === null || e.target.value === undefined) {
-                            updatePayment(payment.id, 'amount', 0);
-                          }
-                        }}
-                        disabled={isProcessing}
-                        placeholder="0.00"
-                        style={{
-                          width: '100%',
-                          padding: '0.5rem 0.65rem',
-                          borderRadius: '6px',
-                          border: '1px solid #cbd5e0',
-                          fontSize: '0.8rem'
-                        }}
-                      />
-                    </div>
-                    
-                    {(payment.method === 'YAPE' || payment.method === 'PLIN' || payment.method === 'TRANSFER') && (
-                      <div>
-                        <label
-                          style={{
-                            display: 'block',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            color: '#4a5568',
-                            marginBottom: '0.3rem'
-                          }}
-                        >
-                          Número de Operación
-                        </label>
-                        <input
-                          type="text"
-                          value={payment.referenceNumber}
-                          onChange={(e) => updatePayment(payment.id, 'referenceNumber', e.target.value)}
-                          disabled={isProcessing}
-                          placeholder="Ingrese el número de operación"
-                          style={{
-                            width: '100%',
-                            padding: '0.5rem 0.65rem',
-                            borderRadius: '6px',
-                            border: '1px solid #cbd5e0',
-                            fontSize: '0.8rem'
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-                
-                {/* Resumen de Pagos */}
-                <div
-                  style={{
-                    marginTop: '0.75rem',
-                    padding: '0.75rem',
-                    borderRadius: '6px',
-                    backgroundColor: isPaymentComplete ? '#d1fae5' : '#fef3c7',
-                    border: `1px solid ${isPaymentComplete ? '#a7f3d0' : '#fde68a'}`
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#2d3748' }}>
-                      Total Pagado:
-                    </span>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#2d3748' }}>
-                      {currencyFormatter.format(totalPaid)}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#2d3748' }}>
-                      {remaining >= 0 ? 'Falta pagar:' : 'Exceso:'}
-                    </span>
-                    <span style={{ 
-                      fontSize: '0.8rem', 
-                      fontWeight: 700, 
-                      color: isPaymentComplete ? '#059669' : (remaining >= 0 ? '#d97706' : '#dc2626')
-                    }}>
-                      {currencyFormatter.format(Math.abs(remaining))}
-                    </span>
-                  </div>
-                  {!isPaymentComplete && (
-                    <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#92400e' }}>
-                      ⚠️ La suma de los pagos debe ser igual al total
-                    </div>
-                  )}
-                </div>
-              </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '1rem',
+            gap: '1rem',
+            flexWrap: 'wrap'
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              fontSize: '1.15rem',
+              fontWeight: 600,
+              color: '#1a202c'
+            }}
+          >
+            Detalle de la orden
+          </h3>
+        </div>
 
-              {/* Resumen de Totales */}
+        {error && (
+          <div
+            style={{
+              backgroundColor: '#fed7d7',
+              border: '1px solid #feb2b2',
+              color: '#742a2a',
+              padding: '1rem',
+              borderRadius: '8px',
+              marginBottom: '1rem',
+              fontSize: '0.95rem'
+            }}
+          >
+            Error al cargar la orden: {error.message}
+          </div>
+        )}
+
+        {loading && (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '2rem',
+              color: '#4a5568'
+            }}
+          >
+            Cargando orden...
+          </div>
+        )}
+
+        {!loading && !error && !operation && (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '2rem',
+              color: '#4a5568'
+            }}
+          >
+            No se encontró una orden activa para esta mesa.
+          </div>
+        )}
+
+        {operation && (
+          <>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                gap: isSmallDesktop ? '1.5rem' : '2rem',
+                alignItems: 'flex-start'
+              }}
+            >
+              {/* Tabla de productos */}
               <div
                 style={{
-                  marginTop: '1rem',
+                  flex: isSmallDesktop ? '1 1 68%' : isMediumDesktop ? '1 1 72%' : '1 1 75%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  border: '1px solid rgba(226,232,240,0.9)',
                   borderRadius: '18px',
-                  padding: '1.5rem',
-                  background: 'linear-gradient(145deg, rgba(102,126,234,0.16), rgba(79,209,197,0.16))',
-                  border: '1px solid rgba(102,126,234,0.28)',
-                  boxShadow: '0 22px 35px -15px rgba(79,209,197,0.35)',
-                  backdropFilter: 'blur(14px)',
-                  position: 'relative'
+                  overflow: 'hidden',
+                  background: 'linear-gradient(145deg, rgba(255,255,255,0.95), rgba(248,250,252,0.95))',
+                  boxShadow: '0 18px 28px -14px rgba(15,23,42,0.22)'
                 }}
               >
                 <div
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    marginBottom: '0.75rem',
-                    color: '#2d3748',
-                    fontSize: '0.92rem',
-                    letterSpacing: '0.01em'
-                  }}
-                >
-                  <span>Subtotal</span>
-                  <span>{currencyFormatter.format(subtotal)}</span>
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    marginBottom: '0.75rem',
-                    color: '#2d3748',
-                    fontSize: '0.92rem',
-                    letterSpacing: '0.01em'
-                  }}
-                >
-                  <span>
-                    IGV ({igvPercentage ? `${igvPercentage}%` : '—'})
-                  </span>
-                  <span>{currencyFormatter.format(igvAmount)}</span>
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    color: '#1a202c',
+                    display: 'grid',
+                    gridTemplateColumns: isSmallDesktop
+                      ? '0.4fr 0.5fr 1.5fr 0.7fr 0.7fr 1.2fr'
+                      : isMediumDesktop
+                        ? '0.35fr 0.45fr 1.3fr 0.65fr 0.65fr 1.1fr'
+                        : '0.3fr 0.4fr 1.2fr 0.6fr 0.6fr 1fr',
+                    background: 'linear-gradient(135deg, rgba(102,126,234,0.12), rgba(129,140,248,0.12))',
+                    padding: isSmallDesktop ? '0.6rem 0.9rem' : '0.7rem 1rem',
                     fontWeight: 700,
-                    fontSize: '1.35rem',
+                    color: '#2d3748',
+                    fontSize: isSmallDesktop ? '0.75rem' : '0.8rem',
+                    letterSpacing: '0.01em',
+                    flexShrink: 0
+                  }}
+                >
+                  <span style={{ textAlign: 'center' }}>Sel.</span>
+                  <span style={{ textAlign: 'center' }}>Cant.</span>
+                  <span>Producto</span>
+                  <span style={{ textAlign: 'right' }}>P. Unit.</span>
+                  <span style={{ textAlign: 'right' }}>Total</span>
+                  <span style={{ textAlign: 'center' }}>Dividir</span>
+                </div>
+
+                <div
+                  style={{
+                    height: '300px',
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: '#cbd5e0 #f7fafc'
+                  }}
+                >
+                  {(detailsToUse || []).map((detail: any, index: number) => {
+                    const quantity = Number(detail.quantity) || 0;
+                    const unitPrice = Number(detail.unitPrice) || 0;
+                    // ✅ Calcular el total siempre basado en la cantidad actual (evita mostrar el total original de la BD)
+                    const lineTotal = unitPrice * quantity;
+
+                    const isEvenRow = index % 2 === 0;
+                    const isSelected = itemAssignments[String(detail.id || '')];
+
+                    return (
+                      <div
+                        key={detail.id || `${detail.productId}-${detail.productCode}`}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: isSmallDesktop
+                            ? '0.4fr 0.5fr 1.5fr 0.7fr 0.7fr 1.2fr'
+                            : isMediumDesktop
+                              ? '0.35fr 0.45fr 1.3fr 0.65fr 0.65fr 1.1fr'
+                              : '0.3fr 0.4fr 1.2fr 0.6fr 0.6fr 1fr',
+                          padding: isSmallDesktop ? '0.6rem 0.9rem' : '0.7rem 1rem',
+                          fontSize: isSmallDesktop ? '0.75rem' : '0.8rem',
+                          alignItems: 'center',
+                          color: '#1a202c',
+                          backgroundColor: isSelected
+                            ? 'rgba(139, 92, 246, 0.1)'
+                            : isEvenRow
+                              ? 'rgba(247,250,252,0.85)'
+                              : 'rgba(255,255,255,0.92)',
+                          borderTop: '1px solid rgba(226,232,240,0.7)',
+                          borderLeft: isSelected ? '3px solid #8b5cf6' : 'none',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center'
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected || false}
+                            onChange={() => handleToggleItemSelection(String(detail.id || ''))}
+                            style={{
+                              width: isSmallDesktop ? '1rem' : '1.1rem',
+                              height: isSmallDesktop ? '1rem' : '1.1rem',
+                              cursor: 'pointer',
+                              accentColor: '#8b5cf6'
+                            }}
+                          />
+                        </div>
+                        <span
+                          style={{
+                            textAlign: 'center',
+                            fontWeight: 700,
+                            color: '#4c51bf',
+                            fontSize: isSmallDesktop ? '0.85rem' : '0.9rem'
+                          }}
+                        >
+                          {quantity}
+                        </span>
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem'
+                        }}>
+                          <div style={{ fontWeight: 700, fontSize: isSmallDesktop ? '0.8rem' : '0.85rem' }}>
+                            {detail.productName || 'Producto'}
+                          </div>
+                          {detail.notes && (
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.7rem' }}>
+                              <span
+                                style={{
+                                  backgroundColor: 'rgba(255,255,255,0.85)',
+                                  border: '1px dashed rgba(102,126,234,0.5)',
+                                  color: '#434190',
+                                  padding: '0.2rem 0.45rem',
+                                  borderRadius: '8px'
+                                }}
+                              >
+                                Nota: {detail.notes}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <span
+                          style={{
+                            textAlign: 'right',
+                            color: '#2d3748',
+                            fontSize: isSmallDesktop ? '0.8rem' : '0.85rem'
+                          }}
+                        >
+                          {currencyFormatter.format(unitPrice)}
+                        </span>
+                        <span
+                          style={{
+                            textAlign: 'right',
+                            fontWeight: 700,
+                            fontSize: isSmallDesktop ? '0.85rem' : '0.9rem',
+                            color: '#1a202c'
+                          }}
+                        >
+                          {currencyFormatter.format(lineTotal)}
+                        </span>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            flexWrap: 'wrap'
+                          }}
+                        >
+                          {!detail.id?.includes('-split') && quantity > 1 && (
+                            <button
+                              onClick={() => handleSplitItem(String(detail.id))}
+                              style={{
+                                padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: 'rgba(139, 92, 246, 0.15)',
+                                color: '#8b5cf6',
+                                fontWeight: 600,
+                                fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.25)';
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)';
+                              }}
+                            >
+                              ✂️
+                            </button>
+                          )}
+                          {detail.id?.includes('-split') && (
+                            <button
+                              onClick={() => handleMergeItem(detail.id)}
+                              style={{
+                                padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: 'linear-gradient(130deg, #10b981, #059669)',
+                                color: 'white',
+                                fontWeight: 600,
+                                fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.background = 'linear-gradient(130deg, #059669, #047857)';
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.background = 'linear-gradient(130deg, #10b981, #059669)';
+                              }}
+                            >
+                              🔗
+                            </button>
+                          )}
+                          {!detail.id?.includes('-split') && quantity <= 1 && modifiedDetails.some((d: any) => d.id?.includes(`${detail.id}-split`)) && (
+                            <button
+                              onClick={() => handleMergeAll(detail.id)}
+                              style={{
+                                padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: 'linear-gradient(130deg, #f59e0b, #d97706)',
+                                color: 'white',
+                                fontWeight: 600,
+                                fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.background = 'linear-gradient(130deg, #d97706, #b45309)';
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.background = 'linear-gradient(130deg, #f59e0b, #d97706)';
+                              }}
+                            >
+                              🔗
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteItem(String(detail.id))}
+                            style={{
+                              padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
+                              borderRadius: '6px',
+                              border: 'none',
+                              background: 'linear-gradient(130deg, #ef4444, #dc2626)',
+                              color: 'white',
+                              fontWeight: 600,
+                              fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem'
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(130deg, #dc2626, #b91c1c)';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(130deg, #ef4444, #dc2626)';
+                            }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {detailsToUse?.length === 0 && (
+                    <div
+                      style={{
+                        padding: '1.75rem',
+                        textAlign: 'center',
+                        color: '#4a5568'
+                      }}
+                    >
+                      No hay ítems registrados en esta orden.
+                    </div>
+                  )}
+                </div>
+
+                {/* Resumen de Totales - Movido debajo de la tabla */}
+                <div
+                  style={{
                     marginTop: '1rem',
-                    alignItems: 'center'
+                    marginBottom: '1rem',
+                    marginLeft: '1rem',
+                    marginRight: '1rem',
+                    borderRadius: '18px',
+                    padding: '1.5rem',
+                    background: 'linear-gradient(145deg, rgba(102,126,234,0.16), rgba(79,209,197,0.16))',
+                    border: '1px solid rgba(102,126,234,0.28)',
+                    boxShadow: '0 22px 35px -15px rgba(79,209,197,0.35)',
+                    backdropFilter: 'blur(14px)',
+                    position: 'relative',
+                    flexShrink: 0
                   }}
                 >
-                  <span>Total</span>
-                  <span>{currencyFormatter.format(total)}</span>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginBottom: '0.75rem',
+                      color: '#2d3748',
+                      fontSize: '0.92rem',
+                      letterSpacing: '0.01em'
+                    }}
+                  >
+                    <span>Subtotal</span>
+                    <span>{currencyFormatter.format(subtotal)}</span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginBottom: '0.75rem',
+                      color: '#2d3748',
+                      fontSize: '0.92rem',
+                      letterSpacing: '0.01em'
+                    }}
+                  >
+                    <span>
+                      IGV ({igvPercentage ? `${igvPercentage}%` : '—'})
+                    </span>
+                    <span>{currencyFormatter.format(igvAmount)}</span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      color: '#1a202c',
+                      fontWeight: 700,
+                      fontSize: '1.35rem',
+                      marginTop: '1rem',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <span>Total</span>
+                    <span>{currencyFormatter.format(total)}</span>
+                  </div>
+                  <button
+                    onClick={handleProcessPayment}
+                    disabled={!operation || operation.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing || !isPaymentComplete}
+                    style={{
+                      width: '100%',
+                      marginTop: '0.75rem',
+                      padding: '0.625rem 1rem',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || !isPaymentComplete
+                        ? '#cbd5e0'
+                        : 'linear-gradient(130deg, #4fd1c5, #63b3ed)',
+                      color: 'white',
+                      fontWeight: 700,
+                      fontSize: '0.8125rem',
+                      cursor: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing || !isPaymentComplete ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 8px 16px rgba(79,209,197,0.4)',
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                      opacity: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || !isPaymentComplete ? 0.6 : 1
+                    }}
+                    onMouseOver={(e) => {
+                      if (operation?.status !== 'COMPLETED' && selectedDocumentId && selectedSerialId && !isProcessing && isPaymentComplete) {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 12px 20px rgba(79,209,197,0.5)';
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 8px 16px rgba(79,209,197,0.4)';
+                    }}
+                  >
+                    {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Orden ya pagada' : !isPaymentComplete ? 'Completa los pagos' : 'Procesar pago'}
+                  </button>
+                  <button
+                    onClick={() => setShowCancelOperationModal(true)}
+                    disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
+                    style={{
+                      width: '100%',
+                      marginTop: '0.75rem',
+                      padding: '0.625rem 1rem',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: operation?.status === 'COMPLETED'
+                        ? '#cbd5e0'
+                        : 'linear-gradient(130deg, #ef4444, #dc2626)',
+                      color: 'white',
+                      fontWeight: 700,
+                      fontSize: '0.8125rem',
+                      cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 8px 16px rgba(239,68,68,0.4)',
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                      opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
+                    }}
+                    onMouseOver={(e) => {
+                      if (operation?.status !== 'COMPLETED' && !isProcessing) {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 12px 20px rgba(239,68,68,0.5)';
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 8px 16px rgba(239,68,68,0.4)';
+                    }}
+                  >
+                    Cancelar Orden
+                  </button>
                 </div>
-                <button
-                  onClick={handleProcessPayment}
-                  disabled={!operation || operation.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing || !isPaymentComplete}
-                  style={{
-                    width: '100%',
-                    marginTop: '0.75rem',
-                    padding: '0.625rem 1rem',
-                    borderRadius: '10px',
-                    border: 'none',
-                    background: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || !isPaymentComplete
-                      ? '#cbd5e0' 
-                      : 'linear-gradient(130deg, #4fd1c5, #63b3ed)',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '0.8125rem',
-                    cursor: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing || !isPaymentComplete ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 8px 16px rgba(79,209,197,0.4)',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                    opacity: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || !isPaymentComplete ? 0.6 : 1
-                  }}
-                  onMouseOver={(e) => {
-                    if (operation?.status !== 'COMPLETED' && selectedDocumentId && selectedSerialId && !isProcessing && isPaymentComplete) {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 12px 20px rgba(79,209,197,0.5)';
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(79,209,197,0.4)';
-                  }}
-                >
-                  {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Orden ya pagada' : !isPaymentComplete ? 'Completa los pagos' : 'Procesar pago'}
-                </button>
-                <button
-                  onClick={() => setShowCancelOperationModal(true)}
-                  disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
-                  style={{
-                    width: '100%',
-                    marginTop: '0.75rem',
-                    padding: '0.625rem 1rem',
-                    borderRadius: '10px',
-                    border: 'none',
-                    background: operation?.status === 'COMPLETED'
-                      ? '#cbd5e0' 
-                      : 'linear-gradient(130deg, #ef4444, #dc2626)',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '0.8125rem',
-                    cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 8px 16px rgba(239,68,68,0.4)',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                    opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
-                  }}
-                  onMouseOver={(e) => {
-                    if (operation?.status !== 'COMPLETED' && !isProcessing) {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 12px 20px rgba(239,68,68,0.5)';
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(239,68,68,0.4)';
-                  }}
-                >
-                  {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Orden ya pagada' : 'Anular Orden'}
-                </button>
-                {paymentError && (
+              </div>
+
+              {/* Columna derecha: Pagos */}
+              <div
+                style={{
+                  flex: isSmallDesktop ? '1 1 32%' : isMediumDesktop ? '1 1 28%' : '1 1 25%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: isSmallDesktop ? '1.25rem' : '1.5rem',
+                  border: '1px solid rgba(226,232,240,0.9)',
+                  borderRadius: '18px',
+                  padding: '1rem',
+                  background: 'linear-gradient(145deg, rgba(255,255,255,0.95), rgba(248,250,252,0.95))',
+                  boxShadow: '0 18px 28px -14px rgba(15,23,42,0.22)',
+                  overflow: 'hidden'
+                }}
+              >
+                {/* Pagos Múltiples */}
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  <div style={{ flexShrink: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <label
+                        style={{
+                          display: 'block',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          color: '#2d3748',
+                          margin: 0
+                        }}
+                      >
+                        Pagos *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={addPayment}
+                        disabled={isProcessing}
+                        style={{
+                          padding: '0.4rem 0.75rem',
+                          borderRadius: '6px',
+                          border: 'none',
+                          backgroundColor: '#667eea',
+                          color: 'white',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: isProcessing ? 'not-allowed' : 'pointer',
+                          opacity: isProcessing ? 0.6 : 1
+                        }}
+                      >
+                        + Agregar Pago
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      flex: 1,
+                      overflowY: payments.length > 1 ? 'auto' : 'visible',
+                      overflowX: 'hidden',
+                      maxHeight: payments.length > 1 ? '400px' : 'none',
+                      minHeight: payments.length > 1 ? '200px' : 'auto'
+                    }}
+                  >
+                    {payments.map((payment, index) => (
+                      <div
+                        key={payment.id}
+                        style={{
+                          marginBottom: '1rem',
+                          padding: '1rem',
+                          borderRadius: '8px',
+                          border: '1px solid #e2e8f0',
+                          backgroundColor: '#f7fafc'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d3748' }}>
+                            Pago {index + 1}
+                          </span>
+                          {payments.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removePayment(payment.id)}
+                              disabled={isProcessing}
+                              style={{
+                                padding: '0.25rem 0.5rem',
+                                borderRadius: '4px',
+                                border: 'none',
+                                backgroundColor: '#ef4444',
+                                color: 'white',
+                                fontSize: '0.7rem',
+                                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                opacity: isProcessing ? 0.6 : 1
+                              }}
+                            >
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <label
+                            style={{
+                              display: 'block',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: '#4a5568',
+                              marginBottom: '0.3rem'
+                            }}
+                          >
+                            Método de Pago
+                          </label>
+                          <select
+                            value={payment.method}
+                            onChange={(e) => updatePayment(payment.id, 'method', e.target.value)}
+                            disabled={isProcessing}
+                            style={{
+                              width: '100%',
+                              padding: '0.5rem 0.65rem',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e0',
+                              fontSize: '0.8rem',
+                              backgroundColor: 'white',
+                              cursor: isProcessing ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            <option value="CASH">Efectivo</option>
+                            <option value="YAPE">Yape</option>
+                            <option value="PLIN">Plin</option>
+                            <option value="CARD">Tarjeta</option>
+                            <option value="TRANSFER">Transferencia Bancaria</option>
+                          </select>
+                        </div>
+
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <label
+                            style={{
+                              display: 'block',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: '#4a5568',
+                              marginBottom: '0.3rem'
+                            }}
+                          >
+                            Monto
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={payment.amount === 0 ? '' : payment.amount}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value === '' || value === null || value === undefined) {
+                                updatePayment(payment.id, 'amount', 0);
+                              } else {
+                                const numValue = parseFloat(value);
+                                updatePayment(payment.id, 'amount', isNaN(numValue) ? 0 : numValue);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value === '' || e.target.value === null || e.target.value === undefined) {
+                                updatePayment(payment.id, 'amount', 0);
+                              }
+                            }}
+                            disabled={isProcessing}
+                            placeholder="0.00"
+                            style={{
+                              width: '100%',
+                              padding: '0.5rem 0.65rem',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e0',
+                              fontSize: '0.8rem'
+                            }}
+                          />
+                        </div>
+
+                        {(payment.method === 'YAPE' || payment.method === 'PLIN' || payment.method === 'TRANSFER') && (
+                          <div>
+                            <label
+                              style={{
+                                display: 'block',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                color: '#4a5568',
+                                marginBottom: '0.3rem'
+                              }}
+                            >
+                              Número de Operación
+                            </label>
+                            <input
+                              type="text"
+                              value={payment.referenceNumber}
+                              onChange={(e) => updatePayment(payment.id, 'referenceNumber', e.target.value)}
+                              disabled={isProcessing}
+                              placeholder="Ingrese el número de operación"
+                              style={{
+                                width: '100%',
+                                padding: '0.5rem 0.65rem',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e0',
+                                fontSize: '0.8rem'
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Resumen de Pagos - Movido fuera de la tarjeta */}
                   <div
                     style={{
                       marginTop: '1rem',
-                      backgroundColor: '#fed7d7',
-                      border: '1px solid #feb2b2',
-                      color: '#742a2a',
                       padding: '0.75rem',
-                      borderRadius: '8px',
-                      fontSize: '0.85rem'
+                      borderRadius: '6px',
+                      backgroundColor: isPaymentComplete ? '#d1fae5' : '#fef3c7',
+                      border: `1px solid ${isPaymentComplete ? '#a7f3d0' : '#fde68a'}`,
+                      flexShrink: 0
                     }}
                   >
-                    {paymentError}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#2d3748' }}>
+                        Total Pagado:
+                      </span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#2d3748' }}>
+                        {currencyFormatter.format(totalPaid)}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#2d3748' }}>
+                        {remaining >= 0 ? 'Falta pagar:' : 'Exceso:'}
+                      </span>
+                      <span style={{
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        color: isPaymentComplete ? '#059669' : (remaining >= 0 ? '#d97706' : '#dc2626')
+                      }}>
+                        {currencyFormatter.format(Math.abs(remaining))}
+                      </span>
+                    </div>
+                    {!isPaymentComplete && (
+                      <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#92400e' }}>
+                        ⚠️ La suma de los pagos debe ser igual al total
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </div>
               </div>
             </div>
           </>
@@ -3552,12 +3672,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     }}
                   >
                     {tablesData?.tablesByFloor?.map((tableItem: any) => {
-                      const isSelected = selectedTableId === tableItem.id;
-                      const isCurrentTable = tableItem.id === table?.id;
+                      const isSelected = String(selectedTableId) === String(tableItem.id);
+                      const isCurrentTable = String(tableItem.id) === String(table?.id);
                       const isOccupied = tableItem.status === 'OCCUPIED' && !isCurrentTable;
                       const accessCheck = canAccessTable(tableItem);
                       const canAccess = accessCheck.canAccess;
-                      
+
                       return (
                         <button
                           key={tableItem.id}
@@ -3578,24 +3698,24 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                             border: isSelected
                               ? '2px solid #10b981'
                               : isCurrentTable
-                              ? '2px solid #f59e0b'
-                              : isOccupied
-                              ? '2px solid #e2e8f0'
-                              : '2px solid #e2e8f0',
+                                ? '2px solid #f59e0b'
+                                : isOccupied
+                                  ? '2px solid #e2e8f0'
+                                  : '2px solid #e2e8f0',
                             background: isSelected
                               ? 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(5,150,105,0.1))'
                               : isCurrentTable
-                              ? 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.1))'
-                              : isOccupied
-                              ? '#f7fafc'
-                              : 'white',
+                                ? 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.1))'
+                                : isOccupied
+                                  ? '#f7fafc'
+                                  : 'white',
                             color: isSelected
                               ? '#10b981'
                               : isCurrentTable
-                              ? '#f59e0b'
-                              : isOccupied
-                              ? '#a0aec0'
-                              : '#2d3748',
+                                ? '#f59e0b'
+                                : isOccupied
+                                  ? '#a0aec0'
+                                  : '#2d3748',
                             fontWeight: isSelected ? 700 : 600,
                             cursor: (isOccupied || isCurrentTable || !canAccess) ? 'not-allowed' : 'pointer',
                             transition: 'all 0.2s',
@@ -3860,9 +3980,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   }}
                 >
                   {availableUsers.map((userItem: any) => {
-                    const isSelected = selectedUserId === userItem.id;
-                    const isCurrentUser = userItem.id === operation?.user?.id;
-                    
+                    const isSelected = String(selectedUserId) === String(userItem.id);
+                    const isCurrentUser = String(userItem.id) === String(operation?.user?.id);
+
                     return (
                       <button
                         key={userItem.id}
@@ -3878,18 +3998,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                           border: isSelected
                             ? '2px solid #8b5cf6'
                             : isCurrentUser
-                            ? '2px solid #f59e0b'
-                            : '2px solid #e2e8f0',
+                              ? '2px solid #f59e0b'
+                              : '2px solid #e2e8f0',
                           background: isSelected
                             ? 'linear-gradient(135deg, rgba(139,92,246,0.1), rgba(124,58,237,0.1))'
                             : isCurrentUser
-                            ? 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.1))'
-                            : 'white',
+                              ? 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.1))'
+                              : 'white',
                           color: isSelected
                             ? '#8b5cf6'
                             : isCurrentUser
-                            ? '#f59e0b'
-                            : '#2d3748',
+                              ? '#f59e0b'
+                              : '#2d3748',
                           fontWeight: isSelected ? 700 : 600,
                           cursor: isCurrentUser || isProcessing ? 'not-allowed' : 'pointer',
                           transition: 'all 0.2s',
@@ -4222,9 +4342,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     }}
                   >
                     {transferTablesData?.tablesByFloor?.map((tableItem: any) => {
-                      const isSelected = selectedTransferTableId === tableItem.id;
-                      const isCurrentTable = tableItem.id === table?.id;
-                      
+                      const isSelected = String(selectedTransferTableId) === String(tableItem.id);
+                      const isCurrentTable = String(tableItem.id) === String(table?.id);
+
                       return (
                         <button
                           key={tableItem.id}
@@ -4240,18 +4360,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                             border: isSelected
                               ? '2px solid #3b82f6'
                               : isCurrentTable
-                              ? '2px solid #f59e0b'
-                              : '2px solid #e2e8f0',
+                                ? '2px solid #f59e0b'
+                                : '2px solid #e2e8f0',
                             background: isSelected
                               ? 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(37,99,235,0.1))'
                               : isCurrentTable
-                              ? 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.1))'
-                              : 'white',
+                                ? 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.1))'
+                                : 'white',
                             color: isSelected
                               ? '#3b82f6'
                               : isCurrentTable
-                              ? '#f59e0b'
-                              : '#2d3748',
+                                ? '#f59e0b'
+                                : '#2d3748',
                             fontWeight: isSelected ? 700 : 600,
                             cursor: isCurrentTable || isProcessing ? 'not-allowed' : 'pointer',
                             transition: 'all 0.2s',
@@ -4616,6 +4736,21 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           onClose={() => setShowCreateClientModal(false)}
         />
       )}
+
+      {/* Modal para editar cliente */}
+      {showEditClientModal && selectedClientId && (() => {
+        const selectedClient = filteredClients.find((c: any) => c.id === selectedClientId);
+        return selectedClient ? (
+          <EditClient
+            client={selectedClient}
+            onSuccess={() => {
+              refetchClients();
+              setShowEditClientModal(false);
+            }}
+            onClose={() => setShowEditClientModal(false)}
+          />
+        ) : null;
+      })()}
 
     </div>
   );

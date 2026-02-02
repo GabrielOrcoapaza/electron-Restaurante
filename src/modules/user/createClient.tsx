@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { useMutation } from '@apollo/client';
+import { useMutation, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import { CREATE_PERSON } from '../../graphql/mutations';
+import { SEARCH_PERSON_BY_DOCUMENT } from '../../graphql/queries';
 
 type CreateClientProps = {
   onSuccess?: (clientId: string) => void;
@@ -12,13 +13,13 @@ type CreateClientProps = {
 const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
   const { companyData } = useAuth();
   const { breakpoint } = useResponsive();
-  
+
   // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
   const isSmall = breakpoint === 'sm'; // 640px - 767px
   const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
-  
+
   // Tamaños adaptativos
   const modalPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '1.75rem' : '2rem';
   const modalMaxWidth = isSmall ? '95%' : isMedium ? '450px' : isSmallDesktop ? '500px' : isMediumDesktop ? '550px' : '600px';
@@ -28,8 +29,15 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
   const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : isMediumDesktop ? '0.625rem 0.875rem' : '0.75rem';
   const buttonPadding = isSmall ? '0.5625rem 1rem' : isMedium ? '0.625rem 1.25rem' : isSmallDesktop ? '0.625rem 1.25rem' : isMediumDesktop ? '0.75rem 1.5rem' : '0.75rem 1.5rem';
   const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  
-  const [formData, setFormData] = useState({
+
+  const [formData, setFormData] = useState<{
+    name: string;
+    documentType: string;
+    documentNumber: string;
+    email: string;
+    phone: string;
+    address: string;
+  }>({
     name: '',
     documentType: 'DNI',
     documentNumber: '',
@@ -37,7 +45,74 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
     phone: '',
     address: ''
   });
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  const [searchPerson, { loading: searchLoading }] = useLazyQuery(SEARCH_PERSON_BY_DOCUMENT, {
+    fetchPolicy: 'network-only',
+    onCompleted: (data) => {
+      const result = data?.searchPersonByDocument;
+      if (result?.person) {
+        const person = result.person;
+        setFormData(prev => ({
+          ...prev,
+          name: person.name || '',
+          email: person.email || prev.email,
+          phone: person.phone || prev.phone,
+          address: person.address || prev.address
+        }));
+
+        let msg = '';
+        if (result.foundInSunat) {
+          msg = '✅ Datos obtenidos de SUNAT';
+        } else if (result.foundLocally) {
+          msg = '⚠️ Cliente ya registrado en el sistema';
+        }
+
+        if (msg) {
+          setMessage({ type: 'success', text: msg });
+        }
+      }
+    },
+    onError: (err) => {
+      console.error("Error buscando persona:", err);
+    }
+  });
+
+  // Función para buscar manualmente
+  const handleSearchPerson = () => {
+    const docNum = formData.documentNumber.trim();
+    const docType = formData.documentType;
+
+    if (!companyData?.branch?.id) {
+      setMessage({ type: 'error', text: 'No se encontró información de la sucursal' });
+      return;
+    }
+
+    // Validar longitud del documento
+    if (docType === 'DNI' && docNum.length !== 8) {
+      setMessage({ type: 'error', text: 'El DNI debe tener 8 dígitos' });
+      return;
+    }
+
+    if (docType === 'RUC' && docNum.length !== 11) {
+      setMessage({ type: 'error', text: 'El RUC debe tener 11 dígitos' });
+      return;
+    }
+
+    if (!docNum) {
+      setMessage({ type: 'error', text: 'Ingrese el número de documento' });
+      return;
+    }
+
+    searchPerson({
+      variables: {
+        documentType: docType,
+        documentNumber: docNum,
+        branchId: companyData.branch.id
+      }
+    });
+  };
+
 
   const [createPerson, { loading }] = useMutation(CREATE_PERSON, {
     onCompleted: (data) => {
@@ -60,6 +135,12 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+
+    // Si cambia el documento, limpiar mensaje
+    if (name === 'documentNumber' || name === 'documentType') {
+      setMessage(null);
+    }
+
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -185,35 +266,6 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
                 marginBottom: '0.5rem'
               }}
             >
-              Nombre Completo *
-            </label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              style={{
-                width: '100%',
-                padding: inputPadding,
-                borderRadius: '8px',
-                border: '1px solid #d1d5db',
-                fontSize: inputFontSize,
-                boxSizing: 'border-box'
-              }}
-            />
-          </div>
-
-          <div style={{ marginBottom: '1rem' }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: labelFontSize,
-                fontWeight: 600,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}
-            >
               Tipo de Documento *
             </label>
             <select
@@ -250,10 +302,74 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
             >
               Número de Documento *
             </label>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+              <div style={{ flex: 1, position: 'relative' }}>
+                <input
+                  type="text"
+                  name="documentNumber"
+                  value={formData.documentNumber}
+                  onChange={handleChange}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: inputPadding,
+                    borderRadius: '8px',
+                    border: `1px solid ${searchLoading ? '#667eea' : '#d1d5db'}`,
+                    fontSize: inputFontSize,
+                    boxSizing: 'border-box',
+                    transition: 'border-color 0.2s'
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleSearchPerson}
+                disabled={searchLoading || !formData.documentNumber.trim()}
+                style={{
+                  padding: inputPadding,
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: searchLoading || !formData.documentNumber.trim() ? '#9ca3af' : '#667eea',
+                  color: 'white',
+                  fontSize: inputFontSize,
+                  fontWeight: 600,
+                  cursor: searchLoading || !formData.documentNumber.trim() ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap',
+                  minWidth: '80px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  if (!searchLoading && formData.documentNumber.trim()) {
+                    e.currentTarget.style.backgroundColor = '#5568d3';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!searchLoading && formData.documentNumber.trim()) {
+                    e.currentTarget.style.backgroundColor = '#667eea';
+                  }
+                }}
+              >
+                {searchLoading ? '🔍...' : '🔍 Buscar'}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '1rem' }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: labelFontSize,
+                fontWeight: 600,
+                color: '#374151',
+                marginBottom: '0.5rem'
+              }}
+            >
+              Nombre Completo *
+            </label>
             <input
               type="text"
-              name="documentNumber"
-              value={formData.documentNumber}
+              name="name"
+              value={formData.name}
               onChange={handleChange}
               required
               style={{
@@ -351,11 +467,11 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
             />
           </div>
 
-          <div style={{ 
-            display: 'flex', 
+          <div style={{
+            display: 'flex',
             flexDirection: isSmall ? 'column' : 'row',
-            gap: '1rem', 
-            justifyContent: 'flex-end' 
+            gap: '1rem',
+            justifyContent: 'flex-end'
           }}>
             <button
               type="button"
