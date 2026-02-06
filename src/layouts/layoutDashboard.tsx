@@ -14,6 +14,9 @@ import Inventories from '../modules/inventories/Inventories';
 import Kardex from '../modules/inventories/kardex';
 import Purchase from '../modules/purchase/Purchase';
 import ReportSale from '../modules/reports/reportSale';
+import ReportCancel from '../modules/reports/reportCancel';
+import ReportsProductsSold from '../modules/reports/reportsProductsSold';
+import ReportEmployee from '../modules/reports/reportEmployee';
 import Observation from '../modules/configuration/observation';
 import { GET_MY_UNREAD_MESSAGES } from '../graphql/queries';
 import { MARK_MESSAGE_READ } from '../graphql/mutations';
@@ -86,6 +89,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   // Verificar si el usuario es mozo para establecer la vista inicial
   const isWaiterInitial = user?.role?.toUpperCase() === 'WAITER';
   const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration'>(isWaiterInitial ? 'floors' : 'dashboard');
+  const [reportType, setReportType] = useState<'sales' | 'cancellation' | 'productsSold' | 'employees'>('sales');
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
@@ -359,7 +363,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       : currentView === 'purchase'
       ? 'Gestiona las compras a proveedores y controla el stock.'
       : currentView === 'reports'
-      ? 'Visualiza reportes de ventas y documentos emitidos.'
+      ? (reportType === 'sales' ? 'Visualiza reportes de ventas y documentos emitidos.' : reportType === 'cancellation' ? 'Visualiza el historial de anulaciones de operaciones y productos.' : reportType === 'productsSold' ? 'Visualiza productos vendidos por cantidad y monto.' : 'Visualiza ventas por empleado en el periodo.')
       : currentView === 'configuration'
       ? 'Configura las observaciones y modificadores de tus productos.'
       : selectedCashTable
@@ -1389,7 +1393,104 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               {currentView === 'inventory' && <Inventories />}
               {currentView === 'kardex' && <Kardex />}
               {currentView === 'purchase' && <Purchase />}
-              {currentView === 'reports' && <ReportSale />}
+              {currentView === 'reports' && (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem' }}>
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: isSmall ? '0.375rem' : '0.5rem',
+                    background: 'white',
+                    padding: isSmall ? '0.375rem' : '0.5rem',
+                    borderRadius: '12px',
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                  }}>
+                    <button
+                      onClick={() => setReportType('sales')}
+                      style={{
+                        padding: isSmall ? '0.375rem 0.75rem' : isMedium ? '0.45rem 1rem' : '0.5rem 1.5rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: reportType === 'sales' ? '#667eea' : 'transparent',
+                        color: reportType === 'sales' ? 'white' : '#64748b',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <span>📊</span>
+                      Ventas
+                    </button>
+                    <button
+                      onClick={() => setReportType('cancellation')}
+                      style={{
+                        padding: isSmall ? '0.375rem 0.75rem' : isMedium ? '0.45rem 1rem' : '0.5rem 1.5rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: reportType === 'cancellation' ? '#ef4444' : 'transparent',
+                        color: reportType === 'cancellation' ? 'white' : '#64748b',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <span>🚫</span>
+                      Anulados
+                    </button>
+                    <button
+                      onClick={() => setReportType('productsSold')}
+                      style={{
+                        padding: isSmall ? '0.375rem 0.75rem' : isMedium ? '0.45rem 1rem' : '0.5rem 1.5rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: reportType === 'productsSold' ? '#22c55e' : 'transparent',
+                        color: reportType === 'productsSold' ? 'white' : '#64748b',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <span>🛒</span>
+                      Productos vendidos
+                    </button>
+                    <button
+                      onClick={() => setReportType('employees')}
+                      style={{
+                        padding: isSmall ? '0.375rem 0.75rem' : isMedium ? '0.45rem 1rem' : '0.5rem 1.5rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: reportType === 'employees' ? '#f59e0b' : 'transparent',
+                        color: reportType === 'employees' ? 'white' : '#64748b',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <span>👤</span>
+                      Empleados
+                    </button>
+                  </div>
+                  {reportType === 'sales' ? <ReportSale /> : reportType === 'cancellation' ? <ReportCancel /> : reportType === 'productsSold' ? <ReportsProductsSold /> : <ReportEmployee />}
+                </div>
+              )}
               {currentView === 'configuration' && <Observation />}
             </>
           )}

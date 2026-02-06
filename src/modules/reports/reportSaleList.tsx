@@ -67,6 +67,8 @@ interface ReportSaleListProps {
   loading: boolean;
   error?: any;
   isSmallDesktop: boolean;
+  isSmall?: boolean;
+  isMedium?: boolean;
   onRefetch?: () => void;
 }
 
@@ -84,20 +86,21 @@ const dateFormatter = new Intl.DateTimeFormat('es-PE', {
   minute: '2-digit'
 });
 
-const ReportSaleList: React.FC<ReportSaleListProps> = ({ 
-  documents, 
-  loading, 
+const ReportSaleList: React.FC<ReportSaleListProps> = ({
+  documents,
+  loading,
   error,
   isSmallDesktop: propIsSmallDesktop,
+  isSmall: propIsSmall,
+  isMedium: propIsMedium,
   onRefetch
 }) => {
   const { user } = useAuth();
   const { breakpoint } = useResponsive();
-  
-  // Usar el breakpoint del hook si no se pasa como prop, o usar el prop
-  const isSmallDesktop = propIsSmallDesktop !== undefined 
-    ? propIsSmallDesktop 
-    : breakpoint === 'lg';
+
+  const isSmall = propIsSmall ?? breakpoint === 'sm';
+  const isMedium = propIsMedium ?? breakpoint === 'md';
+  const isSmallDesktop = propIsSmallDesktop !== undefined ? propIsSmallDesktop : breakpoint === 'lg';
   const isMediumDesktop = breakpoint === 'xl';
   const [expandedDocument, setExpandedDocument] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -157,12 +160,12 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     },
   });
 
-  // Tamaños adaptativos
-  const cardPadding = isSmallDesktop ? '1rem' : isMediumDesktop ? '1.25rem' : '1.5rem';
-  const tableFontSize = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
-  const tableCellPadding = isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem';
-  const badgeFontSize = isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.6875rem' : '0.75rem';
-  const inputFontSize = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
+  // Tamaños adaptativos (sm, md, lg, xl, 2xl)
+  const cardPadding = isSmall ? '0.75rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : isMediumDesktop ? '1.25rem' : '1.5rem';
+  const tableFontSize = isSmall ? '0.6875rem' : isMedium ? '0.75rem' : isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
+  const tableCellPadding = isSmall ? '0.375rem' : isMedium ? '0.5rem' : isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem';
+  const badgeFontSize = isSmall ? '0.5625rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.6875rem' : '0.75rem';
+  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
 
   // Función para obtener el nombre del método de pago
   const getPaymentMethodName = (method: string) => {
@@ -330,15 +333,23 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
         style={{
           background: 'white',
           borderRadius: '12px',
-          padding: cardPadding,
+          padding: '2rem',
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
           textAlign: 'center',
-          color: '#64748b'
+          color: '#475569',
+          fontSize: '1rem',
+          fontWeight: 500
         }}
       >
-        {documents.length === 0
-          ? 'No se encontraron documentos en el rango de fechas seleccionado.'
-          : 'No se encontraron documentos que coincidan con la búsqueda.'}
+        <div style={{ fontSize: '2.5rem', marginBottom: '1rem', opacity: 0.7 }}>📋</div>
+        <div style={{ marginBottom: '0.5rem' }}>
+          {documents.length === 0
+            ? 'No se encontraron documentos en el rango de fechas seleccionado.'
+            : 'No se encontraron documentos que coincidan con la búsqueda.'}
+        </div>
+        <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+          Prueba con otro rango de fechas o verifica que existan ventas emitidas en ese periodo.
+        </div>
       </div>
     );
   }
@@ -352,29 +363,16 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
       }}
     >
-      {/* Barra de búsqueda */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <input
-          type="text"
-          placeholder="Buscar por serie, número, documento, cliente o usuario..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '0.75rem 1rem',
-            fontSize: inputFontSize,
-            border: '1px solid #d1d5db',
-            borderRadius: '8px',
-            outline: 'none',
-            transition: 'border-color 0.2s',
-          }}
-          onFocus={(e) => e.target.style.borderColor = '#667eea'}
-          onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-        />
-      </div>
-
       {/* Lista de documentos */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1rem',
+        maxHeight: '55vh',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        minHeight: '200px'
+      }}>
         {filteredDocuments.map((doc) => {
           const isExpanded = expandedDocument === doc.id;
           const paymentMethodsMap = new Map<string, number>();
@@ -548,19 +546,19 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: tableFontSize }}>
                         <thead>
                           <tr style={{ background: '#f9fafb' }}>
-                            <th style={{ padding: tableCellPadding, textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
+                            <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
                               Código
                             </th>
-                            <th style={{ padding: tableCellPadding, textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
+                            <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
                               Producto
                             </th>
-                            <th style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
+                            <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
                               Cantidad
                             </th>
-                            <th style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
+                            <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
                               Precio Unit.
                             </th>
-                            <th style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
+                            <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
                               Total
                             </th>
                           </tr>

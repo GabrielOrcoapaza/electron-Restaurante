@@ -326,6 +326,20 @@ export const GET_USERS_BY_BRANCH = gql`
   }
 `;
 
+// Query para buscar empleados (nombre, apellido, DNI) - para reporte de empleados
+export const SEARCH_USERS = gql`
+  query SearchUsers($branchId: ID!, $query: String!) {
+    searchUsers(branchId: $branchId, query: $query) {
+      id
+      dni
+      firstName
+      lastName
+      fullName
+      role
+    }
+  }
+`;
+
 // Query para obtener resumen de pagos
 export const GET_PAYMENT_SUMMARY = gql`
   query GetPaymentSummary($branchId: ID!) {
@@ -697,6 +711,105 @@ export const GET_SALES_REPORT = gql`
     }
   }
 `;
+
+// Query para obtener reporte de productos vendidos
+export const GET_SOLD_PRODUCTS_REPORT = gql`
+  query GetSoldProductsReport(
+    $branchId: ID!
+    $startDate: Date!
+    $endDate: Date!
+    $productId: ID
+  ) {
+    soldProductsReport(
+      branchId: $branchId
+      startDate: $startDate
+      endDate: $endDate
+      productId: $productId
+    ) {
+      products {
+        code
+        name
+        totalQuantity
+        avgUnitPrice
+        totalAmount
+      }
+      summary {
+        totalItemsSold
+        grandTotal
+      }
+    }
+  }
+`;
+
+// Query para obtener reporte de ventas por empleado
+export const GET_USER_SALES_REPORT = gql`
+  query GetUserSalesReport(
+    $branchId: ID!
+    $userId: ID!
+    $startDate: Date!
+    $endDate: Date!
+  ) {
+    userSalesReport(
+      branchId: $branchId
+      userId: $userId
+      startDate: $startDate
+      endDate: $endDate
+    ) {
+      operations {
+        id
+        order
+        operationDate
+        total
+        status
+        user {
+          id
+          fullName
+        }
+      }
+      summary {
+        totalOperations
+        grandTotal
+      }
+    }
+  }
+`;
+
+// Query para obtener reporte de anulaciones
+export const GET_CANCELLATION_REPORT = gql`
+  query GetCancellationReport($branchId: ID!, $startDate: Date!, $endDate: Date!) {
+    cancellationReport(branchId: $branchId, startDate: $startDate, endDate: $endDate) {
+      operations {
+        operationId 
+        order 
+        status
+        tableName 
+        waiterName 
+        cancelledByName
+        operationDate 
+        cancelledAt
+        cancelledItems {
+          detailId
+          productName
+          quantity
+          unitPrice
+          total
+          notes 
+          createdAt
+          createdByName
+          cancelledAt
+          cancelledByName
+        }
+        cancelledTotal  
+      }
+      summary {
+        totalOperations 
+        totalCancelledItems
+        totalCancelledAmount
+      }
+    }
+  }
+`;
+
 
 // Query para obtener subcategorías con sus modificadores
 export const GET_SUBCATEGORIES_WITH_MODIFIERS = gql`

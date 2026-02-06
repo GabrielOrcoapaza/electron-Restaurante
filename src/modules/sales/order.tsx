@@ -587,8 +587,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			? Number(existingOperation.total)
 			: subtotal + taxes;
 
-	// Función para guardar la orden
-	const handleSaveOrder = async (status: string = 'PROCESSING') => {
+	// Función para guardar la orden (shouldPrint: true = enviar a imprimir, false = solo enviar a cocina)
+	const handleSaveOrder = async (status: string = 'PROCESSING', shouldPrint: boolean = true) => {
 		const itemsToProcess = isExistingOrder ? orderItems.filter(item => item.isNew) : orderItems;
 
 		if (itemsToProcess.length === 0) {
@@ -788,6 +788,11 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				}
 			}
 
+			variables.shouldPrint = shouldPrint;
+			if (!shouldPrint) {
+				console.log('mandando la orden sin imprimir');
+			}
+
 			const cleanVariables: any = {};
 			Object.keys(variables).forEach(key => {
 				const value = variables[key];
@@ -945,10 +950,13 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				}
 			});
 
-			if (result.data?.printCuenta?.success) {
-				// ✅ FORZAR actualización del estado de la mesa a TO_PAY (igual que en cashPay.tsx)
-				// NOTA: No usamos resultTable para preservar los valores originales y evitar que la mesa se libere
-				// Primero intentar actualizar usando la mutación UPDATE_TABLE_STATUS
+			if (result.data?.printAccount?.success) {
+				const resultTable = result.data.printAccount.table;
+				const updatedTableId = table.id;
+				// Forzar siempre TO_PAY para que la mesa se pinte amarilla
+				const updatedStatus = 'TO_PAY';
+				const updatedStatusColors = resultTable?.statusColors ?? table?.statusColors;
+
 				try {
 					await updateTableStatusMutation({
 						variables: {
@@ -962,61 +970,36 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					console.warn('⚠️ No se pudo actualizar el estado mediante mutación, actualizando en contexto:', updateError);
 				}
 
-				// Actualizar la mesa en el contexto con el nuevo estado TO_PAY
-				// IMPORTANTE: Preservar SIEMPRE los valores originales de la mesa para NO liberarla
-				// El backend podría estar devolviendo valores null/undefined que liberarían la mesa
-				const updatedTableId = table.id; // Usar siempre el ID original de la mesa
-				const updatedStatus = 'TO_PAY'; // Siempre forzar a TO_PAY
-
-				// PRESERVAR los valores originales de la mesa (no usar los del backend si son null/undefined)
-				// Esto evita que la mesa se libere cuando el backend devuelve valores vacíos
-				const preservedCurrentOperationId = table?.currentOperationId || existingOperation?.id;
-				// occupiedById debe ser number, usar el valor de la mesa original o convertir el ID del usuario
-				const preservedOccupiedById = table?.occupiedById || (user?.id ? Number(user.id) : undefined);
-				const preservedUserName = table?.userName || user?.fullName;
-
-				// Forzar preservación de valores para evitar que la mesa se libere
-				// Asegurar tipos correctos: currentOperationId debe ser number, occupiedById debe ser number
-				// Definir fuera del if para que esté disponible en el scope del refetch
-				const finalCurrentOperationId = preservedCurrentOperationId
-					? (typeof preservedCurrentOperationId === 'string' ? Number(preservedCurrentOperationId) : preservedCurrentOperationId)
+				const finalCurrentOperationId = (table?.currentOperationId || existingOperation?.id) != null
+					? (typeof (table?.currentOperationId ?? existingOperation?.id) === 'string'
+						? Number(table?.currentOperationId ?? existingOperation?.id)
+						: (table?.currentOperationId ?? existingOperation?.id))
 					: (existingOperation?.id ? (typeof existingOperation.id === 'string' ? Number(existingOperation.id) : existingOperation.id) : undefined);
-				const finalOccupiedById = preservedOccupiedById || (user?.id ? Number(user.id) : undefined);
-				const finalUserName = preservedUserName || user?.fullName;
+				const finalOccupiedById = table?.occupiedById != null ? (typeof table.occupiedById === 'string' ? Number(table.occupiedById) : table.occupiedById) : (user?.id ? Number(user.id) : undefined);
+				const finalUserName = table?.userName || user?.fullName;
 
 				if (updateTableInContext) {
-
 					updateTableInContext({
 						id: updatedTableId,
 						status: updatedStatus,
-						currentOperationId: finalCurrentOperationId, // Mantener la operación (NO liberar)
-						occupiedById: finalOccupiedById, // Mantener el usuario que ocupa la mesa (NO liberar)
-						userName: finalUserName // Mantener el nombre del mozo (NO liberar)
+						statusColors: updatedStatusColors,
+						currentOperationId: finalCurrentOperationId,
+						occupiedById: finalOccupiedById,
+						userName: finalUserName
 					});
-					console.log(`✅ Mesa ${updatedTableId} actualizada en contexto a estado: ${updatedStatus}`);
-					console.log(`   - Operación mantenida: ${finalCurrentOperationId}`);
-					console.log(`   - Usuario mantenido: ${finalOccupiedById} (${finalUserName})`);
+					console.log(`✅ Mesa ${updatedTableId} actualizada en contexto a estado: ${updatedStatus} (amarillo)`);
 
-					// Enviar notificación WebSocket con valores preservados
 					setTimeout(() => {
 						sendMessage({
 							type: 'table_status_update',
 							table_id: updatedTableId,
 							status: updatedStatus,
-							current_operation_id: finalCurrentOperationId, // Mantener la operación
-							occupied_by_user_id: finalOccupiedById, // Mantener el usuario
-							waiter_name: finalUserName // Mantener el nombre del mozo
+							current_operation_id: finalCurrentOperationId,
+							occupied_by_user_id: finalOccupiedById,
+							waiter_name: finalUserName
 						});
-						console.log('📡 Notificación WebSocket enviada para mesa:', updatedTableId);
-						console.log(`   - Operación: ${finalCurrentOperationId}`);
-						console.log(`   - Usuario: ${finalOccupiedById}`);
-
-						// Solicitar snapshot completo de todas las mesas
 						setTimeout(() => {
-							sendMessage({
-								type: 'table_update_request'
-							});
-							console.log('📡 Solicitud de snapshot de mesas enviada');
+							sendMessage({ type: 'table_update_request' });
 						}, 500);
 					}, 300);
 				}
@@ -1041,7 +1024,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				// El mensaje del backend podría decir que liberó la mesa, pero no es correcto para precuenta
 				showToast('Precuenta enviada a imprimir exitosamente. Estado de mesa actualizado a TO_PAY', 'success');
 			} else {
-				setSaveError(result.data?.printCuenta?.message || 'Error al imprimir la precuenta');
+				setSaveError(result.data?.printAccount?.message || 'Error al imprimir la precuenta');
 				setTimeout(() => setSaveError(null), 3000);
 			}
 		} catch (err: any) {
@@ -1733,12 +1716,12 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 
 						<div style={{
 							display: 'grid',
-							gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : isExistingOrder ? '1fr 1fr 1fr' : '1fr 1fr',
+							gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : isExistingOrder ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr',
 							gap: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem',
 							flexShrink: 0
 						}}>
 							<button
-								onClick={() => handleSaveOrder('PROCESSING')}
+								onClick={() => handleSaveOrder('PROCESSING', true)}
 								disabled={isSaving || orderItems.length === 0}
 								style={{
 									padding: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem',
@@ -1765,6 +1748,35 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 								}}
 							>
 								{isSaving ? 'Guardando...' : 'Enviar a cocina'}
+							</button>
+							<button
+								onClick={() => handleSaveOrder('PROCESSING', false)}
+								disabled={isSaving || orderItems.length === 0}
+								style={{
+									padding: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem',
+									background: isSaving || orderItems.length === 0 ? '#cbd5e0' : '#f0fdf4',
+									border: '2px solid #bbf7d0',
+									color: '#166534',
+									borderRadius: isSmall ? '8px' : isMedium ? '10px' : '12px',
+									cursor: isSaving || orderItems.length === 0 ? 'not-allowed' : 'pointer',
+									fontWeight: 800,
+									opacity: isSaving || orderItems.length === 0 ? 0.6 : 1,
+									fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8125rem',
+									boxShadow: isSaving || orderItems.length === 0 ? 'none' : '0 2px 6px rgba(34, 197, 94, 0.25)',
+									transition: 'all 0.2s ease'
+								}}
+								onMouseEnter={(e) => {
+									if (!isSaving && orderItems.length > 0) {
+										e.currentTarget.style.transform = 'translateY(-2px)';
+										e.currentTarget.style.boxShadow = '0 4px 10px rgba(34, 197, 94, 0.35)';
+									}
+								}}
+								onMouseLeave={(e) => {
+									e.currentTarget.style.transform = 'translateY(0)';
+									e.currentTarget.style.boxShadow = isSaving || orderItems.length === 0 ? 'none' : '0 2px 6px rgba(34, 197, 94, 0.25)';
+								}}
+							>
+								{isSaving ? 'Guardando...' : 'Enviar a cocina (sin imprimir)'}
 							</button>
 							<button
 								onClick={() => handleSaveOrder('TO_PAY')}

@@ -10,6 +10,7 @@ import {
   GET_CASH_CLOSURES
 } from '../../graphql/queries';
 import { CLOSE_CASH } from '../../graphql/mutations';
+import ManualTransactionModal from './manualTransactionModal';
 
 interface CashRegister {
   id: string;
@@ -141,6 +142,7 @@ const Cashs: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showManualTransactionModal, setShowManualTransactionModal] = useState(false);
 
   // Query para obtener cajas
   const { data: cashRegistersData, loading: cashRegistersLoading, refetch: refetchCashRegisters } = useQuery(
@@ -456,6 +458,30 @@ const Cashs: React.FC = () => {
             }}
           >
             Historial de Cierres
+          </button>
+          <button
+            onClick={() => setShowManualTransactionModal(true)}
+            style={{
+              padding: buttonPadding,
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              backgroundColor: 'white',
+              color: '#64748b',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: buttonFontSize,
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#f1f5f9';
+              e.currentTarget.style.color = '#1e293b';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'white';
+              e.currentTarget.style.color = '#64748b';
+            }}
+          >
+            ➕ Ingreso/Egreso
           </button>
         </div>
       </div>
@@ -1461,6 +1487,19 @@ const Cashs: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Transacción Manual */}
+      <ManualTransactionModal
+        isOpen={showManualTransactionModal}
+        onClose={() => setShowManualTransactionModal(false)}
+        onSuccess={() => {
+          refetchPaymentSummary();
+          refetchCashRegisters();
+        }}
+        cashRegisters={cashRegisters}
+        userId={user?.id || ''}
+        branchId={branchId || ''}
+      />
     </div>
   );
 };

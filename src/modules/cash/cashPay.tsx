@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useWebSocket } from '../../context/WebSocketContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import type { Table } from '../../types/table';
-import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION, PRINT_PRECUENTA, PRINT_PARTIAL_PRECUENTA } from '../../graphql/mutations';
+import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION, PRINT_PARTIAL_PRECUENTA } from '../../graphql/mutations';
 import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_ID, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR, GET_PERSONS_BY_BRANCH } from '../../graphql/queries';
 import CreateClient from '../user/createClient';
 import EditClient from '../user/editClient';
@@ -181,7 +181,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [cancelOperationDetailMutation] = useMutation(CANCEL_OPERATION_DETAIL);
   const [updateTableStatusMutation] = useMutation(UPDATE_TABLE_STATUS);
   const [cancelOperationMutation] = useMutation(CANCEL_OPERATION);
-  const [printPrecuentaMutation] = useMutation(PRINT_PRECUENTA);
   const [printPartialPrecuentaMutation] = useMutation(PRINT_PARTIAL_PRECUENTA);
 
   // Función auxiliar para enviar notificación WebSocket de actualización de mesa
@@ -497,6 +496,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       }
     }
   }, [total, operation?.id]);
+
+  // Al seleccionar/deseleccionar ítems, el total cambia: actualizar montos de pago para que reflejen el nuevo total
+  React.useEffect(() => {
+    if (payments.length === 0) return;
+    setPayments(prev =>
+      prev.map((p, i) =>
+        i === 0 ? { ...p, amount: total } : { ...p, amount: 0 }
+      )
+    );
+  }, [total]);
 
   // Inicializar valores por defecto cuando se cargan los datos
   React.useEffect(() => {
@@ -1382,10 +1391,10 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
         if (isBillableDocument && isBranchBillingEnabled) {
           console.log('✅ SUNAT: El documento será enviado a facturación electrónica');
-          console.log(`   - Tipo: ${documentDescription} (Código: ${documentCode})`);
-          console.log(`   - Serial: ${result.data?.createIssuedDocument?.issuedDocument?.serial || 'N/A'}`);
-          console.log(`   - Número: ${result.data?.createIssuedDocument?.issuedDocument?.number || 'N/A'}`);
-          console.log(`   - Proceso: ${isPartialPayment ? 'PAGO PARCIAL' : 'PAGO COMPLETO'}`);
+          console.log(`  - Tipo: ${documentDescription} (Código: ${documentCode})`);
+          console.log(`  - Serial: ${result.data?.createIssuedDocument?.issuedDocument?.serial || 'N/A'}`);
+          console.log(`  - Número: ${result.data?.createIssuedDocument?.issuedDocument?.number || 'N/A'}`);
+          console.log(`  - Proceso: ${isPartialPayment ? 'PAGO PARCIAL' : 'PAGO COMPLETO'}`);
         } else {
           if (!isBillableDocument) {
             console.log(`ℹ️ SUNAT: Documento "${documentDescription}" (Código: ${documentCode}) no se enviará a SUNAT`);
@@ -1426,7 +1435,23 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           );
           setModifiedDetails(freshDetails);
 
+          // Calcular el nuevo total restante
+          const newTotal = freshDetails.reduce((sum: number, detail: any) => {
+            const quantity = Number(detail.quantity) || 0;
+            const unitPrice = Number(detail.unitPrice) || 0;
+            return sum + (quantity * unitPrice);
+          }, 0);
+
+          // Actualizar el monto del pago para reflejar lo que falta pagar
+          setPayments([{ 
+            id: String(Date.now()), 
+            method: 'CASH', 
+            amount: newTotal, 
+            referenceNumber: '' 
+          }]);
+
           console.log('✅ Pago parcial completado - Detalles actualizados desde el backend:', freshDetails.length);
+          console.log('💰 Monto actualizado para el siguiente pago:', newTotal);
         } else {
           // Si se pagó toda la operación, verificar si la mesa fue liberada
           // (ya hicimos refetch arriba, no necesitamos hacerlo de nuevo)
@@ -1520,163 +1545,80 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     try {
       const resolvedDeviceId = deviceId || await getMacAddress();
 
-      // Obtener los IDs de los items seleccionados
+      // Solo imprimir precuenta con los ítems seleccionados
       const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
 
-      // Si hay items seleccionados, usar la mutación parcial
-      if (selectedDetailIds.length > 0) {
-        const result = await printPartialPrecuentaMutation({
-          variables: {
-            operationId: operation.id,
-            detailIds: selectedDetailIds,
-            tableId: table.id,
-            branchId: companyData.branch.id,
-            userId: user.id,
-            deviceId: resolvedDeviceId,
-            printerId: null // Opcional, se puede agregar selección de impresora si es necesario
-          }
-        });
+      if (selectedDetailIds.length === 0) {
+        setPaymentError('Selecciona al menos un ítem para imprimir la precuenta');
+        setIsProcessing(false);
+        return;
+      }
 
-        if (result.data?.printPartialPrecuenta?.success) {
-          const resultTable = result.data.printPartialPrecuenta.table;
-
-          // ✅ FORZAR actualización del estado de la mesa a TO_PAY
-          // Primero intentar actualizar usando la mutación UPDATE_TABLE_STATUS
-          try {
-            await updateTableStatusMutation({
-              variables: {
-                tableId: table.id,
-                status: 'TO_PAY',
-                userId: user.id
-              }
-            });
-            console.log('✅ Estado de mesa actualizado a TO_PAY mediante mutación');
-          } catch (updateError) {
-            console.warn('⚠️ No se pudo actualizar el estado mediante mutación, actualizando en contexto:', updateError);
-          }
-
-          // Actualizar la mesa en el contexto con el nuevo estado TO_PAY
-          const updatedTableId = resultTable?.id || table.id;
-          const updatedStatus = 'TO_PAY'; // Siempre forzar a TO_PAY
-
-          if (updateTableInContext) {
-            updateTableInContext({
-              id: updatedTableId,
-              status: updatedStatus,
-              currentOperationId: resultTable?.currentOperationId ?? table?.currentOperationId,
-              occupiedById: resultTable?.occupiedById ?? table?.occupiedById,
-              userName: resultTable?.userName ?? table?.userName
-            });
-            console.log(`✅ Mesa ${updatedTableId} actualizada en contexto a estado: ${updatedStatus}`);
-
-            // Enviar notificación WebSocket
-            notifyTableUpdate(
-              updatedTableId,
-              updatedStatus,
-              resultTable?.currentOperationId ?? table?.currentOperationId,
-              resultTable?.occupiedById ?? table?.occupiedById,
-              resultTable?.userName ?? table?.userName
-            );
-          }
-
-          // Si hay callback onTableChange, notificar el cambio
-          if (onTableChange && table) {
-            onTableChange({
-              ...table,
-              status: updatedStatus
-            });
-          }
-
-          // Refetch la operación para obtener los datos actualizados
-          await refetch();
-
-          // Llamar callback de éxito si existe (para que el padre pueda refetch las mesas)
-          if (onPaymentSuccess) {
-            onPaymentSuccess();
-          }
-
-          setPaymentError(null);
-          // Mostrar mensaje de éxito
-          console.log(result.data.printPartialPrecuenta.message || `Precuenta parcial enviada a imprimir exitosamente (${selectedDetailIds.length} plato(s) seleccionado(s)). Estado de mesa actualizado a TO_PAY`)
-        } else {
-          setPaymentError(result.data?.printPartialPrecuenta?.message || 'Error al imprimir la precuenta parcial');
+      const result = await printPartialPrecuentaMutation({
+        variables: {
+          operationId: operation.id,
+          detailIds: selectedDetailIds,
+          tableId: table.id,
+          branchId: companyData.branch.id,
+          userId: user.id,
+          deviceId: resolvedDeviceId,
+          printerId: null
         }
+      });
+
+      if (result.data?.printPartialPrecuenta?.success) {
+        const resultTable = result.data.printPartialPrecuenta.table;
+        const updatedTableId = resultTable?.id || table.id;
+        const updatedStatus = 'TO_PAY';
+
+        try {
+          await updateTableStatusMutation({
+            variables: {
+              tableId: table.id,
+              status: 'TO_PAY',
+              userId: user.id
+            }
+          });
+          console.log('✅ Estado de mesa actualizado a TO_PAY mediante mutación');
+        } catch (updateError) {
+          console.warn('⚠️ No se pudo actualizar el estado mediante mutación, actualizando en contexto:', updateError);
+        }
+
+        if (updateTableInContext) {
+          updateTableInContext({
+            id: updatedTableId,
+            status: updatedStatus,
+            currentOperationId: resultTable?.currentOperationId ?? table?.currentOperationId,
+            occupiedById: resultTable?.occupiedById ?? table?.occupiedById,
+            userName: resultTable?.userName ?? table?.userName
+          });
+          console.log(`✅ Mesa ${updatedTableId} actualizada en contexto a estado: ${updatedStatus}`);
+        }
+
+        notifyTableUpdate(
+          updatedTableId,
+          updatedStatus,
+          resultTable?.currentOperationId ?? table?.currentOperationId,
+          resultTable?.occupiedById ?? table?.occupiedById,
+          resultTable?.userName ?? table?.userName
+        );
+
+        if (onTableChange && table) {
+          onTableChange({
+            ...table,
+            status: updatedStatus
+          });
+        }
+
+        await refetch();
+        if (onPaymentSuccess) {
+          onPaymentSuccess();
+        }
+
+        setPaymentError(null);
+        console.log(result.data.printPartialPrecuenta.message || `Precuenta enviada a imprimir exitosamente (${selectedDetailIds.length} plato(s) seleccionado(s)). Estado de mesa actualizado a TO_PAY`);
       } else {
-        // Si no hay items seleccionados, usar la mutación completa
-        const result = await printPrecuentaMutation({
-          variables: {
-            operationId: operation.id,
-            tableId: table.id,
-            branchId: companyData.branch.id,
-            deviceId: resolvedDeviceId,
-            printerId: null // Opcional, se puede agregar selección de impresora si es necesario
-          }
-        });
-
-        if (result.data?.printCuenta?.success) {
-          const resultTable = result.data.printCuenta.table;
-
-          // ✅ FORZAR actualización del estado de la mesa a TO_PAY
-          // Primero intentar actualizar usando la mutación UPDATE_TABLE_STATUS
-          try {
-            await updateTableStatusMutation({
-              variables: {
-                tableId: table.id,
-                status: 'TO_PAY',
-                userId: user.id
-              }
-            });
-            console.log('✅ Estado de mesa actualizado a TO_PAY mediante mutación');
-          } catch (updateError) {
-            console.warn('⚠️ No se pudo actualizar el estado mediante mutación, actualizando en contexto:', updateError);
-          }
-
-          // Actualizar la mesa en el contexto con el nuevo estado TO_PAY
-          const updatedTableId = resultTable?.id || table.id;
-          const updatedStatus = 'TO_PAY'; // Siempre forzar a TO_PAY
-
-          if (updateTableInContext) {
-            updateTableInContext({
-              id: updatedTableId,
-              status: updatedStatus,
-              currentOperationId: resultTable?.currentOperationId ?? table?.currentOperationId,
-              occupiedById: resultTable?.occupiedById ?? table?.occupiedById,
-              userName: resultTable?.userName ?? table?.userName
-            });
-            console.log(`✅ Mesa ${updatedTableId} actualizada en contexto a estado: ${updatedStatus}`);
-
-            // Enviar notificación WebSocket
-            notifyTableUpdate(
-              updatedTableId,
-              updatedStatus,
-              resultTable?.currentOperationId ?? table?.currentOperationId,
-              resultTable?.occupiedById ?? table?.occupiedById,
-              resultTable?.userName ?? table?.userName
-            );
-          }
-
-          // Si hay callback onTableChange, notificar el cambio
-          if (onTableChange && table) {
-            onTableChange({
-              ...table,
-              status: updatedStatus
-            });
-          }
-
-          // Refetch la operación para obtener los datos actualizados
-          await refetch();
-
-          // Llamar callback de éxito si existe (para que el padre pueda refetch las mesas)
-          if (onPaymentSuccess) {
-            onPaymentSuccess();
-          }
-
-          setPaymentError(null);
-          // Mostrar mensaje de éxito
-          console.log(result.data.printCuenta.message || 'Precuenta enviada a imprimir exitosamente. Estado de mesa actualizado a TO_PAY');
-        } else {
-          setPaymentError(result.data?.printCuenta?.message || 'Error al imprimir la precuenta');
-        }
+        setPaymentError(result.data?.printPartialPrecuenta?.message || 'Error al imprimir la precuenta');
       }
     } catch (err: any) {
       console.error('Error al imprimir precuenta:', err);

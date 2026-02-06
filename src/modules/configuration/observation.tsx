@@ -464,7 +464,7 @@ const Observation: React.FC = () => {
                     <tr style={{ background: '#f9fafb' }}>
                       <th style={{
                         padding: tableCellPadding,
-                        textAlign: 'left',
+                        textAlign: 'center',
                         fontWeight: 600,
                         color: '#374151',
                         borderBottom: '1px solid #e5e7eb',

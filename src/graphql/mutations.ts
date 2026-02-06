@@ -163,6 +163,7 @@ export const CREATE_OPERATION = gql`
     $deliveryLatitude: Float
     $deliveryLongitude: Float
     $operationDate: String
+    $shouldPrint: Boolean
   ) {
     createOperation(
       branchId: $branchId
@@ -183,6 +184,7 @@ export const CREATE_OPERATION = gql`
       deliveryLatitude: $deliveryLatitude
       deliveryLongitude: $deliveryLongitude
       operationDate: $operationDate
+      shouldPrint: $shouldPrint
     ) {
       success
       message
@@ -519,7 +521,7 @@ export const CANCEL_OPERATION = gql`
   }
 `;
 
-// Mutación para imprimir precuenta
+// Mutación para imprimir precuenta (mismo nombre que Android: printAccount; no pedimos operation.status por enum REGISTER)
 export const PRINT_PRECUENTA = gql`
   mutation PrintPrecuenta(
     $operationId: ID!
@@ -528,7 +530,7 @@ export const PRINT_PRECUENTA = gql`
     $deviceId: String!
     $printerId: ID
   ) {
-    printCuenta(
+    printAccount(
       operationId: $operationId
       tableId: $tableId
       branchId: $branchId
@@ -539,16 +541,13 @@ export const PRINT_PRECUENTA = gql`
       message
       operation {
         id
-        order
+        total
       }
       table {
         id
         name
         status
         statusColors
-        currentOperationId
-        occupiedById
-        userName
       }
     }
   }
@@ -1032,6 +1031,46 @@ export const CANCEL_ISSUED_DOCUMENT = gql`
         cancellationReason
         cancellationDescription
         cancellationDate
+      }
+    }
+  }
+`; 
+
+// Mutación para crear transacción manual (Ingreso/Egreso)
+export const CREATE_MANUAL_TRANSACTION = gql`
+  mutation CreateManualTransaction(
+    $cashRegisterId: ID!
+    $transactionType: String!
+    $payments: [PaymentInput]!
+    $notes: String
+    $userId: ID!
+    $branchId: ID!
+  ) {
+    createManualTransaction(
+      cashRegisterId: $cashRegisterId
+      transactionType: $transactionType
+      payments: $payments
+      notes: $notes
+      userId: $userId
+      branchId: $branchId
+    ) {
+      success
+      message
+      payments {
+        id
+        paymentType
+        paymentMethod
+        totalAmount
+        paidAmount
+        transactionType
+        status
+        paymentDate
+        notes 
+        dueDate 
+        referenceNumber
+        cashRegister{
+          id
+        }
       }
     }
   }

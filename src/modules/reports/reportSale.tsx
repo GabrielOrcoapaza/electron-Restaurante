@@ -97,18 +97,19 @@ const ReportSale: React.FC = () => {
   const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
 
-  // Adaptar según tamaño de pantalla
-  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
-  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
-  
-  // Tamaños adaptativos
-  const containerPadding = isSmallDesktop ? '1rem' : isMediumDesktop ? '1.25rem' : '1.5rem';
-  const containerGap = isSmallDesktop ? '1rem' : isMediumDesktop ? '1.5rem' : '2rem';
-  const titleFontSize = isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.375rem' : '1.5rem';
-  const subtitleFontSize = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
-  const cardPadding = isSmallDesktop ? '1rem' : isMediumDesktop ? '1.25rem' : '1.5rem';
-  const inputFontSize = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
-  const buttonFontSize = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
+  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl)
+  const isSmall = breakpoint === 'sm';
+  const isMedium = breakpoint === 'md';
+  const isSmallDesktop = breakpoint === 'lg';
+  const isMediumDesktop = breakpoint === 'xl';
+
+  const containerPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const containerGap = isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2rem';
+  const titleFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const subtitleFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
 
   // Estado para los filtros
   const [startDate, setStartDate] = useState<string>(() => {
@@ -187,8 +188,8 @@ const ReportSale: React.FC = () => {
           position: 'absolute',
           top: '-120px',
           right: '-120px',
-          width: isSmallDesktop ? '220px' : '260px',
-          height: isSmallDesktop ? '220px' : '260px',
+          width: isSmall ? '180px' : isMedium ? '220px' : isSmallDesktop ? '220px' : '260px',
+          height: isSmall ? '180px' : isMedium ? '220px' : isSmallDesktop ? '220px' : '260px',
           background: 'radial-gradient(circle at center, rgba(102,126,234,0.25), transparent 70%)',
           filter: 'blur(2px)',
           zIndex: 0,
@@ -199,8 +200,8 @@ const ReportSale: React.FC = () => {
           position: 'absolute',
           bottom: '-80px',
           left: '-80px',
-          width: isSmallDesktop ? '180px' : '220px',
-          height: isSmallDesktop ? '180px' : '220px',
+          width: isSmall ? '140px' : isMedium ? '180px' : isSmallDesktop ? '180px' : '220px',
+          height: isSmall ? '140px' : isMedium ? '180px' : isSmallDesktop ? '180px' : '220px',
           background: 'radial-gradient(circle at center, rgba(72,219,251,0.18), transparent 70%)',
           filter: 'blur(2px)',
           zIndex: 0,
@@ -210,27 +211,26 @@ const ReportSale: React.FC = () => {
       {/* Contenido principal */}
       <div style={{ position: 'relative', zIndex: 1 }}>
         {/* Header */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: containerGap
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: isSmall ? 'flex-start' : 'center',
+          flexDirection: isSmall ? 'column' : 'row',
+          marginBottom: containerGap,
+          flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap',
+          gap: isSmall || isMedium ? '1rem' : '0'
         }}>
           <div>
-            <h1 style={{ 
-              fontSize: titleFontSize, 
-              fontWeight: 700, 
+            <h1 style={{
+              fontSize: titleFontSize,
+              fontWeight: 700,
               color: '#1e293b',
               margin: 0,
               marginBottom: '0.5rem'
             }}>
               Reporte de Ventas
             </h1>
-            <p style={{ 
-              fontSize: subtitleFontSize, 
-              color: '#64748b', 
-              margin: 0 
-            }}>
+            <p style={{ fontSize: subtitleFontSize, color: '#64748b', margin: 0 }}>
               Documentos emitidos y totales por método de pago
             </p>
           </div>
@@ -248,11 +248,13 @@ const ReportSale: React.FC = () => {
         >
           <div style={{
             display: 'grid',
-            gridTemplateColumns: isSmallDesktop 
-              ? '1fr' 
-              : isMediumDesktop 
-                ? '1fr 1fr' 
-                : '1fr 1fr 1fr auto',
+            gridTemplateColumns: isSmall
+              ? '1fr'
+              : isMedium
+                ? '1fr 1fr'
+                : isSmallDesktop
+                  ? '1fr 1fr 1fr'
+                  : '1fr 1fr 1fr auto',
             gap: '1rem',
             alignItems: 'end'
           }}>
@@ -408,11 +410,15 @@ const ReportSale: React.FC = () => {
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: isSmallDesktop 
-                ? '1fr' 
-                : isMediumDesktop 
-                  ? 'repeat(2, 1fr)' 
-                  : 'repeat(4, 1fr)',
+              gridTemplateColumns: isSmall
+                ? '1fr'
+                : isMedium
+                  ? 'repeat(2, 1fr)'
+                  : isSmallDesktop
+                    ? 'repeat(2, 1fr)'
+                    : isMediumDesktop
+                      ? 'repeat(4, 1fr)'
+                      : 'repeat(4, 1fr)',
               gap: '0.5rem',
               marginBottom: '0.75rem'
             }}>
@@ -422,10 +428,10 @@ const ReportSale: React.FC = () => {
                 padding: '0.5rem',
                 color: 'white'
               }}>
-                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', opacity: 0.9, marginBottom: '0.25rem' }}>
+                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', opacity: 0.9, marginBottom: '0.25rem' }}>
                   Total Documentos
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 700 }}>
+                <div style={{ fontSize: isSmall ? '0.875rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 700 }}>
                   {summary.totalDocuments}
                 </div>
               </div>
@@ -436,17 +442,17 @@ const ReportSale: React.FC = () => {
                 padding: '0.5rem',
                 color: 'white'
               }}>
-                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', opacity: 0.9, marginBottom: '0.25rem' }}>
+                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', opacity: 0.9, marginBottom: '0.25rem' }}>
                   Total General
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 700 }}>
+                <div style={{ fontSize: isSmall ? '0.875rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 700 }}>
                   {currencyFormatter.format(summary.totalAmount)}
                 </div>
               </div>
             </div>
 
             <h3 style={{
-              fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem',
+              fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem',
               fontWeight: 600,
               color: '#1e293b',
               marginBottom: '0.75rem',
@@ -457,12 +463,10 @@ const ReportSale: React.FC = () => {
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: isSmallDesktop 
-                ? '1fr' 
-                : isMediumDesktop 
-                  ? 'repeat(2, 1fr)' 
-                  : 'repeat(3, 1fr)',
-              gap: '0.5rem'
+              gridTemplateColumns: 'repeat(6, minmax(90px, 1fr))',
+              gap: '0.5rem',
+              overflowX: 'auto',
+              paddingBottom: isSmall ? '0.25rem' : 0
             }}>
               <div style={{
                 background: '#f0f9ff',
@@ -470,10 +474,10 @@ const ReportSale: React.FC = () => {
                 borderRadius: '6px',
                 padding: '0.5rem'
               }}>
-                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#0c4a6e', marginBottom: '0.25rem' }}>
+                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#0c4a6e', marginBottom: '0.25rem' }}>
                   Efectivo
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#0369a1' }}>
+                <div style={{ fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#0369a1' }}>
                   {currencyFormatter.format(summary.totalCash)}
                 </div>
               </div>
@@ -484,10 +488,10 @@ const ReportSale: React.FC = () => {
                 borderRadius: '6px',
                 padding: '0.5rem'
               }}>
-                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#064e3b', marginBottom: '0.25rem' }}>
+                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#064e3b', marginBottom: '0.25rem' }}>
                   Yape
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#047857' }}>
+                <div style={{ fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#047857' }}>
                   {currencyFormatter.format(summary.totalYape)}
                 </div>
               </div>
@@ -498,10 +502,10 @@ const ReportSale: React.FC = () => {
                 borderRadius: '6px',
                 padding: '0.5rem'
               }}>
-                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#78350f', marginBottom: '0.25rem' }}>
+                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#78350f', marginBottom: '0.25rem' }}>
                   Plin
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#b45309' }}>
+                <div style={{ fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#b45309' }}>
                   {currencyFormatter.format(summary.totalPlin)}
                 </div>
               </div>
@@ -512,10 +516,10 @@ const ReportSale: React.FC = () => {
                 borderRadius: '6px',
                 padding: '0.5rem'
               }}>
-                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#7f1d1d', marginBottom: '0.25rem' }}>
+                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#7f1d1d', marginBottom: '0.25rem' }}>
                   Tarjeta
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#b91c1c' }}>
+                <div style={{ fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#b91c1c' }}>
                   {currencyFormatter.format(summary.totalCard)}
                 </div>
               </div>
@@ -526,10 +530,10 @@ const ReportSale: React.FC = () => {
                 borderRadius: '6px',
                 padding: '0.5rem'
               }}>
-                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#581c87', marginBottom: '0.25rem' }}>
+                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#581c87', marginBottom: '0.25rem' }}>
                   Transferencia
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#7e22ce' }}>
+                <div style={{ fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#7e22ce' }}>
                   {currencyFormatter.format(summary.totalTransfer)}
                 </div>
               </div>
@@ -540,10 +544,10 @@ const ReportSale: React.FC = () => {
                 borderRadius: '6px',
                 padding: '0.5rem'
               }}>
-                <div style={{ fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#1e293b', marginBottom: '0.25rem' }}>
+                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#1e293b', marginBottom: '0.25rem' }}>
                   Otros
                 </div>
-                <div style={{ fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#334155' }}>
+                <div style={{ fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#334155' }}>
                   {currencyFormatter.format(summary.totalOthers)}
                 </div>
               </div>
@@ -551,13 +555,30 @@ const ReportSale: React.FC = () => {
           </div>
         )}
 
-        {/* Lista de documentos */}
-        {showDetails && (
+        {/* Lista de documentos: solo mostrar cuando ya terminó de cargar para evitar vista vacía con líneas */}
+        {showDetails && loading && (
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: cardPadding,
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+              textAlign: 'center',
+              color: '#64748b',
+              fontSize: subtitleFontSize
+            }}
+          >
+            Cargando documentos...
+          </div>
+        )}
+        {showDetails && !loading && (
           <ReportSaleList 
             documents={salesDocuments} 
-            loading={loading}
+            loading={false}
             error={error}
             isSmallDesktop={isSmallDesktop}
+            isSmall={isSmall}
+            isMedium={isMedium}
           />
         )}
 

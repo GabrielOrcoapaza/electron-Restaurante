@@ -36,6 +36,13 @@ interface RecipeModalProps {
   onClose: () => void;
 }
 
+// Unidades de medida válidas en el backend (ProductsRecipeUnitMeasureChoices)
+const UNIT_MEASURES: Array<[string, string]> = [
+  ['NIU', 'Unidad'],
+  ['KGM', 'Kilogramo'],
+  ['LTR', 'Litro'],
+];
+
 const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClose }) => {
   const { companyData } = useAuth();
   const { breakpoint } = useResponsive();
@@ -80,7 +87,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
     skip: !branchId
   });
 
-  const recipes: Recipe[] = data?.recipesByProduct || [];
+  const rawRecipes: Recipe[] = data?.recipesByProduct || [];
+  // Filtrar recetas con ingredient null (p. ej. ingrediente eliminado) para evitar TypeError
+  const recipes = rawRecipes.filter((r): r is Recipe => Boolean(r && r.ingredient));
+
   const allProducts: any[] = productsData?.productsByBranch || [];
   const availableIngredients: Ingredient[] = allProducts
     .filter(p => p.productType === 'INGREDIENT' && p.isActive)
@@ -92,7 +102,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
     }));
 
   // Filtrar ingredientes que ya están en la receta
-  const ingredientIdsInRecipe = recipes.map(r => r.ingredient.id);
+  const ingredientIdsInRecipe = recipes.map(r => r.ingredient!.id);
   const filteredIngredients = availableIngredients.filter(
     ing => !ingredientIdsInRecipe.includes(ing.id)
   );
@@ -386,13 +396,9 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
                       backgroundColor: 'white'
                     }}
                   >
-                    <option value="NIU">NIU (Unidad)</option>
-                    <option value="KG">KG (Kilogramo)</option>
-                    <option value="GRM">GRM (Gramo)</option>
-                    <option value="LTR">LTR (Litro)</option>
-                    <option value="MLT">MLT (Mililitro)</option>
-                    <option value="MTR">MTR (Metro)</option>
-                    <option value="CMT">CMT (Centímetro)</option>
+                    {UNIT_MEASURES.map(([value, label]) => (
+                      <option key={value} value={value}>{value} ({label})</option>
+                    ))}
                   </select>
                 </div>
               </div>
