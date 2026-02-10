@@ -876,3 +876,18 @@ export const SEARCH_PERSON_BY_DOCUMENT = gql`
   }
 `;
 
+
+// Query para obtener items disponibles para re-emitir desde documento anulado
+export const GET_REISSUEABLE_ITEMS = gql`
+  query GetReissueableItems($annulledDocumentId: ID!) {
+    reissueableItems(annulledDocumentId: $annulledDocumentId) {
+      operationDetailId
+      productName
+      originalQuantity
+      remainingQuantity
+      unitValue
+      unitPrice
+      discount
+    }
+  }
+`;

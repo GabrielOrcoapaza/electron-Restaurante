@@ -94,7 +94,8 @@ const Purchase: React.FC = () => {
   const { companyData, user } = useAuth();
   const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
-  const igvPercentage = companyData?.branch?.igvPercentage || 18;
+  // IGV de la sucursal (float). Por defecto 10.5% para sedes.
+  const igvPercentage = Number(companyData?.branch?.igvPercentage) || 10.5;
   
   // Adaptar según tamaño de pantalla de PC
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px

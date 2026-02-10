@@ -1034,7 +1034,27 @@ export const CANCEL_ISSUED_DOCUMENT = gql`
       }
     }
   }
-`; 
+`;
+
+// Mutación para reimprimir documento (camelCase - por si el schema usa camelCase)
+export const REPRINT_DOCUMENT = gql`
+  mutation ReprintDocument(
+    $operationId: ID
+    $issuedDocumentId: ID
+    $documentType: String!
+    $deviceId: String!
+  ) {
+    reprintDocument(
+      operationId: $operationId
+      issuedDocumentId: $issuedDocumentId
+      documentType: $documentType
+      deviceId: $deviceId
+    ) {
+      success
+      message
+    }
+  }
+`;
 
 // Mutación para crear transacción manual (Ingreso/Egreso)
 export const CREATE_MANUAL_TRANSACTION = gql`
@@ -1072,6 +1092,84 @@ export const CREATE_MANUAL_TRANSACTION = gql`
           id
         }
       }
+    }
+  }
+`;
+
+// Mutación para crear Factura o Boleta desde documento anulado
+export const CREATE_ISSUED_DOCUMENT_FROM_ANNULLED = gql`
+  mutation CreateIssuedDocumentFromAnnulled(
+    $parentIssuedDocumentId: ID!
+    $branchId: ID!
+    $documentId: ID!
+    $serial: String!
+    $personId: ID
+    $userId: ID!
+    $emissionDate: Date!
+    $emissionTime: Time!
+    $currency: String!
+    $exchangeRate: Float!
+    $itemsTotalDiscount: Float!
+    $globalDiscount: Float!
+    $globalDiscountPercent: Float!
+    $totalDiscount: Float!
+    $igvPercent: Float!
+    $igvAmount: Float!
+    $totalTaxable: Float!
+    $totalUnaffected: Float!
+    $totalExempt: Float!
+    $totalFree: Float!
+    $totalAmount: Float!
+    $items: [IssuedDocumentItemInput!]!
+    $notes: String
+    $deviceId: String
+    $printerId: ID
+  ) {
+    createIssuedDocumentFromAnnulled(
+      parentIssuedDocumentId: $parentIssuedDocumentId
+      branchId: $branchId
+      documentId: $documentId
+      serial: $serial
+      personId: $personId
+      userId: $userId
+      emissionDate: $emissionDate
+      emissionTime: $emissionTime
+      currency: $currency
+      exchangeRate: $exchangeRate
+      itemsTotalDiscount: $itemsTotalDiscount
+      globalDiscount: $globalDiscount
+      globalDiscountPercent: $globalDiscountPercent
+      totalDiscount: $totalDiscount
+      igvPercent: $igvPercent
+      igvAmount: $igvAmount
+      totalTaxable: $totalTaxable
+      totalUnaffected: $totalUnaffected
+      totalExempt: $totalExempt
+      totalFree: $totalFree
+      totalAmount: $totalAmount
+      items: $items
+      notes: $notes
+      deviceId: $deviceId
+      printerId: $printerId
+    ) {
+      success
+      message
+      issuedDocument {
+        id
+        serial
+        number
+        billingStatus
+      }
+    }
+  }
+`;
+
+// Mutación para reimprimir cierre de caja
+export const REPRINT_CLOSURE = gql`
+  mutation ReprintClosure($closureId: ID!, $deviceId: String!) {
+    reprintClosure(closureId: $closureId, deviceId: $deviceId) {
+      success
+      message
     }
   }
 `;

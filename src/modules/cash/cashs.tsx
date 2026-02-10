@@ -9,7 +9,7 @@ import {
   GET_CASH_CLOSURE_PREVIEW,
   GET_CASH_CLOSURES
 } from '../../graphql/queries';
-import { CLOSE_CASH } from '../../graphql/mutations';
+import { CLOSE_CASH, REPRINT_CLOSURE } from '../../graphql/mutations';
 import ManualTransactionModal from './manualTransactionModal';
 
 interface CashRegister {
@@ -210,16 +210,19 @@ const Cashs: React.FC = () => {
     }
   );
 
+  // Mutación para reimprimir cierre
+  const [reprintClosure] = useMutation(REPRINT_CLOSURE);
+
   // Mutación para cerrar caja
   const [closeCashMutation, { loading: closingCash }] = useMutation(CLOSE_CASH, {
-    onCompleted: (data) => {
+    onCompleted: async (data) => {
       if (data?.closeCash?.success) {
         const summary = data.closeCash.summary;
         const closure = data.closeCash.closure;
-        
+
         // Mostrar mensaje de éxito con información del cierre
         const message = data.closeCash.message || 'Caja cerrada exitosamente';
-        
+
         // Construir mensaje detallado
         let detailMessage = message;
         if (closure) {
@@ -227,9 +230,27 @@ const Cashs: React.FC = () => {
           detailMessage += `\n• Total Ingresos: ${currencyFormatter.format(closure.totalIncome)}`;
           detailMessage += `\n• Total Egresos: ${currencyFormatter.format(closure.totalExpense)}`;
           detailMessage += `\n• Neto Total: ${currencyFormatter.format(closure.netTotal)}`;
+
+          // Imprimir automáticamente
+          try {
+            const mac = await getMacAddress();
+            const resolvedDeviceId = mac || deviceId;
+
+            if (resolvedDeviceId) {
+              await reprintClosure({
+                variables: {
+                  closureId: closure.id,
+                  deviceId: resolvedDeviceId
+                }
+              });
+              console.log('✅ Orden de impresión enviada');
+            }
+          } catch (printError) {
+            console.error('❌ Error al enviar impresión:', printError);
+          }
         }
         console.log(detailMessage);
-        
+
         // Si hay summary, mostrar información adicional en consola
         if (summary) {
           try {
@@ -239,12 +260,12 @@ const Cashs: React.FC = () => {
             console.log('📊 Resumen del cierre:', summary);
           }
         }
-        
+
         // Limpiar estado y refrescar datos
         setShowPreview(false);
         setSelectedCashRegister('');
         setSelectedUserId(null);
-        
+
         // Refrescar todas las queries relacionadas
         refetchCashRegisters();
         refetchPaymentSummary();
@@ -334,7 +355,7 @@ const Cashs: React.FC = () => {
 
   const handleConfirmCloseCash = async () => {
     setShowConfirmModal(false);
-    
+
     if (!selectedCashRegister || !branchId || !user?.id) {
       return;
     }
@@ -342,7 +363,7 @@ const Cashs: React.FC = () => {
     try {
       // Obtener deviceId o MAC address
       const resolvedDeviceId = deviceId || await getMacAddress();
-      
+
       if (!resolvedDeviceId) {
         alert('❌ No se pudo obtener el ID del dispositivo. Por favor, intenta nuevamente.');
         return;
@@ -844,17 +865,16 @@ const Cashs: React.FC = () => {
                         marginBottom: '0.5rem',
                         backgroundColor:
                           warning.type === 'ERROR' ? '#fef2f2' :
-                          warning.type === 'WARNING' ? '#fffbeb' :
-                          '#f0f9ff',
-                        border: `1px solid ${
-                          warning.type === 'ERROR' ? '#fecaca' :
+                            warning.type === 'WARNING' ? '#fffbeb' :
+                              '#f0f9ff',
+                        border: `1px solid ${warning.type === 'ERROR' ? '#fecaca' :
                           warning.type === 'WARNING' ? '#fde68a' :
-                          '#bae6fd'
-                        }`,
+                            '#bae6fd'
+                          }`,
                         color:
                           warning.type === 'ERROR' ? '#991b1b' :
-                          warning.type === 'WARNING' ? '#92400e' :
-                          '#1e40af'
+                            warning.type === 'WARNING' ? '#92400e' :
+                              '#1e40af'
                       }}
                     >
                       <strong>{warning.type === 'ERROR' ? '❌' : warning.type === 'WARNING' ? '⚠️' : 'ℹ️'}</strong> {warning.message}
@@ -1233,7 +1253,7 @@ const Cashs: React.FC = () => {
               <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                   <thead>
-                    <tr style={{ 
+                    <tr style={{
                       borderBottom: '2px solid #e2e8f0',
                       backgroundColor: '#f8fafc'
                     }}>
@@ -1250,9 +1270,9 @@ const Cashs: React.FC = () => {
                     {closures.map((closure, index) => {
                       const cashTypeColors = getCashTypeColor(closure.cashRegister.cashType);
                       return (
-                        <tr 
-                          key={closure.id} 
-                          style={{ 
+                        <tr
+                          key={closure.id}
+                          style={{
                             borderBottom: index < closures.length - 1 ? '1px solid #f1f5f9' : 'none',
                             transition: 'background-color 0.2s',
                             cursor: 'pointer'

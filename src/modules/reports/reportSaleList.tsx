@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useMutation } from '@apollo/client';
-import { CANCEL_ISSUED_DOCUMENT } from '../../graphql/mutations';
+import { CANCEL_ISSUED_DOCUMENT, REPRINT_DOCUMENT } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
-
+import ConvertDocumentModal from './convertDocumentModal';
 interface IssuedDocument {
   id: string;
   serial: string;
@@ -95,7 +95,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   isMedium: propIsMedium,
   onRefetch
 }) => {
-  const { user } = useAuth();
+  const { user, deviceId, getMacAddress, getDeviceId } = useAuth();
   const { breakpoint } = useResponsive();
 
   const isSmall = propIsSmall ?? breakpoint === 'sm';
@@ -110,11 +110,53 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   const [cancellationDescription, setCancellationDescription] = useState<string>('');
   const [cancelMessage, setCancelMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [localDocuments, setLocalDocuments] = useState<IssuedDocument[]>(documents);
+  const [printMessage, setPrintMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [printingDocId, setPrintingDocId] = useState<string | null>(null);
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [documentToConvert, setDocumentToConvert] = useState<IssuedDocument | null>(null);
 
   // Actualizar documentos locales cuando cambien los props
   React.useEffect(() => {
     setLocalDocuments(documents);
   }, [documents]);
+
+  // Reimpresión: Precuenta, Cuenta, Boleta, Factura. Nota de venta (80) = Cuenta. No hay reimpresión para Nota de crédito.
+  const getReprintDocumentType = (code: string, description: string): string => {
+    const map: Record<string, string> = {
+      '01': 'FACTURA',
+      '03': 'BOLETA',
+      '80': 'CUENTA', // Nota de venta se reimprime como Cuenta
+    };
+    return map[code] || description || code;
+  };
+
+  const [reprintDocument, { loading: reprinting }] = useMutation(REPRINT_DOCUMENT, {
+    onCompleted: (data) => {
+      const result = data?.reprintDocument;
+      console.log('[ReprintDocument] Respuesta completa:', data);
+      console.log('[ReprintDocument] success:', result?.success, '| message:', result?.message);
+      if (result?.success) {
+        setPrintMessage({ type: 'success', text: result.message });
+      } else {
+        setPrintMessage({ type: 'error', text: result?.message || 'Error al imprimir' });
+      }
+      setPrintingDocId(null);
+      setTimeout(() => setPrintMessage(null), 4000);
+    },
+    onError: (err) => {
+      console.error('[ReprintDocument] Error:', err);
+      console.error('[ReprintDocument] graphQLErrors:', err.graphQLErrors);
+      console.error('[ReprintDocument] networkError:', (err as any).networkError);
+      console.error('[ReprintDocument] message:', err.message);
+      const msg =
+        err.graphQLErrors?.[0]?.message ||
+        (err as any).networkError?.result?.errors?.[0]?.message ||
+        err.message;
+      setPrintMessage({ type: 'error', text: msg || 'Error al enviar a la impresora' });
+      setPrintingDocId(null);
+      setTimeout(() => setPrintMessage(null), 4000);
+    },
+  });
 
   // Mutación para cancelar documento
   const [cancelDocument, { loading: canceling }] = useMutation(CANCEL_ISSUED_DOCUMENT, {
@@ -122,17 +164,17 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
       if (data.cancelIssuedDocument.success) {
         // Actualizar el documento local con el nuevo estado
         if (selectedDocument) {
-          setLocalDocuments(prevDocs => 
-            prevDocs.map(doc => 
+          setLocalDocuments(prevDocs =>
+            prevDocs.map(doc =>
               doc.id === selectedDocument.id
                 ? { ...doc, billingStatus: data.cancelIssuedDocument.issuedDocument.billingStatus }
                 : doc
             )
           );
         }
-        
+
         setCancelMessage({ type: 'success', text: data.cancelIssuedDocument.message });
-        
+
         // Cerrar el modal después de 2 segundos
         setTimeout(() => {
           setShowCancelModal(false);
@@ -140,7 +182,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
           setCancellationDescription('');
           setSelectedDocument(null);
           setCancelMessage(null);
-          
+
           // Si hay callback de refetch, llamarlo para actualizar los datos
           if (onRefetch) {
             onRefetch();
@@ -254,6 +296,42 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     setShowCancelModal(true);
   };
 
+  const handleReprint = async (doc: IssuedDocument, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPrintMessage(null);
+
+    console.log('[ReprintDocument] Click impresora — documento:', {
+      id: doc.id,
+      code: doc.document.code,
+      description: doc.document.description,
+      operationId: doc.operation?.id ?? null,
+    });
+
+    // device_id debe ser la MAC del dispositivo (backend usa DevicePrintConfig por MAC o impresora de caja)
+    const mac = await getMacAddress();
+    const resolvedDeviceId = mac || deviceId || getDeviceId();
+    if (!resolvedDeviceId) {
+      setPrintMessage({ type: 'error', text: 'No se pudo obtener la MAC del dispositivo. No se puede imprimir.' });
+      setTimeout(() => setPrintMessage(null), 4000);
+      return;
+    }
+    console.log('[ReprintDocument] device_id (MAC) enviado:', resolvedDeviceId);
+
+    const documentTypeForBackend = getReprintDocumentType(doc.document.code, doc.document.description);
+    console.log('[ReprintDocument] document_type para backend:', documentTypeForBackend, '(código:', doc.document.code, ')');
+
+    const variables = {
+      operationId: doc.operation?.id || null,
+      issuedDocumentId: doc.id,
+      documentType: documentTypeForBackend,
+      deviceId: resolvedDeviceId,
+    };
+    console.log('[ReprintDocument] Enviando a GraphQL variables:', variables);
+
+    setPrintingDocId(doc.id);
+    reprintDocument({ variables });
+  };
+
   const handleCancelDocument = () => {
     if (!selectedDocument || !cancellationReason || !user?.id) {
       setCancelMessage({ type: 'error', text: 'Por favor completa todos los campos requeridos' });
@@ -275,22 +353,22 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   const filteredDocuments = localDocuments.filter(doc => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
-    
+
     // Buscar en campos básicos del documento
-    const basicMatch = 
+    const basicMatch =
       doc.serial.toLowerCase().includes(search) ||
       doc.number.toLowerCase().includes(search) ||
       doc.document.description.toLowerCase().includes(search) ||
       (doc.person?.name.toLowerCase().includes(search) || false) ||
       (doc.person?.documentNumber.toLowerCase().includes(search) || false) ||
       doc.user.fullName.toLowerCase().includes(search);
-    
+
     // Buscar en productos de los items
-    const productMatch = doc.items.some(item => 
+    const productMatch = doc.items.some(item =>
       item.operationDetail?.product?.code.toLowerCase().includes(search) ||
       item.operationDetail?.product?.name.toLowerCase().includes(search)
     );
-    
+
     return basicMatch || productMatch;
   });
 
@@ -355,28 +433,34 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   }
 
   return (
-    <div
-      style={{
-        background: 'white',
-        borderRadius: '12px',
-        padding: cardPadding,
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-      }}
-    >
-      {/* Lista de documentos */}
+    <div style={{ padding: '0 0 1rem 0' }}>
+      {/* Mensaje de impresión */}
+      {printMessage && (
+        <div
+          style={{
+            padding: '0.625rem 1rem',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            background: printMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
+            border: `1px solid ${printMessage.type === 'success' ? '#86efac' : '#fca5a5'}`,
+            color: printMessage.type === 'success' ? '#166534' : '#991b1b',
+            fontSize: tableFontSize,
+          }}
+        >
+          {printMessage.text}
+        </div>
+      )}
+      {/* Lista de documentos (el scroll está en el card del padre) */}
       <div style={{
         display: 'flex',
         flexDirection: 'column',
         gap: '1rem',
-        maxHeight: '55vh',
-        overflowY: 'auto',
-        overflowX: 'hidden',
         minHeight: '200px'
       }}>
         {filteredDocuments.map((doc) => {
           const isExpanded = expandedDocument === doc.id;
           const paymentMethodsMap = new Map<string, number>();
-          
+
           doc.payments.forEach(payment => {
             const current = paymentMethodsMap.get(payment.paymentMethod) || 0;
             paymentMethodsMap.set(payment.paymentMethod, current + payment.paidAmount);
@@ -408,13 +492,14 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                   padding: tableCellPadding,
                   background: isExpanded ? '#f8fafc' : 'white',
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
                   flexWrap: 'wrap',
-                  gap: '1rem'
+                  alignItems: 'flex-start',
+                  gap: '1rem',
+                  minWidth: 0
                 }}
               >
-                <div style={{ flex: 1, minWidth: '200px' }}>
+                {/* Bloque izquierdo: tipo, número, estado, fecha y datos */}
+                <div style={{ flex: '1 1 0', minWidth: 0, maxWidth: '100%' }}>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                     <span
                       style={{
@@ -460,66 +545,151 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                   </div>
                 </div>
 
-                <div style={{ textAlign: 'right', minWidth: isSmallDesktop ? '120px' : '150px' }}>
-                  <div style={{
-                    fontSize: isSmallDesktop ? '1rem' : isMediumDesktop ? '1.125rem' : '1.25rem',
-                    fontWeight: 700,
-                    color: '#1e293b',
-                    marginBottom: '0.5rem'
-                  }}>
-                    {currencyFormatter.format(doc.totalAmount)}
+                {/* Bloque derecho: monto, métodos de pago y acciones (siempre visible, no se corta) */}
+                <div
+                  style={{
+                    flex: '0 0 auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    flexWrap: 'wrap',
+                    minWidth: 0
+                  }}
+                >
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{
+                      fontSize: isSmallDesktop ? '1rem' : isMediumDesktop ? '1.125rem' : '1.25rem',
+                      fontWeight: 700,
+                      color: '#1e293b',
+                      marginBottom: '0.25rem'
+                    }}>
+                      {currencyFormatter.format(doc.totalAmount)}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      {Array.from(paymentMethodsMap.entries()).map(([method, amount]) => {
+                        const color = getPaymentMethodColor(method);
+                        return (
+                          <span
+                            key={method}
+                            style={{
+                              fontSize: badgeFontSize,
+                              padding: '0.125rem 0.5rem',
+                              borderRadius: '4px',
+                              background: color.bg,
+                              color: color.text,
+                              fontWeight: 500
+                            }}
+                          >
+                            {getPaymentMethodName(method)}: {currencyFormatter.format(amount)}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    {Array.from(paymentMethodsMap.entries()).map(([method, amount]) => {
-                      const color = getPaymentMethodColor(method);
-                      return (
-                        <span
-                          key={method}
-                          style={{
-                            fontSize: badgeFontSize,
-                            padding: '0.125rem 0.5rem',
-                            borderRadius: '4px',
-                            background: color.bg,
-                            color: color.text,
-                            fontWeight: 500
-                          }}
-                        >
-                          {getPaymentMethodName(method)}: {currencyFormatter.format(amount)}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {canCancelDocument(doc.billingStatus) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
                     <button
-                      onClick={(e) => handleOpenCancelModal(doc, e)}
+                      onClick={(e) => handleReprint(doc, e)}
+                      disabled={reprinting && printingDocId === doc.id}
+                      title="Reimprimir documento"
                       style={{
-                        padding: '0.5rem 1rem',
+                        padding: '0.625rem 0.75rem',
                         fontSize: badgeFontSize,
-                        fontWeight: 600,
-                        color: 'white',
-                        background: '#ef4444',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
+                        background: printingDocId === doc.id ? '#e2e8f0' : '#f1f5f9',
+                        color: printingDocId === doc.id ? '#94a3b8' : '#475569',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        cursor: reprinting && printingDocId === doc.id ? 'not-allowed' : 'pointer',
                         transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: '40px',
+                        minHeight: '40px',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#dc2626';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        if (!(reprinting && printingDocId === doc.id)) {
+                          e.currentTarget.style.background = '#e2e8f0';
+                          e.currentTarget.style.borderColor = '#667eea';
+                          e.currentTarget.style.color = '#667eea';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.background = '#ef4444';
-                        e.currentTarget.style.transform = 'translateY(0)';
+                        if (printingDocId !== doc.id) {
+                          e.currentTarget.style.background = '#f1f5f9';
+                          e.currentTarget.style.borderColor = '#e2e8f0';
+                          e.currentTarget.style.color = '#475569';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }
                       }}
                     >
-                      Cancelar
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="6 9 6 2 18 2 18 9" />
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                      </svg>
                     </button>
-                  )}
-                  <div style={{ fontSize: '1.25rem', color: '#64748b' }}>
-                    {isExpanded ? '▼' : '▶'}
+                    {canCancelDocument(doc.billingStatus) && (
+                      <button
+                        onClick={(e) => handleOpenCancelModal(doc, e)}
+                        style={{
+                          padding: '0.625rem 1.25rem',
+                          fontSize: '0.8125rem',
+                          fontWeight: 600,
+                          color: 'white',
+                          background: '#ef4444',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          minHeight: '40px',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#dc2626';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = '#ef4444';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                    {doc.billingStatus === 'CANCELLED' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDocumentToConvert(doc);
+                          setShowConvertModal(true);
+                        }}
+                        style={{
+                          padding: '0.625rem 1rem',
+                          fontSize: '0.8125rem',
+                          fontWeight: 600,
+                          color: 'white',
+                          background: '#8b5cf6', // Violeta
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          minHeight: '40px',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#7c3aed';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = '#8b5cf6';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                        title="Convertir a otro documento"
+                      >
+                        Convertir
+                      </button>
+                    )}
+                    <div style={{ fontSize: '1.375rem', color: '#64748b', marginLeft: '0.25rem' }} aria-hidden="true">
+                      {isExpanded ? '▼' : '▶'}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -969,6 +1139,21 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Conversión */}
+      {showConvertModal && documentToConvert && (
+        <ConvertDocumentModal
+          isOpen={showConvertModal}
+          onClose={() => {
+            setShowConvertModal(false);
+            setDocumentToConvert(null);
+          }}
+          annulledDocument={documentToConvert}
+          onSuccess={() => {
+            if (onRefetch) onRefetch();
+          }}
+        />
       )}
     </div>
   );

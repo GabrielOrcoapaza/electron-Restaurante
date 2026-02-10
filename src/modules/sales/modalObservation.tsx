@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useResponsive } from '../../hooks/useResponsive';
+import VirtualKeyboard from '../../components/VirtualKeyboard';
 
 type Observation = {
 	id: string;
@@ -37,24 +38,32 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 
 	// Función para obtener el texto completo de las notas (observaciones seleccionadas + notas manuales)
 	const getFullNotesText = (selectedIds: Set<string>, manual: string): string => {
-		// Obtener las observaciones seleccionadas
 		const selectedObservationNotes = Array.from(selectedIds)
 			.map(id => {
 				const obs = observations.find(o => o.id === id);
 				return obs?.note || '';
 			})
 			.filter(note => note !== '');
-
-		// Combinar observaciones seleccionadas y notas manuales
 		const parts: string[] = [];
 		if (selectedObservationNotes.length > 0) {
 			parts.push(...selectedObservationNotes);
 		}
-		if (manual.trim()) {
-			parts.push(manual.trim());
+		// Mostrar manualNotes tal cual (sin trim) para que se vean espacios al escribir
+		if (manual != null && manual !== '') {
+			parts.push(manual);
 		}
-		
 		return parts.join(', ');
+	};
+
+	// El teclado virtual solo edita la parte de notas manuales, así se conservan comas y cualquier carácter
+	const handleVirtualKeyPress = (key: string) => {
+		if (!canEdit) return;
+		setManualNotes(prev => prev + key);
+	};
+
+	const handleVirtualBackspace = () => {
+		if (!canEdit) return;
+		setManualNotes(prev => prev.slice(0, -1));
 	};
 
 	// Sincronizar las selecciones locales y notas manuales con las props cuando cambian
@@ -200,127 +209,122 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 					</div>
 				)}
 
-				{observations.length === 0 ? (
+				{/* Lista de observaciones guardadas (solo si existen) */}
+				{observations.length > 0 && (
 					<div style={{
-						padding: '2rem',
-						textAlign: 'center',
-						color: '#718096'
+						display: 'flex',
+						flexDirection: 'row',
+						flexWrap: 'wrap',
+						gap: '0.75rem',
+						marginBottom: '1.5rem'
 					}}>
-						<p style={{ margin: 0, fontSize: isSmall ? '0.875rem' : '1rem' }}>
-							No hay observaciones disponibles para este producto.
-						</p>
-					</div>
-				) : (
-					<>
-						<div style={{
-							display: 'flex',
-							flexDirection: 'row',
-							flexWrap: 'wrap',
-							gap: '0.75rem',
-							marginBottom: '1.5rem'
-						}}>
-							{observations.map((observation) => {
-								const isSelected = localSelected.has(observation.id);
-								return (
-									<button
-										key={observation.id}
-										type="button"
-										onClick={() => handleToggle(observation.id)}
-										disabled={!canEdit}
-										style={{
-											fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem',
-											color: isSelected ? '#0369a1' : '#0c4a6e',
-											padding: '0.5rem 1rem',
-											background: isSelected ? '#dbeafe' : 'white',
-											borderRadius: '999px',
-											border: isSelected ? '2px solid #3b82f6' : '1px solid #e0f2fe',
-											cursor: canEdit ? 'pointer' : 'not-allowed',
-											textAlign: 'center',
-											display: 'inline-flex',
-											alignItems: 'center',
-											gap: '0.5rem',
-											transition: 'all 0.2s ease',
-											opacity: canEdit ? 1 : 0.6,
-											whiteSpace: 'nowrap',
-											fontWeight: isSelected ? 600 : 400
-										}}
-										onMouseEnter={(e) => {
-											if (canEdit) {
-												e.currentTarget.style.background = isSelected ? '#bfdbfe' : '#f0f9ff';
-												e.currentTarget.style.transform = 'scale(1.05)';
-											}
-										}}
-										onMouseLeave={(e) => {
-											if (canEdit) {
-												e.currentTarget.style.background = isSelected ? '#dbeafe' : 'white';
-												e.currentTarget.style.transform = 'scale(1)';
-											}
-										}}
-									>
-										<span style={{
-											fontSize: isSmall ? '1rem' : '1.125rem',
-											fontWeight: 700
-										}}>
-											{isSelected ? '✓' : '○'}
-										</span>
-										<span>{observation.note}</span>
-									</button>
-								);
-							})}
-						</div>
-
-						{/* Campo de notas adicionales - muestra observaciones seleccionadas + notas manuales */}
-						<div style={{
-							marginBottom: '1.5rem'
-						}}>
-							<label style={{
-								display: 'block',
-								fontSize: isSmall ? '0.875rem' : '0.9375rem',
-								fontWeight: 600,
-								color: '#1e293b',
-								marginBottom: '0.5rem'
-							}}>
-								📝 Notas adicionales:
-							</label>
-							<textarea
-								value={getFullNotesText(localSelected, manualNotes)}
-								onChange={(e) => {
-									// Cuando el usuario edita manualmente, extraer las observaciones y las notas manuales
-									const newValue = e.target.value;
-									const newNotesArray = newValue.split(',').map(n => n.trim()).filter(n => n !== '');
-									
-									// Separar observaciones y notas manuales
-									const foundObservationIds = new Set<string>();
-									const manualNotesArray: string[] = [];
-									
-									newNotesArray.forEach(note => {
-										const observation = observations.find(obs => obs.note === note);
-										if (observation) {
-											foundObservationIds.add(observation.id);
-										} else {
-											manualNotesArray.push(note);
+						{observations.map((observation) => {
+							const isSelected = localSelected.has(observation.id);
+							return (
+								<button
+									key={observation.id}
+									type="button"
+									onClick={() => handleToggle(observation.id)}
+									disabled={!canEdit}
+									style={{
+										fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem',
+										color: isSelected ? '#0369a1' : '#0c4a6e',
+										padding: '0.5rem 1rem',
+										background: isSelected ? '#dbeafe' : 'white',
+										borderRadius: '999px',
+										border: isSelected ? '2px solid #3b82f6' : '1px solid #e0f2fe',
+										cursor: canEdit ? 'pointer' : 'not-allowed',
+										textAlign: 'center',
+										display: 'inline-flex',
+										alignItems: 'center',
+										gap: '0.5rem',
+										transition: 'all 0.2s ease',
+										opacity: canEdit ? 1 : 0.6,
+										whiteSpace: 'nowrap',
+										fontWeight: isSelected ? 600 : 400
+									}}
+									onMouseEnter={(e) => {
+										if (canEdit) {
+											e.currentTarget.style.background = isSelected ? '#bfdbfe' : '#f0f9ff';
+											e.currentTarget.style.transform = 'scale(1.05)';
 										}
-									});
-									
-									setLocalSelected(foundObservationIds);
-									setManualNotes(manualNotesArray.join(', '));
-								}}
-								disabled={!canEdit}
-								placeholder="Las observaciones seleccionadas aparecerán aquí automáticamente. Puedes agregar notas adicionales..."
-								style={{
-									width: '100%',
-									minHeight: '80px',
-									borderRadius: '8px',
-									border: '1px solid #cbd5e0',
-									padding: '0.75rem',
-									fontSize: isSmall ? '0.875rem' : '0.9375rem',
-									resize: 'vertical',
-									background: canEdit ? 'white' : '#f1f5f9',
-									color: canEdit ? '#1a202c' : '#64748b',
-									fontFamily: 'inherit',
-									lineHeight: '1.5'
-								}}
-							/>
+									}}
+									onMouseLeave={(e) => {
+										if (canEdit) {
+											e.currentTarget.style.background = isSelected ? '#dbeafe' : 'white';
+											e.currentTarget.style.transform = 'scale(1)';
+										}
+									}}
+								>
+									<span style={{
+										fontSize: isSmall ? '1rem' : '1.125rem',
+										fontWeight: 700
+									}}>
+										{isSelected ? '✓' : '○'}
+									</span>
+									<span>{observation.note}</span>
+								</button>
+							);
+						})}
+					</div>
+				)}
+
+				{/* Campo para escribir observaciones - siempre visible (con o sin observaciones guardadas) */}
+				<div style={{
+					marginBottom: '1.5rem'
+				}}>
+					<label style={{
+						display: 'block',
+						fontSize: isSmall ? '0.875rem' : '0.9375rem',
+						fontWeight: 600,
+						color: '#1e293b',
+						marginBottom: '0.5rem'
+					}}>
+						{observations.length > 0 ? '📝 Notas adicionales:' : '📝 Escribe la observación al plato:'}
+					</label>
+					<textarea
+						value={getFullNotesText(localSelected, manualNotes)}
+						onChange={(e) => {
+							const newValue = e.target.value;
+							// Separar por ", " (coma+espacio) como en getFullNotesText; así las comas sueltas se conservan
+							const segments = newValue.split(', ');
+							const foundObservationIds = new Set<string>();
+							const manualNotesArray: string[] = [];
+							segments.forEach(segment => {
+								const trimmed = segment.trim();
+								if (trimmed === '') {
+									// Incluir también segmentos vacíos para no perder la ", " (ej: "algo," + espacio)
+									manualNotesArray.push(segment);
+									return;
+								}
+								const observation = observations.find(obs => obs.note === trimmed);
+								if (observation) {
+									foundObservationIds.add(observation.id);
+								} else {
+									manualNotesArray.push(segment);
+								}
+							});
+							setLocalSelected(foundObservationIds);
+							setManualNotes(manualNotesArray.join(', '));
+						}}
+						disabled={!canEdit}
+						placeholder={observations.length > 0
+							? 'Las observaciones seleccionadas aparecerán aquí. Puedes agregar notas adicionales...'
+							: 'Ej: Sin cebolla, bien cocido, sin sal...'}
+						style={{
+							width: '100%',
+							minHeight: '80px',
+							borderRadius: '8px',
+							border: '1px solid #cbd5e0',
+							padding: '0.75rem',
+							fontSize: isSmall ? '0.875rem' : '0.9375rem',
+							resize: 'vertical',
+							background: canEdit ? 'white' : '#f1f5f9',
+							color: canEdit ? '#1a202c' : '#64748b',
+							fontFamily: 'inherit',
+							lineHeight: '1.5'
+						}}
+					/>
 							{!canEdit && (
 								<p style={{
 									fontSize: '0.75rem',
@@ -332,6 +336,18 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 								</p>
 							)}
 						</div>
+
+						{/* Teclado virtual */}
+						{canEdit && (
+							<div style={{ marginTop: '1rem' }}>
+								<VirtualKeyboard
+									onKeyPress={handleVirtualKeyPress}
+									onBackspace={handleVirtualBackspace}
+									disabled={!canEdit}
+									compact={isSmall || isMedium}
+								/>
+							</div>
+						)}
 
 						{/* Botones de acción */}
 						<div style={{
@@ -396,8 +412,6 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 								Aplicar
 							</button>
 						</div>
-					</>
-				)}
 			</div>
 		</div>
 	);

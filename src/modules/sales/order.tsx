@@ -37,6 +37,9 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const { showToast } = useToast();
 	const isExistingOrder = Boolean(table?.currentOperationId) || table?.status === 'OCCUPIED' || table?.status === 'TO_PAY';
 
+	// IGV de la sucursal (float). Por defecto 10.5% para sedes.
+	const igvPercentageFromBranch = Number(companyData?.branch?.igvPercentage) || 10.5;
+
 	// Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
 	const isSmall = breakpoint === 'sm'; // 640px - 767px
 	const isMedium = breakpoint === 'md'; // 768px - 1023px
@@ -89,9 +92,9 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [table.id, table.currentOperationId, table.occupiedById, user?.id, companyData?.branch?.isMultiWaiterEnabled]);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+	const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
 	const [searchTerm, setSearchTerm] = useState<string>('');
 	const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-	const [quantity, setQuantity] = useState<string>('1');
 	const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 	const [initializedFromExistingOrder, setInitializedFromExistingOrder] = useState(false);
 	const [productObservations, setProductObservations] = useState<Record<string, any[]>>({});
@@ -195,7 +198,16 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 		productsLoading = productsByBranchLoading;
 	}
 
-	const productsList = products || [];
+	let productsList = products || [];
+	// Filtrar por subcategoría cuando hay categoría y subcategoría seleccionadas
+	if (selectedCategory && selectedSubcategory && productsList.length > 0) {
+		productsList = productsList.filter((p: any) => String(p.subcategoryId) === String(selectedSubcategory));
+	}
+
+	// Subcategorías de la categoría seleccionada (solo activas)
+	const subcategoriesOfCategory = selectedCategory
+		? (categories.find((c: any) => c.id === selectedCategory)?.subcategories?.filter((s: any) => s.isActive) || [])
+		: [];
 
 	useEffect(() => {
 		// Solo resetear si realmente es una mesa diferente
@@ -319,7 +331,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			return;
 		}
 
-		const qty = qtyToAdd || parseInt(quantity) || 1;
+		const qty = qtyToAdd ?? 1;
 		const newItem: OrderItem = {
 			id: `${product.id}-${Date.now()}`,
 			productId: product.id,
@@ -377,10 +389,10 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			}
 		}
 
-		// Limpiar selección solo si fue agregado desde el botón
+		// Limpiar búsqueda y selección al agregar producto
+		setSearchTerm('');
 		if (!productIdToAdd) {
 			setSelectedProduct(null);
-			setQuantity('1');
 		}
 	};
 
@@ -631,7 +643,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 
 				const igvPercentageValue = typeof existingOperation?.igvPercentage === 'number'
 					? existingOperation.igvPercentage
-					: 10;
+					: igvPercentageFromBranch;
 				const igvRate = igvPercentageValue > 0 ? igvPercentageValue / 100 : 0;
 
 				const details = itemsToProcess.map(item => {
@@ -705,7 +717,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				}
 				const unitPrice = parseFloat((Math.round(rawPrice * 100) / 100).toFixed(2));
 
-				const unitValue = parseFloat((Math.round((unitPrice / 1.1) * 100) / 100).toFixed(2));
+				const igvRateNew = igvPercentageFromBranch / 100;
+				const unitValue = parseFloat((Math.round((unitPrice / (1 + igvRateNew)) * 100) / 100).toFixed(2));
 
 				const rawQuantity = typeof item.quantity === 'number' ? item.quantity : parseInt(String(item.quantity), 10);
 				const quantity = (isNaN(rawQuantity) || rawQuantity <= 0) ? 1 : parseInt(String(rawQuantity), 10);
@@ -738,8 +751,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				return sum + (isNaN(itemTotal) ? 0 : itemTotal);
 			}, 0);
 
-			const igvPercentageDecimal = 0.10;
-			const igvPercentage = 10;
+			const igvPercentageDecimal = igvPercentageFromBranch / 100;
 			const grossAmount = typeof itemsTotal === 'number' && !isNaN(itemsTotal) ? itemsTotal : 0;
 			const calculatedSubtotal = parseFloat((Math.round((grossAmount / (1 + igvPercentageDecimal)) * 100) / 100).toFixed(2));
 			const calculatedIgvAmount = parseFloat((Math.round((grossAmount - calculatedSubtotal) * 100) / 100).toFixed(2));
@@ -762,7 +774,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				details: details,
 				subtotal: calculatedSubtotal,
 				igvAmount: calculatedIgvAmount,
-				igvPercentage: igvPercentage,
+				igvPercentage: igvPercentageFromBranch,
 				total: validTotal,
 				operationDate: new Date().toISOString()
 			};
@@ -798,7 +810,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				const value = variables[key];
 				const numericRequiredFields = ['subtotal', 'igvAmount', 'igvPercentage', 'total'];
 				if (numericRequiredFields.includes(key)) {
-					const defaultValue = key === 'igvPercentage' ? 10 : 0;
+					const defaultValue = key === 'igvPercentage' ? 10.5 : 0;
 					const numValue = (value === null || value === undefined || isNaN(value)) ? defaultValue : Number(value);
 					cleanVariables[key] = numValue;
 				} else {
@@ -1156,60 +1168,25 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							padding: isSmall ? '0.5rem 0.625rem' : isMedium ? '0.625rem 0.75rem' : '0.85rem 0.9rem',
 							flexShrink: 0
 						}}>
-							<div style={{
-								display: 'grid',
-								gridTemplateColumns: isSmall || isMedium ? '1fr' : '1fr 180px',
-								gap: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem'
-							}}>
-								<div style={{ position: 'relative' }}>
-									<span style={{ position: 'absolute', left: 10, top: 10, opacity: 0.6 }}>🔎</span>
-									<input
-										type="text"
-										placeholder="Buscar producto o escanear código"
-										value={searchTerm}
-										onChange={(e) => setSearchTerm(e.target.value)}
-										style={{
-											width: '100%', padding: '0.65rem 0.85rem 0.65rem 2rem',
-											border: '1px solid #e2e8f0', borderRadius: 10
-										}}
-									/>
-								</div>
-								<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-									<input
-										type="number"
-										placeholder="Cant."
-										value={quantity}
-										onChange={(e) => setQuantity(e.target.value)}
-										onKeyDown={(e) => {
-											if (e.key === 'Enter' && selectedProduct) {
-												handleAddProduct();
-											}
-										}}
-										min="1"
-										style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #e2e8f0', borderRadius: 10, padding: '0.65rem 0.75rem' }}
-									/>
-									<button
-										onClick={() => handleAddProduct()}
-										disabled={!selectedProduct}
-										style={{
-											background: selectedProduct ? '#667eea' : '#cbd5e0',
-											color: 'white',
-											border: 'none',
-											borderRadius: 10,
-											fontWeight: 700,
-											cursor: selectedProduct ? 'pointer' : 'not-allowed',
-											opacity: selectedProduct ? 1 : 0.6
-										}}
-									>
-										Agregar
-									</button>
-								</div>
+							<div style={{ position: 'relative' }}>
+								<span style={{ position: 'absolute', left: 10, top: 10, opacity: 0.6 }}>🔎</span>
+								<input
+									type="text"
+									placeholder="Buscar producto o escanear código"
+									value={searchTerm}
+									onChange={(e) => setSearchTerm(e.target.value)}
+									style={{
+										width: '100%', padding: '0.65rem 0.85rem 0.65rem 2rem',
+										border: '1px solid #e2e8f0', borderRadius: 10
+									}}
+								/>
 							</div>
 							<div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
 								{/* Opción "Todos" */}
 								<span
 									onClick={() => {
 										setSelectedCategory(null);
+										setSelectedSubcategory(null);
 										setSearchTerm('');
 									}}
 									key="todos"
@@ -1238,6 +1215,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 											key={category.id}
 											onClick={() => {
 												setSelectedCategory(category.id);
+												setSelectedSubcategory(null);
 												setSearchTerm('');
 											}}
 											style={{
@@ -1263,6 +1241,51 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 									))
 								)}
 							</div>
+							{/* Subcategorías (solo cuando hay una categoría seleccionada) */}
+							{selectedCategory && subcategoriesOfCategory.length > 0 && (
+								<div style={{ marginTop: '0.5rem' }}>
+									<div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: '0.35rem' }}>
+										Subcategorías
+									</div>
+									<div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+									<span
+										onClick={() => setSelectedSubcategory(null)}
+										style={{
+											padding: '0.3rem 0.6rem',
+											border: '1px solid #e2e8f0',
+											borderRadius: 9999,
+											background: selectedSubcategory === null ? '#a0aec0' : '#f1f5f9',
+											color: selectedSubcategory === null ? 'white' : '#64748b',
+											fontSize: 11,
+											fontWeight: 600,
+											cursor: 'pointer',
+											transition: 'all 0.2s ease'
+										}}
+									>
+										Todas
+									</span>
+									{subcategoriesOfCategory.map((sub: any) => (
+										<span
+											key={sub.id}
+											onClick={() => setSelectedSubcategory(sub.id)}
+											style={{
+												padding: '0.3rem 0.6rem',
+												border: `1px solid ${selectedSubcategory === sub.id ? '#667eea' : '#e2e8f0'}`,
+												borderRadius: 9999,
+												background: selectedSubcategory === sub.id ? '#667eea' : '#f8fafc',
+												color: selectedSubcategory === sub.id ? 'white' : '#4a5568',
+												fontSize: 11,
+												fontWeight: 600,
+												cursor: 'pointer',
+												transition: 'all 0.2s ease'
+											}}
+										>
+											{sub.name}
+										</span>
+									))}
+									</div>
+								</div>
+							)}
 						</div>
 
 						{/* Grid de productos */}
@@ -1580,7 +1603,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 														</button>
 													</div>
 
-													{/* Botón notas - abre el modal de observaciones */}
+													{/* Icono observaciones - abre el modal para escribir observaciones al plato */}
 													<button
 														type="button"
 														onClick={() => {
@@ -1588,82 +1611,50 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 																handleOpenObservationModal(item.id);
 															}
 														}}
+														disabled={!canEditNotes}
 														style={{
 															padding: isSmall ? '0.1rem 0.35rem' : isMedium ? '0.15rem 0.4rem' : '0.15rem 0.45rem',
 															borderRadius: 999,
-															border: '1px solid #cbd5e0',
-															background: item.notes
-																? '#e0e7ff'
+															border: '1px solid #bae6fd',
+															background: (item.notes || selectedObservations[item.id]?.size > 0)
+																? '#dbeafe'
 																: canEditNotes
-																	? '#edf2f7'
+																	? '#f0f9ff'
 																	: '#f1f5f9',
-															color: canEditNotes ? '#3730a3' : '#64748b',
+															color: canEditNotes ? '#0369a1' : '#94a3b8',
 															fontSize: isSmall ? '0.6rem' : isMedium ? '0.65rem' : '0.65rem',
 															fontWeight: 600,
 															cursor: canEditNotes ? 'pointer' : 'not-allowed',
 															flexShrink: 0,
 															lineHeight: 1,
-															opacity: canEditNotes ? 1 : 0.6
+															opacity: canEditNotes ? 1 : 0.6,
+															position: 'relative'
 														}}
-														title={item.notes ? 'Editar notas y observaciones' : 'Agregar notas y observaciones'}
+														title={item.notes || (selectedObservations[item.id]?.size > 0)
+															? (item.notes ? 'Editar observaciones' : `${selectedObservations[item.id].size} observación(es) seleccionada(s)`)
+															: 'Escribir observación al plato'}
 													>
-														{item.notes ? '📝' : '📄'}
+														📋
+														{(item.notes || (selectedObservations[item.id]?.size > 0)) && (
+															<span style={{
+																position: 'absolute',
+																top: '-4px',
+																right: '-4px',
+																background: '#3b82f6',
+																color: 'white',
+																borderRadius: '50%',
+																width: '12px',
+																height: '12px',
+																fontSize: '8px',
+																display: 'flex',
+																alignItems: 'center',
+																justifyContent: 'center',
+																fontWeight: 700
+															}}>
+																{item.notes ? '!' : selectedObservations[item.id]?.size}
+															</span>
+														)}
 													</button>
-
-													{/* Botón observaciones - mostrar si hay observaciones disponibles o seleccionadas */}
-													{productObservations[item.id] && productObservations[item.id].length > 0 && (
-														<button
-															type="button"
-															onClick={() => {
-																if (canEditNotes) {
-																	handleOpenObservationModal(item.id);
-																}
-															}}
-															disabled={!canEditNotes}
-															style={{
-																padding: isSmall ? '0.1rem 0.35rem' : isMedium ? '0.15rem 0.4rem' : '0.15rem 0.45rem',
-																borderRadius: 999,
-																border: '1px solid #bae6fd',
-																background: selectedObservations[item.id]?.size > 0
-																	? '#dbeafe'
-																	: canEditNotes
-																		? '#f0f9ff'
-																		: '#f1f5f9',
-																color: canEditNotes ? '#0369a1' : '#94a3b8',
-																fontSize: isSmall ? '0.6rem' : isMedium ? '0.65rem' : '0.65rem',
-																fontWeight: 600,
-																cursor: canEditNotes ? 'pointer' : 'not-allowed',
-																flexShrink: 0,
-																lineHeight: 1,
-																opacity: canEditNotes ? 1 : 0.6,
-																position: 'relative'
-															}}
-															title={selectedObservations[item.id]?.size > 0
-																? `${selectedObservations[item.id].size} observación(es) seleccionada(s)`
-																: 'Abrir observaciones'}
-														>
-															📋
-															{selectedObservations[item.id]?.size > 0 && (
-																<span style={{
-																	position: 'absolute',
-																	top: '-4px',
-																	right: '-4px',
-																	background: '#3b82f6',
-																	color: 'white',
-																	borderRadius: '50%',
-																	width: '12px',
-																	height: '12px',
-																	fontSize: '8px',
-																	display: 'flex',
-																	alignItems: 'center',
-																	justifyContent: 'center',
-																	fontWeight: 700
-																}}>
-																	{selectedObservations[item.id].size}
-																</span>
-															)}
-														</button>
-													)}
 												</div>
 											</div>
 										)
@@ -1878,7 +1869,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 						color: '#718096',
 						fontSize: isSmall ? '10px' : isMedium ? '11px' : '12px'
 					}}>
-						{isSmall || isMedium ? 'Atajos: ⏎ Agregar • Esc Cerrar' : 'Atajos: ⏎ Agregar • Ctrl+K Buscar • Esc Cerrar'}
+						{isSmall || isMedium ? 'Atajos: Esc Cerrar' : 'Atajos: Ctrl+K Buscar • Esc Cerrar'}
 					</span>
 				</div>
 			</div>

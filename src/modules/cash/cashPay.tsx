@@ -330,15 +330,15 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     );
   }
 
-  // Usar el IGV de la sucursal obtenido en el login de empresa
-  const igvPercentage = Number(companyData?.branch?.igvPercentage) || 10;
+  // Usar el IGV de la sucursal obtenido en el login de empresa (float, por defecto 10.5% para sedes)
+  const igvPercentage = Number(companyData?.branch?.igvPercentage) || 10.5;
 
   // Log para verificar que se está usando el IGV de la sucursal
   React.useEffect(() => {
-    if (companyData?.branch?.igvPercentage) {
+    if (companyData?.branch?.igvPercentage != null) {
       console.log('✅ IGV de la sucursal:', companyData.branch.igvPercentage, '%');
     } else {
-      console.warn('⚠️ IGV de la sucursal no encontrado, usando valor por defecto: 10%');
+      console.warn('⚠️ IGV de la sucursal no encontrado, usando valor por defecto: 10.5%');
     }
   }, [companyData?.branch?.igvPercentage]);
 
@@ -1443,11 +1443,11 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           }, 0);
 
           // Actualizar el monto del pago para reflejar lo que falta pagar
-          setPayments([{ 
-            id: String(Date.now()), 
-            method: 'CASH', 
-            amount: newTotal, 
-            referenceNumber: '' 
+          setPayments([{
+            id: String(Date.now()),
+            method: 'CASH',
+            amount: newTotal,
+            referenceNumber: ''
           }]);
 
           console.log('✅ Pago parcial completado - Detalles actualizados desde el backend:', freshDetails.length);
@@ -1543,7 +1543,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     setPaymentError(null);
 
     try {
-      const resolvedDeviceId = deviceId || await getMacAddress();
+      const mac = await getMacAddress();
+      const resolvedDeviceId = mac || deviceId;
 
       // Solo imprimir precuenta con los ítems seleccionados
       const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);

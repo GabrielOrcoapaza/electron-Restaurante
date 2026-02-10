@@ -122,7 +122,7 @@ const ReportSale: React.FC = () => {
     return date.toISOString().split('T')[0];
   });
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
-  const [showDetails, setShowDetails] = useState(false);
+  const [showDetails, setShowDetails] = useState(true);
 
   // Obtener documentos para el selector
   const { data: documentsData } = useQuery(GET_DOCUMENTS, {
@@ -555,7 +555,7 @@ const ReportSale: React.FC = () => {
           </div>
         )}
 
-        {/* Lista de documentos: solo mostrar cuando ya terminó de cargar para evitar vista vacía con líneas */}
+        {/* Lista de documentos: en su propio card con scroll */}
         {showDetails && loading && (
           <div
             style={{
@@ -572,14 +572,39 @@ const ReportSale: React.FC = () => {
           </div>
         )}
         {showDetails && !loading && (
-          <ReportSaleList 
-            documents={salesDocuments} 
-            loading={false}
-            error={error}
-            isSmallDesktop={isSmallDesktop}
-            isSmall={isSmall}
-            isMedium={isMedium}
-          />
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: cardPadding,
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '65vh',
+              overflow: 'hidden'
+            }}
+          >
+            <h2 style={{
+              fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
+              fontWeight: 600,
+              color: '#1e293b',
+              marginBottom: '1rem',
+              marginTop: 0,
+              flexShrink: 0
+            }}>
+              Lista de documentos
+            </h2>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'auto' }}>
+              <ReportSaleList 
+                documents={salesDocuments} 
+                loading={false}
+                error={error}
+                isSmallDesktop={isSmallDesktop}
+                isSmall={isSmall}
+                isMedium={isMedium}
+              />
+            </div>
+          </div>
         )}
 
         {/* Error */}
