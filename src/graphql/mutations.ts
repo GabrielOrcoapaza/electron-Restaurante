@@ -1173,3 +1173,13 @@ export const REPRINT_CLOSURE = gql`
     }
   }
 `;
+
+// Mutación para imprimir movimiento de caja (ingreso/egreso)
+export const PRINT_PAYMENT = gql`
+  mutation PrintPayment($paymentId: ID!, $deviceId: String!) {
+    printPayment(paymentId: $paymentId, deviceId: $deviceId) {
+      success
+      message
+    }
+  }
+`;

@@ -156,9 +156,9 @@ const ReportSale: React.FC = () => {
 
   if (!branchId) {
     return (
-      <div style={{ 
-        padding: containerPadding, 
-        textAlign: 'center', 
+      <div style={{
+        padding: containerPadding,
+        textAlign: 'center',
         color: '#dc2626',
         fontSize: subtitleFontSize
       }}>
@@ -179,7 +179,7 @@ const ReportSale: React.FC = () => {
         borderRadius: '18px',
         boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
         position: 'relative',
-        overflow: 'hidden',
+        overflowX: 'hidden', // Allow vertical scroll, hide horizontal decorations
       }}
     >
       {/* Elementos decorativos de fondo */}
@@ -236,324 +236,292 @@ const ReportSale: React.FC = () => {
           </div>
         </div>
 
-        {/* Filtros */}
-        <div
-          style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: cardPadding,
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-            marginBottom: containerGap
-          }}
-        >
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isSmall
-              ? '1fr'
-              : isMedium
-                ? '1fr 1fr'
-                : isSmallDesktop
-                  ? '1fr 1fr 1fr'
-                  : '1fr 1fr 1fr auto',
-            gap: '1rem',
-            alignItems: 'end'
-          }}>
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: inputFontSize,
-                fontWeight: 500,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}>
-                Fecha Inicio
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem',
-                  fontSize: inputFontSize,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-              />
-            </div>
+        {/* Grid Principal: Filtros (Izq) y Resumen (Der) */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isSmall || isMedium ? '1fr' : '1fr 2fr',
+          gap: containerGap,
+          marginBottom: containerGap,
+          alignItems: 'stretch'
+        }}>
 
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: inputFontSize,
-                fontWeight: 500,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}>
-                Fecha Fin
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem',
-                  fontSize: inputFontSize,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-              />
-            </div>
-
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: inputFontSize,
-                fontWeight: 500,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}>
-                Tipo de Documento
-              </label>
-              <select
-                value={selectedDocumentId}
-                onChange={(e) => setSelectedDocumentId(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem',
-                  fontSize: inputFontSize,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  background: 'white',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-              >
-                <option value="">Todos los documentos</option>
-                {documents
-                  .filter(doc => doc.isActive)
-                  .map(doc => (
-                    <option key={doc.id} value={doc.id}>
-                      {doc.code} - {doc.description}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            <button
-              onClick={handleSearch}
-              disabled={loading || !startDate || !endDate}
-              style={{
-                padding: '0.625rem 1.5rem',
-                fontSize: buttonFontSize,
-                fontWeight: 600,
-                color: 'white',
-                background: loading || !startDate || !endDate 
-                  ? '#9ca3af' 
-                  : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: loading || !startDate || !endDate ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: loading || !startDate || !endDate 
-                  ? 'none' 
-                  : '0 4px 6px -1px rgba(102, 126, 234, 0.3)',
-              }}
-              onMouseEnter={(e) => {
-                if (!loading && startDate && endDate) {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 12px -1px rgba(102, 126, 234, 0.4)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!loading && startDate && endDate) {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(102, 126, 234, 0.3)';
-                }
-              }}
-            >
-              {loading ? 'Buscando...' : 'Buscar'}
-            </button>
-          </div>
-        </div>
-
-        {/* Resumen */}
-        {summary && showDetails && (
+          {/* CARD 1: Filtros (Izquierda) */}
           <div
             style={{
               background: 'white',
               borderRadius: '12px',
               padding: cardPadding,
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              marginBottom: containerGap
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center'
             }}
           >
-            <h2 style={{
-              fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
-              fontWeight: 600,
-              color: '#1e293b',
-              marginBottom: '0.75rem'
-            }}>
-              Resumen General
-            </h2>
-
             <div style={{
-              display: 'grid',
-              gridTemplateColumns: isSmall
-                ? '1fr'
-                : isMedium
-                  ? 'repeat(2, 1fr)'
-                  : isSmallDesktop
-                    ? 'repeat(2, 1fr)'
-                    : isMediumDesktop
-                      ? 'repeat(4, 1fr)'
-                      : 'repeat(4, 1fr)',
-              gap: '0.5rem',
-              marginBottom: '0.75rem'
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem'
             }}>
-              <div style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                borderRadius: '6px',
-                padding: '0.5rem',
-                color: 'white'
-              }}>
-                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', opacity: 0.9, marginBottom: '0.25rem' }}>
-                  Total Documentos
-                </div>
-                <div style={{ fontSize: isSmall ? '0.875rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 700 }}>
-                  {summary.totalDocuments}
-                </div>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: inputFontSize,
+                  fontWeight: 500,
+                  color: '#374151',
+                  marginBottom: '0.5rem'
+                }}>
+                  Fecha Inicio
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.625rem',
+                    fontSize: inputFontSize,
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                />
               </div>
 
-              <div style={{
-                background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                borderRadius: '6px',
-                padding: '0.5rem',
-                color: 'white'
-              }}>
-                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', opacity: 0.9, marginBottom: '0.25rem' }}>
-                  Total General
-                </div>
-                <div style={{ fontSize: isSmall ? '0.875rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 700 }}>
-                  {currencyFormatter.format(summary.totalAmount)}
-                </div>
-              </div>
-            </div>
-
-            <h3 style={{
-              fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem',
-              fontWeight: 600,
-              color: '#1e293b',
-              marginBottom: '0.75rem',
-              marginTop: '0.75rem'
-            }}>
-              Totales por Método de Pago
-            </h3>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(6, minmax(90px, 1fr))',
-              gap: '0.5rem',
-              overflowX: 'auto',
-              paddingBottom: isSmall ? '0.25rem' : 0
-            }}>
-              <div style={{
-                background: '#f0f9ff',
-                border: '1.5px solid #0ea5e9',
-                borderRadius: '6px',
-                padding: '0.5rem'
-              }}>
-                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#0c4a6e', marginBottom: '0.25rem' }}>
-                  Efectivo
-                </div>
-                <div style={{ fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#0369a1' }}>
-                  {currencyFormatter.format(summary.totalCash)}
-                </div>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: inputFontSize,
+                  fontWeight: 500,
+                  color: '#374151',
+                  marginBottom: '0.5rem'
+                }}>
+                  Fecha Fin
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.625rem',
+                    fontSize: inputFontSize,
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                />
               </div>
 
-              <div style={{
-                background: '#f0fdf4',
-                border: '1.5px solid #10b981',
-                borderRadius: '6px',
-                padding: '0.5rem'
-              }}>
-                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#064e3b', marginBottom: '0.25rem' }}>
-                  Yape
-                </div>
-                <div style={{ fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#047857' }}>
-                  {currencyFormatter.format(summary.totalYape)}
-                </div>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: inputFontSize,
+                  fontWeight: 500,
+                  color: '#374151',
+                  marginBottom: '0.5rem'
+                }}>
+                  Tipo de Documento
+                </label>
+                <select
+                  value={selectedDocumentId}
+                  onChange={(e) => setSelectedDocumentId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.625rem',
+                    fontSize: inputFontSize,
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    background: 'white',
+                    transition: 'border-color 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                >
+                  <option value="">Todos los documentos</option>
+                  {documents
+                    .filter(doc => doc.isActive)
+                    .map(doc => (
+                      <option key={doc.id} value={doc.id}>
+                        {doc.code} - {doc.description}
+                      </option>
+                    ))}
+                </select>
               </div>
 
-              <div style={{
-                background: '#fef3c7',
-                border: '1.5px solid #f59e0b',
-                borderRadius: '6px',
-                padding: '0.5rem'
-              }}>
-                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#78350f', marginBottom: '0.25rem' }}>
-                  Plin
-                </div>
-                <div style={{ fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#b45309' }}>
-                  {currencyFormatter.format(summary.totalPlin)}
-                </div>
-              </div>
-
-              <div style={{
-                background: '#fef2f2',
-                border: '1.5px solid #ef4444',
-                borderRadius: '6px',
-                padding: '0.5rem'
-              }}>
-                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#7f1d1d', marginBottom: '0.25rem' }}>
-                  Tarjeta
-                </div>
-                <div style={{ fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#b91c1c' }}>
-                  {currencyFormatter.format(summary.totalCard)}
-                </div>
-              </div>
-
-              <div style={{
-                background: '#f3e8ff',
-                border: '1.5px solid #a855f7',
-                borderRadius: '6px',
-                padding: '0.5rem'
-              }}>
-                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#581c87', marginBottom: '0.25rem' }}>
-                  Transferencia
-                </div>
-                <div style={{ fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#7e22ce' }}>
-                  {currencyFormatter.format(summary.totalTransfer)}
-                </div>
-              </div>
-
-              <div style={{
-                background: '#f1f5f9',
-                border: '1.5px solid #64748b',
-                borderRadius: '6px',
-                padding: '0.5rem'
-              }}>
-                <div style={{ fontSize: isSmall ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem', color: '#1e293b', marginBottom: '0.25rem' }}>
-                  Otros
-                </div>
-                <div style={{ fontSize: isSmall ? '0.8125rem' : isSmallDesktop ? '0.875rem' : '0.9375rem', fontWeight: 700, color: '#334155' }}>
-                  {currencyFormatter.format(summary.totalOthers)}
-                </div>
-              </div>
+              <button
+                onClick={handleSearch}
+                disabled={loading || !startDate || !endDate}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  fontSize: buttonFontSize,
+                  fontWeight: 600,
+                  color: 'white',
+                  background: loading || !startDate || !endDate
+                    ? '#9ca3af'
+                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: loading || !startDate || !endDate ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: loading || !startDate || !endDate
+                    ? 'none'
+                    : '0 4px 6px -1px rgba(102, 126, 234, 0.3)',
+                  marginTop: '0.5rem'
+                }}
+                onMouseEnter={(e) => {
+                  if (!loading && startDate && endDate) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 12px -1px rgba(102, 126, 234, 0.4)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!loading && startDate && endDate) {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(102, 126, 234, 0.3)';
+                  }
+                }}
+              >
+                {loading ? 'Buscando...' : 'Buscar'}
+              </button>
             </div>
           </div>
-        )}
+
+          {/* CARD 2: Resumen Completo (Derecha) */}
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: cardPadding,
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              minHeight: '300px'
+            }}
+          >
+            {summary && showDetails ? (
+              <>
+                <h2 style={{
+                  fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
+                  fontWeight: 600,
+                  color: '#1e293b',
+                  marginBottom: '0.75rem',
+                  marginTop: 0
+                }}>
+                  Resumen General
+                </h2>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: isSmall
+                    ? '1fr'
+                    : isMedium
+                      ? '1fr 1fr'
+                      : 'repeat(2, 1fr)',
+                  gap: '1rem',
+                  marginBottom: '1.5rem'
+                }}>
+                  <div style={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    color: 'white',
+                    boxShadow: '0 4px 6px -1px rgba(102, 126, 234, 0.2)'
+                  }}>
+                    <div style={{ fontSize: isSmall ? '0.75rem' : '0.875rem', opacity: 0.9, marginBottom: '0.25rem' }}>
+                      Total Documentos
+                    </div>
+                    <div style={{ fontSize: isSmall ? '1.25rem' : '1.5rem', fontWeight: 700 }}>
+                      {summary.totalDocuments}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    color: 'white',
+                    boxShadow: '0 4px 6px -1px rgba(245, 87, 108, 0.2)'
+                  }}>
+                    <div style={{ fontSize: isSmall ? '0.75rem' : '0.875rem', opacity: 0.9, marginBottom: '0.25rem' }}>
+                      Total General
+                    </div>
+                    <div style={{ fontSize: isSmall ? '1.25rem' : '1.5rem', fontWeight: 700 }}>
+                      {currencyFormatter.format(summary.totalAmount)}
+                    </div>
+                  </div>
+                </div>
+
+                <h2 style={{
+                  fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
+                  fontWeight: 600,
+                  color: '#1e293b',
+                  marginBottom: '0.75rem',
+                  borderTop: '1px solid #e2e8f0',
+                  paddingTop: '1rem'
+                }}>
+                  Totales por Método de Pago
+                </h2>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+                  gap: '0.75rem'
+                }}>
+                  {[
+                    { label: 'Efectivo', amount: summary.totalCash, color: '#0369a1', bg: '#f0f9ff', border: '#0ea5e9' },
+                    { label: 'Yape', amount: summary.totalYape, color: '#047857', bg: '#f0fdf4', border: '#10b981' },
+                    { label: 'Plin', amount: summary.totalPlin, color: '#b45309', bg: '#fef3c7', border: '#f59e0b' },
+                    { label: 'Tarjeta', amount: summary.totalCard, color: '#b91c1c', bg: '#fef2f2', border: '#ef4444' },
+                    { label: 'Transf.', amount: summary.totalTransfer, color: '#7e22ce', bg: '#f3e8ff', border: '#a855f7' },
+                    { label: 'Otros', amount: summary.totalOthers, color: '#334155', bg: '#f1f5f9', border: '#64748b' },
+                  ].map((item, index) => (
+                    <div key={index} style={{
+                      background: item.bg,
+                      border: `1px solid ${item.border}`,
+                      borderRadius: '8px',
+                      padding: '0.75rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', color: item.color, opacity: 0.8, marginBottom: '0.25rem' }}>
+                        {item.label}
+                      </div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: item.color }}>
+                        {currencyFormatter.format(item.amount)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#94a3b8',
+                fontStyle: 'italic',
+                flexDirection: 'column',
+                gap: '1rem'
+              }}>
+                <div style={{ fontSize: '3rem' }}>📊</div>
+                <div>Realiza una búsqueda para ver el resumen</div>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Lista de documentos: en su propio card con scroll */}
         {showDetails && loading && (
@@ -571,6 +539,7 @@ const ReportSale: React.FC = () => {
             Cargando documentos...
           </div>
         )}
+
         {showDetails && !loading && (
           <div
             style={{
@@ -580,7 +549,9 @@ const ReportSale: React.FC = () => {
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
               display: 'flex',
               flexDirection: 'column',
-              maxHeight: '65vh',
+              height: '100%',
+              minHeight: '400px',
+              maxHeight: '900px',
               overflow: 'hidden'
             }}
           >
@@ -595,8 +566,8 @@ const ReportSale: React.FC = () => {
               Lista de documentos
             </h2>
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'auto' }}>
-              <ReportSaleList 
-                documents={salesDocuments} 
+              <ReportSaleList
+                documents={salesDocuments}
                 loading={false}
                 error={error}
                 isSmallDesktop={isSmallDesktop}
@@ -614,7 +585,8 @@ const ReportSale: React.FC = () => {
             border: '1px solid #fca5a5',
             borderRadius: '8px',
             padding: cardPadding,
-            color: '#991b1b'
+            color: '#991b1b',
+            marginTop: containerGap
           }}>
             Error al cargar el reporte: {error.message}
           </div>

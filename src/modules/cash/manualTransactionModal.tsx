@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation } from '@apollo/client';
-import { CREATE_MANUAL_TRANSACTION } from '../../graphql/mutations';
+import { CREATE_MANUAL_TRANSACTION, PRINT_PAYMENT } from '../../graphql/mutations';
+import { useAuth } from '../../hooks/useAuth';
 
 interface ManualTransactionModalProps {
   isOpen: boolean;
@@ -27,7 +28,9 @@ const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
 
+  const { deviceId, getMacAddress, getDeviceId } = useAuth();
   const [createManualTransaction, { loading }] = useMutation(CREATE_MANUAL_TRANSACTION);
+  const [printPayment] = useMutation(PRINT_PAYMENT);
 
   useEffect(() => {
     if (isOpen && cashRegisters.length > 0 && !cashRegisterId) {
@@ -35,6 +38,7 @@ const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
     }
   }, [isOpen, cashRegisters, cashRegisterId]);
 
+  /* ... inside handleSubmit ... */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -74,6 +78,38 @@ const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
       });
 
       if (result.data?.createManualTransaction?.success) {
+        // Imprimir el movimiento
+        const createdPayments = result.data.createManualTransaction.payments;
+        if (createdPayments && createdPayments.length > 0) {
+          const paymentId = createdPayments[0].id;
+
+          // Obtener MAC para imprimir
+          let resolvedDeviceId: string;
+          try {
+            const mac = await getMacAddress();
+            if (mac) {
+              resolvedDeviceId = await getMacAddress();
+            } else {
+              resolvedDeviceId = deviceId || getDeviceId();
+            }
+          } catch (error) {
+            console.error('Error al obtener MAC address:', error);
+            resolvedDeviceId = deviceId || getDeviceId();
+          }
+
+          try {
+            await printPayment({
+              variables: {
+                paymentId: paymentId,
+                deviceId: resolvedDeviceId
+              }
+            });
+          } catch (printError) {
+            console.error('Error imprimiendo movimiento:', printError);
+            // No bloqueamos el flujo si falla la impresión, solo logueamos
+          }
+        }
+
         // Reset form
         setAmount('');
         setReferenceNumber('');

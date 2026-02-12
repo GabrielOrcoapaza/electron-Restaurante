@@ -103,7 +103,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   const isSmallDesktop = propIsSmallDesktop !== undefined ? propIsSmallDesktop : breakpoint === 'lg';
   const isMediumDesktop = breakpoint === 'xl';
   const [expandedDocument, setExpandedDocument] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchTerm] = useState<string>('');
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<IssuedDocument | null>(null);
   const [cancellationReason, setCancellationReason] = useState<string>('');

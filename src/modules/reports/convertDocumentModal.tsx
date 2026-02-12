@@ -68,6 +68,34 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
         }
     }, [annulledDocument]);
 
+    // State for selected items to convert (checkboxes)
+    const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
+
+    // Initialize selected items when data loads - select ALL by default
+    useEffect(() => {
+        if (itemsData?.reissueableItems) {
+            const initial: Record<string, number> = {};
+            itemsData.reissueableItems.forEach((item: any) => {
+                if (item.remainingQuantity > 0) {
+                    initial[item.operationDetailId] = item.remainingQuantity; // Default to max quantity
+                }
+            });
+            setSelectedItems(initial);
+        }
+    }, [itemsData]);
+
+    const handleItemToggle = (operationDetailId: string, maxQty: number) => {
+        setSelectedItems(prev => {
+            const next = { ...prev };
+            if (next[operationDetailId]) {
+                delete next[operationDetailId];
+            } else {
+                next[operationDetailId] = maxQty;
+            }
+            return next;
+        });
+    };
+
     // Filtered lists
     const targetDocuments = useMemo(() => {
         return (documentsData?.documentsByBranch || []).filter((doc: any) =>
@@ -80,14 +108,14 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
         if (!clientSearchTerm) return clients.slice(0, 50); // Limit results
         const lower = clientSearchTerm.toLowerCase();
         return clients.filter((c: any) =>
-            c.name.toLowerCase().includes(lower) ||
-            c.documentNumber?.includes(lower)
+            (c.name || '').toLowerCase().includes(lower) ||
+            (c.documentNumber || '').includes(lower)
         ).slice(0, 50);
     }, [clientsData, clientSearchTerm]);
 
     const reissueableItems = itemsData?.reissueableItems || [];
 
-    // Totals Calculation
+    // Totals Calculation based on SELECTED items
     const totals = useMemo(() => {
         let totalAmount = 0;
         let totalTaxable = 0;
@@ -95,12 +123,12 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
         let totalDiscount = 0;
 
         reissueableItems.forEach((item: any) => {
-            const q = item.remainingQuantity;
-            if (q > 0) {
-                totalAmount += q * item.unitPrice;
-                totalTaxable += q * item.unitValue;
-                igvAmount += q * (item.unitPrice - item.unitValue);
-                totalDiscount += q * (item.discount || 0);
+            const selectedQty = selectedItems[item.operationDetailId] || 0;
+            if (selectedQty > 0) {
+                totalAmount += selectedQty * item.unitPrice;
+                totalTaxable += selectedQty * item.unitValue;
+                igvAmount += selectedQty * (item.unitPrice - item.unitValue);
+                totalDiscount += selectedQty * (item.discount || 0);
             }
         });
 
@@ -114,7 +142,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
             totalExempt: 0,
             totalFree: 0,
         };
-    }, [reissueableItems]);
+    }, [reissueableItems, selectedItems]);
 
     const handleCreate = async () => {
         setError(null);
@@ -142,20 +170,27 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
             }
         }
 
-        if (reissueableItems.length === 0) {
-            setError('No hay items disponibles para convertir');
+        // Validate at least one item selected
+        const hasSelection = Object.keys(selectedItems).length > 0;
+        if (!hasSelection) {
+            setError('Debe seleccionar al menos un producto para convertir');
             return;
         }
 
         try {
-            const formattedItems = reissueableItems.map((item: any) => ({
-                operationDetailId: item.operationDetailId,
-                quantity: item.remainingQuantity,
-                unitValue: item.unitValue,
-                unitPrice: item.unitPrice,
-                discount: item.discount,
-                notes: '' // Optional
-            })).filter((i: any) => i.quantity > 0);
+            const formattedItems = reissueableItems.map((item: any) => {
+                const qty = selectedItems[item.operationDetailId] || 0;
+                if (qty <= 0) return null;
+
+                return {
+                    operationDetailId: item.operationDetailId,
+                    quantity: qty,
+                    unitValue: item.unitValue,
+                    unitPrice: item.unitPrice,
+                    discount: item.discount,
+                    notes: '' // Optional
+                };
+            }).filter(Boolean);
 
             // Obtener MAC del cliente para impresión
             const mac = await getMacAddress();
@@ -186,7 +221,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                     totalAmount: totals.totalAmount,
                     items: formattedItems,
                     deviceId: resolvedDeviceId, // For printing
-                    printerId: null, // Let backend decide or user select? Not required in python mutation
+                    printerId: null, // Let backend decide or user select?
                     notes: `Conversión desde ${annulledDocument.serial}-${annulledDocument.number}`
                 }
             });
@@ -310,16 +345,48 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
 
                 {reissueableItems.length > 0 && (
                     <div style={{ marginBottom: '1.5rem', background: '#f8fafc', padding: '1rem', borderRadius: '8px' }}>
-                        <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Items a convertir:</div>
-                        {reissueableItems.map((item: any) => (
-                            <div key={item.operationDetailId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
-                                <span>{item.quantity} x {item.productName}</span>
-                                <span>S/ {(item.remainingQuantity * item.unitPrice).toFixed(2)}</span>
-                            </div>
-                        ))}
-                        <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '0.5rem', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-                            <span>Total:</span>
-                            <span>S/ {totals.totalAmount.toFixed(2)}</span>
+                        <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Seleccionar productos a convertir:</div>
+                        {reissueableItems.map((item: any) => {
+                            const isSelected = !!selectedItems[item.operationDetailId];
+                            const selectedQty = selectedItems[item.operationDetailId] || 0;
+                            const totalForItem = selectedQty * item.unitPrice;
+
+                            return (
+                                <div key={item.operationDetailId} style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    fontSize: '0.9rem',
+                                    marginBottom: '0.5rem',
+                                    padding: '0.5rem',
+                                    background: isSelected ? 'white' : 'transparent',
+                                    borderRadius: '6px',
+                                    border: isSelected ? '1px solid #e2e8f0' : '1px solid transparent'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => handleItemToggle(item.operationDetailId, item.remainingQuantity)}
+                                            style={{ width: '1.25rem', height: '1.25rem', cursor: 'pointer' }}
+                                        />
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontWeight: 500, color: isSelected ? '#1e293b' : '#94a3b8' }}>{item.productName}</span>
+                                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                                Disponible: {item.remainingQuantity}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ fontWeight: 600, color: isSelected ? '#334155' : '#cbd5e1' }}>
+                                        {isSelected ? `${item.remainingQuantity} x ` : ''} S/ {totalForItem.toFixed(2)}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '0.5rem', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '1.1rem' }}>
+                            <span>Total Nuevo Documento:</span>
+                            <span style={{ color: '#059669' }}>S/ {totals.totalAmount.toFixed(2)}</span>
                         </div>
                     </div>
                 )}

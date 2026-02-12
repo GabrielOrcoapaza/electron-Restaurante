@@ -41,6 +41,9 @@ const Login: React.FC = () => {
       return fullName.includes(search) || dni.includes(search);
     });
 
+  // Obtener el empleado seleccionado
+  const selectedEmployeeData = allEmployees.find((e: any) => e.dni === formData.selectedEmployee);
+
   // Verificar que existan datos de la empresa
   useEffect(() => {
     if (!companyData) {
@@ -151,7 +154,7 @@ const Login: React.FC = () => {
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
 
   const containerPadding = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '1rem' : '1.5rem';
-  const formMaxWidth = isSmallDesktop ? '100%' : isMediumDesktop ? '420px' : '450px';
+  const formMaxWidth = isSmallDesktop ? '100%' : isMediumDesktop ? '550px' : '650px';
   const titleFontSize = isSmallDesktop ? 'clamp(22px, 3.5vw, 28px)' : isMediumDesktop ? 'clamp(26px, 3.5vw, 32px)' : 'clamp(28px, 3.5vw, 36px)';
   const subtitleFontSize = isSmallDesktop ? 'clamp(13px, 2vw, 15px)' : 'clamp(14px, 2vw, 16px)';
   const inputFontSize = isSmallDesktop ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
@@ -278,7 +281,7 @@ const Login: React.FC = () => {
         {/* Panel izquierdo con imagen de cocina - Solo visible en pantallas grandes */}
         <div className="left-panel" style={{
           display: 'none',
-          flex: '1.2',
+          flex: '1',
           background: 'linear-gradient(135deg, rgba(0,0,0,0.4), rgba(0,0,0,0.6))',
           backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgdmlld0JveD0iMCAwIDQwMCA0MDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiBmaWxsPSIjNDJBOUY1IiBvcGFjaXR5PSIwLjEiLz4KPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMjAwLCAyMDApIj4KPGNpcmNsZSBjeD0iLTEwMCIgY3k9Ii01MCIgcj0iNDAiIGZpbGw9IiM2NkJCMkYiIG9wYWNpdHk9IjAuMiIvPgo8Y2lyY2xlIGN4PSIxMDAiIGN5PSItNDAiIHI9IjMwIiBmaWxsPSIjRkZBNzI2IiBvcGFjaXR5PSIwLjE1Ii8+CjxjaXJjbGUgY3g9Ii04MCIgY3k9IjgwIiByPSI1MCIgZmlsbD0iI0ZGNkI2QiIgb3BhY2l0eT0iMC4xOCIvPgo8Y2lyY2xlIGN4PSI5MCIgY3k9IjcwIiByPSIzNSIgZmlsbD0iI0FCNDdCQyIgb3BhY2l0eT0iMC4xMiIvPgo8L2c+CjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDIwMCwgMjAwKSByb3RhdGUoNDUpIj4KPHJlY3QgeD0iLTEwMCIgeT0iLTEwIiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMSkiIHJ4PSIxMCIvPgo8cmVjdCB4PSItMTAwIiB5PSIxMCIgd2lkdGg9IjE1MCIgaGVpZ2h0PSIyMCIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA4KSIgcng9IjEwIi8+CjxyZWN0IHg9Ii0xMDAiIHk9IjQwIiB3aWR0aD0iMTgwIiBoZWlnaHQ9IjIwIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMTIpIiByeD0iMTAiLz4KPC9nPgo8L3N2Zz4K')`,
           backgroundSize: 'cover',
@@ -307,12 +310,49 @@ const Login: React.FC = () => {
             textAlign: 'center',
             color: 'white'
           }}>
-            <div style={{
-              fontSize: '80px',
-              marginBottom: '2rem',
-              textShadow: '0 4px 8px rgba(0,0,0,0.3)',
-              animation: 'bounce 2s ease-in-out infinite'
-            }}>👨‍🍳</div>
+            {selectedEmployeeData?.photoBase64 ? (
+              <div style={{
+                width: '250px',
+                height: '250px',
+                marginBottom: '2rem',
+                borderRadius: '50%',
+                overflow: 'hidden',
+                border: '5px solid rgba(255, 255, 255, 0.5)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                animation: 'pulse 3s infinite',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(255,255,255,0.1)'
+              }}>
+                <img
+                  src={selectedEmployeeData.photoBase64.startsWith('data:')
+                    ? selectedEmployeeData.photoBase64
+                    : `data:image/jpeg;base64,${selectedEmployeeData.photoBase64}`}
+                  alt={`${selectedEmployeeData.firstName} ${selectedEmployeeData.lastName}`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover'
+                  }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.parentElement!.innerHTML = '👤';
+                    e.currentTarget.parentElement!.style.fontSize = '80px';
+                    e.currentTarget.parentElement!.style.display = 'flex';
+                    e.currentTarget.parentElement!.style.alignItems = 'center';
+                    e.currentTarget.parentElement!.style.justifyContent = 'center';
+                  }}
+                />
+              </div>
+            ) : (
+              <div style={{
+                fontSize: '80px',
+                marginBottom: '2rem',
+                textShadow: '0 4px 8px rgba(0,0,0,0.3)',
+                animation: 'bounce 2s ease-in-out infinite'
+              }}>👨‍🍳</div>
+            )}
 
             <h1 style={{
               fontSize: '3rem',
@@ -360,7 +400,7 @@ const Login: React.FC = () => {
 
         {/* Panel derecho con formulario - Siempre visible */}
         <div className="form-panel" style={{
-          flex: '1',
+          flex: '1.5',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
@@ -556,7 +596,7 @@ const Login: React.FC = () => {
                 ) : (
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
                     gap: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem',
                     maxHeight: isSmallDesktop ? '200px' : isMediumDesktop ? '225px' : '250px',
                     overflowY: 'auto',
@@ -615,7 +655,27 @@ const Login: React.FC = () => {
                           gap: '0.5rem',
                           marginBottom: '0.375rem'
                         }}>
-                          <span style={{ fontSize: '16px' }}>👤</span>
+                          {employee.photoBase64 ? (
+                            <img
+                              src={employee.photoBase64.startsWith('data:')
+                                ? employee.photoBase64
+                                : `data:image/jpeg;base64,${employee.photoBase64}`}
+                              alt={`${employee.firstName} ${employee.lastName}`}
+                              style={{
+                                width: '60px',
+                                height: '60px',
+                                borderRadius: '50%',
+                                objectFit: 'cover',
+                                border: '2px solid #e2e8f0'
+                              }}
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.parentElement!.insertAdjacentHTML('afterbegin', '<span style="font-size: 24px;">👤</span>');
+                              }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: '24px' }}>👤</span>
+                          )}
                           <span style={{ fontWeight: '700', fontSize: 'inherit' }}>
                             {employee.firstName} {employee.lastName}
                           </span>

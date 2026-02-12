@@ -940,16 +940,18 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 
 		try {
 			// Obtener deviceId o MAC address
+			// Obtener deviceId o MAC address - Priorizar MAC address para impresión según requerimiento
 			let resolvedDeviceId: string;
-			if (deviceId) {
-				resolvedDeviceId = deviceId;
-			} else {
-				try {
-					resolvedDeviceId = await getMacAddress();
-				} catch (error) {
-					console.error('Error al obtener MAC address:', error);
-					resolvedDeviceId = getDeviceId();
+			try {
+				const mac = await getMacAddress();
+				if (mac) {
+					resolvedDeviceId = mac;
+				} else {
+					resolvedDeviceId = deviceId || getDeviceId();
 				}
+			} catch (error) {
+				console.error('Error al obtener MAC address:', error);
+				resolvedDeviceId = deviceId || getDeviceId();
 			}
 
 			const result = await printPrecuentaMutation({
@@ -1248,41 +1250,41 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 										Subcategorías
 									</div>
 									<div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-									<span
-										onClick={() => setSelectedSubcategory(null)}
-										style={{
-											padding: '0.3rem 0.6rem',
-											border: '1px solid #e2e8f0',
-											borderRadius: 9999,
-											background: selectedSubcategory === null ? '#a0aec0' : '#f1f5f9',
-											color: selectedSubcategory === null ? 'white' : '#64748b',
-											fontSize: 11,
-											fontWeight: 600,
-											cursor: 'pointer',
-											transition: 'all 0.2s ease'
-										}}
-									>
-										Todas
-									</span>
-									{subcategoriesOfCategory.map((sub: any) => (
 										<span
-											key={sub.id}
-											onClick={() => setSelectedSubcategory(sub.id)}
+											onClick={() => setSelectedSubcategory(null)}
 											style={{
 												padding: '0.3rem 0.6rem',
-												border: `1px solid ${selectedSubcategory === sub.id ? '#667eea' : '#e2e8f0'}`,
+												border: '1px solid #e2e8f0',
 												borderRadius: 9999,
-												background: selectedSubcategory === sub.id ? '#667eea' : '#f8fafc',
-												color: selectedSubcategory === sub.id ? 'white' : '#4a5568',
+												background: selectedSubcategory === null ? '#a0aec0' : '#f1f5f9',
+												color: selectedSubcategory === null ? 'white' : '#64748b',
 												fontSize: 11,
 												fontWeight: 600,
 												cursor: 'pointer',
 												transition: 'all 0.2s ease'
 											}}
 										>
-											{sub.name}
+											Todas
 										</span>
-									))}
+										{subcategoriesOfCategory.map((sub: any) => (
+											<span
+												key={sub.id}
+												onClick={() => setSelectedSubcategory(sub.id)}
+												style={{
+													padding: '0.3rem 0.6rem',
+													border: `1px solid ${selectedSubcategory === sub.id ? '#667eea' : '#e2e8f0'}`,
+													borderRadius: 9999,
+													background: selectedSubcategory === sub.id ? '#667eea' : '#f8fafc',
+													color: selectedSubcategory === sub.id ? 'white' : '#4a5568',
+													fontSize: 11,
+													fontWeight: 600,
+													cursor: 'pointer',
+													transition: 'all 0.2s ease'
+												}}
+											>
+												{sub.name}
+											</span>
+										))}
 									</div>
 								</div>
 							)}

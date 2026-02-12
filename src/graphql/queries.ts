@@ -322,6 +322,7 @@ export const GET_USERS_BY_BRANCH = gql`
       role
       phone
       isActive
+      photoBase64
     }
   }
 `;
