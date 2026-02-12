@@ -42,9 +42,9 @@
     },
     "linux": {
       "target": [
-        "AppImage",
         "deb"
       ],
+      "arch": ["arm64"],
       "icon": "public/logos.png",
       "category": "Utility"
     }
