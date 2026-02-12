@@ -132,10 +132,10 @@ export interface AuthContextType {
   loginUser: (token: string, refreshToken: string, userData: UserData, userPhoto?: string) => void;
   logout: () => void;
   clearCompanyData: () => void; // Limpiar solo los datos de la compañía
-  
+
   // Métodos para mesas
   updateTableInContext: (updatedTable: UpdatedTable) => void;
-  
+
   // Utilidades
   getDeviceId: () => string;
   getMacAddress: () => Promise<string>;
@@ -215,14 +215,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🔍 Intentando obtener MAC del dispositivo...');
       console.log('🔍 typeof window:', typeof window);
       console.log('🔍 window.require existe:', !!(typeof window !== 'undefined' && (window as any).require));
-      
+
       if (typeof window !== 'undefined' && (window as any).require) {
         console.log('✅ Entorno Electron detectado, obteniendo MAC real...');
         const os = (window as any).require('os');
         const networkInterfaces = os.networkInterfaces();
-        
+
         console.log('📡 Interfaces de red disponibles:', Object.keys(networkInterfaces));
-        
+
         for (const interfaceName in networkInterfaces) {
           const interfaces = networkInterfaces[interfaceName];
           if (interfaces) {
@@ -240,12 +240,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
           }
         }
-        
+
         console.log('⚠️ No se encontró MAC válida en Electron');
       } else {
         console.log('🌐 Entorno web detectado, no se puede obtener MAC real');
       }
-      
+
       // Fallback
       const fallback = `FF:${Math.random().toString(16).substring(2, 4).toUpperCase()}:${Math.random().toString(16).substring(2, 4).toUpperCase()}:${Math.random().toString(16).substring(2, 4).toUpperCase()}:${Math.random().toString(16).substring(2, 4).toUpperCase()}:${Math.random().toString(16).substring(2, 4).toUpperCase()}`;
       console.log('⚠️ Usando MAC generada como fallback:', fallback);
@@ -273,12 +273,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     userPhoto?: string
   ) => {
     console.log('👤 Guardando datos de usuario:', userData);
-    
+
     // Guardar en localStorage
     localStorage.setItem('token', jwtToken);
     localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('userData', JSON.stringify(userData));
-    
+
     if (userPhoto) {
       localStorage.setItem('userPhoto', userPhoto);
     }
@@ -309,30 +309,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Actualizar en floors
         floors: companyData.branch.floors?.map(floor => ({
           ...floor,
-          tables: floor.tables?.map(table => 
-            table.id === updatedTable.id 
-              ? { 
-                  ...table, 
-                  status: updatedTable.status as Table['status'],
-                  statusColors: updatedTable.statusColors !== undefined ? updatedTable.statusColors : table.statusColors,
-                  currentOperationId: updatedTable.currentOperationId !== undefined ? (updatedTable.currentOperationId ?? undefined) : table.currentOperationId,
-                  occupiedById: updatedTable.occupiedById !== undefined ? (updatedTable.occupiedById ?? undefined) : table.occupiedById,
-                  userName: updatedTable.userName !== undefined ? (updatedTable.userName ?? undefined) : table.userName
-                }
-              : table
-          )
-        })),
-        // Actualizar en tables (lista plana)
-        tables: companyData.branch.tables?.map(table =>
-          table.id === updatedTable.id
-            ? { 
-                ...table, 
+          tables: floor.tables?.map(table =>
+            table.id === updatedTable.id
+              ? {
+                ...table,
                 status: updatedTable.status as Table['status'],
                 statusColors: updatedTable.statusColors !== undefined ? updatedTable.statusColors : table.statusColors,
                 currentOperationId: updatedTable.currentOperationId !== undefined ? (updatedTable.currentOperationId ?? undefined) : table.currentOperationId,
                 occupiedById: updatedTable.occupiedById !== undefined ? (updatedTable.occupiedById ?? undefined) : table.occupiedById,
                 userName: updatedTable.userName !== undefined ? (updatedTable.userName ?? undefined) : table.userName
               }
+              : table
+          )
+        })),
+        // Actualizar en tables (lista plana)
+        tables: companyData.branch.tables?.map(table =>
+          table.id === updatedTable.id
+            ? {
+              ...table,
+              status: updatedTable.status as Table['status'],
+              statusColors: updatedTable.statusColors !== undefined ? updatedTable.statusColors : table.statusColors,
+              currentOperationId: updatedTable.currentOperationId !== undefined ? (updatedTable.currentOperationId ?? undefined) : table.currentOperationId,
+              occupiedById: updatedTable.occupiedById !== undefined ? (updatedTable.occupiedById ?? undefined) : table.occupiedById,
+              userName: updatedTable.userName !== undefined ? (updatedTable.userName ?? undefined) : table.userName
+            }
             : table
         )
       }
@@ -347,7 +347,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Logout - Solo limpia datos del usuario, mantiene datos de la empresa
   const logout = () => {
     console.log('🚪 Cerrando sesión de usuario...');
-    
+
     // Limpiar localStorage - Solo datos del usuario
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');

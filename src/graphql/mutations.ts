@@ -831,6 +831,7 @@ export const CREATE_PURCHASE_OPERATION = gql`
     $operationDate: String
     $notes: String
     $details: [OperationDetailInput!]!
+    $payments: [PaymentInput!]!
     $subtotal: Float
     $igvAmount: Float
     $igvPercentage: Float
@@ -843,11 +844,14 @@ export const CREATE_PURCHASE_OPERATION = gql`
       operationDate: $operationDate
       notes: $notes
       details: $details
+      payments: $payments
       subtotal: $subtotal
       igvAmount: $igvAmount
       igvPercentage: $igvPercentage
       total: $total
     ) {
+      success
+      message
       operation {
         id
         order
@@ -867,8 +871,6 @@ export const CREATE_PURCHASE_OPERATION = gql`
           fullName
         }
       }
-      success
-      message
       stockMovementsCount
     }
   }
@@ -1061,7 +1063,7 @@ export const CREATE_MANUAL_TRANSACTION = gql`
   mutation CreateManualTransaction(
     $cashRegisterId: ID!
     $transactionType: String!
-    $payments: [PaymentInput]!
+    $payments: [PaymentInput!]!
     $notes: String
     $userId: ID!
     $branchId: ID!

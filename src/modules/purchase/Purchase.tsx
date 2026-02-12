@@ -2,14 +2,15 @@ import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
-import { 
-  GET_SUPPLIERS_BY_BRANCH, 
+import {
+  GET_SUPPLIERS_BY_BRANCH,
   GET_PURCHASE_OPERATIONS,
-  GET_PRODUCTS_WITH_STOCK 
+  GET_PRODUCTS_WITH_STOCK,
+  GET_CASH_REGISTERS
 } from '../../graphql/queries';
-import { 
-  CREATE_PURCHASE_OPERATION, 
-  CANCEL_PURCHASE_OPERATION 
+import {
+  CREATE_PURCHASE_OPERATION,
+  CANCEL_PURCHASE_OPERATION
 } from '../../graphql/mutations';
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
@@ -96,10 +97,10 @@ const Purchase: React.FC = () => {
   const branchId = companyData?.branch?.id;
   // IGV de la sucursal (float). Por defecto 10.5% para sedes.
   const igvPercentage = Number(companyData?.branch?.igvPercentage) || 10.5;
-  
+
   // Adaptar según tamaño de pantalla de PC
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
-  
+
   // Tamaños adaptativos
   const containerPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
   const containerGap = isSmallDesktop ? '1.5rem' : '2rem';
@@ -119,6 +120,11 @@ const Purchase: React.FC = () => {
   const [selectedOperationId, setSelectedOperationId] = useState<string>('');
   const [cancellationReason, setCancellationReason] = useState<string>('');
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Estados para Pago
+  const [cashRegisterId, setCashRegisterId] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
+  const [referenceNumber, setReferenceNumber] = useState<string>('');
 
   // Queries
   // Usa personsByBranch (del backend: persons_by_branch) y filtra proveedores (isSupplier=true) en el frontend
@@ -143,24 +149,38 @@ const Purchase: React.FC = () => {
     }
   );
 
+  const { data: cashData } = useQuery(GET_CASH_REGISTERS, {
+    variables: { branchId: branchId! },
+    skip: !branchId,
+  });
+
+  const cashRegisters = cashData?.cashRegistersByBranch || [];
+
+  // Seleccionar la primera caja por defecto
+  React.useEffect(() => {
+    if (cashRegisters.length > 0 && !cashRegisterId) {
+      setCashRegisterId(cashRegisters[0].id);
+    }
+  }, [cashRegisters, cashRegisterId]);
+
   // Mutations
   const [createPurchaseOperation, { loading: creatingPurchase }] = useMutation(
     CREATE_PURCHASE_OPERATION,
     {
       onCompleted: (data) => {
         if (data.createPurchaseOperation.success) {
-          setMessage({ 
-            type: 'success', 
-            text: data.createPurchaseOperation.message 
+          setMessage({
+            type: 'success',
+            text: data.createPurchaseOperation.message
           });
           resetForm();
           setView('list');
           refetchOperations();
           setTimeout(() => setMessage(null), 5000);
         } else {
-          setMessage({ 
-            type: 'error', 
-            text: data.createPurchaseOperation.message 
+          setMessage({
+            type: 'error',
+            text: data.createPurchaseOperation.message
           });
           setTimeout(() => setMessage(null), 5000);
         }
@@ -173,15 +193,15 @@ const Purchase: React.FC = () => {
       }
     }
   );
-  
+
   const [cancelPurchaseOperation, { loading: cancelingPurchase }] = useMutation(
     CANCEL_PURCHASE_OPERATION,
     {
       onCompleted: (data) => {
         if (data.cancelPurchaseOperation.success) {
-          setMessage({ 
-            type: 'success', 
-            text: data.cancelPurchaseOperation.message 
+          setMessage({
+            type: 'success',
+            text: data.cancelPurchaseOperation.message
           });
           setShowCancelModal(false);
           setSelectedOperationId('');
@@ -189,9 +209,9 @@ const Purchase: React.FC = () => {
           refetchOperations();
           setTimeout(() => setMessage(null), 5000);
         } else {
-          setMessage({ 
-            type: 'error', 
-            text: data.cancelPurchaseOperation.message 
+          setMessage({
+            type: 'error',
+            text: data.cancelPurchaseOperation.message
           });
           setTimeout(() => setMessage(null), 5000);
         }
@@ -222,6 +242,8 @@ const Purchase: React.FC = () => {
     setQuantity('1');
     setUnitPrice('');
     setProductNotes('');
+    setPaymentMethod('CASH');
+    setReferenceNumber('');
   };
 
   const handleAddProduct = () => {
@@ -275,6 +297,12 @@ const Purchase: React.FC = () => {
       return;
     }
 
+    if (!cashRegisterId) {
+      setMessage({ type: 'error', text: 'Selecciona una caja para el pago' });
+      setTimeout(() => setMessage(null), 3000);
+      return;
+    }
+
     if (!user?.id) {
       setMessage({ type: 'error', text: 'Usuario no encontrado' });
       setTimeout(() => setMessage(null), 3000);
@@ -284,7 +312,7 @@ const Purchase: React.FC = () => {
     setIsProcessing(true);
 
     const { subtotal, igvAmount, total } = calculateTotals();
-    const operationDateTime = operationDate 
+    const operationDateTime = operationDate
       ? new Date(operationDate + 'T00:00:00').toISOString()
       : new Date().toISOString();
 
@@ -297,6 +325,18 @@ const Purchase: React.FC = () => {
       notes: detail.notes || ''
     }));
 
+    const payments = [{
+      cashRegisterId: cashRegisterId,
+      paymentMethod: paymentMethod,
+      paymentType: 'CASH',
+      transactionType: 'EXPENSE',
+      paidAmount: total,
+      totalAmount: total,
+      paymentDate: operationDateTime,
+      referenceNumber: referenceNumber || null,
+      notes: `Pago de compra #${new Date().getTime()}`
+    }];
+
     try {
       await createPurchaseOperation({
         variables: {
@@ -306,6 +346,7 @@ const Purchase: React.FC = () => {
           operationDate: operationDateTime,
           notes: notes || null,
           details: details,
+          payments: payments,
           subtotal: subtotal,
           igvAmount: igvAmount,
           igvPercentage: igvPercentage,
@@ -458,7 +499,7 @@ const Purchase: React.FC = () => {
           <h3 style={{ margin: '0 0 1.5rem', fontSize: '1.1rem', fontWeight: 600, color: '#334155' }}>
             📋 Lista de Compras ({operations.length})
           </h3>
-          
+
           {operationsLoading ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
               Cargando compras...
@@ -807,6 +848,92 @@ const Purchase: React.FC = () => {
             </div>
           )}
 
+          {/* Sección de Pago */}
+          {purchaseDetails.length > 0 && (
+            <div style={{
+              borderTop: '2px solid #e2e8f0',
+              paddingTop: '1.5rem',
+              marginTop: '1rem',
+              backgroundColor: '#f8fafc',
+              padding: '1.25rem',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0'
+            }}>
+              <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600, color: '#334155' }}>
+                💳 Información del Pago (Egreso)
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+                    Caja
+                  </label>
+                  <select
+                    value={cashRegisterId}
+                    onChange={(e) => setCashRegisterId(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: '0.875rem',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="">Selecciona caja</option>
+                    {cashRegisters.map((cash: any) => (
+                      <option key={cash.id} value={cash.id}>
+                        {cash.name} (S/ {Number(cash.currentBalance || 0).toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+                    Método
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: '0.875rem',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="CASH">Efectivo</option>
+                    <option value="YAPE">Yape</option>
+                    <option value="PLIN">Plin</option>
+                    <option value="CARD">Tarjeta</option>
+                    <option value="TRANSFER">Transferencia</option>
+                    <option value="OTROS">Otros</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+                    Referencia
+                  </label>
+                  <input
+                    type="text"
+                    value={referenceNumber}
+                    onChange={(e) => setReferenceNumber(e.target.value)}
+                    placeholder="N° Operación"
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.875rem',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: '0.875rem',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Totales */}
           {purchaseDetails.length > 0 && (
             <div style={{
@@ -828,9 +955,9 @@ const Purchase: React.FC = () => {
                     {currencyFormatter.format(igvAmount)}
                   </span>
                 </div>
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
                   paddingTop: '0.75rem',
                   borderTop: '2px solid #334155',
                   marginTop: '0.5rem'
