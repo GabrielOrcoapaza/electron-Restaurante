@@ -23,6 +23,24 @@ export const GET_SERIALS_BY_DOCUMENT = gql`
   }
 `;
 
+// Query para obtener documentos con sus series incluidas
+export const GET_DOCUMENTS_WITH_SERIALS = gql`
+  query GetDocumentsWithSerials($branchId: ID!) {
+    documentsByBranch(branchId: $branchId) {
+      id
+      code
+      description
+      isActive
+      serials {
+        id
+        serial
+        isActive
+      }
+    }
+  }
+`;
+
+
 // Query para obtener cajas registradoras de la sucursal
 export const GET_CASH_REGISTERS = gql`
   query GetCashRegisters($branchId: ID!) {
@@ -889,6 +907,28 @@ export const GET_REISSUEABLE_ITEMS = gql`
       unitValue
       unitPrice
       discount
+    }
+  }
+`;
+
+// Aliases para compatibilidad con el componente Delivery
+export const GET_DOCUMENTS_BY_BRANCH = GET_DOCUMENTS;
+export const GET_CASH_REGISTERS_BY_BRANCH = GET_CASH_REGISTERS;
+
+// Query para buscar personas (clientes/proveedores) por nombre o documento
+export const SEARCH_PERSONS = gql`
+  query SearchPersons($search: String!, $branchId: ID!, $limit: Int) {
+    searchPersons(search: $search, branchId: $branchId, limit: $limit) {
+      id
+      name
+      documentType
+      documentNumber
+      email
+      phone
+      address
+      isSupplier
+      isCustomer
+      isActive
     }
   }
 `;

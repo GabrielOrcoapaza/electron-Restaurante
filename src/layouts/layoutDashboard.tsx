@@ -18,6 +18,7 @@ import ReportCancel from '../modules/reports/reportCancel';
 import ReportsProductsSold from '../modules/reports/reportsProductsSold';
 import ReportEmployee from '../modules/reports/reportEmployee';
 import Observation from '../modules/configuration/observation';
+import Delivery from '../modules/sales/delivery';
 import { GET_MY_UNREAD_MESSAGES } from '../graphql/queries';
 import { MARK_MESSAGE_READ } from '../graphql/mutations';
 import type { Table } from '../types/table';
@@ -74,13 +75,13 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const { disconnect, subscribe } = useWebSocket();
   const { breakpoint } = useResponsive();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+
   // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
   const isSmall = breakpoint === 'sm'; // 640px - 767px
   const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
-  
+
   // Tamaños adaptativos
   const sidebarWidth = sidebarOpen ? (isSmall ? '240px' : isMedium ? '260px' : isSmallDesktop ? '260px' : '280px') : '80px';
   const headerPadding = isSmall ? '0.75rem 1rem' : isMedium ? '1rem 1.25rem' : isSmallDesktop ? '1rem 1.5rem' : isMediumDesktop ? '1rem 1.75rem' : '1rem 2rem';
@@ -88,7 +89,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const headerSubFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
   // Verificar si el usuario es mozo para establecer la vista inicial
   const isWaiterInitial = user?.role?.toUpperCase() === 'WAITER';
-  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration'>(isWaiterInitial ? 'floors' : 'dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration' | 'delivery'>(isWaiterInitial ? 'floors' : 'dashboard');
   const [reportType, setReportType] = useState<'sales' | 'cancellation' | 'productsSold' | 'employees'>('sales');
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -131,7 +132,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       console.error('❌ Error al obtener mensajes broadcast:', broadcastMessagesError);
     }
   }, [broadcastMessagesError]);
-  
+
   useEffect(() => {
     if (!user?.id) {
       return;
@@ -169,10 +170,10 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   // Función para verificar si el usuario debe ver un mensaje broadcast según su rol
   const shouldUserSeeMessage = (messageRecipients: string, userRole: string | undefined): boolean => {
     if (!userRole) return false;
-    
+
     // Si el mensaje es para todos, todos lo ven
     if (messageRecipients === 'ALL') return true;
-    
+
     // Mapear roles del usuario a los valores de recipients
     const roleMapping: Record<string, string> = {
       'WAITER': 'WAITERS',
@@ -180,7 +181,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
       'CASHIER': 'CASHIERS',
       'ADMIN': 'ADMINS',
     };
-    
+
     // Verificar si el rol del usuario coincide con el destinatario del mensaje
     const userRecipientGroup = roleMapping[userRole.toUpperCase()];
     return userRecipientGroup === messageRecipients;
@@ -188,19 +189,19 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
 
   // Notificaciones de cocina
   const kitchenNotifications = notificationsData?.myKitchenNotifications ?? [];
-  const unreadKitchenNotifications = useMemo(() => 
+  const unreadKitchenNotifications = useMemo(() =>
     kitchenNotifications.filter((notification: any) => !notification?.isRead),
     [kitchenNotifications]
   );
-  
+
   // Mensajes broadcast - filtrar solo los que corresponden al rol del usuario
   const broadcastMessages = useMemo(() => {
     const allMessages = broadcastMessagesData?.myUnreadMessages ?? [];
-    return allMessages.filter((message: any) => 
+    return allMessages.filter((message: any) =>
       shouldUserSeeMessage(message.recipients, user?.role)
     );
   }, [broadcastMessagesData?.myUnreadMessages, user?.role]);
-  
+
   const roleDisplay = (role?: string): string => {
     const r = role?.toUpperCase();
     if (r === 'CASHIER') return 'Cajero';
@@ -209,7 +210,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     if (r === 'ADMIN') return 'Administrador';
     return role || '';
   };
-  
+
   // Combinar ambas notificaciones
   const allNotifications = useMemo(() => [
     ...unreadKitchenNotifications.map((n: any) => ({ ...n, type: 'kitchen' })),
@@ -252,19 +253,19 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     const currentAllIds = new Set(
       allNotifications.map((notification: any) => notification.id)
     );
-    
+
     // En la carga inicial, solo guardar las IDs sin abrir el modal
     if (isInitialLoadRef.current) {
       previousNotificationIdsRef.current = currentAllIds;
       isInitialLoadRef.current = false;
       return;
     }
-    
+
     // Verificar si hay nuevas notificaciones comparando con las anteriores
     const hasNewNotifications = Array.from(currentAllIds).some(
       (id) => !previousNotificationIdsRef.current.has(id)
     );
-    
+
     // Solo abrir el modal si:
     // 1. Hay nuevas notificaciones (nuevas IDs que no estaban antes)
     // 2. Y hay notificaciones visibles (no todas están ocultas)
@@ -303,7 +304,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     setSidebarOpen(!sidebarOpen);
   };
 
-  const handleMenuClick = (view: 'dashboard' | 'floors' | 'messages' | 'employees' | 'cashs' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration') => {
+  const handleMenuClick = (view: 'dashboard' | 'floors' | 'messages' | 'employees' | 'cashs' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration' | 'delivery') => {
     setCurrentView(view);
     setSelectedCashTable(null);
   };
@@ -322,53 +323,57 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     currentView === 'dashboard'
       ? 'Panel'
       : currentView === 'floors'
-      ? 'Mesas'
-      : currentView === 'messages'
-      ? 'Mensajes'
-      : currentView === 'employees'
-      ? 'Empleados'
-      : currentView === 'products'
-      ? 'Productos'
-      : currentView === 'cashs'
-      ? 'Gestión de Cajas'
-      : currentView === 'inventory'
-      ? 'Inventario'
-      : currentView === 'kardex'
-      ? 'Kardex'
-      : currentView === 'purchase'
-      ? 'Compras'
-      : currentView === 'reports'
-      ? 'Reportes'
-      : currentView === 'configuration'
-      ? 'Configuración'
-      : 'Caja';
+        ? 'Mesas'
+        : currentView === 'messages'
+          ? 'Mensajes'
+          : currentView === 'employees'
+            ? 'Empleados'
+            : currentView === 'products'
+              ? 'Productos'
+              : currentView === 'cashs'
+                ? 'Gestión de Cajas'
+                : currentView === 'inventory'
+                  ? 'Inventario'
+                  : currentView === 'kardex'
+                    ? 'Kardex'
+                    : currentView === 'purchase'
+                      ? 'Compras'
+                      : currentView === 'reports'
+                        ? 'Reportes'
+                        : currentView === 'configuration'
+                          ? 'Configuración'
+                          : currentView === 'delivery'
+                            ? 'Delivery'
+                            : 'Caja';
 
   const headerSubtitle =
     currentView === 'dashboard'
       ? `Bienvenido de vuelta, ${user?.firstName}`
       : currentView === 'floors'
-      ? 'Gestiona la ocupación y las órdenes de tus mesas.'
-      : currentView === 'messages'
-      ? 'Envía mensajes a cocina, mozos u otros usuarios.'
-      : currentView === 'employees'
-      ? 'Administra los empleados de tu empresa.'
-      : currentView === 'products'
-      ? 'Administra los productos de tu menú.'
-      : currentView === 'cashs'
-      ? 'Gestiona las cajas registradoras, cierres y resúmenes de pagos.'
-      : currentView === 'inventory'
-      ? 'Controla el stock de tus productos.'
-      : currentView === 'kardex'
-      ? 'Registro de movimientos de inventario.'
-      : currentView === 'purchase'
-      ? 'Gestiona las compras a proveedores y controla el stock.'
-      : currentView === 'reports'
-      ? (reportType === 'sales' ? 'Visualiza reportes de ventas y documentos emitidos.' : reportType === 'cancellation' ? 'Visualiza el historial de anulaciones de operaciones y productos.' : reportType === 'productsSold' ? 'Visualiza productos vendidos por cantidad y monto.' : 'Visualiza ventas por empleado en el periodo.')
-      : currentView === 'configuration'
-      ? 'Configura las observaciones y modificadores de tus productos.'
-      : selectedCashTable
-      ? `Procesa el pago de ${selectedCashTable.name}.`
-      : 'Selecciona una mesa para revisar su orden.';
+        ? 'Gestiona la ocupación y las órdenes de tus mesas.'
+        : currentView === 'messages'
+          ? 'Envía mensajes a cocina, mozos u otros usuarios.'
+          : currentView === 'employees'
+            ? 'Administra los empleados de tu empresa.'
+            : currentView === 'products'
+              ? 'Administra los productos de tu menú.'
+              : currentView === 'cashs'
+                ? 'Gestiona las cajas registradoras, cierres y resúmenes de pagos.'
+                : currentView === 'inventory'
+                  ? 'Controla el stock de tus productos.'
+                  : currentView === 'kardex'
+                    ? 'Registro de movimientos de inventario.'
+                    : currentView === 'purchase'
+                      ? 'Gestiona las compras a proveedores y controla el stock.'
+                      : currentView === 'reports'
+                        ? (reportType === 'sales' ? 'Visualiza reportes de ventas y documentos emitidos.' : reportType === 'cancellation' ? 'Visualiza el historial de anulaciones de operaciones y productos.' : reportType === 'productsSold' ? 'Visualiza productos vendidos por cantidad y monto.' : 'Visualiza ventas por empleado en el periodo.')
+                        : currentView === 'configuration'
+                          ? 'Configura las observaciones y modificadores de tus productos.'
+                          : currentView === 'delivery'
+                            ? 'Gestiona las ventas para llevar sin asignar mesa.'
+                            : selectedCashTable
+                              ? `Procesa el pago de ${selectedCashTable.name}.`
+                              : 'Selecciona una mesa para revisar su orden.';
 
   const isFloorsSection = currentView === 'floors' || currentView === 'cash';
 
@@ -384,17 +389,17 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
 
   return (
     <div style={{
-        height: '100vh',
-        width: '100vw',
-        maxWidth: '100vw',
-        backgroundColor: '#f8fafc',
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        overflow: 'hidden',
-        display: 'flex'
-      }}>
+      height: '100vh',
+      width: '100vw',
+      maxWidth: '100vw',
+      backgroundColor: '#f8fafc',
+      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      overflow: 'hidden',
+      display: 'flex'
+    }}>
       {/* Sidebar */}
       <div style={{
         width: sidebarWidth,
@@ -502,7 +507,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               </div>
             )}
           </div>
-          
+
           {sidebarOpen && (
             <div style={{
               backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -524,7 +529,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
         {/* Menú de Navegación */}
         <nav style={{
           padding: '1rem 0',
-          flex: 1, 
+          flex: 1,
           overflowY: 'auto',
           scrollbarWidth: 'thin',             // Firefox
         }}>
@@ -539,7 +544,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
           }}>
             {sidebarOpen && 'MENÚ'}
           </div>
-          
+
           {/* Opciones del menú */}
           <div style={{
             display: 'flex',
@@ -654,7 +659,44 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               <span style={{ fontSize: '1.25rem' }}>🪑</span>
               {sidebarOpen && 'Mesas'}
             </button>
-                            
+
+            {/* Delivery - visible para todos excepto mozos */}
+            {!isWaiter && (
+              <button
+                onClick={() => handleMenuClick('delivery')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1.5rem',
+                  background: currentView === 'delivery' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  color: currentView === 'delivery' ? '#667eea' : '#a0aec0',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'delivery') {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'delivery') {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#a0aec0';
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>🚗</span>
+                {sidebarOpen && 'Delivery'}
+              </button>
+            )}
+
             {/* Solo mostrar Configuración si NO es mozo */}
             {!isWaiter && (
               <button
@@ -1031,7 +1073,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               {headerSubtitle}
             </p>
           </div>
-          
+
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -1205,9 +1247,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                       const senderName = notification?.sender?.fullName || 'Usuario';
                       const recipientsLabel = notification?.recipients === 'ALL' ? 'Todos' :
                         notification?.recipients === 'WAITERS' ? 'Mozos' :
-                        notification?.recipients === 'COOKS' ? 'Cocineros' :
-                        notification?.recipients === 'CASHIERS' ? 'Cajeros' :
-                        notification?.recipients === 'ADMINS' ? 'Administradores' : notification?.recipients;
+                          notification?.recipients === 'COOKS' ? 'Cocineros' :
+                            notification?.recipients === 'CASHIERS' ? 'Cajeros' :
+                              notification?.recipients === 'ADMINS' ? 'Administradores' : notification?.recipients;
 
                       return (
                         <div
@@ -1324,7 +1366,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
         {/* Contenido */}
         <main style={{
           flex: 1,
-          padding: currentView === 'dashboard' 
+          padding: currentView === 'dashboard'
             ? (isSmall ? '1rem' : isMedium ? '1.5rem' : '2rem')
             : (isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem'),
           backgroundColor: '#f8fafc',
@@ -1492,6 +1534,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                 </div>
               )}
               {currentView === 'configuration' && <Observation />}
+              {currentView === 'delivery' && <Delivery />}
             </>
           )}
         </main>

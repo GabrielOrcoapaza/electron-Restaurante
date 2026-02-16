@@ -247,17 +247,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const isFactura = selectedDocument?.code === '01';
   const selectedClient = allClients.find((c: any) => c.id === selectedClientId);
 
-  // Filtrar clientes por término de búsqueda y tipo de documento
+  // Filtrar clientes por término de búsqueda y tipo de documento (Factura = solo RUC)
   const filteredClients = allClients.filter((client: any) => {
-    // Si es FACTURA, mostrar solo clientes con RUC
-    if (isFactura && client.documentType !== 'RUC') return false;
+    if (isFactura && (client.documentType || '').toUpperCase() !== 'RUC') return false;
 
     if (!clientSearchTerm) return true;
     const search = clientSearchTerm.toLowerCase();
     const name = (client.name || '').toLowerCase();
     const documentNumber = (client.documentNumber || '').toLowerCase();
     return name.includes(search) || documentNumber.includes(search);
-  });
+  }).slice(0, 50);
   const cashRegisters = cashRegistersData?.cashRegistersByBranch || [];
 
   // Debug: Log para verificar datos
@@ -536,7 +535,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   // Limpiar cliente seleccionado si no es un RUC y se cambia a FACTURA
   React.useEffect(() => {
     if (isFactura && selectedClientId && selectedClient) {
-      if (selectedClient.documentType !== 'RUC') {
+      if ((selectedClient.documentType || '').toUpperCase() !== 'RUC') {
         console.log('🔄 Cliente no es RUC, limpiando selección para Factura');
         setSelectedClientId('');
       }
@@ -1057,7 +1056,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         setPaymentError('Para emitir una FACTURA debe seleccionar un cliente con RUC');
         return;
       }
-      if (selectedClient?.documentType !== 'RUC') {
+      if ((selectedClient?.documentType || '').toUpperCase() !== 'RUC') {
         setPaymentError('Para emitir una FACTURA el cliente debe tener un RUC válido');
         return;
       }
@@ -2658,12 +2657,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   </button>
                 </div>
               </div>
-              <div style={{ marginBottom: '0.5rem' }}>
+              <div style={{ marginBottom: '0.5rem', position: 'relative' }}>
                 <input
                   type="text"
                   value={clientSearchTerm}
-                  onChange={(e) => setClientSearchTerm(e.target.value)}
-                  placeholder="Buscar cliente..."
+                  onChange={(e) => {
+                    setClientSearchTerm(e.target.value);
+                    setSelectedClientId('');
+                  }}
+                  placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente...'}
+                  disabled={clientsLoading || isProcessing}
                   style={{
                     width: '100%',
                     padding: '0.55rem 0.75rem',
@@ -2671,39 +2674,70 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     border: '1px solid #cbd5e0',
                     fontSize: '0.85rem',
                     backgroundColor: 'white',
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    cursor: clientsLoading || isProcessing ? 'not-allowed' : 'text'
                   }}
                 />
-              </div>
-              <select
-                value={selectedClientId}
-                onChange={(e) => setSelectedClientId(e.target.value)}
-                disabled={clientsLoading || isProcessing}
-                style={{
-                  width: '100%',
-                  padding: '0.55rem 0.75rem',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e0',
-                  fontSize: '0.85rem',
-                  backgroundColor: 'white',
-                  cursor: clientsLoading || isProcessing ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {clientsLoading ? (
-                  <option value="">Cargando clientes...</option>
-                ) : filteredClients.length === 0 ? (
-                  <option value="">{clientSearchTerm ? 'No se encontraron clientes' : 'No hay clientes disponibles'}</option>
-                ) : (
-                  <>
-                    {!isFactura && <option value="">Sin cliente (Consumidor final)</option>}
+                {clientSearchTerm && !selectedClientId && filteredClients.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '0.25rem',
+                    maxHeight: '150px',
+                    overflowY: 'auto',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    backgroundColor: 'white',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.07)',
+                    zIndex: 10
+                  }}>
+                    {!isFactura && (
+                      <div
+                        onClick={() => {
+                          setSelectedClientId('');
+                          setClientSearchTerm('');
+                        }}
+                        style={{
+                          padding: '0.5rem 0.75rem',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f1f5f9',
+                          fontSize: '0.85rem',
+                          color: '#64748b'
+                        }}
+                      >
+                        Sin cliente (Consumidor final)
+                      </div>
+                    )}
                     {filteredClients.map((client: any) => (
-                      <option key={client.id} value={client.id}>
-                        {client.name} - {client.documentType} {client.documentNumber}
-                      </option>
+                      <div
+                        key={client.id}
+                        onClick={() => {
+                          setSelectedClientId(client.id);
+                          setClientSearchTerm(client.name);
+                        }}
+                        style={{
+                          padding: '0.5rem 0.75rem',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f1f5f9',
+                          fontSize: '0.85rem'
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#f7fafc'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
+                      >
+                        <div style={{ fontWeight: 600 }}>{client.name}</div>
+                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{client.documentType}: {client.documentNumber}</div>
+                      </div>
                     ))}
-                  </>
+                  </div>
                 )}
-              </select>
+                {clientSearchTerm && !selectedClientId && !clientsLoading && filteredClients.length === 0 && (
+                  <div style={{ marginTop: '0.25rem', fontSize: '0.8rem', color: '#64748b' }}>
+                    {isFactura ? 'No hay clientes con RUC' : 'No se encontraron clientes'}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

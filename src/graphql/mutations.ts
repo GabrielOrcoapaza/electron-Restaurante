@@ -1185,3 +1185,79 @@ export const PRINT_PAYMENT = gql`
     }
   }
 `;
+
+// Mutación para crear venta para llevar (carry out)
+export const CREATE_SALE_CARRY_OUT = gql`
+  mutation CreateSaleCarryOut(
+    $branchId: ID!
+    $userId: ID!
+    $personId: ID
+    $documentId: ID!
+    $serial: String!
+    $emissionDate: Date!
+    $emissionTime: Time!
+    $currency: String!
+    $exchangeRate: Float!
+    $itemsTotalDiscount: Float!
+    $globalDiscount: Float!
+    $globalDiscountPercent: Float!
+    $totalDiscount: Float!
+    $igvPercent: Float!
+    $igvAmount: Float!
+    $totalTaxable: Float!
+    $totalUnaffected: Float!
+    $totalExempt: Float!
+    $totalFree: Float!
+    $totalAmount: Float!
+    $items: [CarryOutItemInput!]!
+    $payments: [PaymentInput!]!
+    $notes: String
+    $deviceId: String
+    $printerId: ID
+  ) {
+    createSaleCarryOut(
+      branchId: $branchId
+      userId: $userId
+      personId: $personId
+      documentId: $documentId
+      serial: $serial
+      emissionDate: $emissionDate
+      emissionTime: $emissionTime
+      currency: $currency
+      exchangeRate: $exchangeRate
+      itemsTotalDiscount: $itemsTotalDiscount
+      globalDiscount: $globalDiscount
+      globalDiscountPercent: $globalDiscountPercent
+      totalDiscount: $totalDiscount
+      igvPercent: $igvPercent
+      igvAmount: $igvAmount
+      totalTaxable: $totalTaxable
+      totalUnaffected: $totalUnaffected
+      totalExempt: $totalExempt
+      totalFree: $totalFree
+      totalAmount: $totalAmount
+      items: $items
+      payments: $payments
+      notes: $notes
+      deviceId: $deviceId
+      printerId: $printerId
+    ) {
+      success
+      message
+      issuedDocument {
+        id
+        serial
+        number
+        billingStatus
+      }
+      operation {
+        id
+        order
+        status
+      }
+      printLocally
+      printViaBluetooth
+      documentData
+    }
+  }
+`;
