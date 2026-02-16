@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useQuery, useMutation } from '@apollo/client';
+import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../context/ToastContext';
 import { CREATE_SALE_CARRY_OUT } from '../../graphql/mutations';
@@ -10,8 +10,10 @@ import {
     SEARCH_PRODUCTS,
     GET_DOCUMENTS_WITH_SERIALS,
     GET_CASH_REGISTERS_BY_BRANCH,
-    GET_PERSONS_BY_BRANCH
+    GET_PERSONS_BY_BRANCH,
+    GET_MODIFIERS_BY_SUBCATEGORY
 } from '../../graphql/queries';
+import ModalObservation from './modalObservation';
 
 // Tipo para los ítems del carrito
 type CartItem = {
@@ -53,6 +55,9 @@ const Delivery: React.FC = () => {
     const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
     const [personSearchTerm, setPersonSearchTerm] = useState<string>('');
     const [selectedDocument, setSelectedDocument] = useState<string>('');
+    const [showObservationModal, setShowObservationModal] = useState<string | null>(null);
+    const [productObservations, setProductObservations] = useState<Record<string, any[]>>({});
+    const [selectedObservations, setSelectedObservations] = useState<Record<string, Set<string>>>({});
     const [selectedSerial, setSelectedSerial] = useState<string>('');
     const [selectedCashRegister, setSelectedCashRegister] = useState<string>('');
     const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
@@ -235,6 +240,55 @@ const Delivery: React.FC = () => {
         setCartItems(cartItems.filter(item => item.id !== itemId));
     };
 
+    const [getObservations] = useLazyQuery(GET_MODIFIERS_BY_SUBCATEGORY, { fetchPolicy: 'cache-and-network' });
+
+    const handleOpenObservationModal = async (itemId: string) => {
+        const item = cartItems.find(i => i.id === itemId);
+        if (!item) return;
+        if (item.subcategoryId && !productObservations[itemId]) {
+            try {
+                const { data } = await getObservations({ variables: { subcategoryId: item.subcategoryId } });
+                if (data?.notesBySubcategory) {
+                    const activeObservations = data.notesBySubcategory.filter((m: any) => m.isActive);
+                    setProductObservations(prev => ({ ...prev, [itemId]: activeObservations }));
+                    if (item.notes) {
+                        const currentNotes = item.notes.split(', ').map((n: string) => n.trim());
+                        const selectedIds = new Set<string>();
+                        activeObservations.forEach((obs: any) => {
+                            if (currentNotes.includes(obs.note)) selectedIds.add(obs.id);
+                        });
+                        if (selectedIds.size > 0) {
+                            setSelectedObservations(prev => ({ ...prev, [itemId]: selectedIds }));
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error al obtener observaciones:', error);
+            }
+        }
+        setShowObservationModal(itemId);
+    };
+
+    const handleApplyObservations = (itemId: string, selectedIds: Set<string>, manualNotes: string) => {
+        const item = cartItems.find(i => i.id === itemId);
+        if (!item) return;
+        setSelectedObservations(prev => ({ ...prev, [itemId]: selectedIds }));
+        const selectedNotes = (productObservations[itemId] || [])
+            .filter((o: any) => selectedIds.has(o.id))
+            .map((o: any) => o.note)
+            .filter(Boolean)
+            .join(', ');
+        const cleanManual = (manualNotes || '').trim();
+        let finalNotes = '';
+        if (selectedNotes && cleanManual) finalNotes = `${selectedNotes}, ${cleanManual}`;
+        else if (selectedNotes) finalNotes = selectedNotes;
+        else if (cleanManual) finalNotes = cleanManual;
+        setCartItems(prev =>
+            prev.map(i => (i.id !== itemId ? i : { ...i, notes: finalNotes }))
+        );
+        setShowObservationModal(null);
+    };
+
     // Calcular totales
     const cartTotal = cartItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
     const igvPercentageDecimal = igvPercentageFromBranch / 100;
@@ -414,9 +468,10 @@ const Delivery: React.FC = () => {
             boxSizing: 'border-box',
             overflow: 'hidden'
         }}>
-            {/* Panel izquierdo - Productos */}
+            {/* Panel izquierdo - Productos (reducido para dar más espacio al carrito/pago) */}
             <div style={{
-                flex: 2,
+                flex: 1.4,
+                minWidth: 0,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '1rem',
@@ -592,7 +647,7 @@ const Delivery: React.FC = () => {
                     ) : (
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
                             gap: '0.75rem'
                         }}>
                             {productsList.map((product: any) => (
@@ -617,14 +672,46 @@ const Delivery: React.FC = () => {
                                         e.currentTarget.style.backgroundColor = '#f7fafc';
                                     }}
                                 >
+                                    {product.imageBase64 ? (
+                                        <img
+                                            src={`data:image/jpeg;base64,${product.imageBase64}`}
+                                            alt={product.name}
+                                            style={{
+                                                width: '100%',
+                                                height: '70px',
+                                                objectFit: 'cover',
+                                                borderRadius: '8px',
+                                                backgroundColor: '#f7fafc',
+                                                marginBottom: '0.5rem'
+                                            }}
+                                        />
+                                    ) : (
+                                        <div style={{
+                                            width: '100%',
+                                            height: '70px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            backgroundColor: '#f7fafc',
+                                            borderRadius: '8px',
+                                            marginBottom: '0.5rem',
+                                            fontSize: '2rem'
+                                        }}>
+                                            🍽️
+                                        </div>
+                                    )}
                                     <div style={{
                                         fontSize: '0.75rem',
                                         fontWeight: '600',
                                         color: '#2d3748',
                                         marginBottom: '0.25rem',
+                                        lineHeight: '1.2',
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap'
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 4,
+                                        WebkitBoxOrient: 'vertical' as const,
+                                        wordBreak: 'break-word'
                                     }}>
                                         {product.name}
                                     </div>
@@ -700,24 +787,50 @@ const Delivery: React.FC = () => {
                                                 fontSize: '0.75rem',
                                                 fontWeight: '600',
                                                 color: '#2d3748',
-                                                flex: 1
+                                                flex: 1,
+                                                minWidth: 0
                                             }}>
                                                 {item.name}
+                                                {item.notes && (
+                                                    <div style={{ fontSize: '0.6875rem', color: '#64748b', marginTop: '0.2rem', fontWeight: 400 }}>
+                                                        {item.notes}
+                                                    </div>
+                                                )}
                                             </div>
-                                            <button
-                                                onClick={() => handleRemoveItem(item.id)}
-                                                style={{
-                                                    background: 'none',
-                                                    border: 'none',
-                                                    color: '#e53e3e',
-                                                    cursor: 'pointer',
-                                                    fontSize: '1rem',
-                                                    padding: '0',
-                                                    marginLeft: '0.5rem'
-                                                }}
-                                            >
-                                                ×
-                                            </button>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleOpenObservationModal(item.id)}
+                                                    title={item.notes ? 'Editar observaciones' : 'Agregar observaciones'}
+                                                    style={{
+                                                        padding: '0.25rem',
+                                                        border: 'none',
+                                                        borderRadius: '6px',
+                                                        background: item.notes ? '#dbeafe' : '#f1f5f9',
+                                                        color: item.notes ? '#2563eb' : '#64748b',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.875rem',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                >
+                                                    📝
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRemoveItem(item.id)}
+                                                    style={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        color: '#e53e3e',
+                                                        cursor: 'pointer',
+                                                        fontSize: '1rem',
+                                                        padding: '0'
+                                                    }}
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
                                         </div>
                                         <div style={{
                                             display: 'flex',
@@ -1103,6 +1216,25 @@ const Delivery: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            {showObservationModal && (() => {
+                const item = cartItems.find(i => i.id === showObservationModal);
+                if (!item) return null;
+                const observations = productObservations[showObservationModal] || [];
+                const selectedIds = selectedObservations[showObservationModal] || new Set<string>();
+                return (
+                    <ModalObservation
+                        isOpen={true}
+                        onClose={() => setShowObservationModal(null)}
+                        observations={observations}
+                        selectedObservationIds={selectedIds}
+                        onApply={(ids, manualNotes) => handleApplyObservations(showObservationModal, ids, manualNotes)}
+                        productName={item.name}
+                        currentNotes={item.notes || ''}
+                        canEdit={true}
+                    />
+                );
+            })()}
         </div>
     );
 };

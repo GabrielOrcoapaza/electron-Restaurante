@@ -1166,12 +1166,14 @@ export const CREATE_ISSUED_DOCUMENT_FROM_ANNULLED = gql`
   }
 `;
 
-// Mutación para reimprimir cierre de caja
+// Mutación para reimprimir cierre de caja (anteriores o el recién cerrado)
 export const REPRINT_CLOSURE = gql`
   mutation ReprintClosure($closureId: ID!, $deviceId: String!) {
     reprintClosure(closureId: $closureId, deviceId: $deviceId) {
       success
       message
+      printLocally
+      documentData
     }
   }
 `;

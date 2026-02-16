@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../../context/ToastContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import {
   GET_CASH_REGISTERS,
@@ -115,7 +116,8 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 });
 
 const Cashs: React.FC = () => {
-  const { companyData, user, deviceId, getMacAddress } = useAuth();
+  const { companyData, user, getMacAddress } = useAuth();
+  const { showToast } = useToast();
   const { breakpoint, isMobile, isTablet } = useResponsive();
   const branchId = companyData?.branch?.id;
 
@@ -210,8 +212,43 @@ const Cashs: React.FC = () => {
     }
   );
 
-  // Mutación para reimprimir cierre
-  const [reprintClosure] = useMutation(REPRINT_CLOSURE);
+  // Mutación para reimprimir cierre (usada al cerrar caja y para cierres anteriores)
+  const [reprintClosureMutation, { loading: reprintingClosure }] = useMutation(REPRINT_CLOSURE);
+  const [reprintingClosureId, setReprintingClosureId] = useState<string | null>(null);
+
+  const handleReprintClosure = async (closure: CashClosure) => {
+    try {
+      const mac = await getMacAddress();
+      if (!mac) {
+        showToast('No se pudo obtener la MAC de la PC. Intenta de nuevo.', 'error');
+        return;
+      }
+      setReprintingClosureId(closure.id);
+      const result = await reprintClosureMutation({
+        variables: { closureId: closure.id, deviceId: mac }
+      });
+      const data = result.data?.reprintClosure;
+      if (data?.success) {
+        if (data.printLocally && data.documentData) {
+          try {
+            const doc = typeof data.documentData === 'string' ? JSON.parse(data.documentData) : data.documentData;
+            if (typeof (window as any).printClosureDocument === 'function') {
+              (window as any).printClosureDocument(doc);
+            }
+          } catch (_) {
+            // Sin impresora integrada: el backend ya pudo haber enviado a cola
+          }
+        }
+        showToast(data.message || 'Reimpresión enviada', 'success');
+      } else {
+        showToast(data?.message || 'Error al reimprimir', 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Error de conexión al reimprimir', 'error');
+    } finally {
+      setReprintingClosureId(null);
+    }
+  };
 
   // Mutación para cerrar caja
   const [closeCashMutation, { loading: closingCash }] = useMutation(CLOSE_CASH, {
@@ -231,16 +268,14 @@ const Cashs: React.FC = () => {
           detailMessage += `\n• Total Egresos: ${currencyFormatter.format(closure.totalExpense)}`;
           detailMessage += `\n• Neto Total: ${currencyFormatter.format(closure.netTotal)}`;
 
-          // Imprimir automáticamente
+          // Imprimir automáticamente (device_id = MAC de la PC)
           try {
             const mac = await getMacAddress();
-            const resolvedDeviceId = mac || deviceId;
-
-            if (resolvedDeviceId) {
-              await reprintClosure({
+            if (mac) {
+              await reprintClosureMutation({
                 variables: {
                   closureId: closure.id,
-                  deviceId: resolvedDeviceId
+                  deviceId: mac
                 }
               });
               console.log('✅ Orden de impresión enviada');
@@ -361,11 +396,9 @@ const Cashs: React.FC = () => {
     }
 
     try {
-      // Obtener deviceId o MAC address
-      const resolvedDeviceId = deviceId || await getMacAddress();
-
-      if (!resolvedDeviceId) {
-        alert('❌ No se pudo obtener el ID del dispositivo. Por favor, intenta nuevamente.');
+      const mac = await getMacAddress();
+      if (!mac) {
+        showToast('No se pudo obtener la MAC de la PC. Intenta nuevamente.', 'error');
         return;
       }
 
@@ -373,7 +406,7 @@ const Cashs: React.FC = () => {
         variables: {
           userId: user.id,
           branchId: branchId,
-          deviceId: resolvedDeviceId,
+          deviceId: mac,
           cashRegisterId: selectedCashRegister
         }
       });
@@ -1264,6 +1297,7 @@ const Cashs: React.FC = () => {
                       <th style={{ padding: '1rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Ingresos</th>
                       <th style={{ padding: '1rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Egresos</th>
                       <th style={{ padding: '1rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Neto</th>
+                      <th style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1338,6 +1372,30 @@ const Cashs: React.FC = () => {
                             color: closure.netTotal >= 0 ? '#16a34a' : '#dc2626'
                           }}>
                             {currencyFormatter.format(closure.netTotal)}
+                          </td>
+                          <td style={{ padding: '1rem', textAlign: 'center', verticalAlign: 'middle' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReprintClosure(closure);
+                              }}
+                              disabled={reprintingClosureId === closure.id || reprintingClosure}
+                              title="Reimprimir este cierre"
+                              style={{
+                                padding: '0.4rem 0.75rem',
+                                borderRadius: '8px',
+                                border: 'none',
+                                backgroundColor: reprintingClosureId === closure.id ? '#94a3b8' : '#2563eb',
+                                color: 'white',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                cursor: reprintingClosureId === closure.id ? 'not-allowed' : 'pointer',
+                                opacity: reprintingClosureId === closure.id ? 0.8 : 1
+                              }}
+                            >
+                              {reprintingClosureId === closure.id ? 'Imprimiendo...' : 'Reimprimir'}
+                            </button>
                           </td>
                         </tr>
                       );

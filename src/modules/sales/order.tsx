@@ -664,18 +664,18 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					};
 				});
 
-				// Obtener deviceId o MAC address
-				let resolvedDeviceId: string;
-				if (deviceId) {
-					resolvedDeviceId = deviceId;
-				} else {
-					// Si deviceId es null, obtener la MAC address
-					try {
-						resolvedDeviceId = await getMacAddress();
-					} catch (error) {
-						console.error('Error al obtener MAC address:', error);
-						// Fallback a getDeviceId si falla
-						resolvedDeviceId = getDeviceId();
+				// Solo enviar deviceId si debe imprimir; si no, enviar vacío para que no imprima
+				let deviceIdForMutation = '';
+				if (shouldPrint) {
+					if (deviceId) {
+						deviceIdForMutation = deviceId;
+					} else {
+						try {
+							deviceIdForMutation = await getMacAddress();
+						} catch (error) {
+							console.error('Error al obtener MAC address:', error);
+							deviceIdForMutation = getDeviceId();
+						}
 					}
 				}
 
@@ -683,7 +683,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					variables: {
 						operationId,
 						details,
-						deviceId: resolvedDeviceId
+						deviceId: deviceIdForMutation
 					}
 				});
 
@@ -785,25 +785,22 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			if (user?.id) {
 				variables.userId = user.id;
 			}
-			// Obtener deviceId o MAC address
-			if (deviceId) {
-				variables.deviceId = deviceId;
-			} else {
-				// Si deviceId es null, obtener la MAC address
-				try {
-					const macAddress = await getMacAddress();
-					variables.deviceId = macAddress;
-				} catch (error) {
-					console.error('Error al obtener MAC address:', error);
-					// Fallback a getDeviceId si falla
-					variables.deviceId = getDeviceId();
+			// Solo enviar deviceId cuando debe imprimir; si no, no enviar para que no imprima
+			if (shouldPrint) {
+				if (deviceId) {
+					variables.deviceId = deviceId;
+				} else {
+					try {
+						const macAddress = await getMacAddress();
+						variables.deviceId = macAddress;
+					} catch (error) {
+						console.error('Error al obtener MAC address:', error);
+						variables.deviceId = getDeviceId();
+					}
 				}
 			}
 
 			variables.shouldPrint = shouldPrint;
-			if (!shouldPrint) {
-				console.log('mandando la orden sin imprimir');
-			}
 
 			const cleanVariables: any = {};
 			Object.keys(variables).forEach(key => {

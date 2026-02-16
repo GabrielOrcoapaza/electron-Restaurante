@@ -767,15 +767,33 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
           // Refetch la operación para obtener los datos actualizados
           const refetchResult = await refetch();
-          // Actualizar modifiedDetails filtrando cancelados y preservando splits restantes
+          // Actualizar modifiedDetails filtrando cancelados y preservando splits restantes sin duplicar cantidades
           if (refetchResult.data?.operationById?.details && refetchResult.data?.operationById?.id) {
             const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationById.details, refetchResult.data.operationById.id);
-            // Combinar detalles del backend con splits restantes
-            const allDetails = [...nonCanceledDetails, ...remainingSplits];
-            setModifiedDetails(allDetails);
+            const totalRemainingSplitQty = remainingSplits.reduce((sum: number, d: any) => sum + (Number(d.quantity) || 0), 0);
+            const originalFromBackend = nonCanceledDetails.find((d: any) => String(d.id) === String(originalDetailId));
+            let detailsToSet: any[];
+            if (originalFromBackend && totalRemainingSplitQty > 0) {
+              const backendQty = Number(originalFromBackend.quantity) || 0;
+              const originalQtyToShow = Math.max(0, backendQty - totalRemainingSplitQty);
+              const adjustedOriginal = {
+                ...originalFromBackend,
+                quantity: originalQtyToShow,
+                remainingQuantity: originalQtyToShow,
+                total: originalQtyToShow * Number(originalFromBackend.unitPrice || 0)
+              };
+              detailsToSet = nonCanceledDetails.flatMap((d: any) =>
+                String(d.id) === String(originalDetailId)
+                  ? [adjustedOriginal, ...remainingSplits]
+                  : [d]
+              );
+            } else {
+              detailsToSet = [...nonCanceledDetails, ...remainingSplits];
+            }
+            setModifiedDetails(detailsToSet);
 
             // Si no hay detalles (ni del backend ni splits), la mesa queda libre
-            if (allDetails.length === 0 && table?.id && updateTableInContext) {
+            if (detailsToSet.length === 0 && table?.id && updateTableInContext) {
               updateTableInContext({
                 id: table.id,
                 status: 'AVAILABLE',
@@ -1543,7 +1561,11 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
     try {
       const mac = await getMacAddress();
-      const resolvedDeviceId = mac || deviceId;
+      if (!mac) {
+        setPaymentError('No se pudo obtener la MAC de la PC. Intenta de nuevo.');
+        setIsProcessing(false);
+        return;
+      }
 
       // Solo imprimir precuenta con los ítems seleccionados
       const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
@@ -1561,7 +1583,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           tableId: table.id,
           branchId: companyData.branch.id,
           userId: user.id,
-          deviceId: resolvedDeviceId,
+          deviceId: mac,
           printerId: null
         }
       });
