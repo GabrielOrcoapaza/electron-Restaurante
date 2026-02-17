@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@apollo/client';
 import { USER_LOGIN } from '../graphql/mutations';
@@ -6,6 +6,7 @@ import { GET_USERS_BY_BRANCH } from '../graphql/queries';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
 import { useToast } from '../context/ToastContext';
+import VirtualKeyboard from '../components/VirtualKeyboard';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ const Login: React.FC = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedInput, setFocusedInput] = useState<'search' | 'password' | null>(null);
+  const keyboardRef = useRef<HTMLDivElement>(null);
 
   const [userLoginMutation, { loading }] = useMutation(USER_LOGIN);
 
@@ -149,9 +152,19 @@ const Login: React.FC = () => {
     });
   };
 
+  const handleVirtualKeyPress = (key: string) => {
+    if (focusedInput === 'search') setSearchTerm(prev => prev + key);
+    if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password + key }));
+  };
+  const handleVirtualBackspace = () => {
+    if (focusedInput === 'search') setSearchTerm(prev => prev.slice(0, -1));
+    if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password.slice(0, -1) }));
+  };
+
   // Tamaños adaptativos según breakpoint
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
+  const showLeftPanel = breakpoint === 'lg' || breakpoint === 'xl' || breakpoint === '2xl';
 
   const containerPadding = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '1rem' : '1.5rem';
   const formMaxWidth = isSmallDesktop ? '100%' : isMediumDesktop ? '550px' : '650px';
@@ -376,25 +389,48 @@ const Login: React.FC = () => {
               Selecciona tu empleado y contraseña
             </p>
 
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: '2rem',
-              marginTop: '3rem'
-            }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👤</div>
-                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Empleados</div>
+            {focusedInput ? (
+              <div ref={keyboardRef} style={{
+                width: '100%',
+                maxWidth: '540px',
+                minWidth: '480px',
+                marginTop: '0.5rem',
+                padding: '0.75rem',
+                background: 'rgba(255,255,255,0.95)',
+                borderRadius: '12px',
+                border: '2px solid rgba(255,255,255,0.6)',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+              }}>
+                <div style={{ textAlign: 'center', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 700, color: 'rgba(255,255,255,0.95)', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                  ⌨️ Teclado virtual
+                </div>
+                <VirtualKeyboard
+                  onKeyPress={handleVirtualKeyPress}
+                  onBackspace={handleVirtualBackspace}
+                  compact={true}
+                />
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🔐</div>
-                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Seguridad</div>
+            ) : (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '2rem',
+                marginTop: '3rem'
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👤</div>
+                  <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Empleados</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🔐</div>
+                  <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Seguridad</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⚡</div>
+                  <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Rápido</div>
+                </div>
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⚡</div>
-                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Rápido</div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -402,6 +438,7 @@ const Login: React.FC = () => {
         <div className="form-panel" style={{
           flex: '1.5',
           display: 'flex',
+          flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
           padding: isSmallDesktop ? '0.25rem' : isMediumDesktop ? '0.5rem' : '0.5rem',
@@ -412,7 +449,7 @@ const Login: React.FC = () => {
           width: '100%',
           maxWidth: '100%',
           boxSizing: 'border-box',
-          overflow: 'hidden'
+          overflow: 'auto'
         }}>
           <div className="form-container" style={{
             width: '100%',
@@ -518,12 +555,14 @@ const Login: React.FC = () => {
                       fontWeight: '500'
                     }}
                     onFocus={(e) => {
+                      setFocusedInput('search');
                       e.target.style.borderColor = '#42a5f5';
                       e.target.style.backgroundColor = 'white';
                       e.target.style.boxShadow = '0 0 0 4px rgba(66, 165, 246, 0.1)';
                       e.target.style.transform = 'translateY(-2px)';
                     }}
                     onBlur={(e) => {
+                      if (!keyboardRef.current?.contains(e.relatedTarget as Node)) setFocusedInput(null);
                       e.target.style.borderColor = '#e2e8f0';
                       e.target.style.backgroundColor = '#f8fafc';
                       e.target.style.boxShadow = 'none';
@@ -709,7 +748,7 @@ const Login: React.FC = () => {
                 )}
               </div>
 
-              <div style={{ marginBottom: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '1rem' : '1.25rem', marginTop: isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2.5rem' }}>
+              <div style={{ marginBottom: isSmallDesktop ? '0.25rem' : isMediumDesktop ? '0.5rem' : '0.5rem', marginTop: 0 }}>
                 <label className="form-labels" style={{
                   display: 'block',
                   marginBottom: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.75rem' : '1rem',
@@ -741,12 +780,14 @@ const Login: React.FC = () => {
                       fontWeight: '500'
                     }}
                     onFocus={(e) => {
+                      setFocusedInput('password');
                       e.target.style.borderColor = '#ffa726';
                       e.target.style.backgroundColor = 'white';
                       e.target.style.boxShadow = '0 0 0 4px rgba(255, 167, 38, 0.1)';
                       e.target.style.transform = 'translateY(-2px)';
                     }}
                     onBlur={(e) => {
+                      if (!keyboardRef.current?.contains(e.relatedTarget as Node)) setFocusedInput(null);
                       e.target.style.borderColor = '#e2e8f0';
                       e.target.style.backgroundColor = '#f8fafc';
                       e.target.style.boxShadow = 'none';
@@ -878,6 +919,29 @@ const Login: React.FC = () => {
               </div>
             </form>
           </div>
+
+          {focusedInput && !showLeftPanel && (
+            <div ref={keyboardRef} style={{
+              width: '100%',
+              maxWidth: '680px',
+              minWidth: '560px',
+              marginTop: '1rem',
+              padding: '1rem',
+              background: 'linear-gradient(145deg, #f1f5f9, #e2e8f0)',
+              borderRadius: '16px',
+              border: '3px solid #64748b',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.5)'
+            }}>
+              <div style={{ textAlign: 'center', marginBottom: '0.75rem', fontSize: '1rem', fontWeight: 700, color: '#334155' }}>
+                ⌨️ Teclado virtual
+              </div>
+              <VirtualKeyboard
+                onKeyPress={handleVirtualKeyPress}
+                onBackspace={handleVirtualBackspace}
+                compact={false}
+              />
+            </div>
+          )}
         </div>
       </div>
 

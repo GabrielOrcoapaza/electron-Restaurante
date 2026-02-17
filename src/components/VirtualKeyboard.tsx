@@ -46,14 +46,15 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 		if (shift && key !== ' ') setShift(false);
 	};
 
+	// Teclas más grandes y gruesas para uso táctil (mozos, dedos gordos)
 	const keyStyle: React.CSSProperties = {
-		minWidth: compact ? 24 : 28,
-		height: compact ? 32 : 38,
-		padding: compact ? '0.2rem 0.35rem' : '0.35rem 0.5rem',
-		fontSize: compact ? 12 : 14,
-		fontWeight: 600,
+		minWidth: compact ? 42 : 48,
+		height: compact ? 58 : 68,
+		padding: compact ? '0.4rem 0.5rem' : '0.5rem 0.6rem',
+		fontSize: compact ? 34 : 37,
+		fontWeight: 700,
 		border: '1px solid #cbd5e0',
-		borderRadius: 6,
+		borderRadius: 8,
 		background: '#fff',
 		color: '#1e293b',
 		cursor: disabled ? 'not-allowed' : 'pointer',
@@ -69,19 +70,31 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 		...keyStyle,
 		background: '#e2e8f0',
 		color: '#475569',
-		minWidth: compact ? 36 : 44
+		minWidth: compact ? 48 : 56
+	};
+
+	const spaceKeyStyle: React.CSSProperties = {
+		...keyStyle,
+		flex: 1,
+		minWidth: compact ? 120 : 180,
+		maxWidth: compact ? 200 : 300,
+		background: '#e2e8f0',
+		color: '#334155',
+		border: '2px solid #94a3b8',
+		fontWeight: 700,
+		fontSize: compact ? 13 : 15
 	};
 
 	const rowStyle: React.CSSProperties = {
 		display: 'flex',
-		gap: compact ? 3 : 4,
+		gap: compact ? 5 : 6,
 		justifyContent: 'center',
-		marginBottom: compact ? 3 : 4
+		marginBottom: compact ? 5 : 6
 	};
 
 	if (showNumbers) {
 		return (
-			<div style={{ padding: compact ? '0.5rem' : '0.75rem', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+			<div style={{ padding: compact ? '0.6rem' : '0.9rem', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
 				<div style={rowStyle}>
 					{NUMBERS.map(k => (
 						<button
@@ -114,7 +127,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 					<button type="button" onClick={() => setShowNumbers(false)} style={specialKeyStyle} onMouseDown={e => e.preventDefault()}>
 						ABC
 					</button>
-					<button type="button" onClick={() => handleKey(' ')} style={{ ...keyStyle, flex: 1, maxWidth: 120 }} onMouseDown={e => e.preventDefault()}>
+					<button type="button" onClick={() => handleKey(' ')} style={spaceKeyStyle} onMouseDown={e => e.preventDefault()}>
 						Espacio
 					</button>
 					<button type="button" onClick={() => handleKey('⌫')} style={specialKeyStyle} onMouseDown={e => e.preventDefault()}>
@@ -126,7 +139,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 	}
 
 	return (
-		<div style={{ padding: compact ? '0.5rem' : '0.75rem', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+		<div style={{ padding: compact ? '0.6rem' : '0.9rem', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
 			<div style={rowStyle}>
 				{ROW1.map(k => (
 					<button
@@ -176,7 +189,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 				<button type="button" onClick={() => setShowNumbers(true)} style={specialKeyStyle} onMouseDown={e => e.preventDefault()}>
 					123
 				</button>
-				<button type="button" onClick={() => handleKey(' ')} style={{ ...keyStyle, flex: 1, maxWidth: 200 }} onMouseDown={e => e.preventDefault()}>
+				<button type="button" onClick={() => handleKey(' ')} style={spaceKeyStyle} onMouseDown={e => e.preventDefault()}>
 					Espacio
 				</button>
 			</div>

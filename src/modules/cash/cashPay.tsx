@@ -720,6 +720,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     });
   };
 
+  const handleSelectAll = () => {
+    const allIds = (detailsToUse || []).reduce<Record<string, boolean>>((acc, detail: any) => {
+      acc[String(detail.id || '')] = true;
+      return acc;
+    }, {});
+    setItemAssignments(allIds);
+  };
+
+  const handleDeselectAll = () => {
+    setItemAssignments({});
+  };
+
   const handleDeleteItem = async (detailId: string) => {
     // Si es un item dividido (split), cancelar parcialmente el producto original
     if (detailId?.includes('-split')) {
@@ -845,20 +857,91 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       return;
     }
 
-    // Para items reales (no splits), usar la mutación de cancelación completa
+    // Para items reales (no splits): si tiene copias (splits), cancelar solo la cantidad del original y conservar las copias
     try {
-      // Primero eliminar todos los splits relacionados del estado local si existen
-      setModifiedDetails(prevDetails => {
-        return prevDetails.filter((d: any) => !String(d.id).includes(`${detailId}-split`));
-      });
+      let remainingSplits: any[] = [];
+      let originalQuantityToCancel = 1;
 
-      // Limpiar asignaciones de splits relacionados
+      const currentDetails = modifiedDetails.length > 0 ? modifiedDetails : filterCanceledDetails(operation?.details || [], operation?.id);
+      const relatedSplits = currentDetails.filter((d: any) => String(d.id).startsWith(`${detailId}-split`));
+      const originalRow = currentDetails.find((d: any) => String(d.id) === String(detailId) && !String(d.id).includes('-split'));
+
+      if (relatedSplits.length > 0 && originalRow) {
+        // Hay copias: cancelar solo la cantidad del original y conservar las copias
+        originalQuantityToCancel = Number(originalRow.quantity) || 1;
+        remainingSplits = [...relatedSplits];
+
+        setModifiedDetails(prevDetails => prevDetails.filter((d: any) => !(String(d.id) === String(detailId) && !String(d.id).includes('-split'))));
+        setItemAssignments(prev => {
+          const next = { ...prev };
+          delete next[detailId];
+          return next;
+        });
+
+        const result = await cancelOperationDetailMutation({
+          variables: {
+            detailId: detailId,
+            quantity: originalQuantityToCancel,
+            userId: user?.id || '',
+            deviceId: deviceId || undefined
+          }
+        });
+
+        if (result.data?.cancelOperationDetail?.success) {
+          const refetchResult = await refetch();
+          if (refetchResult.data?.operationById?.details && refetchResult.data?.operationById?.id) {
+            const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationById.details, refetchResult.data.operationById.id);
+            const totalRemainingSplitQty = remainingSplits.reduce((sum: number, d: any) => sum + (Number(d.quantity) || 0), 0);
+            const originalFromBackend = nonCanceledDetails.find((d: any) => String(d.id) === String(detailId));
+            let detailsToSet: any[];
+            if (originalFromBackend && totalRemainingSplitQty > 0) {
+              const backendQty = Number(originalFromBackend.quantity) || 0;
+              const originalQtyToShow = Math.max(0, backendQty - totalRemainingSplitQty);
+              if (originalQtyToShow > 0) {
+                const adjustedOriginal = {
+                  ...originalFromBackend,
+                  quantity: originalQtyToShow,
+                  remainingQuantity: originalQtyToShow,
+                  total: originalQtyToShow * Number(originalFromBackend.unitPrice || 0)
+                };
+                detailsToSet = nonCanceledDetails.flatMap((d: any) =>
+                  String(d.id) === String(detailId) ? [adjustedOriginal, ...remainingSplits] : [d]
+                );
+              } else {
+                detailsToSet = nonCanceledDetails.flatMap((d: any) =>
+                  String(d.id) === String(detailId) ? remainingSplits : [d]
+                );
+              }
+            } else {
+              detailsToSet = [...nonCanceledDetails, ...remainingSplits];
+            }
+            setModifiedDetails(detailsToSet);
+            if (detailsToSet.length === 0 && table?.id && updateTableInContext) {
+              updateTableInContext({ id: table.id, status: 'AVAILABLE', statusColors: null, currentOperationId: null, occupiedById: null, userName: null });
+              if (onPaymentSuccess) onPaymentSuccess();
+              setTimeout(() => onBack(), 500);
+            }
+          } else if (!refetchResult.data?.operationById && table?.id && updateTableInContext) {
+            updateTableInContext({ id: table.id, status: 'AVAILABLE', statusColors: null, currentOperationId: null, occupiedById: null, userName: null });
+            setModifiedDetails(remainingSplits.length > 0 ? remainingSplits : []);
+            if (onPaymentSuccess) onPaymentSuccess();
+            setTimeout(() => onBack(), 500);
+          }
+          setItemAssignments(prev => { const n = { ...prev }; delete n[detailId]; return n; });
+        } else {
+          const errorMessage = result.data?.cancelOperationDetail?.message || 'Error al cancelar el item';
+          console.log(errorMessage);
+          await refetch();
+        }
+        return;
+      }
+
+      // Sin copias: cancelación completa del detalle (comportamiento anterior)
+      setModifiedDetails(prevDetails => prevDetails.filter((d: any) => !String(d.id).includes(`${detailId}-split`)));
       setItemAssignments(prev => {
         const newAssignments = { ...prev };
         Object.keys(newAssignments).forEach(key => {
-          if (key.includes(`${detailId}-split`)) {
-            delete newAssignments[key];
-          }
+          if (key.includes(`${detailId}-split`)) delete newAssignments[key];
         });
         return newAssignments;
       });
@@ -872,60 +955,39 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       });
 
       if (result.data?.cancelOperationDetail?.success) {
-        // ✅ Verificar si la operación cambió de estado automáticamente
         const operationCancelled = result.data?.cancelOperationDetail?.operationCancelled;
-
         if (operationCancelled) {
           console.log('✅ Operación cambió de estado automáticamente después de cancelar item');
         }
-
-        // Refetch la operación para obtener los datos actualizados
         const refetchResult = await refetch();
-        // Actualizar modifiedDetails filtrando cancelados
         if (refetchResult.data?.operationById?.details) {
           const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationById.details);
           setModifiedDetails([...nonCanceledDetails]);
-
-          // Si no hay detalles, la mesa queda libre
           if (nonCanceledDetails.length === 0 && table?.id && updateTableInContext) {
             updateTableInContext({
               id: table.id,
               status: 'AVAILABLE',
-              statusColors: null, // Limpiar colores para usar los por defecto (verde)
+              statusColors: null,
               currentOperationId: null,
               occupiedById: null,
               userName: null
             });
-            // Notificar al componente padre para que actualice las mesas
-            if (onPaymentSuccess) {
-              onPaymentSuccess();
-            }
-            // Volver atrás después de un breve delay
-            setTimeout(() => {
-              onBack();
-            }, 500);
+            if (onPaymentSuccess) onPaymentSuccess();
+            setTimeout(() => onBack(), 500);
           }
         } else if (!refetchResult.data?.operationById && table?.id && updateTableInContext) {
-          // Si la operación ya no existe, la mesa queda libre
           updateTableInContext({
             id: table.id,
             status: 'AVAILABLE',
-            statusColors: null, // Limpiar colores para usar los por defecto (verde)
+            statusColors: null,
             currentOperationId: null,
             occupiedById: null,
             userName: null
           });
           setModifiedDetails([]);
-          // Notificar al componente padre para que actualice las mesas
-          if (onPaymentSuccess) {
-            onPaymentSuccess();
-          }
-          // Volver atrás después de un breve delay
-          setTimeout(() => {
-            onBack();
-          }, 500);
+          if (onPaymentSuccess) onPaymentSuccess();
+          setTimeout(() => onBack(), 500);
         }
-        // Limpiar la selección del item original si estaba seleccionado
         setItemAssignments(prev => {
           const newAssignments = { ...prev };
           delete newAssignments[detailId];
@@ -2866,7 +2928,48 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     flexShrink: 0
                   }}
                 >
-                  <span style={{ textAlign: 'center' }}>Sel.</span>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}>
+                    <span>Sel.</span>
+                    <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={handleSelectAll}
+                        style={{
+                          padding: '0.2rem 0.4rem',
+                          fontSize: '0.65rem',
+                          fontWeight: 600,
+                          color: '#5b21b6',
+                          background: 'rgba(139, 92, 246, 0.2)',
+                          border: '1px solid rgba(139, 92, 246, 0.5)',
+                          borderRadius: '6px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Marcar todo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeselectAll}
+                        style={{
+                          padding: '0.2rem 0.4rem',
+                          fontSize: '0.65rem',
+                          fontWeight: 600,
+                          color: '#6b7280',
+                          background: 'rgba(226, 232, 240, 0.8)',
+                          border: '1px solid rgba(203, 213, 224, 0.8)',
+                          borderRadius: '6px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Desmarcar
+                      </button>
+                    </div>
+                  </div>
                   <span style={{ textAlign: 'center' }}>Cant.</span>
                   <span>Producto</span>
                   <span style={{ textAlign: 'right' }}>P. Unit.</span>

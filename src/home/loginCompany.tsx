@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@apollo/client';
 import { COMPANY_LOGIN } from '../graphql/mutations';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
 import { useToast } from '../context/ToastContext';
+import VirtualKeyboard from '../components/VirtualKeyboard';
 
 const LoginCompany: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ const LoginCompany: React.FC = () => {
   });
   const [macAddress, setMacAddress] = useState<string>('Cargando...');
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [focusedInput, setFocusedInput] = useState<'ruc' | 'email' | 'password' | null>(null);
+  const keyboardRef = useRef<HTMLDivElement>(null);
 
   // Obtener la MAC address al cargar el componente
   useEffect(() => {
@@ -41,6 +44,7 @@ const LoginCompany: React.FC = () => {
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
 
+  const showLeftPanel = breakpoint === 'lg' || breakpoint === 'xl' || breakpoint === '2xl';
   const containerPadding = isSmall ? '0.5rem' : isMedium ? '0.75rem' : isSmallDesktop ? '1rem' : isMediumDesktop ? '1.25rem' : '1.5rem';
   const formMaxWidth = isSmall ? '100%' : isMedium ? '100%' : isSmallDesktop ? '420px' : isMediumDesktop ? '450px' : '480px';
   const titleFontSize = isSmall ? 'clamp(20px, 3.5vw, 24px)' : isMedium ? 'clamp(22px, 3.5vw, 28px)' : isSmallDesktop ? 'clamp(24px, 3.5vw, 30px)' : isMediumDesktop ? 'clamp(26px, 3.5vw, 32px)' : 'clamp(28px, 3.5vw, 36px)';
@@ -211,6 +215,17 @@ const LoginCompany: React.FC = () => {
     });
   };
 
+  const handleVirtualKeyPress = (key: string) => {
+    if (focusedInput === 'ruc') setFormData(prev => ({ ...prev, ruc: prev.ruc + key }));
+    if (focusedInput === 'email') setFormData(prev => ({ ...prev, email: prev.email + key }));
+    if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password + key }));
+  };
+  const handleVirtualBackspace = () => {
+    if (focusedInput === 'ruc') setFormData(prev => ({ ...prev, ruc: prev.ruc.slice(0, -1) }));
+    if (focusedInput === 'email') setFormData(prev => ({ ...prev, email: prev.email.slice(0, -1) }));
+    if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password.slice(0, -1) }));
+  };
+
   return (
     <div style={{
       height: '100vh',
@@ -348,25 +363,48 @@ const LoginCompany: React.FC = () => {
               Sistema de Gestión para Restaurantes
             </p>
 
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: '2rem',
-              marginTop: '3rem'
-            }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🍽️</div>
-                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Pedidos</div>
+            {focusedInput ? (
+              <div ref={keyboardRef} style={{
+                width: '100%',
+                maxWidth: '540px',
+                minWidth: '480px',
+                marginTop: '0.5rem',
+                padding: '0.75rem',
+                background: 'rgba(255,255,255,0.95)',
+                borderRadius: '12px',
+                border: '2px solid rgba(255,255,255,0.6)',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+              }}>
+                <div style={{ textAlign: 'center', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 700, color: 'rgba(255,255,255,0.95)', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                  ⌨️ Teclado virtual
+                </div>
+                <VirtualKeyboard
+                  onKeyPress={handleVirtualKeyPress}
+                  onBackspace={handleVirtualBackspace}
+                  compact={true}
+                />
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👨‍🍳</div>
-                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Cocina</div>
+            ) : (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '2rem',
+                marginTop: '3rem'
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🍽️</div>
+                  <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Pedidos</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👨‍🍳</div>
+                  <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Cocina</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</div>
+                  <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Reportes</div>
+                </div>
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</div>
-                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Reportes</div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -374,6 +412,7 @@ const LoginCompany: React.FC = () => {
         <div className="form-panel" style={{
           flex: '1',
           display: 'flex',
+          flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
           padding: isSmall ? '0.25rem' : isMedium ? '0.5rem' : '0.5rem',
@@ -419,7 +458,7 @@ const LoginCompany: React.FC = () => {
               animation: 'float 6s ease-in-out infinite reverse'
             }}></div>
 
-            <div style={{ textAlign: 'center', marginBottom: isSmall ? '1rem' : isMedium ? '1.5rem' : '2rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem' }}>
               <div style={{
                 width: isSmall ? '60px' : isMedium ? '70px' : '80px',
                 height: isSmall ? '60px' : isMedium ? '70px' : '80px',
@@ -480,10 +519,10 @@ const LoginCompany: React.FC = () => {
             </div>
 
             <form onSubmit={handleSubmit}>
-              <div style={{ marginBottom: '2rem' }}>
+              <div style={{ marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '0.75rem' }}>
                 <label className="form-labels" style={{
                   display: 'block',
-                  marginBottom: '1rem',
+                  marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
                   color: '#2d3748',
                   fontSize: labelFontSize,
                   fontWeight: '700'
@@ -512,12 +551,14 @@ const LoginCompany: React.FC = () => {
                       fontWeight: '500'
                     }}
                     onFocus={(e) => {
+                      setFocusedInput('ruc');
                       e.target.style.borderColor = '#ff6b6b';
                       e.target.style.backgroundColor = 'white';
                       e.target.style.boxShadow = '0 0 0 4px rgba(255, 107, 107, 0.1)';
                       e.target.style.transform = 'translateY(-2px)';
                     }}
                     onBlur={(e) => {
+                      if (!keyboardRef.current?.contains(e.relatedTarget as Node)) setFocusedInput(null);
                       e.target.style.borderColor = '#e2e8f0';
                       e.target.style.backgroundColor = '#f8fafc';
                       e.target.style.boxShadow = 'none';
@@ -534,7 +575,7 @@ const LoginCompany: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem' }}>
+              <div style={{ marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '0.75rem' }}>
                 <label className="form-labels" style={{
                   display: 'block',
                   marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
@@ -566,12 +607,14 @@ const LoginCompany: React.FC = () => {
                       fontWeight: '500'
                     }}
                     onFocus={(e) => {
+                      setFocusedInput('email');
                       e.target.style.borderColor = '#ffa726';
                       e.target.style.backgroundColor = 'white';
                       e.target.style.boxShadow = '0 0 0 4px rgba(255, 167, 38, 0.1)';
                       e.target.style.transform = 'translateY(-2px)';
                     }}
                     onBlur={(e) => {
+                      if (!keyboardRef.current?.contains(e.relatedTarget as Node)) setFocusedInput(null);
                       e.target.style.borderColor = '#e2e8f0';
                       e.target.style.backgroundColor = '#f8fafc';
                       e.target.style.boxShadow = 'none';
@@ -588,7 +631,7 @@ const LoginCompany: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ marginBottom: isSmall ? '1.25rem' : isMedium ? '1.5rem' : '2rem' }}>
+              <div style={{ marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '0.75rem' }}>
                 <label className="form-labels" style={{
                   display: 'block',
                   marginBottom: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
@@ -620,12 +663,14 @@ const LoginCompany: React.FC = () => {
                       fontWeight: '500'
                     }}
                     onFocus={(e) => {
+                      setFocusedInput('password');
                       e.target.style.borderColor = '#66bb6a';
                       e.target.style.backgroundColor = 'white';
                       e.target.style.boxShadow = '0 0 0 4px rgba(102, 187, 106, 0.1)';
                       e.target.style.transform = 'translateY(-2px)';
                     }}
                     onBlur={(e) => {
+                      if (!keyboardRef.current?.contains(e.relatedTarget as Node)) setFocusedInput(null);
                       e.target.style.borderColor = '#e2e8f0';
                       e.target.style.backgroundColor = '#f8fafc';
                       e.target.style.boxShadow = 'none';
@@ -714,6 +759,29 @@ const LoginCompany: React.FC = () => {
               </button>
             </form>
           </div>
+
+          {focusedInput && !showLeftPanel && (
+            <div ref={keyboardRef} style={{
+              width: '100%',
+              maxWidth: '680px',
+              minWidth: '560px',
+              marginTop: '1rem',
+              padding: '1rem',
+              background: 'linear-gradient(145deg, #f1f5f9, #e2e8f0)',
+              borderRadius: '16px',
+              border: '3px solid #64748b',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.5)'
+            }}>
+              <div style={{ textAlign: 'center', marginBottom: '0.75rem', fontSize: '1rem', fontWeight: 700, color: '#334155' }}>
+                ⌨️ Teclado virtual
+              </div>
+              <VirtualKeyboard
+                onKeyPress={handleVirtualKeyPress}
+                onBackspace={handleVirtualBackspace}
+                compact={false}
+              />
+            </div>
+          )}
         </div>
       </div>
 
