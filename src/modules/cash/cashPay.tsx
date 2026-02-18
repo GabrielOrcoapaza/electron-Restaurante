@@ -1377,6 +1377,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         globalDiscount: paymentTotalDiscount,
         globalDiscountPercent: Number(discountPercent) || 0,
         totalDiscount: paymentTotalDiscount,
+        globalDiscountOnTotal: paymentTotalDiscount,
         igvPercent: igvPercentage,
         igvAmount: paymentIgvAmount,
         totalTaxable: paymentSubtotal,

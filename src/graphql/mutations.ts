@@ -232,6 +232,7 @@ export const CREATE_ISSUED_DOCUMENT = gql`
     $globalDiscount: Float!
     $globalDiscountPercent: Float!
     $totalDiscount: Float!
+    $globalDiscountOnTotal: Float
     $igvPercent: Float!
     $igvAmount: Float!
     $totalTaxable: Float!
@@ -261,6 +262,7 @@ export const CREATE_ISSUED_DOCUMENT = gql`
       globalDiscount: $globalDiscount
       globalDiscountPercent: $globalDiscountPercent
       totalDiscount: $totalDiscount
+      globalDiscountOnTotal: $globalDiscountOnTotal
       igvPercent: $igvPercent
       igvAmount: $igvAmount
       totalTaxable: $totalTaxable
@@ -1204,6 +1206,7 @@ export const CREATE_SALE_CARRY_OUT = gql`
     $globalDiscount: Float!
     $globalDiscountPercent: Float!
     $totalDiscount: Float!
+    $globalDiscountOnTotal: Float
     $igvPercent: Float!
     $igvAmount: Float!
     $totalTaxable: Float!
@@ -1231,6 +1234,7 @@ export const CREATE_SALE_CARRY_OUT = gql`
       globalDiscount: $globalDiscount
       globalDiscountPercent: $globalDiscountPercent
       totalDiscount: $totalDiscount
+      globalDiscountOnTotal: $globalDiscountOnTotal
       igvPercent: $igvPercent
       igvAmount: $igvAmount
       totalTaxable: $totalTaxable

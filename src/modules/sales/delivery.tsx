@@ -404,6 +404,7 @@ const Delivery: React.FC = () => {
                 globalDiscount: cleanTotalDiscount,
                 globalDiscountPercent: parseFloat((Number(discountPercent) || 0).toFixed(2)),
                 totalDiscount: cleanTotalDiscount,
+                globalDiscountOnTotal: cleanTotalDiscount,
                 igvPercent: parseFloat(igvPercentageFromBranch.toFixed(2)),
                 igvAmount: cleanIgvAmount,
                 totalTaxable: cleanSubtotal,
