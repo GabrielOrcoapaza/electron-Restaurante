@@ -32,10 +32,24 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
+const electron_updater_1 = require("electron-updater");
+const electron_log_1 = __importDefault(require("electron-log"));
 const path = __importStar(require("path"));
 const isDev = process.env.NODE_ENV === 'development' || !electron_1.app.isPackaged;
+// LOGS DEL AUTOUPDATE
+electron_log_1.default.transports.file.level = 'info';
+electron_updater_1.autoUpdater.logger = electron_log_1.default;
+// SOLO BUSCAR ACTUALIZACIONES EN PRODUCCIÓN
+if (!isDev) {
+    electron_1.app.on('ready', () => {
+        electron_updater_1.autoUpdater.checkForUpdatesAndNotify();
+    });
+}
 function createWindow() {
     const mainWindow = new electron_1.BrowserWindow({
         width: 1000,
@@ -71,6 +85,26 @@ function createWindow() {
         });
     }
 }
+electron_updater_1.autoUpdater.on('update-available', () => {
+    electron_1.dialog.showMessageBox({
+        type: 'info',
+        title: 'Actualización disponible',
+        message: 'Se está descargando una nueva versión del sistema...'
+    });
+});
+electron_updater_1.autoUpdater.on('update-downloaded', () => {
+    electron_1.dialog.showMessageBox({
+        type: 'info',
+        title: 'Actualización lista',
+        message: 'La actualización se instalará al reiniciar la aplicación.',
+        buttons: ['Reiniciar ahora']
+    }).then(() => {
+        electron_updater_1.autoUpdater.quitAndInstall();
+    });
+});
+electron_updater_1.autoUpdater.on('error', (err) => {
+    electron_log_1.default.error('Error en autoUpdater:', err);
+});
 electron_1.app.whenReady().then(() => {
     // Desactivar caché en producción para asegurar que se carguen los últimos cambios
     if (!isDev) {

@@ -1,9 +1,22 @@
-import { app, BrowserWindow, session } from 'electron';
+import { app, BrowserWindow, session, dialog } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import * as path from 'path';
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+
+
+// LOGS DEL AUTOUPDATE
+log.transports.file.level = 'info';
+
+autoUpdater.logger = log;
+
+// SOLO BUSCAR ACTUALIZACIONES EN PRODUCCIÓN
+if (!isDev) {
+  app.on('ready', () => {
+    autoUpdater.checkForUpdatesAndNotify();
+  });
+}
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -41,6 +54,29 @@ function createWindow() {
     });
   }
 }
+
+autoUpdater.on('update-available', () => {
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Actualización disponible',
+    message: 'Se está descargando una nueva versión del sistema...'
+  });
+});
+
+autoUpdater.on('update-downloaded', () => {
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Actualización lista',
+    message: 'La actualización se instalará al reiniciar la aplicación.',
+    buttons: ['Reiniciar ahora']
+  }).then(() => {
+    autoUpdater.quitAndInstall();
+  });
+});
+
+autoUpdater.on('error', (err) => {
+  log.error('Error en autoUpdater:', err);
+});
 
 app.whenReady().then(() => {
   // Desactivar caché en producción para asegurar que se carguen los últimos cambios
