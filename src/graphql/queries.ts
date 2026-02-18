@@ -852,7 +852,7 @@ export const GET_SUBCATEGORIES_WITH_MODIFIERS = gql`
   }
 `;
 
-// Query para obtener modificadores de una subcategoría
+// Query para obtener modificadores de una subcategorías
 export const GET_MODIFIERS_BY_SUBCATEGORY = gql`
   query GetModifiersBySubcategory($subcategoryId: ID!) {
     notesBySubcategory(subcategoryId: $subcategoryId) {
