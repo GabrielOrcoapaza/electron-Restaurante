@@ -88,6 +88,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  // Descuento: monto fijo (S/) y/o porcentaje (%)
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
   // ⚠️ Ref para prevenir dobles clics (más confiable que solo el estado)
   const isProcessingRef = useRef(false);
   const [itemAssignments, setItemAssignments] = useState<Record<string, boolean>>({});
@@ -457,15 +460,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     return sum + (quantity * unitPrice);
   }, 0);
   const igvDecimal = igvPercentage / 100;
-  const subtotal = parseFloat((Math.round((total / (1 + igvDecimal)) * 100) / 100).toFixed(2));
-  const igvAmount = parseFloat((Math.round((total - subtotal) * 100) / 100).toFixed(2));
+  // Descuento total (monto fijo + porcentaje sobre el total)
+  const totalDiscount = Math.max(0, (Number(discountAmount) || 0) + (total * (Number(discountPercent) || 0) / 100));
+  const totalToPay = Math.max(0, total - totalDiscount);
+  const subtotal = parseFloat((Math.round((totalToPay / (1 + igvDecimal)) * 100) / 100).toFixed(2));
+  const igvAmount = parseFloat((Math.round((totalToPay - subtotal) * 100) / 100).toFixed(2));
 
   // Funciones para manejar múltiples pagos
   const addPayment = () => {
     const newId = String(Date.now());
     // Calcular el monto restante para el nuevo pago
     const currentTotalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    const remainingAmount = Math.max(0, total - currentTotalPaid);
+    const remainingAmount = Math.max(0, totalToPay - currentTotalPaid);
     setPayments([...payments, { id: newId, method: 'CASH', amount: remainingAmount, referenceNumber: '' }]);
   };
 
@@ -481,30 +487,38 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     ));
   };
 
-  // Calcular total pagado y diferencia
+  // Calcular total pagado y diferencia (respecto al total a pagar con descuento)
   const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  const remaining = total - totalPaid;
-  const isPaymentComplete = Math.abs(remaining) < 0.01; // Tolerancia para errores de redondeo
+  const remaining = totalToPay - totalPaid;
+  // Pago completo cuando lo pagado >= total a pagar (permite dar vuelto si paga de más)
+  const isPaymentComplete = totalPaid >= totalToPay - 0.01;
+  const vuelto = remaining < 0 ? Math.abs(remaining) : 0;
 
-  // Inicializar el primer pago con el total cuando cambie la operación o el total
+  // Inicializar el primer pago con el total a pagar cuando cambie la operación o el total
   React.useEffect(() => {
-    if (total > 0 && payments.length > 0) {
-      // Si solo hay un pago y está en 0, inicializarlo con el total
+    if (totalToPay > 0 && payments.length > 0) {
+      // Si solo hay un pago y está en 0, inicializarlo con el total a pagar
       if (payments.length === 1 && payments[0].amount === 0) {
-        setPayments([{ ...payments[0], amount: total }]);
+        setPayments([{ ...payments[0], amount: totalToPay }]);
       }
     }
-  }, [total, operation?.id]);
+  }, [totalToPay, operation?.id]);
 
-  // Al seleccionar/deseleccionar ítems, el total cambia: actualizar montos de pago para que reflejen el nuevo total
+  // Al seleccionar/deseleccionar ítems o cambiar descuento, actualizar montos de pago
   React.useEffect(() => {
     if (payments.length === 0) return;
     setPayments(prev =>
       prev.map((p, i) =>
-        i === 0 ? { ...p, amount: total } : { ...p, amount: 0 }
+        i === 0 ? { ...p, amount: totalToPay } : { ...p, amount: 0 }
       )
     );
-  }, [total]);
+  }, [totalToPay]);
+
+  // Resetear descuento al cambiar de operación/mesa
+  React.useEffect(() => {
+    setDiscountAmount(0);
+    setDiscountPercent(0);
+  }, [operation?.id]);
 
   // Inicializar valores por defecto cuando se cargan los datos
   React.useEffect(() => {
@@ -1263,43 +1277,74 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
       console.log('✅ Items a enviar:', items);
 
-      // Calcular totales para el pago
+      // Calcular totales para el pago (con descuento aplicado)
       // NOTA: Los precios unitarios ya incluyen IGV
-      const paymentTotal = detailsToPay.reduce((sum: number, detail: any) => {
+      const rawPaymentTotal = detailsToPay.reduce((sum: number, detail: any) => {
         const quantity = Number(detail.quantity) || 0;
         const unitPrice = Number(detail.unitPrice) || 0;
         return sum + (quantity * unitPrice);
       }, 0);
+      const paymentTotalDiscount = Math.max(0, (Number(discountAmount) || 0) + (rawPaymentTotal * (Number(discountPercent) || 0) / 100));
+      const paymentTotal = Math.max(0, rawPaymentTotal - paymentTotalDiscount);
       const igvDecimal = igvPercentage / 100;
       const paymentSubtotal = parseFloat((Math.round((paymentTotal / (1 + igvDecimal)) * 100) / 100).toFixed(2));
       const paymentIgvAmount = parseFloat((Math.round((paymentTotal - paymentSubtotal) * 100) / 100).toFixed(2));
 
-      // Validar que la suma de pagos sea igual al total
+      // Validar que la suma de pagos sea al menos el total a pagar (permite pagar de más y dar vuelto)
       const totalPaymentsAmount = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-      if (Math.abs(totalPaymentsAmount - paymentTotal) > 0.01) {
-        setPaymentError(`La suma de los pagos (${currencyFormatter.format(totalPaymentsAmount)}) debe ser igual al total (${currencyFormatter.format(paymentTotal)})`);
+      if (totalPaymentsAmount < paymentTotal - 0.01) {
+        setPaymentError(`La suma de los pagos (${currencyFormatter.format(totalPaymentsAmount)}) debe ser al menos el total a pagar (${currencyFormatter.format(paymentTotal)})`);
         isProcessingRef.current = false;
         setIsProcessing(false);
         return;
       }
 
-      // Preparar pagos para enviar al backend
-      const paymentsToSend = payments
-        .filter(p => Number(p.amount) > 0) // Solo incluir pagos con monto > 0
-        .map(p => ({
+      // Preparar pagos para enviar al backend: siempre enviar exactamente el monto del documento (paymentTotal)
+      // Si el cliente pagó de más, el vuelto se da en caja y no se registra en el backend
+      let paymentsToSend: Array<{
+        cashRegisterId: string;
+        paymentType: string;
+        paymentMethod: string;
+        transactionType: string;
+        totalAmount: number;
+        paidAmount: number;
+        paymentDate: string;
+        dueDate: null;
+        referenceNumber: string | null;
+        notes: null;
+      }>;
+      if (Math.abs(totalPaymentsAmount - paymentTotal) <= 0.01) {
+        // Monto exacto: usar los pagos tal cual
+        paymentsToSend = payments
+          .filter(p => Number(p.amount) > 0)
+          .map(p => ({
+            cashRegisterId: cashRegisterIdToUse,
+            paymentType: 'CASH',
+            paymentMethod: p.method,
+            transactionType: 'INCOME',
+            totalAmount: Number(p.amount),
+            paidAmount: Number(p.amount),
+            paymentDate: now.toISOString(),
+            dueDate: null,
+            referenceNumber: (p.method === 'YAPE' || p.method === 'PLIN' || p.method === 'TRANSFER') ? (p.referenceNumber || null) : null,
+            notes: null
+          }));
+      } else {
+        // Cliente pagó de más (habrá vuelto): enviar un solo pago por el monto del documento
+        const firstPayment = payments.find(p => Number(p.amount) > 0);
+        paymentsToSend = [{
           cashRegisterId: cashRegisterIdToUse,
           paymentType: 'CASH',
-          paymentMethod: p.method,
+          paymentMethod: firstPayment?.method || 'CASH',
           transactionType: 'INCOME',
-          totalAmount: Number(p.amount),
-          paidAmount: Number(p.amount),
+          totalAmount: paymentTotal,
+          paidAmount: paymentTotal,
           paymentDate: now.toISOString(),
           dueDate: null,
-          referenceNumber: (p.method === 'YAPE' || p.method === 'PLIN' || p.method === 'TRANSFER')
-            ? (p.referenceNumber || null)
-            : null,
+          referenceNumber: null,
           notes: null
-        }));
+        }];
+      }
 
       if (paymentsToSend.length === 0) {
         setPaymentError('Debe agregar al menos un pago con monto mayor a 0');
@@ -1329,9 +1374,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         currency: 'PEN',
         exchangeRate: 1.0,
         itemsTotalDiscount: 0.0,
-        globalDiscount: 0.0,
-        globalDiscountPercent: 0.0,
-        totalDiscount: 0.0,
+        globalDiscount: paymentTotalDiscount,
+        globalDiscountPercent: Number(discountPercent) || 0,
+        totalDiscount: paymentTotalDiscount,
         igvPercent: igvPercentage,
         igvAmount: paymentIgvAmount,
         totalTaxable: paymentSubtotal,
@@ -1498,8 +1543,10 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           fetchPolicy: 'network-only'
         });
 
-        // Limpiar selecciones después del pago
+        // Limpiar selecciones y descuento después del pago
         setItemAssignments({});
+        setDiscountAmount(0);
+        setDiscountPercent(0);
 
         if (isPartialPayment && refetchResult.data?.operationById) {
           // ✅ Después de un pago parcial exitoso y refetch, limpiamos la memoria local 
@@ -1532,58 +1579,54 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           console.log('✅ Pago parcial completado - Detalles actualizados desde el backend:', freshDetails.length);
           console.log('💰 Monto actualizado para el siguiente pago:', newTotal);
         } else {
-          // Si se pagó toda la operación, verificar si la mesa fue liberada
-          // (ya hicimos refetch arriba, no necesitamos hacerlo de nuevo)
+          // Pago completo (toda la operación): liberar mesa en UI y volver al piso
+          const wasTableFreed = result.data?.createIssuedDocument?.wasTableFreed;
+          const refetchedOperation = refetchResult.data?.operationById;
 
-          // Verificar si la mesa fue liberada según la respuesta del backend
-          if (result.data?.createIssuedDocument?.wasTableFreed) {
-            // Actualizar la mesa en el contexto para limpiar el nombre del mozo
-            const freedTable = result.data?.createIssuedDocument?.table;
-            if (freedTable && table?.id && updateTableInContext) {
-              updateTableInContext({
-                id: table.id,
-                status: freedTable.status || 'AVAILABLE',
-                statusColors: freedTable.statusColors || null,
-                currentOperationId: null,
-                occupiedById: null,
-                userName: null  // Limpiar el nombre del mozo
-              });
-
-              // Enviar notificación WebSocket para actualizar en tiempo real
-              notifyTableUpdate(table.id, freedTable.status || 'AVAILABLE', null, null, null);
-
-              console.log('✅ Mesa liberada - nombre del mozo limpiado para mesa:', table.id);
-            }
-            setTimeout(() => {
-              onBack();
-            }, 2000);
-          } else if (!refetchResult.data?.operationById && table?.id && updateTableInContext) {
-            // Si la operación ya no existe después del refetch, la mesa queda libre
-            // Esto puede pasar si el backend liberó la mesa pero no retornó wasTableFreed
+          // Si el backend indicó que liberó la mesa, usar su respuesta para estado/colores
+          if (tableIdForPayment && table?.id && updateTableInContext) {
             updateTableInContext({
               id: table.id,
               status: 'AVAILABLE',
-              statusColors: null, // Limpiar colores para usar los por defecto (verde)
+              statusColors: null,
               currentOperationId: null,
               occupiedById: null,
               userName: null
             });
-
-            // Enviar notificación WebSocket para actualizar en tiempo real
             notifyTableUpdate(table.id, 'AVAILABLE', null, null, null);
-
-            console.log('✅ Mesa liberada - operación ya no existe para mesa:', table.id);
-
-            // Notificar al componente padre para que actualice las mesas
-            if (onPaymentSuccess) {
-              onPaymentSuccess();
-            }
-
-            // Volver atrás después de un breve delay
-            setTimeout(() => {
-              onBack();
-            }, 500);
+            console.log('✅ Mesa liberada (pago completo con tableId) - mesa:', table.id);
           }
+          // Siempre que fue pago completo (enviamos tableId), marcar mesa como libre en la UI
+          // (el backend a veces no retorna wasTableFreed p. ej. cuando hay descuento y is_fully_paid() es false)
+          else if (wasTableFreed && result.data?.createIssuedDocument?.table && table?.id && updateTableInContext) {
+            const freedTable = result.data.createIssuedDocument.table;
+            updateTableInContext({
+              id: table.id,
+              status: freedTable.status || 'AVAILABLE',
+              statusColors: freedTable.statusColors || null,
+              currentOperationId: null,
+              occupiedById: null,
+              userName: null
+            });
+            notifyTableUpdate(table.id, freedTable.status || 'AVAILABLE', null, null, null);
+            console.log('✅ Mesa liberada (wasTableFreed del backend) - mesa:', table.id);
+          }
+          // Operación ya no existe: asegurar mesa libre
+          else if (!refetchedOperation && table?.id && updateTableInContext) {
+            updateTableInContext({
+              id: table.id,
+              status: 'AVAILABLE',
+              statusColors: null,
+              currentOperationId: null,
+              occupiedById: null,
+              userName: null
+            });
+            notifyTableUpdate(table.id, 'AVAILABLE', null, null, null);
+            console.log('✅ Mesa liberada - operación ya no existe para mesa:', table.id);
+          }
+
+          if (onPaymentSuccess) onPaymentSuccess();
+          setTimeout(() => onBack(), 1500);
         }
 
         // Llamar callback de éxito si existe
@@ -3239,6 +3282,48 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     flexShrink: 0
                   }}
                 >
+                  {/* Descuento: monto (S/) y/o porcentaje (%) */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '80px' }}>
+                      <label style={{ fontSize: '0.7rem', color: '#4a5568', display: 'block', marginBottom: '0.2rem' }}>Descuento (S/)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={discountAmount || ''}
+                        onChange={(e) => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                        placeholder="0"
+                        style={{
+                          width: '100%',
+                          padding: '0.4rem 0.5rem',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '6px',
+                          fontSize: '0.8rem',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                    <div style={{ flex: 1, minWidth: '80px' }}>
+                      <label style={{ fontSize: '0.7rem', color: '#4a5568', display: 'block', marginBottom: '0.2rem' }}>Descuento (%)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        value={discountPercent || ''}
+                        onChange={(e) => setDiscountPercent(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                        placeholder="0"
+                        style={{
+                          width: '100%',
+                          padding: '0.4rem 0.5rem',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '6px',
+                          fontSize: '0.8rem',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </div>
                   <div
                     style={{
                       display: 'flex',
@@ -3267,6 +3352,21 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     </span>
                     <span>{currencyFormatter.format(igvAmount)}</span>
                   </div>
+                  {totalDiscount > 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: '0.75rem',
+                        color: '#059669',
+                        fontSize: '0.92rem',
+                        letterSpacing: '0.01em'
+                      }}
+                    >
+                      <span>Descuento</span>
+                      <span>-{currencyFormatter.format(totalDiscount)}</span>
+                    </div>
+                  )}
                   <div
                     style={{
                       display: 'flex',
@@ -3279,7 +3379,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     }}
                   >
                     <span>Total</span>
-                    <span>{currencyFormatter.format(total)}</span>
+                    <span>{currencyFormatter.format(totalToPay)}</span>
                   </div>
                   <button
                     onClick={handleProcessPayment}
@@ -3577,19 +3677,24 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#2d3748' }}>
-                        {remaining >= 0 ? 'Falta pagar:' : 'Exceso:'}
+                        {remaining > 0.01 ? 'Falta pagar:' : vuelto > 0 ? 'Vuelto:' : 'Total:'}
                       </span>
                       <span style={{
                         fontSize: '0.8rem',
                         fontWeight: 700,
-                        color: isPaymentComplete ? '#059669' : (remaining >= 0 ? '#d97706' : '#dc2626')
+                        color: isPaymentComplete ? '#059669' : (remaining > 0.01 ? '#d97706' : '#059669')
                       }}>
-                        {currencyFormatter.format(Math.abs(remaining))}
+                        {remaining > 0.01 ? currencyFormatter.format(remaining) : vuelto > 0 ? currencyFormatter.format(vuelto) : '—'}
                       </span>
                     </div>
                     {!isPaymentComplete && (
                       <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#92400e' }}>
-                        ⚠️ La suma de los pagos debe ser igual al total
+                        ⚠️ La suma de los pagos debe ser al menos el total a pagar
+                      </div>
+                    )}
+                    {isPaymentComplete && vuelto > 0 && (
+                      <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>
+                        ✓ Entregar vuelto: {currencyFormatter.format(vuelto)}
                       </div>
                     )}
                   </div>

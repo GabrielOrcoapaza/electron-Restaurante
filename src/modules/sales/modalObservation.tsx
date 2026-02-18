@@ -84,7 +84,7 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 	if (!isOpen) return null;
 
 	const modalPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.5rem' : '2rem';
-	const modalMaxWidth = isSmall ? '95%' : isMedium ? '500px' : isSmallDesktop ? '550px' : '600px';
+	const modalMaxWidth = isSmall ? '95%' : isMedium ? '580px' : isSmallDesktop ? '680px' : '760px';
 	const titleFontSize = isSmall ? '1rem' : isMedium ? '1.125rem' : '1.25rem';
 
 	const handleToggle = (observationId: string) => {
@@ -148,7 +148,8 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 					padding: modalPadding,
 					maxWidth: modalMaxWidth,
 					width: '100%',
-					maxHeight: '90vh',
+					maxHeight: '95vh',
+					minHeight: '50vh',
 					overflowY: 'auto',
 					boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
 					position: 'relative'
@@ -271,7 +272,7 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 
 				{/* Campo para escribir observaciones - siempre visible (con o sin observaciones guardadas) */}
 				<div style={{
-					marginBottom: '1.5rem'
+					marginBottom: '1rem'
 				}}>
 					<label style={{
 						display: 'block',
@@ -339,7 +340,7 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 
 						{/* Teclado virtual */}
 						{canEdit && (
-							<div style={{ marginTop: '1rem' }}>
+							<div style={{ marginTop: '0.75rem' }}>
 								<VirtualKeyboard
 									onKeyPress={handleVirtualKeyPress}
 									onBackspace={handleVirtualBackspace}
@@ -355,8 +356,8 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 							gap: '0.75rem',
 							justifyContent: 'flex-end',
 							borderTop: '1px solid #e2e8f0',
-							paddingTop: '1rem',
-							marginTop: '1rem'
+							paddingTop: '0.75rem',
+							marginTop: '0.75rem'
 						}}>
 							<button
 								onClick={handleCancel}

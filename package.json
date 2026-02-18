@@ -1,7 +1,7 @@
 {
   "name": "appsuma",
   "private": false,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -12,8 +12,8 @@
     "preview": "vite preview",
     "dev:all": "concurrently \"npm run dev\" \"npm run electron\"",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\"",
-    "dist": "npm run build && npm run build-electron && electron-builder"
-
+    "dist": "npm run build && npm run build-electron && electron-builder",
+    "release": "npm run dist -- --publish always"
   },
   "build": {
     "appId": "com.mirestaurante.restaurante",
@@ -21,6 +21,13 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "GabrielOrcoapaza", 
+        "repo": "electron-Restaurante"
+      }
+    ],
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
@@ -39,10 +46,11 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     }
-
   },
   "dependencies": {
     "@apollo/client": "^3.14.0",
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.8.3",
     "graphql": "^16.11.0",
     "graphql-ws": "^6.0.6",
     "react": "^19.1.1",

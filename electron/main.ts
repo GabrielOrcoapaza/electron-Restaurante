@@ -1,4 +1,6 @@
 import { app, BrowserWindow, session } from 'electron';
+import { autoUpdater } from 'electron-updater';
+import log from 'electron-log';
 import * as path from 'path';
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;

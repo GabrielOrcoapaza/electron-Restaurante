@@ -62,6 +62,9 @@ const Delivery: React.FC = () => {
     const [selectedCashRegister, setSelectedCashRegister] = useState<string>('');
     const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
     const [paidAmount, setPaidAmount] = useState<string>('');
+    // Descuento: monto fijo (S/) y/o porcentaje (%)
+    const [discountAmount, setDiscountAmount] = useState<number>(0);
+    const [discountPercent, setDiscountPercent] = useState<number>(0);
 
     // Mutación para crear venta
     const [createSaleCarryOutMutation] = useMutation(CREATE_SALE_CARRY_OUT);
@@ -136,7 +139,9 @@ const Delivery: React.FC = () => {
     let products;
     let productsLoading;
 
-    if (searchTerm.length >= 3) {
+    const isSearching = searchTerm.length >= 3;
+
+    if (isSearching) {
         products = searchData?.searchProducts;
         productsLoading = searchLoading;
 
@@ -158,14 +163,21 @@ const Delivery: React.FC = () => {
     }
 
     let productsList = products || [];
-    if (selectedCategory && selectedSubcategory && productsList.length > 0) {
-        productsList = productsList.filter((p: any) => String(p.subcategoryId) === String(selectedSubcategory));
-    }
 
     // Subcategorías de la categoría seleccionada
     const subcategoriesOfCategory = selectedCategory
         ? (categories.find((c: any) => c.id === selectedCategory)?.subcategories?.filter((s: any) => s.isActive) || [])
         : [];
+
+    // Flags de navegación para la grilla
+    const showCategoriesInGrid = !isSearching && !selectedCategory;
+    const showSubcategoriesInGrid = !isSearching && selectedCategory && !selectedSubcategory && subcategoriesOfCategory.length > 0;
+    const showProductsInGrid = isSearching || (selectedCategory && (selectedSubcategory || subcategoriesOfCategory.length === 0));
+
+    // Filtrar productos por subcategoría si no estamos buscando
+    if (!isSearching && selectedCategory && selectedSubcategory && productsList.length > 0) {
+        productsList = productsList.filter((p: any) => String(p.subcategoryId) === String(selectedSubcategory));
+    }
 
     // Función para agregar producto al carrito
     const handleAddProduct = (productIdToAdd?: string, qtyToAdd?: number) => {
@@ -289,8 +301,10 @@ const Delivery: React.FC = () => {
         setShowObservationModal(null);
     };
 
-    // Calcular totales
-    const cartTotal = cartItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+    // Calcular totales (con descuento: monto fijo + porcentaje)
+    const cartTotalRaw = cartItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+    const totalDiscount = Math.max(0, (Number(discountAmount) || 0) + (cartTotalRaw * (Number(discountPercent) || 0) / 100));
+    const cartTotal = Math.max(0, cartTotalRaw - totalDiscount);
     const igvPercentageDecimal = igvPercentageFromBranch / 100;
     const subtotal = parseFloat((cartTotal / (1 + igvPercentageDecimal)).toFixed(2));
     const igvAmount = parseFloat((cartTotal - subtotal).toFixed(2));
@@ -375,6 +389,7 @@ const Delivery: React.FC = () => {
             const cleanSubtotal = parseFloat(subtotal.toFixed(2));
             const cleanIgvAmount = parseFloat(igvAmount.toFixed(2));
             const cleanPaidAmount = parseFloat(paidAmountNum.toFixed(2));
+            const cleanTotalDiscount = parseFloat(totalDiscount.toFixed(2));
 
             const variables: any = {
                 branchId: companyData?.branch.id,
@@ -386,9 +401,9 @@ const Delivery: React.FC = () => {
                 currency: 'PEN',
                 exchangeRate: 1.0,
                 itemsTotalDiscount: 0,
-                globalDiscount: 0,
-                globalDiscountPercent: 0,
-                totalDiscount: 0,
+                globalDiscount: cleanTotalDiscount,
+                globalDiscountPercent: parseFloat((Number(discountPercent) || 0).toFixed(2)),
+                totalDiscount: cleanTotalDiscount,
                 igvPercent: parseFloat(igvPercentageFromBranch.toFixed(2)),
                 igvAmount: cleanIgvAmount,
                 totalTaxable: cleanSubtotal,
@@ -429,6 +444,11 @@ const Delivery: React.FC = () => {
                 setSelectedDocument('');
                 setSelectedSerial('');
                 setPaidAmount('');
+                setDiscountAmount(0);
+                setDiscountPercent(0);
+                setSelectedCategory(null);
+                setSelectedSubcategory(null);
+                setSearchTerm('');
 
                 setTimeout(() => {
                     setSaveError(null);
@@ -500,232 +520,308 @@ const Delivery: React.FC = () => {
                     />
                 </div>
 
-                {/* Categorías */}
-                {searchTerm.length < 3 && (
-                    <div style={{
-                        backgroundColor: 'white',
-                        borderRadius: '12px',
-                        padding: '1rem',
-                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
-                    }}>
-                        <h3 style={{
-                            fontSize: '0.875rem',
-                            fontWeight: '600',
-                            color: '#2d3748',
-                            marginBottom: '0.75rem'
-                        }}>
-                            Categorías
-                        </h3>
-                        <div style={{
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: '0.5rem'
-                        }}>
-                            <button
-                                onClick={() => {
-                                    setSelectedCategory(null);
-                                    setSelectedSubcategory(null);
-                                }}
-                                style={{
-                                    padding: '0.5rem 1rem',
-                                    borderRadius: '8px',
-                                    border: 'none',
-                                    background: !selectedCategory ? '#667eea' : '#f7fafc',
-                                    color: !selectedCategory ? 'white' : '#4a5568',
-                                    cursor: 'pointer',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '500',
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
-                                Todos
-                            </button>
-                            {categories.map((category: any) => (
-                                <button
-                                    key={category.id}
-                                    onClick={() => {
-                                        setSelectedCategory(category.id);
-                                        setSelectedSubcategory(null);
-                                    }}
-                                    style={{
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: '8px',
-                                        border: 'none',
-                                        background: selectedCategory === category.id ? '#667eea' : '#f7fafc',
-                                        color: selectedCategory === category.id ? 'white' : '#4a5568',
-                                        cursor: 'pointer',
-                                        fontSize: '0.75rem',
-                                        fontWeight: '500',
-                                        transition: 'all 0.2s ease'
-                                    }}
-                                >
-                                    {category.name}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Subcategorías */}
-                        {subcategoriesOfCategory.length > 0 && (
-                            <div style={{ marginTop: '0.75rem' }}>
-                                <h4 style={{
-                                    fontSize: '0.75rem',
-                                    fontWeight: '600',
-                                    color: '#718096',
-                                    marginBottom: '0.5rem'
-                                }}>
-                                    Subcategorías
-                                </h4>
-                                <div style={{
-                                    display: 'flex',
-                                    flexWrap: 'wrap',
-                                    gap: '0.5rem'
-                                }}>
-                                    <button
-                                        onClick={() => setSelectedSubcategory(null)}
-                                        style={{
-                                            padding: '0.375rem 0.75rem',
-                                            borderRadius: '6px',
-                                            border: 'none',
-                                            background: !selectedSubcategory ? '#667eea' : '#edf2f7',
-                                            color: !selectedSubcategory ? 'white' : '#4a5568',
-                                            cursor: 'pointer',
-                                            fontSize: '0.6875rem',
-                                            fontWeight: '500'
-                                        }}
-                                    >
-                                        Todas
-                                    </button>
-                                    {subcategoriesOfCategory.map((subcategory: any) => (
-                                        <button
-                                            key={subcategory.id}
-                                            onClick={() => setSelectedSubcategory(subcategory.id)}
-                                            style={{
-                                                padding: '0.375rem 0.75rem',
-                                                borderRadius: '6px',
-                                                border: 'none',
-                                                background: selectedSubcategory === subcategory.id ? '#667eea' : '#edf2f7',
-                                                color: selectedSubcategory === subcategory.id ? 'white' : '#4a5568',
-                                                cursor: 'pointer',
-                                                fontSize: '0.6875rem',
-                                                fontWeight: '500'
-                                            }}
-                                        >
-                                            {subcategory.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Lista de productos */}
+                {/* Área de navegación y Lista de items */}
                 <div style={{
                     flex: 1,
                     backgroundColor: 'white',
                     borderRadius: '12px',
-                    padding: '1rem',
+                    display: 'flex',
+                    flexDirection: 'column',
                     boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                    overflow: 'auto'
+                    overflow: 'hidden'
                 }}>
-                    <h3 style={{
-                        fontSize: '0.875rem',
-                        fontWeight: '600',
-                        color: '#2d3748',
-                        marginBottom: '0.75rem'
+                    {/* Header de navegación / Breadcrumbs */}
+                    <div style={{
+                        padding: '1rem',
+                        borderBottom: '1px solid #f1f5f9',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
                     }}>
-                        Productos
-                    </h3>
-                    {productsLoading ? (
-                        <div style={{ textAlign: 'center', padding: '2rem', color: '#718096' }}>
-                            Cargando productos...
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
+                            {isSearching ? (
+                                <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#2d3748', margin: 0 }}>
+                                    Resultados de búsqueda
+                                </h3>
+                            ) : (
+                                <>
+                                    <button
+                                        onClick={() => { setSelectedCategory(null); setSelectedSubcategory(null); }}
+                                        style={{
+                                            padding: '0.25rem 0.5rem',
+                                            background: !selectedCategory ? '#f1f5f9' : 'transparent',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            fontSize: '0.875rem',
+                                            fontWeight: !selectedCategory ? '700' : '500',
+                                            color: !selectedCategory ? '#1e293b' : '#64748b',
+                                            cursor: 'pointer',
+                                            whiteSpace: 'nowrap'
+                                        }}
+                                    >
+                                        Categorías
+                                    </button>
+                                    {selectedCategory && (
+                                        <>
+                                            <span style={{ color: '#94a3b8' }}>/</span>
+                                            <button
+                                                onClick={() => setSelectedSubcategory(null)}
+                                                style={{
+                                                    padding: '0.25rem 0.5rem',
+                                                    background: !selectedSubcategory ? '#f1f5f9' : 'transparent',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    fontSize: '0.875rem',
+                                                    fontWeight: !selectedSubcategory ? '700' : '500',
+                                                    color: !selectedSubcategory ? '#1e293b' : '#64748b',
+                                                    cursor: 'pointer',
+                                                    whiteSpace: 'nowrap',
+                                                    maxWidth: '120px',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis'
+                                                }}
+                                            >
+                                                {categories.find((c: any) => c.id === selectedCategory)?.name || 'Categoría'}
+                                            </button>
+                                        </>
+                                    )}
+                                    {selectedSubcategory && (
+                                        <>
+                                            <span style={{ color: '#94a3b8' }}>/</span>
+                                            <span style={{
+                                                padding: '0.25rem 0.5rem',
+                                                background: '#f1f5f9',
+                                                borderRadius: '6px',
+                                                fontSize: '0.875rem',
+                                                fontWeight: '700',
+                                                color: '#1e293b',
+                                                whiteSpace: 'nowrap',
+                                                maxWidth: '120px',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis'
+                                            }}>
+                                                {subcategoriesOfCategory.find((s: any) => s.id === selectedSubcategory)?.name || 'Subcategoría'}
+                                            </span>
+                                        </>
+                                    )}
+                                </>
+                            )}
                         </div>
-                    ) : productsList.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '2rem', color: '#718096' }}>
-                            No se encontraron productos
-                        </div>
-                    ) : (
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                            gap: '0.75rem'
-                        }}>
-                            {productsList.map((product: any) => (
-                                <div
-                                    key={product.id}
-                                    onClick={() => handleAddProduct(product.id, 1)}
-                                    style={{
-                                        backgroundColor: '#f7fafc',
-                                        border: '1px solid #e2e8f0',
-                                        borderRadius: '8px',
-                                        padding: '0.75rem',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        textAlign: 'center'
-                                    }}
-                                    onMouseOver={(e) => {
-                                        e.currentTarget.style.borderColor = '#667eea';
-                                        e.currentTarget.style.backgroundColor = '#f0f4ff';
-                                    }}
-                                    onMouseOut={(e) => {
-                                        e.currentTarget.style.borderColor = '#e2e8f0';
-                                        e.currentTarget.style.backgroundColor = '#f7fafc';
-                                    }}
-                                >
-                                    {product.imageBase64 ? (
-                                        <img
-                                            src={`data:image/jpeg;base64,${product.imageBase64}`}
-                                            alt={product.name}
-                                            style={{
-                                                width: '100%',
-                                                height: '70px',
-                                                objectFit: 'cover',
-                                                borderRadius: '8px',
-                                                backgroundColor: '#f7fafc',
-                                                marginBottom: '0.5rem'
-                                            }}
-                                        />
-                                    ) : (
-                                        <div style={{
-                                            width: '100%',
-                                            height: '70px',
+
+                        {(selectedCategory || isSearching) && (
+                            <button
+                                onClick={() => {
+                                    if (isSearching) setSearchTerm('');
+                                    else if (selectedSubcategory) setSelectedSubcategory(null);
+                                    else setSelectedCategory(null);
+                                }}
+                                style={{
+                                    padding: '0.375rem 0.75rem',
+                                    backgroundColor: '#f8fafc',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '8px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '600',
+                                    color: '#475569',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                }}
+                            >
+                                ⬅ Volver
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Grid de items */}
+                    <div style={{
+                        flex: 1,
+                        padding: '1rem',
+                        overflow: 'auto'
+                    }}>
+                        {productsLoading ? (
+                            <div style={{ textAlign: 'center', padding: '2rem', color: '#718096' }}>
+                                Cargando...
+                            </div>
+                        ) : (
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                                gap: '1rem'
+                            }}>
+                                {/* Render Categorías */}
+                                {showCategoriesInGrid && categories.map((category: any) => (
+                                    <div
+                                        key={category.id}
+                                        onClick={() => setSelectedCategory(category.id)}
+                                        style={{
+                                            backgroundColor: '#ffffff',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '12px',
+                                            padding: '1rem',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease',
                                             display: 'flex',
+                                            flexDirection: 'column',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            backgroundColor: '#f7fafc',
-                                            borderRadius: '8px',
-                                            marginBottom: '0.5rem',
-                                            fontSize: '2rem'
-                                        }}>
-                                            🍽️
+                                            minHeight: '120px',
+                                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                                        }}
+                                        onMouseOver={(e) => {
+                                            e.currentTarget.style.transform = 'translateY(-2px)';
+                                            e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+                                            e.currentTarget.style.borderColor = '#667eea';
+                                        }}
+                                        onMouseOut={(e) => {
+                                            e.currentTarget.style.transform = 'translateY(0)';
+                                            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+                                            e.currentTarget.style.borderColor = '#e2e8f0';
+                                        }}
+                                    >
+                                        <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>
+                                            {category.icon || '📁'}
                                         </div>
-                                    )}
-                                    <div style={{
-                                        fontSize: '0.75rem',
-                                        fontWeight: '600',
-                                        color: '#2d3748',
-                                        marginBottom: '0.25rem',
-                                        lineHeight: '1.2',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        display: '-webkit-box',
-                                        WebkitLineClamp: 4,
-                                        WebkitBoxOrient: 'vertical' as const,
-                                        wordBreak: 'break-word'
-                                    }}>
-                                        {product.name}
+                                        <div style={{
+                                            fontSize: '0.875rem',
+                                            fontWeight: '700',
+                                            color: '#1e293b',
+                                            textAlign: 'center'
+                                        }}>
+                                            {category.name}
+                                        </div>
                                     </div>
-                                    <div style={{
-                                        fontSize: '0.875rem',
-                                        fontWeight: '700',
-                                        color: '#667eea'
-                                    }}>
-                                        S/ {parseFloat(product.salePrice || 0).toFixed(2)}
+                                ))}
+
+                                {/* Render Subcategorías */}
+                                {showSubcategoriesInGrid && subcategoriesOfCategory.map((sub: any) => (
+                                    <div
+                                        key={sub.id}
+                                        onClick={() => setSelectedSubcategory(sub.id)}
+                                        style={{
+                                            backgroundColor: '#ffffff',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '12px',
+                                            padding: '1rem',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            minHeight: '100px',
+                                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                        }}
+                                        onMouseOver={(e) => {
+                                            e.currentTarget.style.borderColor = '#667eea';
+                                            e.currentTarget.style.backgroundColor = '#f0f4ff';
+                                        }}
+                                        onMouseOut={(e) => {
+                                            e.currentTarget.style.borderColor = '#e2e8f0';
+                                            e.currentTarget.style.backgroundColor = '#ffffff';
+                                        }}
+                                    >
+                                        <div style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>📂</div>
+                                        <div style={{
+                                            fontSize: '0.8125rem',
+                                            fontWeight: '600',
+                                            color: '#334155',
+                                            textAlign: 'center'
+                                        }}>
+                                            {sub.name}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                                ))}
+
+                                {/* Render Productos */}
+                                {showProductsInGrid && (
+                                    productsList.length === 0 ? (
+                                        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                                            No se encontraron productos
+                                        </div>
+                                    ) : (
+                                        productsList.map((product: any) => (
+                                            <div
+                                                key={product.id}
+                                                onClick={() => handleAddProduct(product.id, 1)}
+                                                style={{
+                                                    backgroundColor: '#f8fafc',
+                                                    border: '1px solid #e2e8f0',
+                                                    borderRadius: '10px',
+                                                    padding: '0.5rem',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s ease',
+                                                    textAlign: 'center',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    height: '100%'
+                                                }}
+                                                onMouseOver={(e) => {
+                                                    e.currentTarget.style.borderColor = '#667eea';
+                                                    e.currentTarget.style.backgroundColor = '#f0f4ff';
+                                                }}
+                                                onMouseOut={(e) => {
+                                                    e.currentTarget.style.borderColor = '#e2e8f0';
+                                                    e.currentTarget.style.backgroundColor = '#f8fafc';
+                                                }}
+                                            >
+                                                {product.imageBase64 ? (
+                                                    <img
+                                                        src={`data:image/jpeg;base64,${product.imageBase64}`}
+                                                        alt={product.name}
+                                                        style={{
+                                                            width: '100%',
+                                                            height: '80px',
+                                                            objectFit: 'cover',
+                                                            borderRadius: '8px',
+                                                            marginBottom: '0.5rem'
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <div style={{
+                                                        width: '100%',
+                                                        height: '80px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        backgroundColor: '#f1f5f9',
+                                                        borderRadius: '8px',
+                                                        marginBottom: '0.5rem',
+                                                        fontSize: '2rem'
+                                                    }}>
+                                                        🍽️
+                                                    </div>
+                                                )}
+                                                <div style={{
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: '600',
+                                                    color: '#1e293b',
+                                                    marginBottom: '0.25rem',
+                                                    lineHeight: '1.2',
+                                                    flex: 1,
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: 'vertical' as const,
+                                                    overflow: 'hidden'
+                                                }}>
+                                                    {product.name}
+                                                </div>
+                                                <div style={{
+                                                    fontSize: '0.8125rem',
+                                                    fontWeight: '700',
+                                                    color: '#4f46e5',
+                                                    marginTop: 'auto'
+                                                }}>
+                                                    S/ {parseFloat(product.salePrice || 0).toFixed(2)}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -766,131 +862,156 @@ const Delivery: React.FC = () => {
                                 El carrito está vacío
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                 {cartItems.map((item) => (
                                     <div
                                         key={item.id}
                                         style={{
-                                            backgroundColor: '#f7fafc',
+                                            backgroundColor: '#f8fafc',
                                             border: '1px solid #e2e8f0',
                                             borderRadius: '8px',
-                                            padding: '0.75rem'
+                                            padding: '0.4rem'
                                         }}
                                     >
                                         <div style={{
                                             display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'flex-start',
-                                            marginBottom: '0.5rem'
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            justifyContent: 'flex-start',
+                                            flexWrap: 'nowrap',
+                                            width: '100%',
+                                            overflow: 'hidden'
                                         }}>
-                                            <div style={{
-                                                fontSize: '0.75rem',
-                                                fontWeight: '600',
-                                                color: '#2d3748',
-                                                flex: 1,
-                                                minWidth: 0
-                                            }}>
-                                                {item.name}
-                                                {item.notes && (
-                                                    <div style={{ fontSize: '0.6875rem', color: '#64748b', marginTop: '0.2rem', fontWeight: 400 }}>
-                                                        {item.notes}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleOpenObservationModal(item.id)}
-                                                    title={item.notes ? 'Editar observaciones' : 'Agregar observaciones'}
-                                                    style={{
-                                                        padding: '0.25rem',
-                                                        border: 'none',
-                                                        borderRadius: '6px',
-                                                        background: item.notes ? '#dbeafe' : '#f1f5f9',
-                                                        color: item.notes ? '#2563eb' : '#64748b',
-                                                        cursor: 'pointer',
-                                                        fontSize: '0.875rem',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center'
-                                                    }}
-                                                >
-                                                    📝
-                                                </button>
-                                                <button
-                                                    onClick={() => handleRemoveItem(item.id)}
-                                                    style={{
-                                                        background: 'none',
-                                                        border: 'none',
-                                                        color: '#e53e3e',
-                                                        cursor: 'pointer',
-                                                        fontSize: '1rem',
-                                                        padding: '0'
-                                                    }}
-                                                >
-                                                    ×
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center'
-                                        }}>
-                                            <div style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '0.5rem'
-                                            }}>
+                                            {/* Controles de cantidad */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
                                                 <button
                                                     onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
                                                     style={{
-                                                        width: '24px',
-                                                        height: '24px',
+                                                        width: '20px',
+                                                        height: '20px',
                                                         borderRadius: '4px',
-                                                        border: '1px solid #e2e8f0',
+                                                        border: '1px solid #cbd5e0',
                                                         background: 'white',
                                                         cursor: 'pointer',
-                                                        fontSize: '0.875rem',
+                                                        fontSize: '0.8rem',
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        justifyContent: 'center'
+                                                        justifyContent: 'center',
+                                                        padding: 0
                                                     }}
                                                 >
-                                                    -
+                                                    −
                                                 </button>
-                                                <span style={{
-                                                    fontSize: '0.75rem',
-                                                    fontWeight: '600',
-                                                    minWidth: '30px',
-                                                    textAlign: 'center'
-                                                }}>
-                                                    {item.quantity}
-                                                </span>
+                                                <input
+                                                    type="number"
+                                                    value={item.quantity}
+                                                    onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 0)}
+                                                    min="1"
+                                                    style={{
+                                                        width: '28px',
+                                                        textAlign: 'center',
+                                                        border: '1px solid #cbd5e0',
+                                                        borderRadius: '4px',
+                                                        padding: '0.1rem',
+                                                        fontWeight: 700,
+                                                        fontSize: '0.75rem',
+                                                        background: 'white',
+                                                        color: '#1a202c'
+                                                    }}
+                                                />
                                                 <button
                                                     onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
                                                     style={{
-                                                        width: '24px',
-                                                        height: '24px',
+                                                        width: '20px',
+                                                        height: '20px',
                                                         borderRadius: '4px',
-                                                        border: '1px solid #e2e8f0',
+                                                        border: '1px solid #cbd5e0',
                                                         background: 'white',
                                                         cursor: 'pointer',
-                                                        fontSize: '0.875rem',
+                                                        fontSize: '0.8rem',
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        justifyContent: 'center'
+                                                        justifyContent: 'center',
+                                                        padding: 0
                                                     }}
                                                 >
                                                     +
                                                 </button>
                                             </div>
+
+                                            {/* Nombre del producto */}
+                                            <div style={{ flex: '1', minWidth: 0 }}>
+                                                <div style={{
+                                                    fontWeight: 600,
+                                                    color: '#2d3748',
+                                                    fontSize: '0.75rem',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap',
+                                                    lineHeight: '1.2'
+                                                }}>
+                                                    {item.name}
+                                                </div>
+                                                {item.notes && (
+                                                    <div style={{
+                                                        fontSize: '0.625rem',
+                                                        color: '#64748b',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap'
+                                                    }}>
+                                                        {item.notes}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Precio total */}
                                             <div style={{
-                                                fontSize: '0.875rem',
-                                                fontWeight: '700',
-                                                color: '#667eea'
+                                                fontWeight: 700,
+                                                color: '#2d3748',
+                                                fontSize: '0.75rem',
+                                                flexShrink: 0,
+                                                minWidth: '55px',
+                                                textAlign: 'right'
                                             }}>
                                                 S/ {item.total.toFixed(2)}
+                                            </div>
+
+                                            {/* Acciones */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleOpenObservationModal(item.id)}
+                                                    style={{
+                                                        padding: '0.2rem 0.4rem',
+                                                        borderRadius: '6px',
+                                                        border: '1px solid #bae6fd',
+                                                        background: item.notes ? '#dbeafe' : '#f0f9ff',
+                                                        color: '#0369a1',
+                                                        fontSize: '0.75rem',
+                                                        cursor: 'pointer',
+                                                        lineHeight: 1
+                                                    }}
+                                                    title="Notas"
+                                                >
+                                                    📋
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRemoveItem(item.id)}
+                                                    style={{
+                                                        padding: '0.2rem 0.4rem',
+                                                        background: 'white',
+                                                        border: '1px solid #fed7d7',
+                                                        borderRadius: '6px',
+                                                        color: '#dc2626',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.75rem',
+                                                        lineHeight: 1
+                                                    }}
+                                                    title="Eliminar"
+                                                >
+                                                    🗑️
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -899,6 +1020,53 @@ const Delivery: React.FC = () => {
                         )}
                     </div>
 
+                    {/* Descuento (S/) y (%) */}
+                    <div style={{
+                        display: 'flex',
+                        gap: '0.5rem',
+                        marginTop: '0.5rem',
+                        flexWrap: 'wrap'
+                    }}>
+                        <div style={{ flex: 1, minWidth: '70px' }}>
+                            <label style={{ fontSize: '0.65rem', color: '#718096', display: 'block', marginBottom: '0.15rem' }}>Descuento (S/)</label>
+                            <input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                value={discountAmount || ''}
+                                onChange={(e) => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                                placeholder="0"
+                                style={{
+                                    width: '100%',
+                                    padding: '0.35rem 0.4rem',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '6px',
+                                    fontSize: '0.75rem',
+                                    boxSizing: 'border-box'
+                                }}
+                            />
+                        </div>
+                        <div style={{ flex: 1, minWidth: '70px' }}>
+                            <label style={{ fontSize: '0.65rem', color: '#718096', display: 'block', marginBottom: '0.15rem' }}>Descuento (%)</label>
+                            <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step={0.5}
+                                value={discountPercent || ''}
+                                onChange={(e) => setDiscountPercent(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                                placeholder="0"
+                                style={{
+                                    width: '100%',
+                                    padding: '0.35rem 0.4rem',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '6px',
+                                    fontSize: '0.75rem',
+                                    boxSizing: 'border-box'
+                                }}
+                            />
+                        </div>
+                    </div>
                     {/* Totales */}
                     <div style={{
                         borderTop: '1px solid #e2e8f0',
@@ -920,6 +1088,19 @@ const Delivery: React.FC = () => {
                             <span style={{ fontSize: '0.75rem', color: '#718096' }}>IGV ({igvPercentageFromBranch}%):</span>
                             <span style={{ fontSize: '0.75rem', fontWeight: '600' }}>S/ {igvAmount.toFixed(2)}</span>
                         </div>
+                        {totalDiscount > 0 && (
+                            <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                marginBottom: '0.5rem',
+                                color: '#059669',
+                                fontSize: '0.75rem',
+                                fontWeight: '600'
+                            }}>
+                                <span>Descuento</span>
+                                <span>- S/ {totalDiscount.toFixed(2)}</span>
+                            </div>
+                        )}
                         <div style={{
                             display: 'flex',
                             justifyContent: 'space-between',
