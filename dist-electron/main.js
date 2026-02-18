@@ -42,8 +42,8 @@ const electron_log_1 = __importDefault(require("electron-log"));
 const path = __importStar(require("path"));
 const isDev = process.env.NODE_ENV === 'development' || !electron_1.app.isPackaged;
 // LOGS DEL AUTOUPDATE
-electron_log_1.default.transports.file.level = 'info';
 electron_updater_1.autoUpdater.logger = electron_log_1.default;
+electron_updater_1.autoUpdater.logger.transports.file.level = 'info';
 // SOLO BUSCAR ACTUALIZACIONES EN PRODUCCIÓN
 if (!isDev) {
     electron_1.app.on('ready', () => {
