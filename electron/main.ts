@@ -7,9 +7,8 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 
 // LOGS DEL AUTOUPDATE
-log.transports.file.level = 'info';
-
-autoUpdater.logger = log;
+autoUpdater.logger = log as any;
+(autoUpdater.logger as any).transports.file.level = 'info';
 
 // SOLO BUSCAR ACTUALIZACIONES EN PRODUCCIÓN
 if (!isDev) {
