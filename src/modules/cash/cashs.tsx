@@ -268,20 +268,23 @@ const Cashs: React.FC = () => {
           detailMessage += `\n• Total Egresos: ${currencyFormatter.format(closure.totalExpense)}`;
           detailMessage += `\n• Neto Total: ${currencyFormatter.format(closure.netTotal)}`;
 
-          // Imprimir automáticamente (device_id = MAC de la PC)
-          try {
-            const mac = await getMacAddress();
-            if (mac) {
-              await reprintClosureMutation({
-                variables: {
-                  closureId: closure.id,
-                  deviceId: mac
-                }
-              });
-              console.log('✅ Orden de impresión enviada');
+          // Imprimir solo si el backend devolvió datos para impresión local (evita doble impresión).
+          // Si no devolvió printLocally/documentData, el backend ya encoló la impresión (Raspberry).
+          const printLocally = data.closeCash.printLocally && data.closeCash.documentData;
+          if (printLocally) {
+            try {
+              const doc = typeof data.closeCash.documentData === 'string'
+                ? JSON.parse(data.closeCash.documentData)
+                : data.closeCash.documentData;
+              if (typeof (window as any).printClosureDocument === 'function') {
+                (window as any).printClosureDocument(doc);
+                console.log('✅ Cierre impreso en local');
+              }
+            } catch (printError) {
+              console.error('❌ Error al imprimir cierre en local:', printError);
             }
-          } catch (printError) {
-            console.error('❌ Error al enviar impresión:', printError);
+          } else {
+            console.log('✅ Cierre realizado (impresión encolada en servidor o no requerida)');
           }
         }
         console.log(detailMessage);
@@ -1265,19 +1268,19 @@ const Cashs: React.FC = () => {
                 <div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Total Ingresos</div>
                   <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#16a34a' }}>
-                    {currencyFormatter.format(closures.reduce((sum, c) => sum + c.totalIncome, 0))}
+                    {currencyFormatter.format(closures.reduce((sum, c) => sum + Number((c as any).totalIncome ?? (c as any).total_income ?? 0), 0))}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Total Egresos</div>
                   <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#dc2626' }}>
-                    {currencyFormatter.format(closures.reduce((sum, c) => sum + c.totalExpense, 0))}
+                    {currencyFormatter.format(closures.reduce((sum, c) => sum + Number((c as any).totalExpense ?? (c as any).total_expense ?? 0), 0))}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Neto Total</div>
                   <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#334155' }}>
-                    {currencyFormatter.format(closures.reduce((sum, c) => sum + c.netTotal, 0))}
+                    {currencyFormatter.format(closures.reduce((sum, c) => sum + Number((c as any).netTotal ?? (c as any).net_total ?? 0), 0))}
                   </div>
                 </div>
               </div>
@@ -1359,19 +1362,19 @@ const Cashs: React.FC = () => {
                             </div>
                           </td>
                           <td style={{ padding: '1rem', textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>
-                            {currencyFormatter.format(closure.totalIncome)}
+                            {currencyFormatter.format(Number((closure as any).totalIncome ?? (closure as any).total_income ?? 0))}
                           </td>
                           <td style={{ padding: '1rem', textAlign: 'right', color: '#dc2626', fontWeight: 600 }}>
-                            {currencyFormatter.format(closure.totalExpense)}
+                            {currencyFormatter.format(Number((closure as any).totalExpense ?? (closure as any).total_expense ?? 0))}
                           </td>
                           <td style={{
                             padding: '1rem',
                             textAlign: 'right',
                             fontWeight: 700,
                             fontSize: '1rem',
-                            color: closure.netTotal >= 0 ? '#16a34a' : '#dc2626'
+                            color: (Number((closure as any).netTotal ?? (closure as any).net_total ?? 0) >= 0) ? '#16a34a' : '#dc2626'
                           }}>
-                            {currencyFormatter.format(closure.netTotal)}
+                            {currencyFormatter.format(Number((closure as any).netTotal ?? (closure as any).net_total ?? 0))}
                           </td>
                           <td style={{ padding: '1rem', textAlign: 'center', verticalAlign: 'middle' }}>
                             <button

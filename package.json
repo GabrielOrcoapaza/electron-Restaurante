@@ -1,7 +1,7 @@
 {
   "name": "appsuma",
   "private": false,
-  "version": "1.0.5",
+  "version": "1.0.0",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -37,7 +37,7 @@
       "target": [
         "nsis"
       ],
-      "icon": "public/logos.ico"
+      "icon": "public/sumaq.ico"
     },
     "nsis": {
       "oneClick": false,

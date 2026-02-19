@@ -641,6 +641,8 @@ export const CLOSE_CASH = gql`
     closeCash(userId: $userId, branchId: $branchId, deviceId: $deviceId, cashRegisterId: $cashRegisterId) {
       success
       message
+      printLocally
+      documentData
       closure {
         id
         closureNumber

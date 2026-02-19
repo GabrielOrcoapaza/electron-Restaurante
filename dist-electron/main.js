@@ -57,6 +57,7 @@ function createWindow() {
         minWidth: 1200,
         minHeight: 800,
         show: false, // No mostrar hasta que esté listo
+        icon: path.join(__dirname, '../public/sumaq.ico'),
         webPreferences: {
             contextIsolation: false,
             nodeIntegration: true,
