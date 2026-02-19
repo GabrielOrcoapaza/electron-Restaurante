@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "dev:all": "concurrently \"npm run dev\" \"npm run electron\"",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\"",
-    "dist": "npm run build && npm run build-electron && electron-builder",
+    "dist": "npm run build && npm run build-electron && electron-builder --win --x64 --ia32",
     "release": "npm run dist -- --publish always"
   },
   "build": {

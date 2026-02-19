@@ -145,6 +145,9 @@ const Cashs: React.FC = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showManualTransactionModal, setShowManualTransactionModal] = useState(false);
+  // Filtro de fechas para historial de cierres (YYYY-MM-DD; vacío = sin filtro)
+  const [closureFilterStart, setClosureFilterStart] = useState<string>('');
+  const [closureFilterEnd, setClosureFilterEnd] = useState<string>('');
 
   // Query para obtener cajas
   const { data: cashRegistersData, loading: cashRegistersLoading, refetch: refetchCashRegisters } = useQuery(
@@ -190,15 +193,15 @@ const Cashs: React.FC = () => {
     }
   );
 
-  // Query para obtener historial de cierres
+  // Query para obtener historial de cierres (con filtro de fechas opcional)
   const { data: closuresData, loading: closuresLoading, error: closuresError, refetch: refetchClosures } = useQuery(
     GET_CASH_CLOSURES,
     {
       variables: {
         branchId: branchId!,
         userId: null,
-        startDate: null,
-        endDate: null
+        startDate: closureFilterStart || null,
+        endDate: closureFilterEnd || null
       },
       skip: !branchId,
       fetchPolicy: 'network-only',
@@ -1227,6 +1230,70 @@ const Cashs: React.FC = () => {
                 ← Volver
               </button>
             </div>
+          </div>
+
+          {/* Filtro de fechas */}
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '0.75rem',
+            marginBottom: '1.5rem',
+            padding: '1rem',
+            backgroundColor: '#f8fafc',
+            borderRadius: '12px',
+            border: '1px solid #e2e8f0'
+          }}>
+            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>Filtrar por fechas:</span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#64748b' }}>
+              Desde
+              <input
+                type="date"
+                value={closureFilterStart}
+                onChange={(e) => setClosureFilterStart(e.target.value)}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  fontSize: '0.875rem',
+                  color: '#334155'
+                }}
+              />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#64748b' }}>
+              Hasta
+              <input
+                type="date"
+                value={closureFilterEnd}
+                onChange={(e) => setClosureFilterEnd(e.target.value)}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  fontSize: '0.875rem',
+                  color: '#334155'
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setClosureFilterStart('');
+                setClosureFilterEnd('');
+              }}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                backgroundColor: 'white',
+                color: '#64748b',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Limpiar filtro
+            </button>
           </div>
 
           {closuresLoading ? (
