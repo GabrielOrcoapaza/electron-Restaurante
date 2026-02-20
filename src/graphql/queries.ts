@@ -207,6 +207,19 @@ export const GET_CATEGORIES_BY_BRANCH = gql`
   }
 `;
 
+// Query para obtener subcategorías por categoría
+export const GET_SUBCATEGORIES_BY_CATEGORY = gql`
+  query GetSubcategoriesByCategory($categoryId: ID!) {
+    subcategoriesByCategory(categoryId: $categoryId) {
+      id
+      name
+      description
+      order
+      isActive
+    }
+  }
+`;
+
 // Query para obtener productos por categoría
 export const GET_PRODUCTS_BY_CATEGORY = gql`
   query GetProductsByCategory($categoryId: ID!) {

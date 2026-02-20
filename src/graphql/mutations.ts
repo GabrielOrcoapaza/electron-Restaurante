@@ -949,6 +949,41 @@ export const CREATE_PERSON = gql`
   }
 `;
 
+// Mutación para crear categoría
+export const CREATE_CATEGORY = gql`
+  mutation CreateCategory(
+    $branchId: ID!
+    $name: String!
+    $description: String
+    $icon: String
+    $color: String
+    $order: Int
+    $isActive: Boolean
+  ) {
+    createCategory(
+      branchId: $branchId
+      name: $name
+      description: $description
+      icon: $icon
+      color: $color
+      order: $order
+      isActive: $isActive
+    ) {
+      success
+      message
+      category {
+        id
+        name
+        description
+        icon
+        color
+        order
+        isActive
+      }
+    }
+  }
+`;
+
 // Mutación para crear subcategoría
 export const CREATE_SUBCATEGORY = gql`
   mutation CreateSubcategory(

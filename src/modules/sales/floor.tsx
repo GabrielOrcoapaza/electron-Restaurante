@@ -371,6 +371,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 <div
                   key={floor.id}
                   onClick={() => handleFloorSelect(floor.id)}
+                  title={floor.name}
                   style={{
                     backgroundColor: '#f7fafc',
                     border: '1.5px solid #e2e8f0',
@@ -406,15 +407,20 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                   </div>
                   
                   <h3 style={{
-                    fontSize: isSmall ? '0.625rem' : isMedium ? '0.6875rem' : isSmallDesktop ? '0.75rem' : '0.8125rem',
+                    fontSize: isSmall ? '0.5600rem' : isMedium ? '0.600rem' : isSmallDesktop ? '0.6800rem' : '0.75rem',
                     fontWeight: '600',
                     color: '#2d3748',
                     margin: '0 0 0.125rem 0',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    whiteSpace: 'normal',
                     width: '100%',
-                    lineHeight: 1.2
+                    lineHeight: 1.15,
+                    wordBreak: 'break-word',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    minHeight: '2.3em'
                   }}>
                     {floor.name}
                   </h3>

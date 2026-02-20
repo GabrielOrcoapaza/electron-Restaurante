@@ -18,6 +18,8 @@ import ReportCancel from '../modules/reports/reportCancel';
 import ReportsProductsSold from '../modules/reports/reportsProductsSold';
 import ReportEmployee from '../modules/reports/reportEmployee';
 import Observation from '../modules/configuration/observation';
+import Subcategory from '../modules/configuration/subcategory';
+import CategoryModule from '../modules/configuration/category';
 import Delivery from '../modules/sales/delivery';
 import { GET_MY_UNREAD_MESSAGES } from '../graphql/queries';
 import { MARK_MESSAGE_READ } from '../graphql/mutations';
@@ -90,6 +92,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   // Verificar si el usuario es mozo para establecer la vista inicial
   const isWaiterInitial = user?.role?.toUpperCase() === 'WAITER';
   const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration' | 'delivery'>(isWaiterInitial ? 'floors' : 'dashboard');
+  const [configurationTab, setConfigurationTab] = useState<'category' | 'subcategory' | 'observation'>('category');
   const [reportType, setReportType] = useState<'sales' | 'cancellation' | 'productsSold' | 'employees'>('sales');
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -306,6 +309,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
 
   const handleMenuClick = (view: 'dashboard' | 'floors' | 'messages' | 'employees' | 'cashs' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration' | 'delivery') => {
     setCurrentView(view);
+    if (view === 'configuration') {
+      setConfigurationTab('category');
+    }
     setSelectedCashTable(null);
   };
 
@@ -368,7 +374,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                       : currentView === 'reports'
                         ? (reportType === 'sales' ? 'Visualiza reportes de ventas y documentos emitidos.' : reportType === 'cancellation' ? 'Visualiza el historial de anulaciones de operaciones y productos.' : reportType === 'productsSold' ? 'Visualiza productos vendidos por cantidad y monto.' : 'Visualiza ventas por empleado en el periodo.')
                         : currentView === 'configuration'
-                          ? 'Configura las observaciones y modificadores de tus productos.'
+                          ? 'Configura observaciones y subcategorías de tus productos.'
                           : currentView === 'delivery'
                             ? 'Gestiona las ventas para llevar sin asignar mesa.'
                             : selectedCashTable
@@ -1533,7 +1539,88 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                   {reportType === 'sales' ? <ReportSale /> : reportType === 'cancellation' ? <ReportCancel /> : reportType === 'productsSold' ? <ReportsProductsSold /> : <ReportEmployee />}
                 </div>
               )}
-              {currentView === 'configuration' && <Observation />}
+              {currentView === 'configuration' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: isSmall ? '0.75rem' : '1rem' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: isSmall ? '0.375rem' : '0.5rem',
+                      background: 'white',
+                      padding: isSmall ? '0.375rem' : '0.5rem',
+                      borderRadius: '12px',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    <button
+                      onClick={() => setConfigurationTab('category')}
+                      style={{
+                        padding: isSmall ? '0.375rem 0.75rem' : isMedium ? '0.45rem 1rem' : '0.5rem 1.5rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: configurationTab === 'category' ? '#6366f1' : 'transparent',
+                        color: configurationTab === 'category' ? 'white' : '#64748b',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <span>📁</span>
+                      Categoría
+                    </button>
+                    <button
+                      onClick={() => setConfigurationTab('subcategory')}
+                      style={{
+                        padding: isSmall ? '0.375rem 0.75rem' : isMedium ? '0.45rem 1rem' : '0.5rem 1.5rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: configurationTab === 'subcategory' ? '#3b82f6' : 'transparent',
+                        color: configurationTab === 'subcategory' ? 'white' : '#64748b',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <span>🗂️</span>
+                      Subcategoría
+                    </button>
+                    <button
+                      onClick={() => setConfigurationTab('observation')}
+                      style={{
+                        padding: isSmall ? '0.375rem 0.75rem' : isMedium ? '0.45rem 1rem' : '0.5rem 1.5rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: configurationTab === 'observation' ? '#8b5cf6' : 'transparent',
+                        color: configurationTab === 'observation' ? 'white' : '#64748b',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <span>📝</span>
+                      Observaciones
+                    </button>
+                  </div>
+
+                  {configurationTab === 'category' && <CategoryModule />}
+                  {configurationTab === 'subcategory' && <Subcategory />}
+                  {configurationTab === 'observation' && <Observation />}
+                </div>
+              )}
               {currentView === 'delivery' && <Delivery />}
             </>
           )}
