@@ -118,7 +118,7 @@ const CategoryModule: React.FC = () => {
                 name: formData.name.trim(),
                 description: formData.description.trim() || null,
                 icon: null,
-                color: null,
+                color: '#000000',
                 order: Number(formData.order) || 0,
                 isActive: formData.isActive,
               },
