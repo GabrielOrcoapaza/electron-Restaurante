@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation } from '@apollo/client';
+import { useQuery, useMutation, useApolloClient } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../context/ToastContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import {
   GET_CASH_REGISTERS,
-  GET_PAYMENT_SUMMARY,
-  GET_PAYMENT_METHODS_SUMMARY,
   GET_CASH_CLOSURE_PREVIEW,
   GET_CASH_CLOSURES
 } from '../../graphql/queries';
@@ -19,24 +17,6 @@ interface CashRegister {
   cashType: string;
   currentBalance: number;
   isActive: boolean;
-}
-
-interface PaymentSummary {
-  totalPayments: number;
-  totalIncome: number;
-  totalExpenses: number;
-  pendingPayments: number;
-  paidPayments: number;
-  cashBalance: number;
-  digitalBalance: number;
-  bankBalance: number;
-}
-
-interface PaymentMethodSummary {
-  method: string;
-  totalAmount: number;
-  count: number;
-  percentage: number;
 }
 
 interface UserSummary {
@@ -116,6 +96,7 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 });
 
 const Cashs: React.FC = () => {
+  const apolloClient = useApolloClient();
   const { companyData, user, getMacAddress } = useAuth();
   const { showToast } = useToast();
   const { breakpoint, isMobile, isTablet } = useResponsive();
@@ -145,33 +126,18 @@ const Cashs: React.FC = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showManualTransactionModal, setShowManualTransactionModal] = useState(false);
+  const [salesTotalsByRegister, setSalesTotalsByRegister] = useState<Record<string, number>>({});
   // Filtro de fechas para historial de cierres (YYYY-MM-DD; vacío = sin filtro)
   const [closureFilterStart, setClosureFilterStart] = useState<string>('');
   const [closureFilterEnd, setClosureFilterEnd] = useState<string>('');
+  // Mostrar/ocultar bloque de cajas en gestión de cajas
+  const [summaryVisible, setSummaryVisible] = useState<{ cajas: boolean }>({
+    cajas: true
+  });
 
   // Query para obtener cajas
   const { data: cashRegistersData, loading: cashRegistersLoading, refetch: refetchCashRegisters } = useQuery(
     GET_CASH_REGISTERS,
-    {
-      variables: { branchId: branchId! },
-      skip: !branchId,
-      fetchPolicy: 'network-only'
-    }
-  );
-
-  // Query para obtener resumen de pagos
-  const { data: paymentSummaryData, loading: paymentSummaryLoading, refetch: refetchPaymentSummary } = useQuery(
-    GET_PAYMENT_SUMMARY,
-    {
-      variables: { branchId: branchId! },
-      skip: !branchId,
-      fetchPolicy: 'network-only'
-    }
-  );
-
-  // Query para obtener resumen de métodos de pago
-  const { data: paymentMethodsData } = useQuery(
-    GET_PAYMENT_METHODS_SUMMARY,
     {
       variables: { branchId: branchId! },
       skip: !branchId,
@@ -309,7 +275,6 @@ const Cashs: React.FC = () => {
 
         // Refrescar todas las queries relacionadas
         refetchCashRegisters();
-        refetchPaymentSummary();
         refetchClosures();
       } else {
         const errorMessage = data?.closeCash?.message || 'No se pudo cerrar la caja';
@@ -324,11 +289,61 @@ const Cashs: React.FC = () => {
   });
 
   const cashRegisters: CashRegister[] = cashRegistersData?.cashRegistersByBranch || [];
-  const paymentSummary: PaymentSummary | null = paymentSummaryData?.paymentSummary || null;
-  const paymentMethods: PaymentMethodSummary[] = paymentMethodsData?.paymentMethodsSummary || [];
   const preview: CashClosurePreview | null = previewData?.cashClosurePreview || null;
   // Intentar ambos nombres por si hay diferencia entre snake_case y camelCase
   const closures: CashClosure[] = closuresData?.cashClosures || closuresData?.cash_closures || [];
+
+  // Obtiene el total vendido acumulado por cada caja usando el preview de cierre.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSalesTotals = async () => {
+      if (!branchId || cashRegisters.length === 0) {
+        setSalesTotalsByRegister({});
+        return;
+      }
+
+      try {
+        const entries = await Promise.all(
+          cashRegisters.map(async (cashRegister) => {
+            try {
+              const { data } = await apolloClient.query({
+                query: GET_CASH_CLOSURE_PREVIEW,
+                variables: {
+                  branchId,
+                  cashRegisterId: cashRegister.id,
+                  userId: null
+                },
+                fetchPolicy: 'network-only'
+              });
+
+              return [cashRegister.id, Number(data?.cashClosurePreview?.totalIncome ?? 0)] as const;
+            } catch {
+              return [cashRegister.id, Number(cashRegister.currentBalance ?? 0)] as const;
+            }
+          })
+        );
+
+        if (!cancelled) {
+          setSalesTotalsByRegister(Object.fromEntries(entries));
+        }
+      } catch {
+        if (!cancelled) {
+          const fallbackEntries = cashRegisters.map((cashRegister) => [
+            cashRegister.id,
+            Number(cashRegister.currentBalance ?? 0)
+          ] as const);
+          setSalesTotalsByRegister(Object.fromEntries(fallbackEntries));
+        }
+      }
+    };
+
+    loadSalesTotals();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apolloClient, branchId, cashRegisters]);
 
   // Debug: Log para verificar datos de cierres
   useEffect(() => {
@@ -358,18 +373,6 @@ const Cashs: React.FC = () => {
       case 'DIGITAL': return { bg: '#dbeafe', color: '#1e40af', border: '#93c5fd' };
       case 'BANK': return { bg: '#fef3c7', color: '#92400e', border: '#fde68a' };
       default: return { bg: '#f3f4f6', color: '#374151', border: '#d1d5db' };
-    }
-  };
-
-  const getPaymentMethodLabel = (method: string) => {
-    switch (method) {
-      case 'CASH': return 'Efectivo';
-      case 'YAPE': return 'Yape';
-      case 'PLIN': return 'Plin';
-      case 'CARD': return 'Tarjeta';
-      case 'TRANSFER': return 'Transferencia';
-      case 'OTROS': return 'Otros';
-      default: return method;
     }
   };
 
@@ -549,174 +552,6 @@ const Cashs: React.FC = () => {
       {/* Vista de Cajas */}
       {!showPreview && !showHistory && (
         <>
-          {/* Resumen de Pagos */}
-          {paymentSummaryLoading ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
-              Cargando resumen...
-            </div>
-          ) : paymentSummary && (
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '16px',
-              padding: cardPadding,
-              marginBottom: gridGap,
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-              border: '1px solid #e2e8f0'
-            }}>
-              <h3 style={{ margin: '0 0 1rem', fontSize: sectionTitleFontSize, fontWeight: 600, color: '#334155' }}>
-                📊 Resumen de Pagos
-              </h3>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: `repeat(auto-fit, minmax(${statCardMinWidth}, 1fr))`,
-                gap: gridGap
-              }}>
-                <div style={{
-                  padding: '1rem',
-                  borderRadius: '12px',
-                  backgroundColor: '#f0f9ff',
-                  border: '1px solid #bae6fd'
-                }}>
-                  <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>Total Ingresos</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#16a34a' }}>
-                    {currencyFormatter.format(paymentSummary.totalIncome)}
-                  </div>
-                </div>
-                <div style={{
-                  padding: '1rem',
-                  borderRadius: '12px',
-                  backgroundColor: '#fef2f2',
-                  border: '1px solid #fecaca'
-                }}>
-                  <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>Total Egresos</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#dc2626' }}>
-                    {currencyFormatter.format(paymentSummary.totalExpenses)}
-                  </div>
-                </div>
-                <div style={{
-                  padding: '1rem',
-                  borderRadius: '12px',
-                  backgroundColor: '#f0fdf4',
-                  border: '1px solid #86efac'
-                }}>
-                  <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>Neto</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#16a34a' }}>
-                    {currencyFormatter.format(paymentSummary.totalIncome - paymentSummary.totalExpenses)}
-                  </div>
-                </div>
-                <div style={{
-                  padding: '1rem',
-                  borderRadius: '12px',
-                  backgroundColor: '#fffbeb',
-                  border: '1px solid #fde68a'
-                }}>
-                  <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>Pendientes</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#d97706' }}>
-                    {currencyFormatter.format(paymentSummary.pendingPayments)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Balances por tipo de caja */}
-              <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
-                <h4 style={{ margin: '0 0 1rem', fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
-                  Balances por Tipo de Caja
-                </h4>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(auto-fit, minmax(${statCardMinWidth}, 1fr))`,
-                  gap: gridGap
-                }}>
-                  <div style={{
-                    padding: '1rem',
-                    borderRadius: '12px',
-                    backgroundColor: '#dcfce7',
-                    border: '1px solid #86efac'
-                  }}>
-                    <div style={{ fontSize: '0.875rem', color: '#166534', marginBottom: '0.5rem', fontWeight: 600 }}>
-                      💵 Efectivo
-                    </div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#166534' }}>
-                      {currencyFormatter.format(paymentSummary.cashBalance)}
-                    </div>
-                  </div>
-                  <div style={{
-                    padding: '1rem',
-                    borderRadius: '12px',
-                    backgroundColor: '#dbeafe',
-                    border: '1px solid #93c5fd'
-                  }}>
-                    <div style={{ fontSize: '0.875rem', color: '#1e40af', marginBottom: '0.5rem', fontWeight: 600 }}>
-                      📱 Digital
-                    </div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e40af' }}>
-                      {currencyFormatter.format(paymentSummary.digitalBalance)}
-                    </div>
-                  </div>
-                  <div style={{
-                    padding: '1rem',
-                    borderRadius: '12px',
-                    backgroundColor: '#fef3c7',
-                    border: '1px solid #fde68a'
-                  }}>
-                    <div style={{ fontSize: '0.875rem', color: '#92400e', marginBottom: '0.5rem', fontWeight: 600 }}>
-                      🏦 Bancario
-                    </div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#92400e' }}>
-                      {currencyFormatter.format(paymentSummary.bankBalance)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Resumen de Métodos de Pago */}
-          {paymentMethods.length > 0 && (
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '16px',
-              padding: cardPadding,
-              marginBottom: gridGap,
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-              border: '1px solid #e2e8f0'
-            }}>
-              <h3 style={{ margin: '0 0 1rem', fontSize: sectionTitleFontSize, fontWeight: 600, color: '#334155' }}>
-                💳 Resumen por Método de Pago
-              </h3>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                      <th style={{ padding: '0.75rem', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Método</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Monto</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Cantidad</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Porcentaje</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paymentMethods.map((method, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '0.75rem', color: '#334155', fontWeight: 500 }}>
-                          {getPaymentMethodLabel(method.method)}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', color: '#334155', fontWeight: 600 }}>
-                          {currencyFormatter.format(method.totalAmount)}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b' }}>
-                          {method.count}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b' }}>
-                          {method.percentage.toFixed(1)}%
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
           {/* Lista de Cajas */}
           {cashRegistersLoading ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
@@ -730,9 +565,29 @@ const Cashs: React.FC = () => {
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
               border: '1px solid #e2e8f0'
             }}>
-              <h3 style={{ margin: '0 0 1rem', fontSize: sectionTitleFontSize, fontWeight: 600, color: '#334155' }}>
-                🏪 Cajas Registradoras ({cashRegisters.length})
-              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: summaryVisible.cajas ? '1rem' : 0 }}>
+                <h3 style={{ margin: 0, fontSize: sectionTitleFontSize, fontWeight: 600, color: '#334155' }}>
+                  🏪 Cajas Registradoras ({cashRegisters.length})
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setSummaryVisible((v) => ({ ...v, cajas: !v.cajas }))}
+                  style={{
+                    padding: '0.4rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                    backgroundColor: '#f8fafc',
+                    color: '#64748b',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {summaryVisible.cajas ? 'Ocultar' : 'Mostrar'}
+                </button>
+              </div>
+              {summaryVisible.cajas && (
+              <>
               {cashRegisters.length === 0 ? (
                 <div style={{
                   textAlign: 'center',
@@ -791,10 +646,10 @@ const Cashs: React.FC = () => {
                         </div>
                         <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${typeColors.border}` }}>
                           <div style={{ fontSize: '0.875rem', color: typeColors.color, marginBottom: '0.5rem' }}>
-                            Balance Actual
+                            Total vendido (hasta ahora)
                           </div>
                           <div style={{ fontSize: '1.75rem', fontWeight: 700, color: typeColors.color }}>
-                            {currencyFormatter.format(cashRegister.currentBalance)}
+                            {currencyFormatter.format(salesTotalsByRegister[cashRegister.id] ?? cashRegister.currentBalance)}
                           </div>
                         </div>
                         <div style={{ marginTop: '1rem', textAlign: 'center' }}>
@@ -822,6 +677,8 @@ const Cashs: React.FC = () => {
                     );
                   })}
                 </div>
+              )}
+              </>
               )}
             </div>
           )}
@@ -1641,7 +1498,6 @@ const Cashs: React.FC = () => {
         isOpen={showManualTransactionModal}
         onClose={() => setShowManualTransactionModal(false)}
         onSuccess={() => {
-          refetchPaymentSummary();
           refetchCashRegisters();
         }}
         cashRegisters={cashRegisters}
