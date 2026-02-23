@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
-import { GET_PRODUCTS_WITH_STOCK, GET_CATEGORIES_BY_BRANCH } from '../../graphql/queries';
+import { GET_PRODUCTS_WITH_STOCK, GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS } from '../../graphql/queries';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 
@@ -56,12 +56,20 @@ const getSafeNumber = (value: number | null | undefined, defaultValue: number = 
   return Number(value);
 };
 
+const PAGE_SIZE = 10;
+
 const Inventories: React.FC = () => {
   const { companyData } = useAuth();
   const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Resetear a página 1 cuando cambie la categoría o la búsqueda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory, searchTerm]);
   
   // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
   const isSmall = breakpoint === 'sm'; // 640px - 767px
@@ -95,21 +103,25 @@ const Inventories: React.FC = () => {
     skip: !branchId
   });
 
+  // Productos de la categoría seleccionada (usa el backend para saber qué productos pertenecen a la categoría)
+  const { data: productsByCategoryData, loading: productsByCategoryLoading } = useQuery(GET_PRODUCTS, {
+    variables: {
+      branchId: branchId!,
+      productType: undefined,
+      categoryId: selectedCategory || undefined
+    },
+    skip: !branchId || !selectedCategory
+  });
+
   const allProducts: Product[] = productsData?.productsByBranch || [];
   const categories = categoriesData?.categoriesByBranch || [];
+  const productIdsInCategory: string[] = (productsByCategoryData?.products || []).map((p: { id: string }) => p.id);
 
-  // Filtrar productos
-  let filteredProducts = allProducts;
+  // Filtrar productos: solo mostrar los de la categoría seleccionada (por ID, con datos de stock)
+  let filteredProducts: Product[] = [];
 
-  // Filtrar por categoría - buscar productos que pertenezcan a subcategorías de la categoría seleccionada
-  if (selectedCategory) {
-    const categorySubcategories = (categories as Category[])
-      .find((cat: Category) => cat.id === selectedCategory)
-      ?.subcategories?.map((sub: Subcategory) => sub.id) || [];
-    
-    filteredProducts = filteredProducts.filter((product) => 
-      product.subcategoryId && categorySubcategories.includes(product.subcategoryId)
-    );
+  if (selectedCategory && productIdsInCategory.length >= 0) {
+    filteredProducts = allProducts.filter((product) => productIdsInCategory.includes(product.id));
   }
 
   // Filtrar por búsqueda
@@ -121,6 +133,12 @@ const Inventories: React.FC = () => {
       product.description?.toLowerCase().includes(searchLower)
     );
   }
+
+  // Paginación
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safePage - 1) * PAGE_SIZE;
+  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + PAGE_SIZE);
 
   // Determinar el estado del stock
   const getStockStatus = (product: Product) => {
@@ -320,15 +338,42 @@ const Inventories: React.FC = () => {
             color: '#334155' 
           }}>
             📋 Inventario de Productos ({filteredProducts.length})
+            {filteredProducts.length > 0 && (
+              <span style={{ fontWeight: 400, color: '#64748b', fontSize: subtitleFontSize }}>
+                {' '}· Página {safePage} de {totalPages}
+              </span>
+            )}
           </h3>
           
-          {filteredProducts.length === 0 ? (
+          {!selectedCategory ? (
             <div style={{ 
               textAlign: 'center', 
               padding: isSmall ? '2rem' : isMedium ? '2.5rem' : '3rem', 
               color: '#64748b' 
             }}>
-              <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem', margin: 0 }}>No hay productos en el inventario</p>
+              <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem', margin: 0 }}>
+                Selecciona una categoría para ver los productos del inventario
+              </p>
+            </div>
+          ) : productsByCategoryLoading ? (
+            <div style={{ 
+              textAlign: 'center', 
+              padding: isSmall ? '2rem' : isMedium ? '2.5rem' : '3rem', 
+              color: '#64748b' 
+            }}>
+              <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem', margin: 0 }}>
+                Cargando productos de la categoría...
+              </p>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div style={{ 
+              textAlign: 'center', 
+              padding: isSmall ? '2rem' : isMedium ? '2.5rem' : '3rem', 
+              color: '#64748b' 
+            }}>
+              <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem', margin: 0 }}>
+                No hay productos en esta categoría
+              </p>
             </div>
           ) : (
             <div style={{ 
@@ -356,7 +401,7 @@ const Inventories: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProducts.map((product) => {
+                  {paginatedProducts.map((product) => {
                     const stockStatus = getStockStatus(product);
                     return (
                       <tr key={product.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -426,6 +471,63 @@ const Inventories: React.FC = () => {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Paginación */}
+          {selectedCategory && !productsByCategoryLoading && filteredProducts.length > 0 && (
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              marginTop: '1rem',
+              paddingTop: '1rem',
+              borderTop: '1px solid #e2e8f0'
+            }}>
+              <span style={{ fontSize: inputFontSize, color: '#64748b' }}>
+                Mostrando {startIndex + 1}-{Math.min(startIndex + PAGE_SIZE, filteredProducts.length)} de {filteredProducts.length}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  style={{
+                    padding: '0.5rem 0.75rem',
+                    fontSize: inputFontSize,
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    background: safePage <= 1 ? '#f1f5f9' : 'white',
+                    color: safePage <= 1 ? '#94a3b8' : '#334155',
+                    cursor: safePage <= 1 ? 'not-allowed' : 'pointer',
+                    fontWeight: 500
+                  }}
+                >
+                  Anterior
+                </button>
+                <span style={{ fontSize: inputFontSize, color: '#475569', padding: '0 0.25rem' }}>
+                  {safePage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  style={{
+                    padding: '0.5rem 0.75rem',
+                    fontSize: inputFontSize,
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    background: safePage >= totalPages ? '#f1f5f9' : 'white',
+                    color: safePage >= totalPages ? '#94a3b8' : '#334155',
+                    cursor: safePage >= totalPages ? 'not-allowed' : 'pointer',
+                    fontWeight: 500
+                  }}
+                >
+                  Siguiente
+                </button>
+              </div>
             </div>
           )}
         </div>

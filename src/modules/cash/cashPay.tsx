@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useQuery, useMutation } from '@apollo/client';
+import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useWebSocket } from '../../context/WebSocketContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import type { Table } from '../../types/table';
-import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION, PRINT_PARTIAL_PRECUENTA } from '../../graphql/mutations';
-import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_ID, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR, GET_PERSONS_BY_BRANCH } from '../../graphql/queries';
+import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION, PRINT_PARTIAL_PRECUENTA, CREATE_PERSON } from '../../graphql/mutations';
+import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_ID, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR, GET_PERSONS_BY_BRANCH, SEARCH_PERSON_BY_DOCUMENT } from '../../graphql/queries';
 import CreateClient from '../user/createClient';
 import EditClient from '../user/editClient';
 
@@ -176,6 +176,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     variables: { branchId: companyData?.branch.id || '' },
     skip: !companyData?.branch.id
   });
+
+  // Búsqueda por documento en SUNAT / local
+  const [searchPersonByDocument, { loading: sunatSearchLoading }] = useLazyQuery(SEARCH_PERSON_BY_DOCUMENT, {
+    fetchPolicy: 'network-only'
+  });
+  const [createPersonMutation] = useMutation(CREATE_PERSON);
 
   const [createIssuedDocumentMutation] = useMutation(CREATE_ISSUED_DOCUMENT);
   const [changeOperationTableMutation] = useMutation(CHANGE_OPERATION_TABLE);
@@ -555,6 +561,60 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       }
     }
   }, [isFactura, selectedClientId, selectedClient]);
+
+  // Buscar cliente por documento en SUNAT o local
+  const handleSearchSunat = async () => {
+    const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
+    if (!/^\d+$/.test(term) || !companyData?.branch?.id) return;
+    const isRuc = term.length === 11;
+    const isDni = term.length === 8;
+    if (isFactura && !isRuc) return;
+    if (!isRuc && !isDni) return;
+    const documentType = isRuc ? 'RUC' : 'DNI';
+    setPaymentError(null);
+    try {
+      const { data } = await searchPersonByDocument({
+        variables: { documentType, documentNumber: term, branchId: companyData.branch.id }
+      });
+      const result = data?.searchPersonByDocument;
+      if (!result?.person) {
+        setPaymentError('No se encontró el documento en SUNAT ni en el sistema.');
+        return;
+      }
+      const person = result.person;
+      if (person.id && result.foundLocally) {
+        setSelectedClientId(person.id);
+        setClientSearchTerm(person.name || '');
+        const { data: refetched } = await refetchClients();
+        const updated = (refetched?.personsByBranch || []).find((p: any) => p.id === person.id);
+        if (updated?.name) setClientSearchTerm(updated.name);
+        return;
+      }
+      // Encontrado en SUNAT (o datos para crear): crear cliente y seleccionar
+      const { data: createData } = await createPersonMutation({
+        variables: {
+          branchId: companyData.branch.id,
+          documentType: person.documentType || documentType,
+          documentNumber: person.documentNumber || term,
+          name: person.name || (documentType === 'RUC' ? 'Empresa' : 'Cliente'),
+          address: person.address || undefined,
+          phone: person.phone || undefined,
+          email: person.email || undefined,
+          isCustomer: true,
+          isSupplier: false
+        }
+      });
+      if (createData?.createPerson?.success && createData?.createPerson?.person) {
+        const newPerson = createData.createPerson.person;
+        setSelectedClientId(newPerson.id);
+        setClientSearchTerm(newPerson.name || '');
+      } else {
+        setPaymentError(createData?.createPerson?.message || 'Error al registrar el cliente.');
+      }
+    } catch (err: any) {
+      setPaymentError(err?.message || 'Error al buscar en SUNAT.');
+    }
+  };
 
   // Inicializar detalles modificados cuando se carga la operación (filtrar cancelados)
   React.useEffect(() => {
@@ -2786,26 +2846,58 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 </div>
               </div>
               <div style={{ marginBottom: '0.5rem', position: 'relative' }}>
-                <input
-                  type="text"
-                  value={clientSearchTerm}
-                  onChange={(e) => {
-                    setClientSearchTerm(e.target.value);
-                    setSelectedClientId('');
-                  }}
-                  placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente...'}
-                  disabled={clientsLoading || isProcessing}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e0',
-                    fontSize: '0.85rem',
-                    backgroundColor: 'white',
-                    boxSizing: 'border-box',
-                    cursor: clientsLoading || isProcessing ? 'not-allowed' : 'text'
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.35rem', border: '1px solid #cbd5e0', borderRadius: '8px', backgroundColor: 'white', overflow: 'hidden' }}>
+                  <input
+                    type="text"
+                    value={clientSearchTerm}
+                    onChange={(e) => {
+                      setClientSearchTerm(e.target.value);
+                      setSelectedClientId('');
+                    }}
+                    placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'}
+                    disabled={clientsLoading || isProcessing}
+                    style={{
+                      flex: 1,
+                      padding: '0.55rem 0.75rem',
+                      border: 'none',
+                      fontSize: '0.85rem',
+                      backgroundColor: 'transparent',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      cursor: clientsLoading || isProcessing ? 'not-allowed' : 'text'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
+                      const validDoc = /^\d{8}$/.test(term) && !isFactura || /^\d{11}$/.test(term);
+                      if (validDoc) {
+                        handleSearchSunat();
+                      } else {
+                        setPaymentError('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.');
+                      }
+                    }}
+                    disabled={clientsLoading || sunatSearchLoading || isProcessing}
+                    title="Buscar en SUNAT"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 0.75rem',
+                      border: 'none',
+                      background: sunatSearchLoading ? '#e2e8f0' : '#0d9488',
+                      color: 'white',
+                      cursor: clientsLoading || sunatSearchLoading || isProcessing ? 'not-allowed' : 'pointer',
+                      opacity: clientsLoading || sunatSearchLoading || isProcessing ? 0.7 : 1
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" />
+                      <path d="m21 21-4.35-4.35" />
+                    </svg>
+                  </button>
+                </div>
                 {clientSearchTerm && !selectedClientId && filteredClients.length > 0 && (
                   <div style={{
                     position: 'absolute',
@@ -2861,8 +2953,41 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   </div>
                 )}
                 {clientSearchTerm && !selectedClientId && !clientsLoading && filteredClients.length === 0 && (
-                  <div style={{ marginTop: '0.25rem', fontSize: '0.8rem', color: '#64748b' }}>
-                    {isFactura ? 'No hay clientes con RUC' : 'No se encontraron clientes'}
+                  <div style={{ marginTop: '0.25rem' }}>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.35rem' }}>
+                      {isFactura ? 'No hay clientes con RUC' : 'No se encontraron clientes'}
+                    </div>
+                    {(() => {
+                      const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
+                      const canSearchSunat = /^\d{8}$/.test(term) && !isFactura
+                        || /^\d{11}$/.test(term);
+                      return (
+                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                          {canSearchSunat ? (
+                            <button
+                              type="button"
+                              onClick={handleSearchSunat}
+                              disabled={sunatSearchLoading || isProcessing}
+                              style={{
+                                padding: '0.4rem 0.75rem',
+                                fontSize: '0.8rem',
+                                fontWeight: 600,
+                                color: '#0f766e',
+                                backgroundColor: '#ccfbf1',
+                                border: '1px solid #99f6e4',
+                                borderRadius: '6px',
+                                cursor: sunatSearchLoading || isProcessing ? 'not-allowed' : 'pointer',
+                                opacity: sunatSearchLoading || isProcessing ? 0.7 : 1
+                              }}
+                            >
+                              {sunatSearchLoading ? 'Buscando en SUNAT...' : '🔍 Buscar en SUNAT'}
+                            </button>
+                          ) : (
+                            <span>Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse el botón de lupa para traer el cliente desde SUNAT.</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -4936,10 +5061,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       {/* Modal para crear nuevo cliente */}
       {showCreateClientModal && (
         <CreateClient
-          onSuccess={(clientId) => {
+          onSuccess={async (clientId) => {
             setSelectedClientId(clientId);
-            refetchClients();
             setShowCreateClientModal(false);
+            const result = await refetchClients();
+            const persons = result.data?.personsByBranch || [];
+            const newClient = persons.find((p: any) => p.id === clientId);
+            if (newClient?.name) setClientSearchTerm(newClient.name);
           }}
           onClose={() => setShowCreateClientModal(false)}
         />

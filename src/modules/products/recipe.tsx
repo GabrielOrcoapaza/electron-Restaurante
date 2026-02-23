@@ -4,6 +4,7 @@ import { GET_RECIPES_BY_PRODUCT, GET_PRODUCTS_WITH_STOCK } from '../../graphql/q
 import { ADD_RECIPE, REMOVE_RECIPE } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useToast } from '../../context/ToastContext';
 
 interface Recipe {
   id: string;
@@ -33,6 +34,7 @@ interface Ingredient {
 interface RecipeModalProps {
   productId: string;
   productName: string;
+  productType?: string;
   onClose: () => void;
 }
 
@@ -43,9 +45,11 @@ const UNIT_MEASURES: Array<[string, string]> = [
   ['LTR', 'Litro'],
 ];
 
-const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClose }) => {
+const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, productType, onClose }) => {
+  const isDish = productType === 'DISH';
   const { companyData } = useAuth();
   const { breakpoint } = useResponsive();
+  const { showToast } = useToast();
   const branchId = companyData?.branch?.id;
 
   // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
@@ -129,17 +133,14 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
   const [removeRecipe, { loading: removingRecipe }] = useMutation(REMOVE_RECIPE, {
     onCompleted: (data) => {
       if (data.removeRecipe.success) {
-        setMessage({ type: 'success', text: data.removeRecipe.message });
+        showToast(data.removeRecipe.message || 'Ingrediente eliminado de la receta', 'success');
         refetch();
-        setTimeout(() => setMessage(null), 3000);
       } else {
-        setMessage({ type: 'error', text: data.removeRecipe.message });
-        setTimeout(() => setMessage(null), 3000);
+        showToast(data.removeRecipe.message || 'No se pudo eliminar el ingrediente', 'error');
       }
     },
     onError: (error) => {
-      setMessage({ type: 'error', text: error.message });
-      setTimeout(() => setMessage(null), 3000);
+      showToast(error.message || 'Error al eliminar el ingrediente', 'error');
     },
   });
 
@@ -172,11 +173,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
   };
 
   const handleRemoveIngredient = (recipeId: string) => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar este ingrediente de la receta?')) {
-      removeRecipe({
-        variables: { recipeId }
-      });
-    }
+    removeRecipe({ variables: { recipeId } });
   };
 
   return (
@@ -251,6 +248,25 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
           </p>
         </div>
 
+        {/* Aviso: solo platos (DISH) pueden tener receta */}
+        {!isDish && (
+          <div style={{
+            marginBottom: '1rem',
+            padding: '1rem',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '8px',
+            color: '#991b1b'
+          }}>
+            <p style={{ margin: 0, fontSize: labelFontSize, fontWeight: 500 }}>
+              Solo se pueden agregar recetas a productos tipo <strong>Plato (DISH)</strong>.
+            </p>
+            <p style={{ margin: '0.5rem 0 0', fontSize: labelFontSize, opacity: 0.9 }}>
+              Este producto no es un plato. Para agregar ingredientes, edita el producto y cámbialo a tipo &quot;Plato&quot; en la lista de productos.
+            </p>
+          </div>
+        )}
+
         {/* Mensajes */}
         {message && (
           <div style={{ 
@@ -265,8 +281,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
           </div>
         )}
 
-        {/* Botón para agregar ingrediente */}
-        {!showAddForm && filteredIngredients.length > 0 && (
+        {/* Botón para agregar ingrediente (solo para productos tipo Plato) */}
+        {isDish && !showAddForm && filteredIngredients.length > 0 && (
           <div style={{ marginBottom: '1rem' }}>
             <button
               onClick={() => setShowAddForm(true)}
@@ -292,8 +308,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, onClo
           </div>
         )}
 
-        {/* Formulario para agregar ingrediente */}
-        {showAddForm && (
+        {/* Formulario para agregar ingrediente (solo para productos tipo Plato) */}
+        {isDish && showAddForm && (
           <div style={{ 
             marginBottom: '1.5rem', 
             padding: modalPadding, 

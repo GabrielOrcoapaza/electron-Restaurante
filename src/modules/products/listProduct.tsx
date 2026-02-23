@@ -63,7 +63,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
 
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedProductType, setSelectedProductType] = useState<string>('');
-  const [selectedProductForRecipe, setSelectedProductForRecipe] = useState<{ id: string; name: string } | null>(null);
+  const [selectedProductForRecipe, setSelectedProductForRecipe] = useState<{ id: string; name: string; productType?: string } | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 20;
 
@@ -446,7 +446,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                           ✏️ Editar
                         </button>
                         <button
-                          onClick={() => setSelectedProductForRecipe({ id: product.id, name: product.name })}
+                          onClick={() => setSelectedProductForRecipe({ id: product.id, name: product.name, productType: product.productType })}
                           title="Ver receta"
                           style={{
                             padding: isSmall ? '0.375rem 0.5rem' : isMedium ? '0.4375rem 0.625rem' : '0.5rem 0.75rem',
@@ -604,6 +604,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
         <RecipeModal
           productId={selectedProductForRecipe.id}
           productName={selectedProductForRecipe.name}
+          productType={selectedProductForRecipe.productType}
           onClose={() => setSelectedProductForRecipe(null)}
         />
       )}

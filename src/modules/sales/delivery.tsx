@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useResponsive } from '../../hooks/useResponsive';
 import { useToast } from '../../context/ToastContext';
 import { CREATE_SALE_CARRY_OUT } from '../../graphql/mutations';
 import {
@@ -11,8 +12,10 @@ import {
     GET_DOCUMENTS_WITH_SERIALS,
     GET_CASH_REGISTERS_BY_BRANCH,
     GET_PERSONS_BY_BRANCH,
-    GET_MODIFIERS_BY_SUBCATEGORY
+    GET_MODIFIERS_BY_SUBCATEGORY,
+    SEARCH_PERSON_BY_DOCUMENT
 } from '../../graphql/queries';
+import { CREATE_PERSON } from '../../graphql/mutations';
 import ModalObservation from './modalObservation';
 
 // Tipo para los ítems del carrito
@@ -38,6 +41,31 @@ type Person = {
 const Delivery: React.FC = () => {
     const { companyData, user, deviceId, getDeviceId, getMacAddress } = useAuth();
     const { showToast } = useToast();
+    const { breakpoint } = useResponsive();
+
+    // Responsive: sm 640-767, md 768-1023, lg 1024-1279, xl 1280-1535, 2xl >=1536
+    const isSmall = breakpoint === 'sm';
+    const isMedium = breakpoint === 'md';
+    const isNarrow = isSmall || isMedium;
+
+    // Valores adaptativos
+    const mainGap = isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem';
+    const mainPadding = isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem';
+    const searchPadding = isSmall ? '0.6rem' : isMedium ? '0.7rem' : '1rem';
+    const searchFontSize = isSmall ? '0.8125rem' : '0.875rem';
+    const gridMinCol = isSmall ? '100px' : isMedium ? '115px' : '130px';
+    const gridGap = isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem';
+    const gridPadding = isSmall ? '0.6rem' : isMedium ? '0.8rem' : '1rem';
+    const breadcrumbFontSize = isSmall ? '0.75rem' : '0.875rem';
+    const cartMinWidth = isNarrow ? undefined : '320px';
+    const panelLeftFlex = isSmall ? 1 : isMedium ? 1.2 : 1.4;
+    const panelRightFlex = isSmall ? 1 : isMedium ? 1.1 : 1.25;
+    const cardPadding = isSmall ? '0.75rem' : isMedium ? '1rem' : '1.25rem';
+    const cartTitleFontSize = isSmall ? '0.9375rem' : '1rem';
+    const cartItemFontSize = isSmall ? '0.8125rem' : '0.875rem';
+    const cartItemPadding = isSmall ? '0.35rem 0.5rem' : isMedium ? '0.45rem 0.55rem' : '0.6rem 0.75rem';
+    const paymentFormGap = isNarrow ? '0.5rem' : '0.65rem';
+    const inputPadding = isSmall ? '0.35rem' : '0.45rem';
 
     // IGV de la sucursal
     const igvPercentageFromBranch = Number(companyData?.branch?.igvPercentage) || 10.5;
@@ -112,18 +140,26 @@ const Delivery: React.FC = () => {
 
     const cashRegisters = cashRegistersData?.cashRegistersByBranch || [];
 
-    // Personas (clientes) de la sucursal - filtrado local como en convertDocumentModal
-    const { data: clientsData } = useQuery(GET_PERSONS_BY_BRANCH, {
+    // Personas (clientes) de la sucursal - filtrado local como en cashPay
+    const { data: clientsData, loading: clientsLoading, refetch: refetchClients } = useQuery(GET_PERSONS_BY_BRANCH, {
         variables: { branchId: companyData?.branch.id },
         skip: !companyData?.branch.id
     });
+
+    // Búsqueda por documento en SUNAT / local
+    const [searchPersonByDocument, { loading: sunatSearchLoading }] = useLazyQuery(SEARCH_PERSON_BY_DOCUMENT, {
+        fetchPolicy: 'network-only'
+    });
+    const [createPersonMutation] = useMutation(CREATE_PERSON);
 
     // Factura (código 01) exige cliente con RUC
     const selectedDoc = documents.find((d: any) => d.id === selectedDocument);
     const isFactura = selectedDoc?.code === '01';
 
     const filteredClients = useMemo(() => {
-        let clients = clientsData?.personsByBranch || [];
+        let clients = (clientsData?.personsByBranch || []).filter((c: any) =>
+            !c.isSupplier && c.isActive !== false
+        );
         if (isFactura) {
             clients = clients.filter((c: any) => (c.documentType || '').toUpperCase() === 'RUC');
         }
@@ -475,6 +511,73 @@ const Delivery: React.FC = () => {
         }
     }, [selectedDocument, documents, selectedPerson]);
 
+    // Buscar cliente por documento en SUNAT o local (como en cashPay)
+    const handleSearchSunat = async () => {
+        const term = (personSearchTerm || '').trim().replace(/\s/g, '');
+        if (!/^\d+$/.test(term) || !companyData?.branch?.id) return;
+        const isRuc = term.length === 11;
+        const isDni = term.length === 8;
+        if (isFactura && !isRuc) return;
+        if (!isRuc && !isDni) return;
+        const documentType = isRuc ? 'RUC' : 'DNI';
+        setSaveError(null);
+        try {
+            const { data } = await searchPersonByDocument({
+                variables: { documentType, documentNumber: term, branchId: companyData.branch.id }
+            });
+            const result = data?.searchPersonByDocument;
+            if (!result?.person) {
+                setSaveError('No se encontró el documento en SUNAT ni en el sistema.');
+                return;
+            }
+            const person = result.person;
+            if (person.id && result.foundLocally) {
+                setSelectedPerson({
+                    id: person.id,
+                    name: person.name || '',
+                    documentType: person.documentType || documentType,
+                    documentNumber: person.documentNumber || term
+                });
+                setPersonSearchTerm(person.name || '');
+                const { data: refetched } = await refetchClients();
+                const updated = (refetched?.personsByBranch || []).find((p: any) => p.id === person.id);
+                if (updated?.name) {
+                    setPersonSearchTerm(updated.name);
+                    setSelectedPerson(prev => prev ? { ...prev, name: updated.name } : null);
+                }
+                return;
+            }
+            // Encontrado en SUNAT (o datos para crear): crear cliente y seleccionar
+            const { data: createData } = await createPersonMutation({
+                variables: {
+                    branchId: companyData.branch.id,
+                    documentType: person.documentType || documentType,
+                    documentNumber: person.documentNumber || term,
+                    name: person.name || (documentType === 'RUC' ? 'Empresa' : 'Cliente'),
+                    address: person.address || undefined,
+                    phone: person.phone || undefined,
+                    email: person.email || undefined,
+                    isCustomer: true,
+                    isSupplier: false
+                }
+            });
+            if (createData?.createPerson?.success && createData?.createPerson?.person) {
+                const newPerson = createData.createPerson.person;
+                setSelectedPerson({
+                    id: newPerson.id,
+                    name: newPerson.name || '',
+                    documentType: newPerson.documentType || documentType,
+                    documentNumber: newPerson.documentNumber || term
+                });
+                setPersonSearchTerm(newPerson.name || '');
+            } else {
+                setSaveError(createData?.createPerson?.message || 'Error al registrar el cliente.');
+            }
+        } catch (err: any) {
+            setSaveError(err?.message || 'Error al buscar en SUNAT.');
+        }
+    };
+
     // Obtener seriales del documento seleccionado
     const selectedDocumentData = documents.find((d: any) => d.id === selectedDocument);
     const serials = selectedDocumentData?.serials || [];
@@ -482,27 +585,31 @@ const Delivery: React.FC = () => {
     return (
         <div style={{
             height: '100%',
+            minHeight: 0,
             width: '100%',
             display: 'flex',
-            gap: '1rem',
-            padding: '1rem',
+            flexDirection: isNarrow ? 'column' : 'row',
+            gap: mainGap,
+            padding: mainPadding,
             boxSizing: 'border-box',
-            overflow: 'hidden'
+            overflowY: isNarrow ? 'auto' : 'hidden',
+            overflowX: 'hidden'
         }}>
-            {/* Panel izquierdo - Productos (reducido para dar más espacio al carrito/pago) */}
+            {/* Panel izquierdo - Productos */}
             <div style={{
-                flex: 1.4,
+                flex: isNarrow ? '1 1 50%' : panelLeftFlex,
                 minWidth: 0,
+                minHeight: isNarrow ? '200px' : 0,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '1rem',
+                gap: mainGap,
                 overflow: 'hidden'
             }}>
                 {/* Búsqueda */}
                 <div style={{
                     backgroundColor: 'white',
-                    borderRadius: '12px',
-                    padding: '1rem',
+                    borderRadius: isSmall ? '10px' : '12px',
+                    padding: searchPadding,
                     boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
                 }}>
                     <input
@@ -512,10 +619,10 @@ const Delivery: React.FC = () => {
                         onChange={(e) => setSearchTerm(e.target.value)}
                         style={{
                             width: '100%',
-                            padding: '0.75rem',
+                            padding: isSmall ? '0.5rem 0.6rem' : '0.75rem',
                             border: '1px solid #e2e8f0',
                             borderRadius: '8px',
-                            fontSize: '0.875rem',
+                            fontSize: searchFontSize,
                             boxSizing: 'border-box'
                         }}
                     />
@@ -524,8 +631,9 @@ const Delivery: React.FC = () => {
                 {/* Área de navegación y Lista de items */}
                 <div style={{
                     flex: 1,
+                    minHeight: 0,
                     backgroundColor: 'white',
-                    borderRadius: '12px',
+                    borderRadius: isSmall ? '10px' : '12px',
                     display: 'flex',
                     flexDirection: 'column',
                     boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
@@ -533,7 +641,7 @@ const Delivery: React.FC = () => {
                 }}>
                     {/* Header de navegación / Breadcrumbs */}
                     <div style={{
-                        padding: '1rem',
+                        padding: isSmall ? '0.6rem 0.75rem' : '1rem',
                         borderBottom: '1px solid #f1f5f9',
                         display: 'flex',
                         alignItems: 'center',
@@ -541,7 +649,7 @@ const Delivery: React.FC = () => {
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
                             {isSearching ? (
-                                <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#2d3748', margin: 0 }}>
+                                <h3 style={{ fontSize: breadcrumbFontSize, fontWeight: '600', color: '#2d3748', margin: 0 }}>
                                     Resultados de búsqueda
                                 </h3>
                             ) : (
@@ -549,11 +657,11 @@ const Delivery: React.FC = () => {
                                     <button
                                         onClick={() => { setSelectedCategory(null); setSelectedSubcategory(null); }}
                                         style={{
-                                            padding: '0.25rem 0.5rem',
+                                            padding: isSmall ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
                                             background: !selectedCategory ? '#f1f5f9' : 'transparent',
                                             border: 'none',
                                             borderRadius: '6px',
-                                            fontSize: '0.875rem',
+                                            fontSize: breadcrumbFontSize,
                                             fontWeight: !selectedCategory ? '700' : '500',
                                             color: !selectedCategory ? '#1e293b' : '#64748b',
                                             cursor: 'pointer',
@@ -568,16 +676,16 @@ const Delivery: React.FC = () => {
                                             <button
                                                 onClick={() => setSelectedSubcategory(null)}
                                                 style={{
-                                                    padding: '0.25rem 0.5rem',
+                                                    padding: isSmall ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
                                                     background: !selectedSubcategory ? '#f1f5f9' : 'transparent',
                                                     border: 'none',
                                                     borderRadius: '6px',
-                                                    fontSize: '0.875rem',
+                                                    fontSize: breadcrumbFontSize,
                                                     fontWeight: !selectedSubcategory ? '700' : '500',
                                                     color: !selectedSubcategory ? '#1e293b' : '#64748b',
                                                     cursor: 'pointer',
                                                     whiteSpace: 'nowrap',
-                                                    maxWidth: '120px',
+                                                    maxWidth: isSmall ? '80px' : '120px',
                                                     overflow: 'hidden',
                                                     textOverflow: 'ellipsis'
                                                 }}
@@ -590,14 +698,14 @@ const Delivery: React.FC = () => {
                                         <>
                                             <span style={{ color: '#94a3b8' }}>/</span>
                                             <span style={{
-                                                padding: '0.25rem 0.5rem',
+                                                padding: isSmall ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
                                                 background: '#f1f5f9',
                                                 borderRadius: '6px',
-                                                fontSize: '0.875rem',
+                                                fontSize: breadcrumbFontSize,
                                                 fontWeight: '700',
                                                 color: '#1e293b',
                                                 whiteSpace: 'nowrap',
-                                                maxWidth: '120px',
+                                                maxWidth: isSmall ? '80px' : '120px',
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis'
                                             }}>
@@ -617,11 +725,11 @@ const Delivery: React.FC = () => {
                                     else setSelectedCategory(null);
                                 }}
                                 style={{
-                                    padding: '0.375rem 0.75rem',
+                                    padding: isSmall ? '0.3rem 0.5rem' : '0.375rem 0.75rem',
                                     backgroundColor: '#f8fafc',
                                     border: '1px solid #e2e8f0',
                                     borderRadius: '8px',
-                                    fontSize: '0.75rem',
+                                    fontSize: isSmall ? '0.7rem' : '0.75rem',
                                     fontWeight: '600',
                                     color: '#475569',
                                     cursor: 'pointer',
@@ -635,21 +743,26 @@ const Delivery: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Grid de items */}
+                    {/* Grid de items - scroll en pantallas pequeñas */}
                     <div style={{
                         flex: 1,
-                        padding: '1rem',
-                        overflow: 'auto'
-                    }}>
+                        minHeight: 0,
+                        maxHeight: '100%',
+                        padding: gridPadding,
+                        overflowY: 'auto',
+                        overflowX: 'hidden',
+                        WebkitOverflowScrolling: 'touch',
+                        scrollbarWidth: 'thin'
+                    } as React.CSSProperties}>
                         {productsLoading ? (
-                            <div style={{ textAlign: 'center', padding: '2rem', color: '#718096' }}>
+                            <div style={{ textAlign: 'center', padding: '2rem', color: '#718096', fontSize: isSmall ? '0.8125rem' : '0.875rem' }}>
                                 Cargando...
                             </div>
                         ) : (
                             <div style={{
                                 display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
-                                gap: '1rem'
+                                gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCol}, 1fr))`,
+                                gap: gridGap
                             }}>
                                 {/* Render Categorías */}
                                 {showCategoriesInGrid && categories.map((category: any) => (
@@ -659,15 +772,15 @@ const Delivery: React.FC = () => {
                                         style={{
                                             backgroundColor: '#ffffff',
                                             border: '1px solid #e2e8f0',
-                                            borderRadius: '12px',
-                                            padding: '1rem',
+                                            borderRadius: isSmall ? '10px' : '12px',
+                                            padding: gridPadding,
                                             cursor: 'pointer',
                                             transition: 'all 0.2s ease',
                                             display: 'flex',
                                             flexDirection: 'column',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            minHeight: '120px',
+                                            minHeight: isSmall ? '90px' : isMedium ? '105px' : '120px',
                                             boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
                                         }}
                                         onMouseOver={(e) => {
@@ -681,11 +794,11 @@ const Delivery: React.FC = () => {
                                             e.currentTarget.style.borderColor = '#e2e8f0';
                                         }}
                                     >
-                                        <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>
+                                        <div style={{ fontSize: isSmall ? '2rem' : '2.5rem', marginBottom: '0.5rem' }}>
                                             {category.icon || '📁'}
                                         </div>
                                         <div style={{
-                                            fontSize: '0.875rem',
+                                            fontSize: isSmall ? '0.75rem' : breadcrumbFontSize,
                                             fontWeight: '700',
                                             color: '#1e293b',
                                             textAlign: 'center'
@@ -703,15 +816,15 @@ const Delivery: React.FC = () => {
                                         style={{
                                             backgroundColor: '#ffffff',
                                             border: '1px solid #e2e8f0',
-                                            borderRadius: '12px',
-                                            padding: '1rem',
+                                            borderRadius: isSmall ? '10px' : '12px',
+                                            padding: gridPadding,
                                             cursor: 'pointer',
                                             transition: 'all 0.2s ease',
                                             display: 'flex',
                                             flexDirection: 'column',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            minHeight: '100px',
+                                            minHeight: isSmall ? '80px' : isMedium ? '90px' : '100px',
                                             boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                                         }}
                                         onMouseOver={(e) => {
@@ -723,9 +836,9 @@ const Delivery: React.FC = () => {
                                             e.currentTarget.style.backgroundColor = '#ffffff';
                                         }}
                                     >
-                                        <div style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>📂</div>
+                                        <div style={{ fontSize: isSmall ? '1.5rem' : '2rem', marginBottom: '0.25rem' }}>📂</div>
                                         <div style={{
-                                            fontSize: '0.8125rem',
+                                            fontSize: isSmall ? '0.75rem' : '0.8125rem',
                                             fontWeight: '600',
                                             color: '#334155',
                                             textAlign: 'center'
@@ -749,8 +862,8 @@ const Delivery: React.FC = () => {
                                                 style={{
                                                     backgroundColor: '#f8fafc',
                                                     border: '1px solid #e2e8f0',
-                                                    borderRadius: '10px',
-                                                    padding: '0.5rem',
+                                                    borderRadius: isSmall ? '8px' : '10px',
+                                                    padding: isSmall ? '0.4rem' : '0.5rem',
                                                     cursor: 'pointer',
                                                     transition: 'all 0.2s ease',
                                                     textAlign: 'center',
@@ -773,29 +886,29 @@ const Delivery: React.FC = () => {
                                                         alt={product.name}
                                                         style={{
                                                             width: '100%',
-                                                            height: '80px',
+                                                            height: isSmall ? '60px' : '80px',
                                                             objectFit: 'cover',
                                                             borderRadius: '8px',
-                                                            marginBottom: '0.5rem'
+                                                            marginBottom: isSmall ? '0.35rem' : '0.5rem'
                                                         }}
                                                     />
                                                 ) : (
                                                     <div style={{
                                                         width: '100%',
-                                                        height: '80px',
+                                                        height: isSmall ? '60px' : '80px',
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
                                                         backgroundColor: '#f1f5f9',
                                                         borderRadius: '8px',
-                                                        marginBottom: '0.5rem',
-                                                        fontSize: '2rem'
+                                                        marginBottom: isSmall ? '0.35rem' : '0.5rem',
+                                                        fontSize: isSmall ? '1.5rem' : '2rem'
                                                     }}>
                                                         🍽️
                                                     </div>
                                                 )}
                                                 <div style={{
-                                                    fontSize: '0.75rem',
+                                                    fontSize: isSmall ? '0.7rem' : '0.75rem',
                                                     fontWeight: '600',
                                                     color: '#1e293b',
                                                     marginBottom: '0.25rem',
@@ -809,7 +922,7 @@ const Delivery: React.FC = () => {
                                                     {product.name}
                                                 </div>
                                                 <div style={{
-                                                    fontSize: '0.8125rem',
+                                                    fontSize: isSmall ? '0.75rem' : '0.8125rem',
                                                     fontWeight: '700',
                                                     color: '#4f46e5',
                                                     marginTop: 'auto'
@@ -828,42 +941,49 @@ const Delivery: React.FC = () => {
 
             {/* Panel derecho - Carrito y Pago */}
             <div style={{
-                flex: 1,
+                flex: isNarrow ? '0 0 auto' : panelRightFlex,
+                width: isNarrow ? '100%' : 'auto',
+                minWidth: cartMinWidth,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '1rem',
-                overflow: 'hidden'
+                gap: mainGap,
+                overflow: isNarrow ? 'visible' : 'hidden',
+                maxHeight: isNarrow ? 'none' : '100%',
+                backgroundColor: isNarrow ? 'transparent' : '#f8fafc' // Fondo ligero para separar
             }}>
                 {/* Carrito */}
                 <div style={{
-                    flex: 1,
+                    flex: isNarrow ? 'none' : '1.5 1 0%', // Aumentar prioridad de espacio al carrito
+                    minHeight: isNarrow ? '300px' : '250px',
+                    maxHeight: isNarrow ? '450px' : 'none',
                     backgroundColor: 'white',
-                    borderRadius: '12px',
-                    padding: '1rem',
+                    borderRadius: isSmall ? '10px' : '12px',
+                    padding: cardPadding,
                     boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden'
                 }}>
                     <h3 style={{
-                        fontSize: '0.875rem',
+                        fontSize: cartTitleFontSize,
                         fontWeight: '600',
                         color: '#2d3748',
-                        marginBottom: '0.75rem'
+                        marginBottom: isSmall ? '0.5rem' : '0.75rem'
                     }}>
                         Carrito ({cartItems.length})
                     </h3>
                     <div style={{
                         flex: 1,
+                        minHeight: 0,
                         overflow: 'auto',
-                        marginBottom: '1rem'
+                        marginBottom: isSmall ? '0.75rem' : '1rem'
                     }}>
                         {cartItems.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '2rem', color: '#718096' }}>
+                            <div style={{ textAlign: 'center', padding: isSmall ? '1.5rem' : '2rem', color: '#718096', fontSize: cartItemFontSize }}>
                                 El carrito está vacío
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: isSmall ? '0.35rem' : '0.5rem' }}>
                                 {cartItems.map((item) => (
                                     <div
                                         key={item.id}
@@ -871,7 +991,7 @@ const Delivery: React.FC = () => {
                                             backgroundColor: '#f8fafc',
                                             border: '1px solid #e2e8f0',
                                             borderRadius: '8px',
-                                            padding: '0.4rem'
+                                            padding: cartItemPadding
                                         }}
                                     >
                                         <div style={{
@@ -945,7 +1065,7 @@ const Delivery: React.FC = () => {
                                                 <div style={{
                                                     fontWeight: 600,
                                                     color: '#2d3748',
-                                                    fontSize: '0.75rem',
+                                                    fontSize: cartItemFontSize,
                                                     overflow: 'hidden',
                                                     textOverflow: 'ellipsis',
                                                     whiteSpace: 'nowrap',
@@ -1114,289 +1234,298 @@ const Delivery: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Formulario de pago */}
+                {/* Formulario de pago - Reducido para dar espacio */}
                 <div style={{
+                    flex: isNarrow ? 'none' : '1 1 0%',
                     backgroundColor: 'white',
                     borderRadius: '12px',
-                    padding: '1rem',
+                    padding: isMedium ? '0.75rem' : '1rem',
                     boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                    overflow: 'auto'
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: paymentFormGap
                 }}>
                     <h3 style={{
-                        fontSize: '0.875rem',
+                        fontSize: isMedium ? '0.8125rem' : '0.875rem',
                         fontWeight: '600',
                         color: '#2d3748',
-                        marginBottom: '0.75rem'
+                        margin: 0,
+                        marginBottom: '0.25rem'
                     }}>
                         Información de Pago
                     </h3>
+                    {saveError && (
+                        <div style={{ fontSize: '0.75rem', color: '#dc2626', marginBottom: '0.25rem' }}>
+                            {saveError}
+                        </div>
+                    )}
 
-                    {/* Cliente */}
-                    <div style={{ marginBottom: '0.75rem' }}>
-                        <label style={{
-                            fontSize: '0.75rem',
-                            fontWeight: '500',
-                            color: '#4a5568',
-                            display: 'block',
-                            marginBottom: '0.25rem'
-                        }}>
-                            Cliente (opcional)
-                        </label>
-                        <input
-                            type="text"
-                            placeholder="Buscar cliente..."
-                            value={personSearchTerm}
-                            onChange={(e) => {
-                                setPersonSearchTerm(e.target.value);
-                                setSelectedPerson(null);
-                            }}
-                            style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                boxSizing: 'border-box'
-                            }}
-                        />
-                        {personSearchTerm && !selectedPerson && filteredClients.length > 0 && (
-                            <div style={{
-                                marginTop: '0.25rem',
-                                maxHeight: '150px',
-                                overflowY: 'auto',
-                                border: '1px solid #e5e7eb',
-                                borderRadius: '8px',
-                                backgroundColor: 'white'
-                            }}>
-                                {filteredClients.map((client: any) => (
-                                    <div
-                                        key={client.id}
-                                        onClick={() => {
-                                            setSelectedPerson(client);
-                                            setPersonSearchTerm(client.name);
-                                        }}
-                                        style={{
-                                            padding: '0.5rem',
-                                            cursor: 'pointer',
-                                            borderBottom: '1px solid #f1f5f9',
-                                            fontSize: '0.75rem'
-                                        }}
-                                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f7fafc'}
-                                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
-                                    >
-                                        <div style={{ fontWeight: '600' }}>{client.name}</div>
-                                        <div style={{ color: '#718096', fontSize: '0.6875rem' }}>
-                                            {client.documentType}: {client.documentNumber}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Documento */}
-                    <div style={{ marginBottom: '0.75rem' }}>
-                        <label style={{
-                            fontSize: '0.75rem',
-                            fontWeight: '500',
-                            color: '#4a5568',
-                            display: 'block',
-                            marginBottom: '0.25rem'
-                        }}>
-                            Tipo de Documento *
-                        </label>
-                        <select
-                            value={selectedDocument}
-                            onChange={(e) => {
-                                setSelectedDocument(e.target.value);
-                                setSelectedSerial('');
-                            }}
-                            style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                boxSizing: 'border-box'
-                            }}
-                        >
-                            <option value="">Seleccionar...</option>
-                            {documents.map((doc: any) => (
-                                <option key={doc.id} value={doc.id}>
-                                    {doc.description}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Serie */}
-                    {selectedDocument && (
-                        <div style={{ marginBottom: '0.75rem' }}>
-                            <label style={{
-                                fontSize: '0.75rem',
-                                fontWeight: '500',
-                                color: '#4a5568',
-                                display: 'block',
-                                marginBottom: '0.25rem'
-                            }}>
-                                Serie *
+                    {/* Contenedor compacto para los campos */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: paymentFormGap }}>
+                        {/* Cliente (igual que cashPay: búsqueda, dropdown, SUNAT) */}
+                        <div>
+                            <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>
+                                Cliente (opcional)
                             </label>
-                            <select
-                                value={selectedSerial}
-                                onChange={(e) => setSelectedSerial(e.target.value)}
+                            <div style={{ position: 'relative' }}>
+                                <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.35rem', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', overflow: 'hidden' }}>
+                                    <input
+                                        type="text"
+                                        value={personSearchTerm}
+                                        onChange={(e) => {
+                                            setPersonSearchTerm(e.target.value);
+                                            setSelectedPerson(null);
+                                        }}
+                                        placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'}
+                                        disabled={clientsLoading || isSaving}
+                                        style={{
+                                            flex: 1,
+                                            padding: inputPadding,
+                                            border: 'none',
+                                            fontSize: '0.75rem',
+                                            backgroundColor: 'transparent',
+                                            outline: 'none',
+                                            boxSizing: 'border-box',
+                                            cursor: clientsLoading || isSaving ? 'not-allowed' : 'text'
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const term = (personSearchTerm || '').trim().replace(/\s/g, '');
+                                            const validDoc = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
+                                            if (validDoc) {
+                                                handleSearchSunat();
+                                            } else {
+                                                setSaveError('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.');
+                                            }
+                                        }}
+                                        disabled={clientsLoading || sunatSearchLoading || isSaving}
+                                        title="Buscar en SUNAT"
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            padding: '0 0.5rem',
+                                            border: 'none',
+                                            background: sunatSearchLoading ? '#e2e8f0' : '#0d9488',
+                                            color: 'white',
+                                            cursor: clientsLoading || sunatSearchLoading || isSaving ? 'not-allowed' : 'pointer',
+                                            opacity: clientsLoading || sunatSearchLoading || isSaving ? 0.7 : 1
+                                        }}
+                                    >
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <circle cx="11" cy="11" r="8" />
+                                            <path d="m21 21-4.35-4.35" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                {personSearchTerm && !selectedPerson && filteredClients.length > 0 && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '100%',
+                                        left: 0,
+                                        right: 0,
+                                        marginTop: '0.25rem',
+                                        maxHeight: '140px',
+                                        overflowY: 'auto',
+                                        border: '1px solid #e5e7eb',
+                                        borderRadius: '6px',
+                                        backgroundColor: 'white',
+                                        boxShadow: '0 4px 6px rgba(0,0,0,0.07)',
+                                        zIndex: 10
+                                    }}>
+                                        {!isFactura && (
+                                            <div
+                                                onClick={() => { setSelectedPerson(null); setPersonSearchTerm(''); }}
+                                                style={{
+                                                    padding: '0.4rem 0.6rem',
+                                                    cursor: 'pointer',
+                                                    borderBottom: '1px solid #f1f5f9',
+                                                    fontSize: '0.75rem',
+                                                    color: '#64748b'
+                                                }}
+                                            >
+                                                Sin cliente (Consumidor final)
+                                            </div>
+                                        )}
+                                        {filteredClients.map((client: any) => (
+                                            <div
+                                                key={client.id}
+                                                onClick={() => {
+                                                    setSelectedPerson({
+                                                        id: client.id,
+                                                        name: client.name || '',
+                                                        documentType: client.documentType || '',
+                                                        documentNumber: client.documentNumber || ''
+                                                    });
+                                                    setPersonSearchTerm(client.name || '');
+                                                }}
+                                                style={{
+                                                    padding: '0.4rem 0.6rem',
+                                                    cursor: 'pointer',
+                                                    borderBottom: '1px solid #f1f5f9',
+                                                    fontSize: '0.75rem'
+                                                }}
+                                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#f7fafc'; }}
+                                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
+                                            >
+                                                <div style={{ fontWeight: 600 }}>{client.name}</div>
+                                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{client.documentType}: {client.documentNumber}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {personSearchTerm && !selectedPerson && !clientsLoading && filteredClients.length === 0 && (
+                                    <div style={{ marginTop: '0.25rem' }}>
+                                        <div style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: '0.35rem' }}>
+                                            {isFactura ? 'No hay clientes con RUC' : 'No se encontraron clientes'}
+                                        </div>
+                                        {(() => {
+                                            const term = (personSearchTerm || '').trim().replace(/\s/g, '');
+                                            const canSearchSunat = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
+                                            return (
+                                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                                                    {canSearchSunat ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleSearchSunat}
+                                                            disabled={sunatSearchLoading || isSaving}
+                                                            style={{
+                                                                padding: '0.35rem 0.6rem',
+                                                                fontSize: '0.7rem',
+                                                                fontWeight: 600,
+                                                                color: '#0f766e',
+                                                                backgroundColor: '#ccfbf1',
+                                                                border: '1px solid #99f6e4',
+                                                                borderRadius: '6px',
+                                                                cursor: sunatSearchLoading || isSaving ? 'not-allowed' : 'pointer',
+                                                                opacity: sunatSearchLoading || isSaving ? 0.7 : 1
+                                                            }}
+                                                        >
+                                                            {sunatSearchLoading ? 'Buscando en SUNAT...' : '🔍 Buscar en SUNAT'}
+                                                        </button>
+                                                    ) : (
+                                                        <span>Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse el botón de lupa para traer el cliente desde SUNAT.</span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Fila: Documento y Serie */}
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <div style={{ flex: 2 }}>
+                                <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Tipo Documento *</label>
+                                <select
+                                    value={selectedDocument}
+                                    onChange={(e) => {
+                                        setSelectedDocument(e.target.value);
+                                        setSelectedSerial('');
+                                    }}
+                                    style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
+                                >
+                                    <option value="">Doc...</option>
+                                    {documents.map((doc: any) => (
+                                        <option key={doc.id} value={doc.id}>{doc.description}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {selectedDocument && (
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Serie *</label>
+                                    <select
+                                        value={selectedSerial}
+                                        onChange={(e) => setSelectedSerial(e.target.value)}
+                                        style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
+                                    >
+                                        <option value="">...</option>
+                                        {serials.map((serial: any) => (
+                                            <option key={serial.id} value={serial.serial}>{serial.serial}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Fila: Caja y Método */}
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Caja *</label>
+                                <select
+                                    value={selectedCashRegister}
+                                    onChange={(e) => setSelectedCashRegister(e.target.value)}
+                                    style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
+                                >
+                                    <option value="">Seleccionar...</option>
+                                    {cashRegisters.map((cashRegister: any) => (
+                                        <option key={cashRegister.id} value={cashRegister.id}>{cashRegister.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Método *</label>
+                                <select
+                                    value={paymentMethod}
+                                    onChange={(e) => setPaymentMethod(e.target.value)}
+                                    style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
+                                >
+                                    <option value="CASH">Efectivo</option>
+                                    <option value="CARD">Tarjeta</option>
+                                    <option value="TRANSFER">Transferencia</option>
+                                    <option value="YAPE">Yape</option>
+                                    <option value="PLIN">Plin</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Monto Pagado */}
+                        <div>
+                            <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Monto Pagado *</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={paidAmount}
+                                onChange={(e) => setPaidAmount(e.target.value)}
                                 style={{
                                     width: '100%',
-                                    padding: '0.5rem',
+                                    padding: inputPadding,
                                     border: '1px solid #e2e8f0',
                                     borderRadius: '6px',
                                     fontSize: '0.75rem',
                                     boxSizing: 'border-box'
                                 }}
-                            >
-                                <option value="">Seleccionar...</option>
-                                {serials.map((serial: any) => (
-                                    <option key={serial.id} value={serial.serial}>
-                                        {serial.serial}
-                                    </option>
-                                ))}
-                            </select>
+                            />
                         </div>
-                    )}
-
-                    {/* Caja */}
-                    <div style={{ marginBottom: '0.75rem' }}>
-                        <label style={{
-                            fontSize: '0.75rem',
-                            fontWeight: '500',
-                            color: '#4a5568',
-                            display: 'block',
-                            marginBottom: '0.25rem'
-                        }}>
-                            Caja Registradora *
-                        </label>
-                        <select
-                            value={selectedCashRegister}
-                            onChange={(e) => setSelectedCashRegister(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                boxSizing: 'border-box'
-                            }}
-                        >
-                            <option value="">Seleccionar...</option>
-                            {cashRegisters.map((cashRegister: any) => (
-                                <option key={cashRegister.id} value={cashRegister.id}>
-                                    {cashRegister.name}
-                                </option>
-                            ))}
-                        </select>
                     </div>
-
-                    {/* Método de pago */}
-                    <div style={{ marginBottom: '0.75rem' }}>
-                        <label style={{
-                            fontSize: '0.75rem',
-                            fontWeight: '500',
-                            color: '#4a5568',
-                            display: 'block',
-                            marginBottom: '0.25rem'
-                        }}>
-                            Método de Pago *
-                        </label>
-                        <select
-                            value={paymentMethod}
-                            onChange={(e) => setPaymentMethod(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                boxSizing: 'border-box'
-                            }}
-                        >
-                            <option value="CASH">Efectivo</option>
-                            <option value="CARD">Tarjeta</option>
-                            <option value="TRANSFER">Transferencia</option>
-                            <option value="YAPE">Yape</option>
-                            <option value="PLIN">Plin</option>
-                        </select>
-                    </div>
-
-                    {/* Monto pagado */}
-                    <div style={{ marginBottom: '0.75rem' }}>
-                        <label style={{
-                            fontSize: '0.75rem',
-                            fontWeight: '500',
-                            color: '#4a5568',
-                            display: 'block',
-                            marginBottom: '0.25rem'
-                        }}>
-                            Monto Pagado *
-                        </label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={paidAmount}
-                            onChange={(e) => setPaidAmount(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                boxSizing: 'border-box'
-                            }}
-                        />
-                        {paidAmount && parseFloat(paidAmount) > cartTotal && (
-                            <div style={{
-                                marginTop: '0.25rem',
-                                fontSize: '0.6875rem',
-                                color: '#38a169'
-                            }}>
-                                Vuelto: S/ {(parseFloat(paidAmount) - cartTotal).toFixed(2)}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Error */}
-                    {saveError && (
-                        <div style={{
-                            backgroundColor: '#fed7d7',
-                            color: '#c53030',
-                            padding: '0.75rem',
-                            borderRadius: '6px',
-                            fontSize: '0.75rem',
-                            marginBottom: '0.75rem'
-                        }}>
-                            {saveError}
-                        </div>
-                    )}
-
-                    {/* Botón procesar */}
-                    <button
-                        onClick={handleProcessSale}
-                        disabled={isSaving || cartItems.length === 0}
-                        style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            backgroundColor: isSaving || cartItems.length === 0 ? '#cbd5e0' : '#667eea',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '8px',
-                            fontSize: '0.875rem',
-                            fontWeight: '600',
-                            cursor: isSaving || cartItems.length === 0 ? 'not-allowed' : 'pointer',
-                            transition: 'all 0.2s ease'
-                        }}
-                    >
-                        {isSaving ? 'Procesando...' : 'Procesar Venta'}
-                    </button>
                 </div>
+
+                {/* Botón procesar fuera de los cards para visibilidad total */}
+                <button
+                    onClick={handleProcessSale}
+                    disabled={isSaving || cartItems.length === 0}
+                    style={{
+                        width: '100%',
+                        padding: isMedium ? '0.75rem' : '1rem',
+                        backgroundColor: isSaving || cartItems.length === 0 ? '#cbd5e0' : '#667eea',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '10px',
+                        fontSize: isMedium ? '0.875rem' : '1rem',
+                        fontWeight: '700',
+                        cursor: isSaving || cartItems.length === 0 ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 4px 6px rgba(102, 126, 234, 0.25)',
+                        flexShrink: 0
+                    }}
+                >
+                    {isSaving ? 'Procesando...' : 'Procesar Venta'}
+                </button>
             </div>
 
             {showObservationModal && (() => {
