@@ -198,8 +198,15 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     }
     
     setSelectedTable(table);
-    setShowOrder(false);
-    setShowStatusModal(true);
+    // Si la mesa ya tiene una orden (ocupada o por pagar), mostrar modal para elegir Orden o Caja
+    const hasExistingOrder = Boolean(table.currentOperationId) || table.status === 'OCCUPIED' || table.status === 'TO_PAY';
+    if (hasExistingOrder) {
+      setShowOrder(false);
+      setShowStatusModal(true);
+    } else {
+      setShowStatusModal(false);
+      setShowOrder(true);
+    }
   };
   
 

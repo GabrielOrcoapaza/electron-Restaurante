@@ -43,7 +43,12 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	// Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
 	const isSmall = breakpoint === 'sm'; // 640px - 767px
 	const isMedium = breakpoint === 'md'; // 768px - 1023px
-	const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
+
+	// Valores para grid y breadcrumb (como en delivery.tsx)
+	const gridMinCol = isSmall ? '100px' : isMedium ? '115px' : '130px';
+	const gridGap = isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem';
+	const gridPadding = isSmall ? '0.6rem' : isMedium ? '0.8rem' : '1rem';
+	const breadcrumbFontSize = isSmall ? '0.75rem' : '0.875rem';
 
 	// Función para verificar si el usuario puede acceder a esta mesa
 	const canAccessTable = (): { canAccess: boolean; reason?: string } => {
@@ -208,6 +213,12 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const subcategoriesOfCategory = selectedCategory
 		? (categories.find((c: any) => c.id === selectedCategory)?.subcategories?.filter((s: any) => s.isActive) || [])
 		: [];
+
+	// Navegación como en delivery: mostrar categorías, subcategorías o productos en el grid
+	const isSearching = searchTerm.length >= 3;
+	const showCategoriesInGrid = !isSearching && !selectedCategory;
+	const showSubcategoriesInGrid = !isSearching && selectedCategory && !selectedSubcategory && subcategoriesOfCategory.length > 0;
+	const showProductsInGrid = isSearching || (selectedCategory && (selectedSubcategory || subcategoriesOfCategory.length === 0));
 
 	useEffect(() => {
 		// Solo resetear si realmente es una mesa diferente
@@ -1152,7 +1163,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					flex: 1,
 					overflow: 'hidden'
 				}}>
-					{/* Col izquierda: búsqueda y catálogo */}
+					{/* Col izquierda: búsqueda y catálogo (como en delivery.tsx) */}
 					<div style={{
 						display: 'flex',
 						flexDirection: 'column',
@@ -1160,6 +1171,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 						overflow: 'hidden',
 						order: isSmall || isMedium ? 2 : 1
 					}}>
+						{/* Búsqueda */}
 						<div style={{
 							background: 'white',
 							border: '1px solid #e2e8f0',
@@ -1180,224 +1192,320 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 									}}
 								/>
 							</div>
-							<div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-								{/* Opción "Todos" */}
-								<span
-									onClick={() => {
-										setSelectedCategory(null);
-										setSelectedSubcategory(null);
-										setSearchTerm('');
-									}}
-									key="todos"
-									style={{
-										padding: '0.35rem 0.7rem',
-										border: '1px solid #e2e8f0',
-										borderRadius: 9999,
-										background: selectedCategory === null ? '#667eea' : '#f8fafc',
-										color: selectedCategory === null ? 'white' : '#4a5568',
-										fontSize: 12,
-										fontWeight: 600,
-										cursor: 'pointer',
-										transition: 'all 0.2s ease'
-									}}
-								>
-									Todos
-								</span>
-								{/* Categorías dinámicas */}
-								{categoriesLoading ? (
-									<span style={{ padding: '0.35rem 0.7rem', fontSize: 12, color: '#718096' }}>
-										Cargando categorías...
-									</span>
-								) : (
-									categories.map((category: any) => (
-										<span
-											key={category.id}
-											onClick={() => {
-												setSelectedCategory(category.id);
-												setSelectedSubcategory(null);
-												setSearchTerm('');
-											}}
-											style={{
-												padding: '0.35rem 0.7rem',
-												border: `1px solid ${selectedCategory === category.id ? category.color || '#667eea' : '#e2e8f0'}`,
-												borderRadius: 9999,
-												background: selectedCategory === category.id
-													? category.color || '#667eea'
-													: '#f8fafc',
-												color: selectedCategory === category.id ? 'white' : '#4a5568',
-												fontSize: 12,
-												fontWeight: 600,
-												cursor: 'pointer',
-												transition: 'all 0.2s ease',
-												display: 'flex',
-												alignItems: 'center',
-												gap: '0.3rem'
-											}}
-										>
-											{category.icon && <span>{category.icon}</span>}
-											{category.name}
-										</span>
-									))
+						</div>
+
+						{/* Contenedor con breadcrumb + grid (como delivery) */}
+						<div style={{
+							flex: 1,
+							minHeight: 0,
+							background: 'white',
+							border: '1px solid #e2e8f0',
+							borderRadius: isSmall ? '10px' : isMedium ? '12px' : '14px',
+							display: 'flex',
+							flexDirection: 'column',
+							overflow: 'hidden',
+							boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+						}}>
+							{/* Header: breadcrumb + Volver */}
+							<div style={{
+								padding: isSmall ? '0.6rem 0.75rem' : '1rem',
+								borderBottom: '1px solid #f1f5f9',
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'space-between'
+							}}>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', minWidth: 0, flex: 1 }}>
+									{isSearching ? (
+										<h3 style={{ fontSize: breadcrumbFontSize, fontWeight: '600', color: '#2d3748', margin: 0 }}>
+											Resultados de búsqueda
+										</h3>
+									) : (
+										<>
+											<button
+												type="button"
+												onClick={() => { setSelectedCategory(null); setSelectedSubcategory(null); }}
+												style={{
+													padding: isSmall ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
+													background: !selectedCategory ? '#f1f5f9' : 'transparent',
+													border: 'none',
+													borderRadius: '6px',
+													fontSize: breadcrumbFontSize,
+													fontWeight: !selectedCategory ? '700' : '500',
+													color: !selectedCategory ? '#1e293b' : '#64748b',
+													cursor: 'pointer',
+													whiteSpace: 'nowrap'
+												}}
+											>
+												Categorías
+											</button>
+											{selectedCategory && (
+												<>
+													<span style={{ color: '#94a3b8' }}>/</span>
+													<button
+														type="button"
+														onClick={() => setSelectedSubcategory(null)}
+														style={{
+															padding: isSmall ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
+															background: !selectedSubcategory ? '#f1f5f9' : 'transparent',
+															border: 'none',
+															borderRadius: '6px',
+															fontSize: breadcrumbFontSize,
+															fontWeight: !selectedSubcategory ? '700' : '500',
+															color: !selectedSubcategory ? '#1e293b' : '#64748b',
+															cursor: 'pointer',
+															whiteSpace: 'nowrap'
+														}}
+													>
+														{categories.find((c: any) => c.id === selectedCategory)?.name || 'Categoría'}
+													</button>
+												</>
+											)}
+											{selectedSubcategory && (
+												<>
+													<span style={{ color: '#94a3b8' }}>/</span>
+													<span style={{
+														padding: isSmall ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
+														background: '#f1f5f9',
+														borderRadius: '6px',
+														fontSize: breadcrumbFontSize,
+														fontWeight: '700',
+														color: '#1e293b',
+														whiteSpace: 'nowrap'
+													}}>
+														{subcategoriesOfCategory.find((s: any) => s.id === selectedSubcategory)?.name || 'Subcategoría'}
+													</span>
+												</>
+											)}
+										</>
+									)}
+								</div>
+								{(selectedCategory || isSearching) && (
+									<button
+										type="button"
+										onClick={() => {
+											if (isSearching) setSearchTerm('');
+											else if (selectedSubcategory) setSelectedSubcategory(null);
+											else setSelectedCategory(null);
+										}}
+										style={{
+											padding: isSmall ? '0.3rem 0.5rem' : '0.375rem 0.75rem',
+											backgroundColor: '#f8fafc',
+											border: '1px solid #e2e8f0',
+											borderRadius: '8px',
+											fontSize: isSmall ? '0.7rem' : '0.75rem',
+											fontWeight: '600',
+											color: '#475569',
+											cursor: 'pointer',
+											display: 'flex',
+											alignItems: 'center',
+											gap: '0.25rem'
+										}}
+									>
+										⬅ Volver
+									</button>
 								)}
 							</div>
-							{/* Subcategorías (solo cuando hay una categoría seleccionada) */}
-							{selectedCategory && subcategoriesOfCategory.length > 0 && (
-								<div style={{ marginTop: '0.5rem' }}>
-									<div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: '0.35rem' }}>
-										Subcategorías
+
+							{/* Grid: categorías, subcategorías o productos */}
+							<div style={{
+								flex: 1,
+								minHeight: 0,
+								padding: gridPadding,
+								overflowY: 'auto',
+								overflowX: 'hidden',
+								scrollbarWidth: 'thin'
+							}}>
+								{productsLoading && showProductsInGrid ? (
+									<div style={{ textAlign: 'center', padding: '2rem', color: '#718096', fontSize: isSmall ? '0.8125rem' : '0.875rem' }}>
+										Cargando...
 									</div>
-									<div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-										<span
-											onClick={() => setSelectedSubcategory(null)}
-											style={{
-												padding: '0.3rem 0.6rem',
-												border: '1px solid #e2e8f0',
-												borderRadius: 9999,
-												background: selectedSubcategory === null ? '#a0aec0' : '#f1f5f9',
-												color: selectedSubcategory === null ? 'white' : '#64748b',
-												fontSize: 11,
-												fontWeight: 600,
-												cursor: 'pointer',
-												transition: 'all 0.2s ease'
-											}}
-										>
-											Todas
-										</span>
-										{subcategoriesOfCategory.map((sub: any) => (
-											<span
+								) : (
+									<div style={{
+										display: 'grid',
+										gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCol}, 1fr))`,
+										gap: gridGap
+									}}>
+										{/* Categorías */}
+										{showCategoriesInGrid && (categoriesLoading ? (
+											<div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#718096' }}>
+												Cargando categorías...
+											</div>
+										) : (
+											categories.map((category: any) => (
+												<div
+													key={category.id}
+													onClick={() => setSelectedCategory(category.id)}
+													style={{
+														backgroundColor: '#ffffff',
+														border: '1px solid #e2e8f0',
+														borderRadius: isSmall ? '10px' : '12px',
+														padding: gridPadding,
+														cursor: 'pointer',
+														transition: 'all 0.2s ease',
+														display: 'flex',
+														flexDirection: 'column',
+														alignItems: 'center',
+														justifyContent: 'center',
+														minHeight: isSmall ? '90px' : isMedium ? '105px' : '120px',
+														boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+													}}
+													onMouseOver={(e) => {
+														e.currentTarget.style.transform = 'translateY(-2px)';
+														e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+														e.currentTarget.style.borderColor = category.color || '#667eea';
+													}}
+													onMouseOut={(e) => {
+														e.currentTarget.style.transform = 'translateY(0)';
+														e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+														e.currentTarget.style.borderColor = '#e2e8f0';
+													}}
+												>
+													<div style={{ fontSize: isSmall ? '2rem' : '2.5rem', marginBottom: '0.5rem' }}>
+														{category.icon || '📁'}
+													</div>
+													<div style={{ fontSize: isSmall ? '0.75rem' : breadcrumbFontSize, fontWeight: '700', color: '#1e293b', textAlign: 'center' }}>
+														{category.name}
+													</div>
+												</div>
+											))
+										))}
+
+										{/* Subcategorías */}
+										{showSubcategoriesInGrid && subcategoriesOfCategory.map((sub: any) => (
+											<div
 												key={sub.id}
 												onClick={() => setSelectedSubcategory(sub.id)}
 												style={{
-													padding: '0.3rem 0.6rem',
-													border: `1px solid ${selectedSubcategory === sub.id ? '#667eea' : '#e2e8f0'}`,
-													borderRadius: 9999,
-													background: selectedSubcategory === sub.id ? '#667eea' : '#f8fafc',
-													color: selectedSubcategory === sub.id ? 'white' : '#4a5568',
-													fontSize: 11,
-													fontWeight: 600,
+													backgroundColor: '#ffffff',
+													border: '1px solid #e2e8f0',
+													borderRadius: isSmall ? '10px' : '12px',
+													padding: gridPadding,
 													cursor: 'pointer',
-													transition: 'all 0.2s ease'
+													transition: 'all 0.2s ease',
+													display: 'flex',
+													flexDirection: 'column',
+													alignItems: 'center',
+													justifyContent: 'center',
+													minHeight: isSmall ? '80px' : isMedium ? '90px' : '100px',
+													boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+												}}
+												onMouseOver={(e) => {
+													e.currentTarget.style.borderColor = '#667eea';
+													e.currentTarget.style.backgroundColor = '#f0f4ff';
+												}}
+												onMouseOut={(e) => {
+													e.currentTarget.style.borderColor = '#e2e8f0';
+													e.currentTarget.style.backgroundColor = '#ffffff';
 												}}
 											>
-												{sub.name}
-											</span>
+												<div style={{ fontSize: isSmall ? '1.5rem' : '2rem', marginBottom: '0.25rem' }}>📂</div>
+												<div style={{ fontSize: isSmall ? '0.75rem' : '0.8125rem', fontWeight: '600', color: '#334155', textAlign: 'center' }}>
+													{sub.name}
+												</div>
+											</div>
 										))}
-									</div>
-								</div>
-							)}
-						</div>
 
-						{/* Grid de productos */}
-						<div style={{
-							display: 'grid',
-							gridTemplateColumns: 'repeat(4, 1fr)',
-							gap: isSmall ? '0.375rem' : isMedium ? '0.5rem' : isSmallDesktop ? '0.5rem' : '0.625rem',
-							overflowY: 'auto',
-							maxHeight: isSmall ? '200px' : isMedium ? '250px' : '100%'
-						}}>
-							{productsLoading ? (
-								<div style={{
-									gridColumn: '1 / -1',
-									textAlign: 'center',
-									padding: '2rem',
-									color: '#718096'
-								}}>
-									Cargando productos...
-								</div>
-							) : productsList.length === 0 ? (
-								<div style={{
-									gridColumn: '1 / -1',
-									textAlign: 'center',
-									padding: '2rem',
-									color: '#718096'
-								}}>
-									No hay productos disponibles
-								</div>
-							) : (
-								productsList.map((product: any) => (
-									<div
-										key={product.id}
-										onClick={() => handleAddProduct(product.id, 1)}
-										style={{
-											background: 'white',
-											border: '1px solid #e2e8f0',
-											borderRadius: isSmall ? '10px' : isMedium ? '12px' : '14px',
-											padding: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem',
-											cursor: 'pointer',
-											transition: 'transform 120ms ease',
-											display: 'grid',
-											gap: isSmall ? '0.15rem' : isMedium ? '0.2rem' : '0.25rem',
-											textAlign: 'center'
-										}}
-										onMouseEnter={(e) => {
-											e.currentTarget.style.transform = 'scale(1.02)';
-											e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-										}}
-										onMouseLeave={(e) => {
-											e.currentTarget.style.transform = 'scale(1)';
-											e.currentTarget.style.boxShadow = 'none';
-										}}
-									>
-										{product.imageBase64 ? (
-											<img
-												src={`data:image/jpeg;base64,${product.imageBase64}`}
-												alt={product.name}
-												style={{
-													width: '100%',
-													height: isSmall ? '60px' : isMedium ? '70px' : '80px',
-													objectFit: 'cover',
-													borderRadius: '8px',
-													backgroundColor: '#f7fafc'
-												}}
-											/>
-										) : (
-											<div style={{
-												fontSize: isSmall ? '1.5rem' : isMedium ? '1.75rem' : '2rem',
-												height: isSmall ? '60px' : isMedium ? '70px' : '80px',
-												display: 'flex',
-												alignItems: 'center',
-												justifyContent: 'center',
-												backgroundColor: '#f7fafc',
-												borderRadius: '8px'
-											}}>
-												🍽️
-											</div>
-										)}
-										<div style={{
-											fontWeight: 700,
-											color: '#2d3748',
-											fontSize: isSmall ? '0.65rem' : isMedium ? '0.7rem' : '0.75rem',
-											lineHeight: '1.2',
-											overflow: 'hidden',
-											textOverflow: 'ellipsis',
-											display: '-webkit-box',
-											WebkitLineClamp: 4,
-											WebkitBoxOrient: 'vertical'
-										}}>
-											{product.name}
-										</div>
-										<div style={{
-											fontWeight: 700,
-											color: '#667eea',
-											fontSize: isSmall ? '0.8rem' : isMedium ? '0.9rem' : '0.95rem'
-										}}>
-											S/ {parseFloat(product.salePrice).toFixed(2)}
-										</div>
-										{product.preparationTime > 0 && (
-											<div style={{
-												fontSize: isSmall ? '0.65rem' : isMedium ? '0.7rem' : '0.75rem',
-												color: '#718096',
-												display: 'flex',
-												alignItems: 'center',
-												justifyContent: 'center',
-												gap: '0.25rem'
-											}}>
-												⏱️ {product.preparationTime} min
-											</div>
+										{/* Productos */}
+										{showProductsInGrid && (
+											productsList.length === 0 ? (
+												<div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+													No se encontraron productos
+												</div>
+											) : (
+												productsList.map((product: any) => (
+													<div
+														key={product.id}
+														onClick={() => handleAddProduct(product.id, 1)}
+														style={{
+															backgroundColor: '#f8fafc',
+															border: '1px solid #e2e8f0',
+															borderRadius: isSmall ? '8px' : '10px',
+															padding: isSmall ? '0.4rem' : '0.5rem',
+															cursor: 'pointer',
+															transition: 'all 0.2s ease',
+															textAlign: 'center',
+															display: 'flex',
+															flexDirection: 'column',
+															height: '100%'
+														}}
+														onMouseOver={(e) => {
+															e.currentTarget.style.borderColor = '#667eea';
+															e.currentTarget.style.backgroundColor = '#f0f4ff';
+														}}
+														onMouseOut={(e) => {
+															e.currentTarget.style.borderColor = '#e2e8f0';
+															e.currentTarget.style.backgroundColor = '#f8fafc';
+														}}
+													>
+														{product.imageBase64 ? (
+															<img
+																src={`data:image/jpeg;base64,${product.imageBase64}`}
+																alt={product.name}
+																style={{
+																	width: '100%',
+																	height: isSmall ? '60px' : isMedium ? '70px' : '80px',
+																	objectFit: 'cover',
+																	borderRadius: '8px',
+																	marginBottom: isSmall ? '0.35rem' : '0.5rem'
+																}}
+															/>
+														) : (
+															<div style={{
+																width: '100%',
+																height: isSmall ? '60px' : isMedium ? '70px' : '80px',
+																display: 'flex',
+																alignItems: 'center',
+																justifyContent: 'center',
+																backgroundColor: '#f1f5f9',
+																borderRadius: '8px',
+																marginBottom: isSmall ? '0.35rem' : '0.5rem',
+																fontSize: isSmall ? '1.5rem' : '2rem'
+															}}>
+																🍽️
+															</div>
+														)}
+														<div style={{
+															fontSize: isSmall ? '0.7rem' : '0.75rem',
+															fontWeight: '600',
+															color: '#1e293b',
+															marginBottom: '0.25rem',
+															lineHeight: '1.2',
+															flex: 1,
+															display: '-webkit-box',
+															WebkitLineClamp: 2,
+															WebkitBoxOrient: 'vertical' as const,
+															overflow: 'hidden'
+														}}>
+															{product.name}
+														</div>
+														<div style={{
+															fontSize: isSmall ? '0.75rem' : '0.8125rem',
+															fontWeight: '700',
+															color: '#4f46e5',
+															marginTop: 'auto'
+														}}>
+															S/ {parseFloat(product.salePrice || 0).toFixed(2)}
+														</div>
+														{product.preparationTime > 0 && (
+															<div style={{
+																fontSize: isSmall ? '0.65rem' : '0.7rem',
+																color: '#718096',
+																display: 'flex',
+																alignItems: 'center',
+																justifyContent: 'center',
+																gap: '0.25rem',
+																marginTop: '0.25rem'
+															}}>
+																⏱️ {product.preparationTime} min
+															</div>
+														)}
+													</div>
+												))
+											)
 										)}
 									</div>
-								))
-							)}
+								)}
+							</div>
 						</div>
 					</div>
 

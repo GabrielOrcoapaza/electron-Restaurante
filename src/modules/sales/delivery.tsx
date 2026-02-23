@@ -61,7 +61,6 @@ const Delivery: React.FC = () => {
     const panelLeftFlex = isSmall ? 1 : isMedium ? 1.2 : 1.4;
     const panelRightFlex = isSmall ? 1 : isMedium ? 1.1 : 1.25;
     const cardPadding = isSmall ? '0.75rem' : isMedium ? '1rem' : '1.25rem';
-    const cartTitleFontSize = isSmall ? '0.9375rem' : '1rem';
     const cartItemFontSize = isSmall ? '0.8125rem' : '0.875rem';
     const cartItemPadding = isSmall ? '0.35rem 0.5rem' : isMedium ? '0.45rem 0.55rem' : '0.6rem 0.75rem';
     const paymentFormGap = isNarrow ? '0.5rem' : '0.65rem';
@@ -647,7 +646,7 @@ const Delivery: React.FC = () => {
                         alignItems: 'center',
                         justifyContent: 'space-between'
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', minWidth: 0, flex: 1 }}>
                             {isSearching ? (
                                 <h3 style={{ fontSize: breadcrumbFontSize, fontWeight: '600', color: '#2d3748', margin: 0 }}>
                                     Resultados de búsqueda
@@ -684,10 +683,7 @@ const Delivery: React.FC = () => {
                                                     fontWeight: !selectedSubcategory ? '700' : '500',
                                                     color: !selectedSubcategory ? '#1e293b' : '#64748b',
                                                     cursor: 'pointer',
-                                                    whiteSpace: 'nowrap',
-                                                    maxWidth: isSmall ? '80px' : '120px',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis'
+                                                    whiteSpace: 'nowrap'
                                                 }}
                                             >
                                                 {categories.find((c: any) => c.id === selectedCategory)?.name || 'Categoría'}
@@ -704,10 +700,7 @@ const Delivery: React.FC = () => {
                                                 fontSize: breadcrumbFontSize,
                                                 fontWeight: '700',
                                                 color: '#1e293b',
-                                                whiteSpace: 'nowrap',
-                                                maxWidth: isSmall ? '80px' : '120px',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis'
+                                                whiteSpace: 'nowrap'
                                             }}>
                                                 {subcategoriesOfCategory.find((s: any) => s.id === selectedSubcategory)?.name || 'Subcategoría'}
                                             </span>
@@ -964,14 +957,6 @@ const Delivery: React.FC = () => {
                     flexDirection: 'column',
                     overflow: 'hidden'
                 }}>
-                    <h3 style={{
-                        fontSize: cartTitleFontSize,
-                        fontWeight: '600',
-                        color: '#2d3748',
-                        marginBottom: isSmall ? '0.5rem' : '0.75rem'
-                    }}>
-                        Carrito ({cartItems.length})
-                    </h3>
                     <div style={{
                         flex: 1,
                         minHeight: 0,
