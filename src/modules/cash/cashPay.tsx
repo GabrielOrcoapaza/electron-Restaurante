@@ -1050,12 +1050,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         const operationCancelled = result.data?.cancelOperationDetail?.operationCancelled;
         if (operationCancelled) {
           console.log('✅ Operación cambió de estado automáticamente después de cancelar item');
-        }
-        const refetchResult = await refetch();
-        if (refetchResult.data?.operationById?.details) {
-          const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationById.details);
-          setModifiedDetails([...nonCanceledDetails]);
-          if (nonCanceledDetails.length === 0 && table?.id && updateTableInContext) {
+          // El backend ya liberó la mesa: actualizar contexto de inmediato para que el color se ponga verde
+          if (table?.id && updateTableInContext) {
             updateTableInContext({
               id: table.id,
               status: 'AVAILABLE',
@@ -1067,7 +1063,26 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             if (onPaymentSuccess) onPaymentSuccess();
             setTimeout(() => onBack(), 500);
           }
-        } else if (!refetchResult.data?.operationById && table?.id && updateTableInContext) {
+        }
+        const refetchResult = await refetch();
+        const detailsFromRefetch = refetchResult.data?.operationById?.details;
+        if (Array.isArray(detailsFromRefetch)) {
+          const nonCanceledDetails = filterCanceledDetails(detailsFromRefetch, refetchResult.data?.operationById?.id);
+          setModifiedDetails([...nonCanceledDetails]);
+          // Si no quedan ítems activos y no habíamos actualizado por operationCancelled, liberar mesa
+          if (nonCanceledDetails.length === 0 && table?.id && updateTableInContext && !operationCancelled) {
+            updateTableInContext({
+              id: table.id,
+              status: 'AVAILABLE',
+              statusColors: null,
+              currentOperationId: null,
+              occupiedById: null,
+              userName: null
+            });
+            if (onPaymentSuccess) onPaymentSuccess();
+            setTimeout(() => onBack(), 500);
+          }
+        } else if (!refetchResult.data?.operationById && table?.id && updateTableInContext && !operationCancelled) {
           updateTableInContext({
             id: table.id,
             status: 'AVAILABLE',
@@ -1079,6 +1094,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           setModifiedDetails([]);
           if (onPaymentSuccess) onPaymentSuccess();
           setTimeout(() => onBack(), 500);
+        } else if (operationCancelled) {
+          setModifiedDetails([]);
         }
         setItemAssignments(prev => {
           const newAssignments = { ...prev };
