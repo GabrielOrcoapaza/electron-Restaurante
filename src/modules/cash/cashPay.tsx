@@ -22,6 +22,17 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
   minimumFractionDigits: 2
 });
 
+const getStatusLabel = (status: string): string => {
+  const labels: Record<string, string> = {
+    TO_PAY: 'Por pagar',
+    OCCUPIED: 'Ocupada',
+    AVAILABLE: 'Disponible',
+    IN_PROCESS: 'En proceso',
+    COMPLETED: 'Completada'
+  };
+  return labels[status] || status;
+};
+
 const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTableChange }) => {
   const { companyData, user, deviceId, getMacAddress, updateTableInContext } = useAuth();
   const { sendMessage, subscribe } = useWebSocket();
@@ -2414,7 +2425,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   fontWeight: 700
                 }}
               >
-                {table.status}
+                {getStatusLabel(table.status)}
               </span>
             </span>
             <button
@@ -2665,7 +2676,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                   boxShadow: '0 2px 4px rgba(102,126,234,0.1)'
                 }}
               >
-                {operation.status}
+                {getStatusLabel(operation.status)}
               </span>
             </div>
           )}

@@ -480,6 +480,41 @@ export const GET_CASH_CLOSURES = gql`
   }
 `;
 
+// Query para obtener pagos pendientes de cierre (movimientos de caja sin cerrar)
+export const GET_PAYMENTS_PENDING_CLOSURE = gql`
+  query GetPaymentsPendingClosure(
+    $cashRegisterId: ID!
+    $transactionType: String
+    $paymentMethod: String
+  ) {
+    paymentsPendingClosure(
+      cashRegisterId: $cashRegisterId
+      transactionType: $transactionType
+      paymentMethod: $paymentMethod
+    ) {
+      id
+      paymentDate
+      paidAmount
+      totalAmount
+      transactionType
+      paymentMethod
+      status
+      user {
+        id
+        fullName
+      }
+      operation {
+        id
+      }
+      issuedDocument {
+        id
+        serial
+        number
+      }
+    }
+  }
+`;
+
 // Query para obtener recetas de un producto
 export const GET_RECIPES_BY_PRODUCT = gql`
   query GetRecipesByProduct($productId: ID!) {

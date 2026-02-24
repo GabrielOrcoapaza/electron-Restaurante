@@ -6,7 +6,8 @@ import { useResponsive } from '../../hooks/useResponsive';
 import {
   GET_CASH_REGISTERS,
   GET_CASH_CLOSURE_PREVIEW,
-  GET_CASH_CLOSURES
+  GET_CASH_CLOSURES,
+  GET_PAYMENTS_PENDING_CLOSURE
 } from '../../graphql/queries';
 import { CLOSE_CASH, REPRINT_CLOSURE } from '../../graphql/mutations';
 import ManualTransactionModal from './manualTransactionModal';
@@ -89,6 +90,19 @@ interface CashClosure {
   };
 }
 
+interface PaymentMovement {
+  id: string;
+  paymentDate: string;
+  paidAmount: number;
+  totalAmount?: number;
+  transactionType: string;
+  paymentMethod: string;
+  status: string;
+  user?: { id: string; fullName: string };
+  operation?: { id: string };
+  issuedDocument?: { id: string; serial?: string; number?: string };
+}
+
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
   style: 'currency',
   currency: 'PEN',
@@ -134,7 +148,11 @@ const Cashs: React.FC = () => {
   const [summaryVisible, setSummaryVisible] = useState<{ cajas: boolean }>({
     cajas: true
   });
-
+  // Mostrar/ocultar movimientos de caja en el preview
+  const [showMovements, setShowMovements] = useState(false);
+  // Mostrar/ocultar totales generales en el preview
+  const [showTotalesGenerales, setShowTotalesGenerales] = useState(true);
+  
   // Query para obtener cajas
   const { data: cashRegistersData, loading: cashRegistersLoading, refetch: refetchCashRegisters } = useQuery(
     GET_CASH_REGISTERS,
@@ -180,6 +198,17 @@ const Cashs: React.FC = () => {
       }
     }
   );
+
+  // Query para movimientos de caja (pagos pendientes de cierre) — solo cuando el usuario hace clic en "Visualizar"
+  const { data: movementsData, loading: movementsLoading } = useQuery(GET_PAYMENTS_PENDING_CLOSURE, {
+    variables: {
+      cashRegisterId: selectedCashRegister,
+      transactionType: null,
+      paymentMethod: null
+    },
+    skip: !selectedCashRegister || !showPreview || !showMovements,
+    fetchPolicy: 'network-only'
+  });
 
   // Mutación para reimprimir cierre (usada al cerrar caja y para cierres anteriores)
   const [reprintClosureMutation, { loading: reprintingClosure }] = useMutation(REPRINT_CLOSURE);
@@ -272,6 +301,8 @@ const Cashs: React.FC = () => {
         setShowPreview(false);
         setSelectedCashRegister('');
         setSelectedUserId(null);
+        setShowMovements(false);
+        setShowTotalesGenerales(true);
 
         // Refrescar todas las queries relacionadas
         refetchCashRegisters();
@@ -292,6 +323,7 @@ const Cashs: React.FC = () => {
   const preview: CashClosurePreview | null = previewData?.cashClosurePreview || null;
   // Intentar ambos nombres por si hay diferencia entre snake_case y camelCase
   const closures: CashClosure[] = closuresData?.cashClosures || closuresData?.cash_closures || [];
+  const movements: PaymentMovement[] = movementsData?.paymentsPendingClosure || movementsData?.payments_pending_closure || [];
 
   // Obtiene el total vendido acumulado por cada caja usando el preview de cierre.
   useEffect(() => {
@@ -374,6 +406,22 @@ const Cashs: React.FC = () => {
       case 'BANK': return { bg: '#fef3c7', color: '#92400e', border: '#fde68a' };
       default: return { bg: '#f3f4f6', color: '#374151', border: '#d1d5db' };
     }
+  };
+
+  const getPaymentMethodLabel = (method: string) => {
+    const labels: Record<string, string> = {
+      CASH: 'Efectivo',
+      YAPE: 'Yape',
+      PLIN: 'Plin',
+      CARD: 'Tarjeta',
+      TRANSFER: 'Transferencia',
+      OTROS: 'Otros'
+    };
+    return labels[method] || method;
+  };
+
+  const getTransactionTypeLabel = (type: string) => {
+    return type === 'INCOME' ? 'Ingreso' : type === 'EXPENSE' ? 'Egreso' : type;
   };
 
   const handleShowPreview = (cashRegisterId: string) => {
@@ -488,6 +536,8 @@ const Cashs: React.FC = () => {
               setShowPreview(false);
               setShowHistory(false);
               setSelectedCashRegister('');
+              setShowMovements(false);
+              setShowTotalesGenerales(true);
             }}
             style={{
               padding: buttonPadding,
@@ -703,6 +753,8 @@ const Cashs: React.FC = () => {
                 setShowPreview(false);
                 setSelectedCashRegister('');
                 setSelectedUserId(null);
+                setShowMovements(false);
+                setShowTotalesGenerales(true);
               }}
               style={{
                 padding: buttonPadding,
@@ -779,7 +831,7 @@ const Cashs: React.FC = () => {
                 </div>
               )}
 
-              {/* Totales Generales */}
+              {/* Totales Generales — mostrar/ocultar con botón */}
               <div style={{
                 padding: cardPadding,
                 borderRadius: '12px',
@@ -787,9 +839,28 @@ const Cashs: React.FC = () => {
                 border: '1px solid #e2e8f0',
                 marginBottom: gridGap
               }}>
-                <h4 style={{ margin: '0 0 1rem', fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: showTotalesGenerales ? '1rem' : 0 }}>
+                  <h4 style={{ margin: 0, fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
                   Totales Generales
                 </h4>
+                <button
+                  type="button"
+                  onClick={() => setShowTotalesGenerales((v) => !v)}
+                  style={{
+                    padding: buttonPadding,
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                    backgroundColor: showTotalesGenerales ? '#64748b' : '#3b82f6',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: buttonFontSize
+                  }}
+                >
+                  {showTotalesGenerales ? 'Ocultar' : 'Visualizar'}
+                </button>
+                </div>
+                {showTotalesGenerales && (
                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${statCardMinWidth}, 1fr))`, gap: gridGap }}>
                   <div>
                     <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>Total Ingresos</div>
@@ -810,51 +881,117 @@ const Cashs: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                )}
               </div>
 
-              {/* Métodos de Pago Generales */}
-              {preview.generalPaymentMethods && preview.generalPaymentMethods.length > 0 && (
-                <div style={{ marginBottom: gridGap }}>
-                  <h4 style={{ margin: '0 0 1rem', fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
-                    Métodos de Pago - Totales Generales
+              {/* Movimientos de caja (pagos pendientes de cierre) — mostrar/ocultar con botón */}
+              <div style={{
+                padding: cardPadding,
+                borderRadius: '12px',
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                marginBottom: gridGap
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: showMovements ? '1rem' : 0 }}>
+                  <h4 style={{ margin: 0, fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
+                    📋 Movimientos de caja
                   </h4>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                          <th style={{ padding: '0.75rem', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Método</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Ingresos</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Egresos</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Neto</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {preview.generalPaymentMethods.map((method, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ padding: '0.75rem', color: '#334155', fontWeight: 500 }}>
-                              {method.methodName}
-                            </td>
-                            <td style={{ padding: '0.75rem', textAlign: 'right', color: '#16a34a' }}>
-                              {currencyFormatter.format(method.income)}
-                            </td>
-                            <td style={{ padding: '0.75rem', textAlign: 'right', color: '#dc2626' }}>
-                              {currencyFormatter.format(method.expense)}
-                            </td>
-                            <td style={{
-                              padding: '0.75rem',
-                              textAlign: 'right',
-                              fontWeight: 600,
-                              color: method.net >= 0 ? '#16a34a' : '#dc2626'
-                            }}>
-                              {currencyFormatter.format(method.net)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowMovements((v) => !v)}
+                    style={{
+                      padding: buttonPadding,
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0',
+                      backgroundColor: showMovements ? '#64748b' : '#3b82f6',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: buttonFontSize
+                    }}
+                  >
+                    {showMovements ? 'Ocultar' : 'Visualizar'}
+                  </button>
                 </div>
-              )}
+                {showMovements && (
+                  <>
+                    {movementsLoading ? (
+                      <div style={{ padding: '1.5rem', textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
+                        Cargando movimientos...
+                      </div>
+                    ) : movements.length === 0 ? (
+                      <div style={{ padding: '1.5rem', textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
+                        No hay movimientos pendientes de cierre
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '2px solid #e2e8f0', backgroundColor: '#f1f5f9' }}>
+                              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Fecha / Hora</th>
+                              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Tipo</th>
+                              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Método</th>
+                              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Monto</th>
+                              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Usuario</th>
+                              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Documento</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {movements.map((mov) => {
+                              const dateStr = (mov as any).paymentDate ?? (mov as any).payment_date ?? mov.paymentDate;
+                              const amount = Number((mov as any).paidAmount ?? (mov as any).paid_amount ?? mov.paidAmount ?? 0);
+                              const type = (mov as any).transactionType ?? (mov as any).transaction_type ?? mov.transactionType ?? '';
+                              const method = (mov as any).paymentMethod ?? (mov as any).payment_method ?? mov.paymentMethod ?? '';
+                              const doc = mov.issuedDocument ?? (mov as any).issued_document;
+                              const docLabel = doc ? `${doc.serial ?? ''}-${doc.number ?? ''}`.replace(/^-|-$/g, '') || '—' : '—';
+                              return (
+                                <tr key={mov.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                  <td style={{ padding: '0.75rem', color: '#334155' }}>
+                                    {dateStr ? formatDate(dateStr) : '—'}
+                                  </td>
+                                  <td style={{ padding: '0.75rem' }}>
+                                    <span style={{
+                                      padding: '0.2rem 0.5rem',
+                                      borderRadius: '6px',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 600,
+                                      backgroundColor: type === 'INCOME' ? '#dcfce7' : '#fee2e2',
+                                      color: type === 'INCOME' ? '#166534' : '#991b1b'
+                                    }}>
+                                      {getTransactionTypeLabel(type)}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '0.75rem', color: '#475569' }}>
+                                    {getPaymentMethodLabel(method)}
+                                  </td>
+                                  <td style={{
+                                    padding: '0.75rem',
+                                    textAlign: 'center',
+                                    fontWeight: 600,
+                                    color: type === 'INCOME' ? '#16a34a' : '#dc2626'
+                                  }}>
+                                    {type === 'EXPENSE' ? '-' : ''}{currencyFormatter.format(amount)}
+                                  </td>
+                                  <td style={{ padding: '0.75rem', color: '#64748b' }}>
+                                    {mov.user?.fullName ?? (mov as any).user?.full_name ?? '—'}
+                                  </td>
+                                  <td style={{ padding: '0.75rem', color: '#64748b', fontSize: '0.75rem' }}>
+                                    {docLabel}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              
+                
+          
 
               {/* Resumen por Usuario */}
               {preview.usersSummary && preview.usersSummary.length > 0 && (

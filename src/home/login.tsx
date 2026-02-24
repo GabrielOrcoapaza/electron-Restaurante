@@ -648,7 +648,10 @@ const Login: React.FC = () => {
                       <button
                         key={employee.id}
                         type="button"
-                        onClick={() => setFormData({ ...formData, selectedEmployee: employee.dni })}
+                        onClick={() => {
+                          setFormData({ ...formData, selectedEmployee: employee.dni });
+                          showToast(`Empleado seleccionado: ${employee.firstName} ${employee.lastName}`, 'success');
+                        }}
                         style={{
                           padding: isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.75rem' : '0.875rem',
                           border: formData.selectedEmployee === employee.dni
@@ -729,21 +732,6 @@ const Login: React.FC = () => {
                         </div>
                       </button>
                     ))}
-                  </div>
-                )}
-
-                {formData.selectedEmployee && (
-                  <div style={{
-                    marginTop: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem',
-                    padding: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem',
-                    backgroundColor: '#e8f5e8',
-                    border: '2px solid #4caf50',
-                    borderRadius: '12px',
-                    textAlign: 'center'
-                  }}>
-                    <span style={{ color: '#2e7d32', fontSize: isSmallDesktop ? '12px' : isMediumDesktop ? '13px' : '14px', fontWeight: '600' }}>
-                      ✅ Empleado seleccionado
-                    </span>
                   </div>
                 )}
               </div>
