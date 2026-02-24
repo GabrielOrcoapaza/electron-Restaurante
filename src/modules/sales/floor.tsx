@@ -71,13 +71,15 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   // Obtener pisos de la sucursal
   const { data: floorsData, loading: floorsLoading, error: floorsError } = useQuery(GET_FLOORS_BY_BRANCH, {
     variables: { branchId: companyData?.branch.id },
-    skip: !companyData?.branch.id
+    skip: !companyData?.branch.id,
+    fetchPolicy: 'network-only'
   });
 
-  // Obtener mesas del piso seleccionado
+  // Obtener mesas del piso seleccionado (siempre desde red para ver cambios de otros mozos)
   const { data: tablesData, loading: tablesLoading, error: tablesError, refetch: refetchTables } = useQuery(GET_TABLES_BY_FLOOR, {
     variables: { floorId: selectedFloorId },
-    skip: !selectedFloorId
+    skip: !selectedFloorId,
+    fetchPolicy: 'network-only'
   });
 
   // WebSocket para cambios en tiempo real usando el contexto

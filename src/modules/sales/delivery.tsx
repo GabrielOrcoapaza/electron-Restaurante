@@ -364,6 +364,20 @@ const Delivery: React.FC = () => {
             return;
         }
 
+        // Factura (código 01) solo permite cliente con RUC; Boleta permite DNI o RUC
+        if (isFactura) {
+            if (!selectedPerson) {
+                setSaveError('Para emitir una FACTURA debe seleccionar un cliente con RUC');
+                setTimeout(() => setSaveError(null), 3000);
+                return;
+            }
+            if ((selectedPerson.documentType || '').toUpperCase() !== 'RUC') {
+                setSaveError('Para emitir una FACTURA el cliente debe tener un RUC válido');
+                setTimeout(() => setSaveError(null), 3000);
+                return;
+            }
+        }
+
         if (!selectedCashRegister) {
             setSaveError('Debe seleccionar una caja registradora');
             setTimeout(() => setSaveError(null), 3000);

@@ -116,6 +116,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [selectedTransferTableId, setSelectedTransferTableId] = useState<string>('');
   const [showCancelOperationModal, setShowCancelOperationModal] = useState(false);
   const [cancellationReason, setCancellationReason] = useState<string>('');
+  const [showDeleteItemModal, setShowDeleteItemModal] = useState(false);
+  const [deleteItemDetailId, setDeleteItemDetailId] = useState<string | null>(null);
+  const [deleteItemReason, setDeleteItemReason] = useState<string>('');
 
   const {
     data,
@@ -158,28 +161,32 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     skip: !companyData?.branch.id
   });
 
-  // Obtener pisos para el modal de cambio de mesa
+  // Obtener pisos para el modal de cambio de mesa (siempre desde red)
   const { data: floorsData, loading: floorsLoading } = useQuery(GET_FLOORS_BY_BRANCH, {
     variables: { branchId: companyData?.branch.id || '' },
-    skip: !companyData?.branch.id || !showChangeTableModal
+    skip: !companyData?.branch.id || !showChangeTableModal,
+    fetchPolicy: 'network-only'
   });
 
-  // Obtener mesas del piso seleccionado
+  // Obtener mesas del piso seleccionado (siempre desde red)
   const { data: tablesData, loading: tablesLoading } = useQuery(GET_TABLES_BY_FLOOR, {
     variables: { floorId: selectedFloorId },
-    skip: !selectedFloorId
+    skip: !selectedFloorId,
+    fetchPolicy: 'network-only'
   });
 
-  // Obtener pisos para el modal de transferir platos
+  // Obtener pisos para el modal de transferir platos (siempre desde red)
   const { data: transferFloorsData, loading: transferFloorsLoading } = useQuery(GET_FLOORS_BY_BRANCH, {
     variables: { branchId: companyData?.branch.id || '' },
-    skip: !companyData?.branch.id || !showTransferPlatesModal
+    skip: !companyData?.branch.id || !showTransferPlatesModal,
+    fetchPolicy: 'network-only'
   });
 
-  // Obtener mesas del piso seleccionado para transferir
+  // Obtener mesas del piso seleccionado para transferir (siempre desde red)
   const { data: transferTablesData, loading: transferTablesLoading } = useQuery(GET_TABLES_BY_FLOOR, {
     variables: { floorId: selectedTransferFloorId },
-    skip: !selectedTransferFloorId
+    skip: !selectedTransferFloorId,
+    fetchPolicy: 'network-only'
   });
 
   // Obtener clientes (personas con isCustomer=true)
@@ -3360,7 +3367,11 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                             </button>
                           )}
                           <button
-                            onClick={() => handleDeleteItem(String(detail.id))}
+                            onClick={() => {
+                              setDeleteItemDetailId(String(detail.id));
+                              setDeleteItemReason('');
+                              setShowDeleteItemModal(true);
+                            }}
                             style={{
                               padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
                               borderRadius: '6px',
@@ -5065,6 +5076,195 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 {paymentError}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal para confirmar eliminar producto de la caja */}
+      {showDeleteItemModal && deleteItemDetailId && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem'
+          }}
+          onClick={() => {
+            setShowDeleteItemModal(false);
+            setDeleteItemDetailId(null);
+            setDeleteItemReason('');
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '20px',
+              padding: '2rem',
+              maxWidth: '500px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: '1.5rem',
+                  fontWeight: 700,
+                  color: '#1a202c',
+                  margin: 0
+                }}
+              >
+                Eliminar producto
+              </h2>
+              <button
+                onClick={() => {
+                  setShowDeleteItemModal(false);
+                  setDeleteItemDetailId(null);
+                  setDeleteItemReason('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer',
+                  color: '#4a5568',
+                  padding: '0.5rem',
+                  lineHeight: 1
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <p style={{ color: '#4a5568', marginBottom: '1rem', fontSize: '0.95rem' }}>
+                ¿Está seguro que desea eliminar el producto de la caja? Esta acción no se puede deshacer.
+              </p>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#2d3748',
+                  marginBottom: '0.75rem'
+                }}
+              >
+                Razón de eliminación *
+              </label>
+              <textarea
+                value={deleteItemReason}
+                onChange={(e) => setDeleteItemReason(e.target.value)}
+                placeholder="Ingrese la razón por la que elimina el producto..."
+                style={{
+                  width: '100%',
+                  minHeight: '100px',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e0',
+                  fontSize: '0.9rem',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                gap: '1rem',
+                justifyContent: 'flex-end',
+                marginTop: '2rem'
+              }}
+            >
+              <button
+                onClick={() => {
+                  setShowDeleteItemModal(false);
+                  setDeleteItemDetailId(null);
+                  setDeleteItemReason('');
+                }}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  border: '2px solid #e2e8f0',
+                  background: 'white',
+                  color: '#4a5568',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.borderColor = '#cbd5e0';
+                  e.currentTarget.style.backgroundColor = '#f7fafc';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                  e.currentTarget.style.backgroundColor = 'white';
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  if (!deleteItemDetailId || !deleteItemReason.trim()) return;
+                  const detailIdToDelete = deleteItemDetailId;
+                  const reason = deleteItemReason.trim();
+                  setShowDeleteItemModal(false);
+                  setDeleteItemDetailId(null);
+                  setDeleteItemReason('');
+                  if (reason) console.log('Razón de eliminación:', reason);
+                  await handleDeleteItem(detailIdToDelete);
+                }}
+                disabled={!deleteItemReason.trim()}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: !deleteItemReason.trim()
+                    ? '#cbd5e0'
+                    : 'linear-gradient(130deg, #ef4444, #dc2626)',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: !deleteItemReason.trim() ? 'not-allowed' : 'pointer',
+                  boxShadow: !deleteItemReason.trim()
+                    ? 'none'
+                    : '0 12px 24px -8px rgba(239,68,68,0.4)',
+                  transition: 'all 0.2s',
+                  opacity: !deleteItemReason.trim() ? 0.6 : 1
+                }}
+                onMouseOver={(e) => {
+                  if (deleteItemReason.trim()) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 16px 28px -10px rgba(239,68,68,0.5)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = !deleteItemReason.trim()
+                    ? 'none'
+                    : '0 12px 24px -8px rgba(239,68,68,0.4)';
+                }}
+              >
+                Eliminar producto
+              </button>
+            </div>
           </div>
         </div>
       )}
