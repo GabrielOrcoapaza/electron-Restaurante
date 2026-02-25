@@ -70,7 +70,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({ onClose, onSuccess }) => 
 
   const { data: categoriesData } = useQuery(GET_CATEGORIES_BY_BRANCH, {
     variables: { branchId: branchId! },
-    skip: !branchId
+    skip: !branchId,
+    fetchPolicy: 'network-only'
   });
 
   const categories: Category[] = categoriesData?.categoriesByBranch || [];

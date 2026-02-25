@@ -9,6 +9,7 @@ import CashPay from '../modules/cash/cashPay';
 import Cashs from '../modules/cash/cashs';
 import Message from '../modules/cash/message';
 import CreateUser from '../modules/user/createUser';
+import UserPermissions from '../modules/user/UserPermissions';
 import Products from '../modules/products/Products';
 import Inventories from '../modules/inventories/Inventories';
 import Kardex from '../modules/inventories/kardex';
@@ -91,7 +92,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const headerSubFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
   // Verificar si el usuario es mozo para establecer la vista inicial
   const isWaiterInitial = user?.role?.toUpperCase() === 'WAITER';
-  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration' | 'delivery'>(isWaiterInitial ? 'floors' : 'dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'permissions' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration' | 'delivery'>(isWaiterInitial ? 'floors' : 'dashboard');
   const [configurationTab, setConfigurationTab] = useState<'category' | 'subcategory' | 'observation'>('category');
   const [reportType, setReportType] = useState<'sales' | 'cancellation' | 'productsSold' | 'employees'>('sales');
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
@@ -309,7 +310,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     setSidebarOpen(!sidebarOpen);
   };
 
-  const handleMenuClick = (view: 'dashboard' | 'floors' | 'messages' | 'employees' | 'cashs' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration' | 'delivery') => {
+  const handleMenuClick = (view: 'dashboard' | 'floors' | 'messages' | 'employees' | 'permissions' | 'cashs' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration' | 'delivery') => {
     setCurrentView(view);
     if (view === 'configuration') {
       setConfigurationTab('category');
@@ -336,23 +337,25 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
           ? 'Mensajes'
           : currentView === 'employees'
             ? 'Empleados'
-            : currentView === 'products'
-              ? 'Productos'
-              : currentView === 'cashs'
-                ? 'Gestión de Cajas'
-                : currentView === 'inventory'
-                  ? 'Inventario'
-                  : currentView === 'kardex'
-                    ? 'Kardex'
-                    : currentView === 'purchase'
-                      ? 'Compras'
-                      : currentView === 'reports'
-                        ? 'Reportes'
-                        : currentView === 'configuration'
-                          ? 'Configuración'
-                          : currentView === 'delivery'
-                            ? 'Delivery'
-                            : 'Caja';
+            : currentView === 'permissions'
+              ? 'Permisos'
+              : currentView === 'products'
+                ? 'Productos'
+                : currentView === 'cashs'
+                  ? 'Gestión de Cajas'
+                  : currentView === 'inventory'
+                    ? 'Inventario'
+                    : currentView === 'kardex'
+                      ? 'Kardex'
+                      : currentView === 'purchase'
+                        ? 'Compras'
+                        : currentView === 'reports'
+                          ? 'Reportes'
+                          : currentView === 'configuration'
+                            ? 'Configuración'
+                            : currentView === 'delivery'
+                              ? 'Delivery'
+                              : 'Caja';
 
   const headerSubtitle =
     currentView === 'dashboard'
@@ -363,7 +366,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
           ? 'Envía mensajes a cocina, mozos u otros usuarios.'
           : currentView === 'employees'
             ? 'Administra los empleados de tu empresa.'
-            : currentView === 'products'
+            : currentView === 'permissions'
+              ? 'Asigna permisos personalizados por usuario (solo administrador).'
+              : currentView === 'products'
               ? 'Administra los productos de tu menú.'
               : currentView === 'cashs'
                 ? 'Gestiona las cajas registradoras, cierres y resúmenes de pagos.'
@@ -385,8 +390,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
 
   const isFloorsSection = currentView === 'floors' || currentView === 'cash';
 
-  // Verificar si el usuario es mozo (WAITER)
+  // Verificar si el usuario es mozo (WAITER) o administrador (ADMIN)
   const isWaiter = user?.role?.toUpperCase() === 'WAITER';
+  const isAdmin = user?.role?.toUpperCase() === 'ADMIN';
 
   // Si el usuario es mozo, asegurar que solo vea mesas
   useEffect(() => {
@@ -813,6 +819,43 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               >
                 <span style={{ fontSize: '1.25rem' }}>👥</span>
                 {sidebarOpen && 'Empleados'}
+              </button>
+            )}
+
+            {/* Solo mostrar Permisos si es ADMIN */}
+            {isAdmin && (
+              <button
+                onClick={() => handleMenuClick('permissions')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1.5rem',
+                  background: currentView === 'permissions' ? 'rgba(102, 126, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  color: currentView === 'permissions' ? '#667eea' : '#a0aec0',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'permissions') {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'permissions') {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#a0aec0';
+                  }
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>🔐</span>
+                {sidebarOpen && 'Permisos'}
               </button>
             )}
 
@@ -1439,6 +1482,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                 />
               )}
               {currentView === 'employees' && <CreateUser />}
+              {currentView === 'permissions' && <UserPermissions />}
               {currentView === 'products' && <Products />}
               {currentView === 'inventory' && <Inventories />}
               {currentView === 'kardex' && <Kardex />}

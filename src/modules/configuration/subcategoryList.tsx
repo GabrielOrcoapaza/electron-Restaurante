@@ -15,14 +15,21 @@ interface Category {
   subcategories?: Subcategory[];
 }
 
-interface SubcategoryListProps {
-  categories: Category[];
+interface SubcategoryRow extends Subcategory {
+  categoryName: string;
+  categoryId: string;
 }
 
-const SubcategoryList: React.FC<SubcategoryListProps> = ({ categories }) => {
-  const rows = categories.flatMap((category) =>
+interface SubcategoryListProps {
+  categories: Category[];
+  onEdit?: (row: SubcategoryRow) => void;
+}
+
+const SubcategoryList: React.FC<SubcategoryListProps> = ({ categories, onEdit }) => {
+  const rows: SubcategoryRow[] = categories.flatMap((category) =>
     (category.subcategories || []).map((subcategory) => ({
       categoryName: category.name,
+      categoryId: category.id,
       ...subcategory,
     }))
   );
@@ -54,6 +61,7 @@ const SubcategoryList: React.FC<SubcategoryListProps> = ({ categories }) => {
                 <th style={{ textAlign: 'center', padding: '0.65rem' }}>Descripción</th>
                 <th style={{ textAlign: 'center', padding: '0.65rem' }}>Orden</th>
                 <th style={{ textAlign: 'center', padding: '0.65rem' }}>Estado</th>
+                {onEdit && <th style={{ textAlign: 'center', padding: '0.65rem', width: '80px' }}>Acción</th>}
               </tr>
             </thead>
             <tbody>
@@ -77,6 +85,26 @@ const SubcategoryList: React.FC<SubcategoryListProps> = ({ categories }) => {
                       {row.isActive ? 'Activa' : 'Inactiva'}
                     </span>
                   </td>
+                  {onEdit && (
+                    <td style={{ padding: '0.65rem', textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => onEdit(row)}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: '#6366f1',
+                          background: '#eef2ff',
+                          border: '1px solid #c7d2fe',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Editar
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -3,6 +3,7 @@ import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useWebSocket } from '../../context/WebSocketContext';
+import { useToast } from '../../context/ToastContext';
 import type { Table, ProcessedTableColors } from '../../types/table';
 import { GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries';
 import Order from './order';
@@ -13,6 +14,7 @@ type FloorProps = {
 
 const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   const { companyData, user } = useAuth();
+  const { showToast } = useToast();
   const { breakpoint } = useResponsive();
   
   // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
@@ -65,7 +67,6 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   const [showTables, setShowTables] = useState(false);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
   const [showOrder, setShowOrder] = useState(false);
 
   // Obtener pisos de la sucursal
@@ -122,8 +123,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     // Suscribirse a errores
     const unsubscribeError = subscribe('error', (message) => {
       console.error('❌ Error del WebSocket:', message.message);
-      setNotification({ type: 'error', message: message.message });
-      setTimeout(() => setNotification(null), 3000);
+      showToast(message.message, 'error');
     });
 
     // Suscribirse a pong
@@ -191,11 +191,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     const accessCheck = canAccessTable(table);
     
     if (!accessCheck.canAccess) {
-      setNotification({ 
-        type: 'error', 
-        message: accessCheck.reason || 'No tiene permiso para acceder a esta mesa.' 
-      });
-      setTimeout(() => setNotification(null), 3000);
+      showToast(accessCheck.reason || 'No tiene permiso para acceder a esta mesa.', 'error');
       return;
     }
     
@@ -805,8 +801,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 onClick={() => {
                   const tableForCash = selectedTable;
                   if (!tableForCash?.currentOperationId) {
-                    setNotification({ type: 'error', message: 'Esta mesa no tiene una orden activa para cobrar.' });
-                    setTimeout(() => setNotification(null), 3000);
+                    showToast('Esta mesa no tiene una orden activa para cobrar.', 'error');
                     return;
                   }
                   setShowStatusModal(false);
@@ -859,13 +854,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             setSelectedTable(null);
           }}
           onSuccess={async () => {
-            // Mostrar notificación de éxito cuando se guarde la orden
-            setNotification({ 
-              type: 'success', 
-              message: `Orden guardada exitosamente. La mesa ${selectedTable.name} ha sido actualizada.` 
-            });
-            setTimeout(() => setNotification(null), 4000);
-            
+            showToast(`Orden guardada exitosamente. La mesa ${selectedTable.name} ha sido actualizada.`, 'success');
             // Refetch inmediato de las mesas para actualizar colores
             console.log('🔄 Refetch inmediato de mesas después de guardar orden');
             try {
@@ -878,35 +867,6 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         />
       )}
 
-      {/* Notificación de éxito/error */}
-      {notification && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          backgroundColor: notification.type === 'success' ? '#c6f6d5' : '#fed7d7',
-          color: notification.type === 'success' ? '#22543d' : '#742a2a',
-          padding: '1rem 1.5rem',
-          borderRadius: '8px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-          zIndex: 1001,
-          maxWidth: '300px',
-          fontSize: '0.875rem',
-          fontWeight: '500',
-          border: `1px solid ${notification.type === 'success' ? '#9ae6b4' : '#feb2b2'}`
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
-            <span style={{ fontSize: '1.25rem' }}>
-              {notification.type === 'success' ? '✅' : '❌'}
-            </span>
-            <span>{notification.message}</span>
-          </div>
-        </div>
-      )}
       </div>
     </>
   );

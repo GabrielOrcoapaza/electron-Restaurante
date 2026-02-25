@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useWebSocket } from '../../context/WebSocketContext';
+import { useToast } from '../../context/ToastContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import type { Table } from '../../types/table';
 import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, TRANSFER_ITEMS, CANCEL_OPERATION_DETAIL, UPDATE_TABLE_STATUS, CANCEL_OPERATION, PRINT_PARTIAL_PRECUENTA, CREATE_PERSON } from '../../graphql/mutations';
-import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_ID, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR, GET_PERSONS_BY_BRANCH, SEARCH_PERSON_BY_DOCUMENT } from '../../graphql/queries';
+import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_ID, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR, GET_PERSONS_BY_BRANCH, GET_USERS_BY_BRANCH, SEARCH_PERSON_BY_DOCUMENT } from '../../graphql/queries';
 import CreateClient from '../user/createClient';
 import EditClient from '../user/editClient';
 
@@ -36,6 +37,7 @@ const getStatusLabel = (status: string): string => {
 const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTableChange }) => {
   const { companyData, user, deviceId, getMacAddress, updateTableInContext } = useAuth();
   const { sendMessage, subscribe } = useWebSocket();
+  const { showToast } = useToast();
   const { breakpoint } = useResponsive();
 
   // Solo para diferentes tamaños de pantalla de PC (desktop)
@@ -43,39 +45,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
 
-  // Función para verificar si el usuario puede acceder a una mesa específica
-  const canAccessTable = (tableItem: any): { canAccess: boolean; reason?: string } => {
-    // Los cajeros siempre pueden acceder (para procesar pagos)
-    if (user?.role?.toUpperCase() === 'CASHIER') {
-      return { canAccess: true };
-    }
-
-    // Si la mesa no está ocupada, cualquier usuario puede acceder
-    if (!tableItem.currentOperationId || !tableItem.occupiedById) {
-      return { canAccess: true };
-    }
-
-    // Si la mesa está ocupada, verificar el modo multi-waiter
-    const isMultiWaiterEnabled = companyData?.branch?.isMultiWaiterEnabled || false;
-
-    // Si multi-waiter está habilitado, cualquier usuario puede acceder
-    if (isMultiWaiterEnabled) {
-      return { canAccess: true };
-    }
-
-    // Si multi-waiter está deshabilitado, solo el usuario que creó la orden puede acceder
-    const tableOccupiedById = String(tableItem.occupiedById);
-    const currentUserId = String(user?.id);
-
-    if (tableOccupiedById === currentUserId) {
-      return { canAccess: true };
-    }
-
-    // El usuario no es el que creó la orden
-    return {
-      canAccess: false,
-      reason: `Esta mesa está siendo atendida por ${tableItem.userName || 'otro usuario'}.`
-    };
+  // En Caja se puede entrar a cualquier mesa (cobrar cualquier orden). La restricción por mozo aplica solo en pedidos/mesas (floor, order).
+  const canAccessTable = (_tableItem: any): { canAccess: boolean; reason?: string } => {
+    return { canAccess: true };
   };
   const hasSelection = Boolean(table?.id && companyData?.branch.id);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
@@ -98,7 +70,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   ]);
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
   // Descuento: monto fijo (S/) y/o porcentaje (%)
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [discountPercent, setDiscountPercent] = useState<number>(0);
@@ -149,16 +120,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     }
   });
 
-  // Obtener series del documento seleccionado
+  // Obtener series del documento seleccionado (siempre del servidor)
   const { data: serialsData, loading: serialsLoading } = useQuery(GET_SERIALS_BY_DOCUMENT, {
     variables: { documentId: selectedDocumentId },
-    skip: !selectedDocumentId
+    skip: !selectedDocumentId,
+    fetchPolicy: 'network-only'
   });
 
-  // Obtener cajas registradoras
+  // Obtener cajas registradoras (siempre del servidor)
   const { data: cashRegistersData } = useQuery(GET_CASH_REGISTERS, {
     variables: { branchId: companyData?.branch.id || '' },
-    skip: !companyData?.branch.id
+    skip: !companyData?.branch.id,
+    fetchPolicy: 'network-only'
   });
 
   // Obtener pisos para el modal de cambio de mesa (siempre desde red)
@@ -189,10 +162,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     fetchPolicy: 'network-only'
   });
 
-  // Obtener clientes (personas con isCustomer=true)
+  // Obtener clientes (personas con isCustomer=true) - siempre del servidor para ver clientes nuevos
   const { data: clientsData, loading: clientsLoading, refetch: refetchClients } = useQuery(GET_PERSONS_BY_BRANCH, {
     variables: { branchId: companyData?.branch.id || '' },
-    skip: !companyData?.branch.id
+    skip: !companyData?.branch.id,
+    fetchPolicy: 'network-only'
+  });
+
+  // Obtener empleados (mozos) del servidor cuando se abre el modal de cambio de usuario
+  const { data: usersData } = useQuery(GET_USERS_BY_BRANCH, {
+    variables: { branchId: companyData?.branch.id || '' },
+    skip: !companyData?.branch.id || !showChangeUserModal,
+    fetchPolicy: 'network-only'
   });
 
   // Búsqueda por documento en SUNAT / local
@@ -589,14 +570,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     if (isFactura && !isRuc) return;
     if (!isRuc && !isDni) return;
     const documentType = isRuc ? 'RUC' : 'DNI';
-    setPaymentError(null);
     try {
       const { data } = await searchPersonByDocument({
         variables: { documentType, documentNumber: term, branchId: companyData.branch.id }
       });
       const result = data?.searchPersonByDocument;
       if (!result?.person) {
-        setPaymentError('No se encontró el documento en SUNAT ni en el sistema.');
+        showToast('No se encontró el documento en SUNAT ni en el sistema.', 'error');
         return;
       }
       const person = result.person;
@@ -627,10 +607,10 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         setSelectedClientId(newPerson.id);
         setClientSearchTerm(newPerson.name || '');
       } else {
-        setPaymentError(createData?.createPerson?.message || 'Error al registrar el cliente.');
+        showToast(createData?.createPerson?.message || 'Error al registrar el cliente.', 'error');
       }
     } catch (err: any) {
-      setPaymentError(err?.message || 'Error al buscar en SUNAT.');
+      showToast(err?.message || 'Error al buscar en SUNAT.', 'error');
     }
   };
 
@@ -1229,24 +1209,24 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     }
 
     if (!operation || !selectedDocumentId || !selectedSerialId || !user?.id) {
-      setPaymentError('Por favor completa todos los campos requeridos');
+      showToast('Por favor completa todos los campos requeridos', 'error');
       return;
     }
 
     // Validar que se haya seleccionado un documento (boleta o factura)
     if (!selectedDocumentId) {
-      setPaymentError('Por favor selecciona un documento (Boleta o Factura)');
+      showToast('Por favor selecciona un documento (Boleta o Factura)', 'error');
       return;
     }
 
     // ✅ VALIDACIONES SUNAT: Boleta vs Factura
     if (isFactura) {
       if (!selectedClientId) {
-        setPaymentError('Para emitir una FACTURA debe seleccionar un cliente con RUC');
+        showToast('Para emitir una FACTURA debe seleccionar un cliente con RUC', 'error');
         return;
       }
       if ((selectedClient?.documentType || '').toUpperCase() !== 'RUC') {
-        setPaymentError('Para emitir una FACTURA el cliente debe tener un RUC válido');
+        showToast('Para emitir una FACTURA el cliente debe tener un RUC válido', 'error');
         return;
       }
     }
@@ -1255,14 +1235,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     const cashRegisterIdToUse = selectedCashRegisterId || (cashRegisters.length > 0 ? cashRegisters[0].id : null);
 
     if (!cashRegisterIdToUse) {
-      setPaymentError('No hay cajas registradoras disponibles');
+      showToast('No hay cajas registradoras disponibles', 'error');
       return;
     }
 
     // ⚠️ ESTABLECER flags INMEDIATAMENTE para prevenir doble ejecución
     isProcessingRef.current = true; // Ref se actualiza síncronamente
     setIsProcessing(true); // Estado puede tener delay
-    setPaymentError(null);
 
     // Obtener MAC address (prioritaria para impresión) o deviceId como fallback
     const resolvedDeviceId = await getDeviceIdOrMac();
@@ -1295,7 +1274,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         });
 
         if (detailsToPay.length === 0) {
-          setPaymentError('No hay productos seleccionados para pagar');
+          showToast('No hay productos seleccionados para pagar', 'error');
           setIsProcessing(false);
           return;
         }
@@ -1348,7 +1327,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       // Validar que no haya items inválidos
       if (invalidDetails.length > 0) {
         console.error('❌ ITEMS INVÁLIDOS:', invalidDetails.map(d => d.id));
-        setPaymentError('Error: No se pudieron validar todos los productos.');
+        showToast('Error: No se pudieron validar todos los productos.', 'error');
         isProcessingRef.current = false;
         setIsProcessing(false);
         return;
@@ -1388,7 +1367,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       // Validar que la suma de pagos sea al menos el total a pagar (permite pagar de más y dar vuelto)
       const totalPaymentsAmount = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
       if (totalPaymentsAmount < paymentTotal - 0.01) {
-        setPaymentError(`La suma de los pagos (${currencyFormatter.format(totalPaymentsAmount)}) debe ser al menos el total a pagar (${currencyFormatter.format(paymentTotal)})`);
+        showToast(`La suma de los pagos (${currencyFormatter.format(totalPaymentsAmount)}) debe ser al menos el total a pagar (${currencyFormatter.format(paymentTotal)})`, 'error');
         isProcessingRef.current = false;
         setIsProcessing(false);
         return;
@@ -1442,7 +1421,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       }
 
       if (paymentsToSend.length === 0) {
-        setPaymentError('Debe agregar al menos un pago con monto mayor a 0');
+        showToast('Debe agregar al menos un pago con monto mayor a 0', 'error');
         isProcessingRef.current = false;
         setIsProcessing(false);
         return;
@@ -1731,14 +1710,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         }
 
         // Limpiar errores
-        setPaymentError(null);
       } else {
-        setPaymentError(result.data?.createIssuedDocument?.message || 'Error al procesar el pago');
+        showToast(result.data?.createIssuedDocument?.message || 'Error al procesar el pago', 'error');
       }
     } catch (err: any) {
       console.error('❌ ERROR:', err);
       console.error('Error procesando pago:', err);
-      setPaymentError(err.message || 'Error al procesar el pago');
+      showToast(err.message || 'Error al procesar el pago', 'error');
     } finally {
       // ⚠️ Siempre resetear ambos flags al finalizar
       isProcessingRef.current = false;
@@ -1748,22 +1726,21 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
   const handlePrecuenta = async () => {
     if (!operation || !table?.id || !companyData?.branch.id || !user?.id) {
-      setPaymentError('No hay una orden disponible para imprimir precuenta');
+      showToast('No hay una orden disponible para imprimir precuenta', 'error');
       return;
     }
 
     if (operation.status === 'COMPLETED') {
-      setPaymentError('Esta orden ya ha sido completada');
+      showToast('Esta orden ya ha sido completada', 'error');
       return;
     }
 
     setIsProcessing(true);
-    setPaymentError(null);
 
     try {
       const mac = await getMacAddress();
       if (!mac) {
-        setPaymentError('No se pudo obtener la MAC de la PC. Intenta de nuevo.');
+        showToast('No se pudo obtener la MAC de la PC. Intenta de nuevo.', 'error');
         setIsProcessing(false);
         return;
       }
@@ -1772,7 +1749,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
 
       if (selectedDetailIds.length === 0) {
-        setPaymentError('Selecciona al menos un ítem para imprimir la precuenta');
+        showToast('Selecciona al menos un ítem para imprimir la precuenta', 'error');
         setIsProcessing(false);
         return;
       }
@@ -1838,14 +1815,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           onPaymentSuccess();
         }
 
-        setPaymentError(null);
         console.log(result.data.printPartialPrecuenta.message || `Precuenta enviada a imprimir exitosamente (${selectedDetailIds.length} plato(s) seleccionado(s)). Estado de mesa actualizado a TO_PAY`);
       } else {
-        setPaymentError(result.data?.printPartialPrecuenta?.message || 'Error al imprimir la precuenta');
+        showToast(result.data?.printPartialPrecuenta?.message || 'Error al imprimir la precuenta', 'error');
       }
     } catch (err: any) {
       console.error('Error al imprimir precuenta:', err);
-      setPaymentError(err.message || 'Error al imprimir la precuenta');
+      showToast(err.message || 'Error al imprimir la precuenta', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -1853,17 +1829,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
   const handleChangeTable = async () => {
     if (!operation || !selectedTableId || !companyData?.branch.id) {
-      setPaymentError('Por favor selecciona una mesa');
+      showToast('Por favor selecciona una mesa', 'error');
       return;
     }
 
     if (selectedTableId === table?.id) {
-      setPaymentError('La mesa seleccionada es la misma que la actual');
+      showToast('La mesa seleccionada es la misma que la actual', 'error');
       return;
     }
 
     setIsProcessing(true);
-    setPaymentError(null);
 
     try {
       const result = await changeOperationTableMutation({
@@ -1952,13 +1927,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         if (onPaymentSuccess) {
           onPaymentSuccess();
         }
-        setPaymentError(null);
       } else {
-        setPaymentError(result.data?.changeOperationTable?.message || 'Error al cambiar la mesa');
+        showToast(result.data?.changeOperationTable?.message || 'Error al cambiar la mesa', 'error');
       }
     } catch (err: any) {
       console.error('Error cambiando mesa:', err);
-      setPaymentError(err.message || 'Error al cambiar la mesa');
+      showToast(err.message || 'Error al cambiar la mesa', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -1966,17 +1940,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
   const handleChangeUser = async () => {
     if (!operation || !selectedUserId || !companyData?.branch.id) {
-      setPaymentError('Por favor selecciona un mozo');
+      showToast('Por favor selecciona un mozo', 'error');
       return;
     }
 
     if (selectedUserId === operation.user?.id) {
-      setPaymentError('El mozo seleccionado es el mismo que el actual');
+      showToast('El mozo seleccionado es el mismo que el actual', 'error');
       return;
     }
 
     setIsProcessing(true);
-    setPaymentError(null);
 
     try {
       const result = await changeOperationUserMutation({
@@ -2013,34 +1986,34 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         if (onPaymentSuccess) {
           onPaymentSuccess();
         }
-        setPaymentError(null);
       } else {
-        setPaymentError(result.data?.changeOperationUser?.message || 'Error al cambiar el mozo');
+        showToast(result.data?.changeOperationUser?.message || 'Error al cambiar el mozo', 'error');
       }
     } catch (err: any) {
       console.error('Error cambiando mozo:', err);
-      setPaymentError(err.message || 'Error al cambiar el mozo');
+      showToast(err.message || 'Error al cambiar el mozo', 'error');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Obtener lista de mozos disponibles (usuarios activos de la sucursal)
-  const availableUsers = (companyData?.branch?.users || []).filter((u: any) => u.isActive !== false);
+  // Obtener lista de mozos disponibles: del servidor cuando el modal está abierto (evita caché al agregar empleados)
+  const serverUsers = (usersData?.usersByBranch || []).filter((u: any) => u.isActive !== false);
+  const contextUsers = (companyData?.branch?.users || []).filter((u: any) => u.isActive !== false);
+  const availableUsers = showChangeUserModal ? (serverUsers.length > 0 ? serverUsers : contextUsers) : contextUsers;
 
   const handleCancelOperation = async () => {
     if (!operation || !companyData?.branch.id || !user?.id) {
-      setPaymentError('No se puede cancelar la operación: faltan datos necesarios');
+      showToast('No se puede cancelar la operación: faltan datos necesarios', 'error');
       return;
     }
 
     if (!cancellationReason.trim()) {
-      setPaymentError('Por favor ingresa una razón para la cancelación');
+      showToast('Por favor ingresa una razón para la cancelación', 'error');
       return;
     }
 
     setIsProcessing(true);
-    setPaymentError(null);
 
     try {
       const resolvedDeviceId = deviceId || await getMacAddress();
@@ -2088,13 +2061,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           onBack();
         }
 
-        setPaymentError(null);
       } else {
-        setPaymentError(result.data?.cancelOperation?.message || 'Error al cancelar la operación');
+        showToast(result.data?.cancelOperation?.message || 'Error al cancelar la operación', 'error');
       }
     } catch (err: any) {
       console.error('Error cancelando operación:', err);
-      setPaymentError(err.message || 'Error al cancelar la operación');
+      showToast(err.message || 'Error al cancelar la operación', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -2102,7 +2074,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
   const handleTransferPlates = async () => {
     if (!operation || !selectedTransferTableId || !companyData?.branch.id) {
-      setPaymentError('Por favor selecciona una mesa de destino');
+      showToast('Por favor selecciona una mesa de destino', 'error');
       return;
     }
 
@@ -2110,17 +2082,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
 
     if (selectedDetailIds.length === 0) {
-      setPaymentError('Por favor selecciona al menos un plato para transferir');
+      showToast('Por favor selecciona al menos un plato para transferir', 'error');
       return;
     }
 
     if (selectedTransferTableId === table?.id) {
-      setPaymentError('No puedes transferir platos a la misma mesa');
+      showToast('No puedes transferir platos a la misma mesa', 'error');
       return;
     }
 
     setIsProcessing(true);
-    setPaymentError(null);
 
     try {
       // Procesar los items seleccionados: agrupar por ID original y calcular cantidades
@@ -2202,7 +2173,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       }
 
       if (detailIdsToTransfer.length === 0) {
-        setPaymentError('No se encontraron IDs válidos para transferir');
+        showToast('No se encontraron IDs válidos para transferir', 'error');
         setIsProcessing(false);
         return;
       }
@@ -2289,13 +2260,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         if (onPaymentSuccess) {
           onPaymentSuccess();
         }
-        setPaymentError(null);
       } else {
-        setPaymentError(result.data?.transferItems?.message || 'Error al transferir los platos');
+        showToast(result.data?.transferItems?.message || 'Error al transferir los platos', 'error');
       }
     } catch (err: any) {
       console.error('Error transfiriendo platos:', err);
-      setPaymentError(err.message || 'Error al transferir los platos');
+      showToast(err.message || 'Error al transferir los platos', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -2910,7 +2880,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                       if (validDoc) {
                         handleSearchSunat();
                       } else {
-                        setPaymentError('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.');
+                        showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.', 'warning');
                       }
                     }}
                     disabled={clientsLoading || sunatSearchLoading || isProcessing}
@@ -4055,8 +4025,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                           key={tableItem.id}
                           onClick={() => {
                             if (!canAccess) {
-                              setPaymentError(accessCheck.reason || 'No tiene permiso para acceder a esta mesa.');
-                              setTimeout(() => setPaymentError(null), 3000);
+                              showToast(accessCheck.reason || 'No tiene permiso para acceder a esta mesa.', 'error');
                               return;
                             }
                             if (!isOccupied && !isCurrentTable) {
@@ -5078,21 +5047,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 {isProcessing ? 'Anulando...' : 'Confirmar Anulación'}
               </button>
             </div>
-            {paymentError && (
-              <div
-                style={{
-                  marginTop: '1rem',
-                  backgroundColor: '#fed7d7',
-                  border: '1px solid #feb2b2',
-                  color: '#742a2a',
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  fontSize: '0.85rem'
-                }}
-              >
-                {paymentError}
-              </div>
-            )}
           </div>
         </div>
       )}

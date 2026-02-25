@@ -12,9 +12,10 @@ interface Category {
 
 interface CategoryListProps {
   categories: Category[];
+  onEdit?: (category: Category) => void;
 }
 
-const CategoryList: React.FC<CategoryListProps> = ({ categories }) => {
+const CategoryList: React.FC<CategoryListProps> = ({ categories, onEdit }) => {
   return (
     <div
       style={{
@@ -41,6 +42,7 @@ const CategoryList: React.FC<CategoryListProps> = ({ categories }) => {
                 <th style={{ textAlign: 'left', padding: '0.65rem' }}>Descripción</th>
                 <th style={{ textAlign: 'center', padding: '0.65rem' }}>Orden</th>
                 <th style={{ textAlign: 'center', padding: '0.65rem' }}>Estado</th>
+                {onEdit && <th style={{ textAlign: 'center', padding: '0.65rem', width: '80px' }}>Acción</th>}
               </tr>
             </thead>
             <tbody>
@@ -63,6 +65,26 @@ const CategoryList: React.FC<CategoryListProps> = ({ categories }) => {
                       {category.isActive ? 'Activa' : 'Inactiva'}
                     </span>
                   </td>
+                  {onEdit && (
+                    <td style={{ padding: '0.65rem', textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => onEdit(category)}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: '#6366f1',
+                          background: '#eef2ff',
+                          border: '1px solid #c7d2fe',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Editar
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -321,6 +321,16 @@ const Cashs: React.FC = () => {
 
   const cashRegisters: CashRegister[] = cashRegistersData?.cashRegistersByBranch || [];
   const preview: CashClosurePreview | null = previewData?.cashClosurePreview || null;
+  // En gestión por usuarios solo mostrar cajeros (no administradores)
+  // Aceptar CASHIER (código) o CAJERO (por si el backend devuelve "Cajero")
+  const usersSummarySoloCajeros: UserSummary[] = React.useMemo(() => {
+    if (!preview?.usersSummary?.length) return [];
+    const roleUpper = (r: string) => (r || '').toUpperCase();
+    return preview.usersSummary.filter((u) => {
+      const r = roleUpper(u.userRole);
+      return r === 'CASHIER' || r === 'CAJERO';
+    });
+  }, [preview?.usersSummary]);
   // Intentar ambos nombres por si hay diferencia entre snake_case y camelCase
   const closures: CashClosure[] = closuresData?.cashClosures || closuresData?.cash_closures || [];
   const movements: PaymentMovement[] = movementsData?.paymentsPendingClosure || movementsData?.payments_pending_closure || [];
@@ -993,14 +1003,14 @@ const Cashs: React.FC = () => {
                 
           
 
-              {/* Resumen por Usuario */}
-              {preview.usersSummary && preview.usersSummary.length > 0 && (
+              {/* Resumen por Usuario (solo cajeros) */}
+              {usersSummarySoloCajeros.length > 0 && (
                 <div style={{ marginBottom: gridGap }}>
                   <h4 style={{ margin: '0 0 1rem', fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
                     Resumen por Usuario
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: gridGap }}>
-                    {preview.usersSummary.map((userSummary, idx) => (
+                    {usersSummarySoloCajeros.map((userSummary, idx) => (
                       <div
                         key={idx}
                         style={{

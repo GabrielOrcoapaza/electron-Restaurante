@@ -111,23 +111,17 @@ const ReportSale: React.FC = () => {
   const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
   const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
 
-  // Estado para los filtros
-  const [startDate, setStartDate] = useState<string>(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30); // Últimos 30 días por defecto
-    return date.toISOString().split('T')[0];
-  });
-  const [endDate, setEndDate] = useState<string>(() => {
-    const date = new Date();
-    return date.toISOString().split('T')[0];
-  });
+  // Estado para los filtros: por defecto fecha actual (hoy); el usuario puede cambiar si desea otro rango
+  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
   const [showDetails, setShowDetails] = useState(true);
 
   // Obtener documentos para el selector
   const { data: documentsData } = useQuery(GET_DOCUMENTS, {
     variables: { branchId: branchId! },
-    skip: !branchId
+    skip: !branchId,
+    fetchPolicy: 'network-only'
   });
 
   const documents: Document[] = documentsData?.documentsByBranch || [];

@@ -635,6 +635,20 @@ export const CREATE_USER = gql`
   }
 `;
 
+// Solo ADMIN: asignar permisos personalizados a un usuario
+export const SET_USER_PERMISSIONS = gql`
+  mutation SetUserPermissions($userId: ID!, $permissionCodes: [String]!) {
+    setUserPermissions(userId: $userId, permissionCodes: $permissionCodes) {
+      success
+      message
+      user {
+        id
+        customPermissions
+      }
+    }
+  }
+`;
+
 // Mutación para cerrar caja
 export const CLOSE_CASH = gql`
   mutation CloseCash($userId: ID!, $branchId: ID!, $deviceId: ID!, $cashRegisterId: ID!) {
@@ -1044,6 +1058,111 @@ export const CREATE_MODIFIER = gql`
           }
         }
       }
+    }
+  }
+`;
+
+// Mutación para actualizar categoría
+export const UPDATE_CATEGORY = gql`
+  mutation UpdateCategory(
+    $categoryId: ID!
+    $name: String
+    $description: String
+    $icon: String
+    $color: String
+    $order: Int
+    $isActive: Boolean
+  ) {
+    updateCategory(
+      categoryId: $categoryId
+      name: $name
+      description: $description
+      icon: $icon
+      color: $color
+      order: $order
+      isActive: $isActive
+    ) {
+      success
+      message
+      category {
+        id
+        name
+        description
+        icon
+        color
+        order
+        isActive
+      }
+    }
+  }
+`;
+
+// Mutación para actualizar subcategoría
+export const UPDATE_SUBCATEGORY = gql`
+  mutation UpdateSubcategory(
+    $subcategoryId: ID!
+    $name: String
+    $description: String
+    $order: Int
+    $isActive: Boolean
+  ) {
+    updateSubcategory(
+      subcategoryId: $subcategoryId
+      name: $name
+      description: $description
+      order: $order
+      isActive: $isActive
+    ) {
+      success
+      message
+      subcategory {
+        id
+        name
+        description
+        order
+        isActive
+        category {
+          id
+          name
+        }
+      }
+    }
+  }
+`;
+
+// Mutación para actualizar modificador (observación)
+export const UPDATE_MODIFIER = gql`
+  mutation UpdateModifier(
+    $modifierId: ID!
+    $note: String
+    $isActive: Boolean
+  ) {
+    updateModifier(
+      modifierId: $modifierId
+      note: $note
+      isActive: $isActive
+    ) {
+      success
+      message
+      modifier {
+        id
+        note
+        isActive
+        subcategory {
+          id
+          name
+        }
+      }
+    }
+  }
+`;
+
+// Mutación para eliminar modificador (observación)
+export const DELETE_MODIFIER = gql`
+  mutation DeleteModifier($modifierId: ID!) {
+    deleteModifier(modifierId: $modifierId) {
+      success
+      message
     }
   }
 `;

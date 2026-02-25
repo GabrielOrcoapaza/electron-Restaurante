@@ -85,10 +85,11 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
     fetchPolicy: 'network-only'
   });
 
-  // Obtener ingredientes disponibles
+  // Obtener ingredientes disponibles (siempre del servidor para ver productos nuevos)
   const { data: productsData } = useQuery(GET_PRODUCTS_WITH_STOCK, {
     variables: { branchId: branchId! },
-    skip: !branchId
+    skip: !branchId,
+    fetchPolicy: 'network-only'
   });
 
   const rawRecipes: Recipe[] = data?.recipesByProduct || [];

@@ -42,15 +42,9 @@ const ReportEmployee: React.FC = () => {
   const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
   const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
 
-  const [startDate, setStartDate] = useState<string>(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    return date.toISOString().split('T')[0];
-  });
-  const [endDate, setEndDate] = useState<string>(() => {
-    const date = new Date();
-    return date.toISOString().split('T')[0];
-  });
+  // Por defecto fecha actual (hoy); el usuario puede cambiar si desea otro rango
+  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [userId, setUserId] = useState<string>('');
   const [selectedUserLabel, setSelectedUserLabel] = useState<string>('');
   const [searchInput, setSearchInput] = useState<string>('');
@@ -65,7 +59,8 @@ const ReportEmployee: React.FC = () => {
 
   const { data: searchData } = useQuery(SEARCH_USERS, {
     variables: { branchId: branchId!, query: debouncedQuery },
-    skip: !branchId || debouncedQuery.length < 2
+    skip: !branchId || debouncedQuery.length < 2,
+    fetchPolicy: 'network-only'
   });
 
   const searchResults: Array<{ id: string; fullName: string; role?: string; dni?: string }> = searchData?.searchUsers ?? [];

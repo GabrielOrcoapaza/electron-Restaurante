@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { GET_CATEGORIES_BY_BRANCH } from '../../graphql/queries';
-import { CREATE_SUBCATEGORY } from '../../graphql/mutations';
+import { CREATE_SUBCATEGORY, UPDATE_SUBCATEGORY } from '../../graphql/mutations';
 import SubcategoryList from './subcategoryList';
 
 interface Subcategory {
@@ -32,6 +32,8 @@ const Subcategory: React.FC = () => {
     isActive: true,
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [editingRow, setEditingRow] = useState<{ id: string; categoryId: string; categoryName: string; name: string; description?: string; order?: number; isActive: boolean } | null>(null);
+  const [editFormData, setEditFormData] = useState({ name: '', description: '', order: 0, isActive: true });
 
   const { data, loading, error, refetch } = useQuery(GET_CATEGORIES_BY_BRANCH, {
     variables: { branchId: branchId! },
@@ -54,6 +56,22 @@ const Subcategory: React.FC = () => {
         refetch();
       } else {
         setMessage({ type: 'error', text: result?.message || 'No se pudo crear la subcategoría' });
+      }
+    },
+    onError: (mutationError) => {
+      setMessage({ type: 'error', text: mutationError.message });
+    },
+  });
+
+  const [updateSubcategory, { loading: updating }] = useMutation(UPDATE_SUBCATEGORY, {
+    onCompleted: (res) => {
+      const result = res?.updateSubcategory;
+      if (result?.success) {
+        setMessage({ type: 'success', text: result.message || 'Subcategoría actualizada' });
+        setEditingRow(null);
+        refetch();
+      } else {
+        setMessage({ type: 'error', text: result?.message || 'No se pudo actualizar' });
       }
     },
     onError: (mutationError) => {
@@ -196,7 +214,68 @@ const Subcategory: React.FC = () => {
         </form>
       </div>
 
-      <SubcategoryList categories={categories} />
+      <SubcategoryList
+        categories={categories}
+        onEdit={(row) => {
+          setEditingRow({ id: row.id, categoryId: row.categoryId, categoryName: row.categoryName, name: row.name, description: row.description, order: row.order ?? 0, isActive: row.isActive });
+          setEditFormData({ name: row.name, description: row.description || '', order: row.order ?? 0, isActive: row.isActive });
+          setMessage(null);
+        }}
+      />
+
+      {editingRow && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={() => setEditingRow(null)}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', maxWidth: '420px', width: '90%', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 1rem', color: '#334155' }}>Editar Subcategoría ({editingRow.categoryName})</h3>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                updateSubcategory({
+                  variables: {
+                    subcategoryId: editingRow.id,
+                    name: editFormData.name.trim(),
+                    description: editFormData.description.trim() || null,
+                    order: editFormData.order,
+                    isActive: editFormData.isActive,
+                  },
+                });
+              }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+            >
+              <input
+                value={editFormData.name}
+                onChange={(e) => setEditFormData((p) => ({ ...p, name: e.target.value }))}
+                placeholder="Nombre"
+                required
+                style={{ padding: '0.625rem 0.875rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
+              />
+              <input
+                value={editFormData.description}
+                onChange={(e) => setEditFormData((p) => ({ ...p, description: e.target.value }))}
+                placeholder="Descripción (opcional)"
+                style={{ padding: '0.625rem 0.875rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <input
+                  type="number"
+                  min={0}
+                  value={editFormData.order}
+                  onChange={(e) => setEditFormData((p) => ({ ...p, order: Number(e.target.value) || 0 }))}
+                  style={{ padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '8px', width: '80px', boxSizing: 'border-box' }}
+                />
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', margin: 0, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={editFormData.isActive} onChange={(e) => setEditFormData((p) => ({ ...p, isActive: e.target.checked }))} />
+                  Activa
+                </label>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button type="button" onClick={() => setEditingRow(null)} style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', cursor: 'pointer', flex: 1 }}>Cancelar</button>
+                <button type="submit" disabled={updating || !editFormData.name.trim()} style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: 'none', background: updating ? '#94a3b8' : '#3b82f6', color: 'white', fontWeight: 600, cursor: updating ? 'not-allowed' : 'pointer', flex: 1 }}>{updating ? 'Guardando...' : 'Guardar'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

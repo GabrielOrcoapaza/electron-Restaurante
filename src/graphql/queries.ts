@@ -354,6 +354,20 @@ export const GET_USERS_BY_BRANCH = gql`
       phone
       isActive
       photoBase64
+      customPermissions
+    }
+  }
+`;
+
+// Solo ADMIN: lista de permisos disponibles (códigos del sistema)
+// Backend Graphene suele exponer el campo como available_permissions (snake_case)
+export const GET_AVAILABLE_PERMISSIONS = gql`
+  query GetAvailablePermissions {
+    available_permissions {
+      id
+      code
+      name
+      description
     }
   }
 `;

@@ -76,7 +76,6 @@ const Delivery: React.FC = () => {
     const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
-    const [saveError, setSaveError] = useState<string | null>(null);
 
     // Estados para el pago
     const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
@@ -96,31 +95,35 @@ const Delivery: React.FC = () => {
     // Mutación para crear venta
     const [createSaleCarryOutMutation] = useMutation(CREATE_SALE_CARRY_OUT);
 
-    // Obtener categorías
+    // Obtener categorías (siempre del servidor para ver cambios)
     const { data: categoriesData } = useQuery(GET_CATEGORIES_BY_BRANCH, {
         variables: { branchId: companyData?.branch.id },
-        skip: !companyData?.branch.id
+        skip: !companyData?.branch.id,
+        fetchPolicy: 'network-only'
     });
 
     const categories = categoriesData?.categoriesByBranch || [];
 
-    // Búsqueda de productos
+    // Búsqueda de productos (siempre del servidor)
     const { data: searchData, loading: searchLoading } = useQuery(SEARCH_PRODUCTS, {
         variables: { search: searchTerm, branchId: companyData?.branch.id, limit: 50 },
         skip: !companyData?.branch.id || searchTerm.length < 3,
-        errorPolicy: 'ignore'
+        errorPolicy: 'ignore',
+        fetchPolicy: 'network-only'
     });
 
-    // Obtener productos por categoría
+    // Obtener productos por categoría (siempre del servidor para precios actualizados)
     const { data: productsByCategoryData, loading: productsByCategoryLoading } = useQuery(GET_PRODUCTS_BY_CATEGORY, {
         variables: { categoryId: selectedCategory },
-        skip: !selectedCategory || searchTerm.length >= 3
+        skip: !selectedCategory || searchTerm.length >= 3,
+        fetchPolicy: 'network-only'
     });
 
-    // Obtener todos los productos
+    // Obtener todos los productos (siempre del servidor para precios y productos nuevos)
     const { data: productsByBranchData, loading: productsByBranchLoading } = useQuery(GET_PRODUCTS_BY_BRANCH, {
         variables: { branchId: companyData?.branch.id },
-        skip: !companyData?.branch.id
+        skip: !companyData?.branch.id,
+        fetchPolicy: 'network-only'
     });
 
     // Obtener documentos con sus series
@@ -139,10 +142,11 @@ const Delivery: React.FC = () => {
 
     const cashRegisters = cashRegistersData?.cashRegistersByBranch || [];
 
-    // Personas (clientes) de la sucursal - filtrado local como en cashPay
+    // Personas (clientes) de la sucursal - siempre del servidor para ver clientes nuevos
     const { data: clientsData, loading: clientsLoading, refetch: refetchClients } = useQuery(GET_PERSONS_BY_BRANCH, {
         variables: { branchId: companyData?.branch.id },
-        skip: !companyData?.branch.id
+        skip: !companyData?.branch.id,
+        fetchPolicy: 'network-only'
     });
 
     // Búsqueda por documento en SUNAT / local
@@ -214,7 +218,7 @@ const Delivery: React.FC = () => {
         productsList = productsList.filter((p: any) => String(p.subcategoryId) === String(selectedSubcategory));
     }
 
-    // Función para agregar producto al carrito
+    // Función para agregar producto al carrito (permite precio cero y productos con precio)
     const handleAddProduct = (productIdToAdd?: string, qtyToAdd?: number) => {
         const productId = productIdToAdd || selectedProduct;
         if (!productId) return;
@@ -223,9 +227,8 @@ const Delivery: React.FC = () => {
         if (!product) return;
 
         const productPrice = parseFloat(product.salePrice) || 0;
-        if (productPrice <= 0) {
-            setSaveError(`El producto "${product.name}" no tiene un precio válido`);
-            setTimeout(() => setSaveError(null), 3000);
+        if (productPrice < 0) {
+            showToast(`El producto "${product.name}" no tiene un precio válido`, 'error');
             return;
         }
 
@@ -287,7 +290,7 @@ const Delivery: React.FC = () => {
         setCartItems(cartItems.filter(item => item.id !== itemId));
     };
 
-    const [getObservations] = useLazyQuery(GET_MODIFIERS_BY_SUBCATEGORY, { fetchPolicy: 'cache-and-network' });
+    const [getObservations] = useLazyQuery(GET_MODIFIERS_BY_SUBCATEGORY, { fetchPolicy: 'network-only' });
 
     const handleOpenObservationModal = async (itemId: string) => {
         const item = cartItems.find(i => i.id === itemId);
@@ -347,52 +350,44 @@ const Delivery: React.FC = () => {
     // Función para procesar la venta
     const handleProcessSale = async () => {
         if (cartItems.length === 0) {
-            setSaveError('Debe agregar al menos un producto al carrito');
-            setTimeout(() => setSaveError(null), 3000);
+            showToast('Debe agregar al menos un producto al carrito', 'error');
             return;
         }
 
         if (!selectedDocument) {
-            setSaveError('Debe seleccionar un tipo de documento');
-            setTimeout(() => setSaveError(null), 3000);
+            showToast('Debe seleccionar un tipo de documento', 'error');
             return;
         }
 
         if (!selectedSerial) {
-            setSaveError('Debe seleccionar una serie');
-            setTimeout(() => setSaveError(null), 3000);
+            showToast('Debe seleccionar una serie', 'error');
             return;
         }
 
         // Factura (código 01) solo permite cliente con RUC; Boleta permite DNI o RUC
         if (isFactura) {
             if (!selectedPerson) {
-                setSaveError('Para emitir una FACTURA debe seleccionar un cliente con RUC');
-                setTimeout(() => setSaveError(null), 3000);
+                showToast('Para emitir una FACTURA debe seleccionar un cliente con RUC', 'error');
                 return;
             }
             if ((selectedPerson.documentType || '').toUpperCase() !== 'RUC') {
-                setSaveError('Para emitir una FACTURA el cliente debe tener un RUC válido');
-                setTimeout(() => setSaveError(null), 3000);
+                showToast('Para emitir una FACTURA el cliente debe tener un RUC válido', 'error');
                 return;
             }
         }
 
         if (!selectedCashRegister) {
-            setSaveError('Debe seleccionar una caja registradora');
-            setTimeout(() => setSaveError(null), 3000);
+            showToast('Debe seleccionar una caja registradora', 'error');
             return;
         }
 
         const paidAmountNum = parseFloat(paidAmount) || 0;
         if (paidAmountNum < cartTotal) {
-            setSaveError('El monto pagado debe ser mayor o igual al total');
-            setTimeout(() => setSaveError(null), 3000);
+            showToast('El monto pagado debe ser mayor o igual al total', 'error');
             return;
         }
 
         setIsSaving(true);
-        setSaveError(null);
 
         try {
             const igvRate = igvPercentageFromBranch / 100;
@@ -500,16 +495,12 @@ const Delivery: React.FC = () => {
                 setSelectedSubcategory(null);
                 setSearchTerm('');
 
-                setTimeout(() => {
-                    setSaveError(null);
-                }, 500);
             } else {
                 throw new Error(result.data?.createSaleCarryOut?.message || 'Error al procesar la venta');
             }
         } catch (error: any) {
             console.error('Error al procesar venta:', error);
-            setSaveError(error.message || 'Error al procesar la venta');
-            setTimeout(() => setSaveError(null), 5000);
+            showToast(error.message || 'Error al procesar la venta', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -533,14 +524,13 @@ const Delivery: React.FC = () => {
         if (isFactura && !isRuc) return;
         if (!isRuc && !isDni) return;
         const documentType = isRuc ? 'RUC' : 'DNI';
-        setSaveError(null);
         try {
             const { data } = await searchPersonByDocument({
                 variables: { documentType, documentNumber: term, branchId: companyData.branch.id }
             });
             const result = data?.searchPersonByDocument;
             if (!result?.person) {
-                setSaveError('No se encontró el documento en SUNAT ni en el sistema.');
+                showToast('No se encontró el documento en SUNAT ni en el sistema.', 'error');
                 return;
             }
             const person = result.person;
@@ -584,16 +574,33 @@ const Delivery: React.FC = () => {
                 });
                 setPersonSearchTerm(newPerson.name || '');
             } else {
-                setSaveError(createData?.createPerson?.message || 'Error al registrar el cliente.');
+                showToast(createData?.createPerson?.message || 'Error al registrar el cliente.', 'error');
             }
         } catch (err: any) {
-            setSaveError(err?.message || 'Error al buscar en SUNAT.');
+            showToast(err?.message || 'Error al buscar en SUNAT.', 'error');
         }
     };
 
     // Obtener seriales del documento seleccionado
     const selectedDocumentData = documents.find((d: any) => d.id === selectedDocument);
     const serials = selectedDocumentData?.serials || [];
+
+    // Por defecto: primer tipo de documento (ej. Nota de venta) y primera caja en información de pago
+    useEffect(() => {
+        if (documents.length > 0 && !selectedDocument) {
+            setSelectedDocument(documents[0].id);
+        }
+    }, [documents, selectedDocument]);
+    useEffect(() => {
+        if (serials.length > 0 && selectedDocument && !selectedSerial) {
+            setSelectedSerial(serials[0].serial);
+        }
+    }, [serials, selectedDocument, selectedSerial]);
+    useEffect(() => {
+        if (cashRegisters.length > 0 && !selectedCashRegister) {
+            setSelectedCashRegister(cashRegisters[0].id);
+        }
+    }, [cashRegisters, selectedCashRegister]);
 
     return (
         <div style={{
@@ -1254,12 +1261,6 @@ const Delivery: React.FC = () => {
                     }}>
                         Información de Pago
                     </h3>
-                    {saveError && (
-                        <div style={{ fontSize: '0.75rem', color: '#dc2626', marginBottom: '0.25rem' }}>
-                            {saveError}
-                        </div>
-                    )}
-
                     {/* Contenedor compacto para los campos */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: paymentFormGap }}>
                         {/* Cliente (igual que cashPay: búsqueda, dropdown, SUNAT) */}
@@ -1297,7 +1298,7 @@ const Delivery: React.FC = () => {
                                             if (validDoc) {
                                                 handleSearchSunat();
                                             } else {
-                                                setSaveError('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.');
+                                                showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.', 'warning');
                                             }
                                         }}
                                         disabled={clientsLoading || sunatSearchLoading || isSaving}
@@ -1428,7 +1429,7 @@ const Delivery: React.FC = () => {
                                     }}
                                     style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
                                 >
-                                    <option value="">Doc...</option>
+                                    <option value="..."></option>
                                     {documents.map((doc: any) => (
                                         <option key={doc.id} value={doc.id}>{doc.description}</option>
                                     ))}

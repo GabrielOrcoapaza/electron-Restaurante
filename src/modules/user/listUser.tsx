@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
-import { useQuery } from '@apollo/client';
+import React, { useEffect, useState } from 'react';
+import { useQuery, useMutation } from '@apollo/client';
 import { GET_USERS_BY_BRANCH } from '../../graphql/queries';
+import { SET_USER_PERMISSIONS } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 
@@ -14,10 +15,12 @@ interface User {
   role: string;
   phone: string;
   isActive: boolean;
+  customPermissions?: string[] | null;
 }
 
 const ListUser: React.FC = () => {
-  const { companyData } = useAuth();
+  const { companyData, user: currentUser } = useAuth();
+  const isAdmin = (currentUser?.role || '').toUpperCase() === 'ADMIN';
   const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
   
@@ -34,7 +37,7 @@ const ListUser: React.FC = () => {
   const titleFontSize = isSmall ? '1rem' : isMedium ? '1.05rem' : isSmallDesktop ? '1.05rem' : '1.1rem';
   const badgeFontSize = isSmall ? '0.625rem' : isMedium ? '0.6875rem' : isSmallDesktop ? '0.6875rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
 
-  const { data, loading, error } = useQuery(GET_USERS_BY_BRANCH, {
+  const { data, loading, error, refetch } = useQuery(GET_USERS_BY_BRANCH, {
     variables: { branchId: branchId! },
     skip: !branchId,
     fetchPolicy: 'network-only',
@@ -45,6 +48,63 @@ const ListUser: React.FC = () => {
       console.log('Usuarios cargados:', data);
     }
   });
+
+  const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<User | null>(null);
+  const [permissionCodes, setPermissionCodes] = useState<string[]>([]);
+  const [newPermissionInput, setNewPermissionInput] = useState('');
+  const [permissionsMessage, setPermissionsMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const [setUserPermissionsMutation, { loading: savingPermissions }] = useMutation(SET_USER_PERMISSIONS, {
+    onCompleted: (res) => {
+      const result = res?.setUserPermissions;
+      if (result?.success) {
+        setPermissionsMessage({ type: 'success', text: result.message || 'Permisos actualizados' });
+        refetch();
+        setTimeout(() => {
+          setSelectedUserForPermissions(null);
+          setPermissionCodes([]);
+          setPermissionsMessage(null);
+        }, 1500);
+      } else {
+        setPermissionsMessage({ type: 'error', text: result?.message || 'Error al guardar' });
+      }
+    },
+    onError: (err) => {
+      setPermissionsMessage({ type: 'error', text: err.message || 'Error de conexión' });
+    }
+  });
+
+  const openPermissionsModal = (u: User) => {
+    setSelectedUserForPermissions(u);
+    setPermissionCodes(Array.isArray(u.customPermissions) ? [...u.customPermissions] : []);
+    setNewPermissionInput('');
+    setPermissionsMessage(null);
+  };
+
+  const addPermission = () => {
+    const code = newPermissionInput.trim().toUpperCase();
+    if (!code) return;
+    if (permissionCodes.includes(code)) {
+      setNewPermissionInput('');
+      return;
+    }
+    setPermissionCodes((prev) => [...prev, code]);
+    setNewPermissionInput('');
+  };
+
+  const removePermission = (code: string) => {
+    setPermissionCodes((prev) => prev.filter((c) => c !== code));
+  };
+
+  const savePermissions = () => {
+    if (!selectedUserForPermissions?.id) return;
+    setUserPermissionsMutation({
+      variables: {
+        userId: selectedUserForPermissions.id,
+        permissionCodes
+      }
+    });
+  };
 
   // Debug: Verificar valores
   useEffect(() => {
@@ -161,6 +221,9 @@ const ListUser: React.FC = () => {
                 <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Teléfono</th>
                 <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Rol</th>
                 <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Estado</th>
+                {isAdmin && (
+                  <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Acciones</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -196,11 +259,204 @@ const ListUser: React.FC = () => {
                         {user.isActive ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
+                    {isAdmin && (
+                      <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => openPermissionsModal(user)}
+                          style={{
+                            padding: isSmall ? '0.25rem 0.5rem' : '0.375rem 0.75rem',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0',
+                            backgroundColor: '#f1f5f9',
+                            color: '#475569',
+                            fontWeight: 600,
+                            fontSize: badgeFontSize,
+                            cursor: 'pointer'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#e2e8f0';
+                            e.currentTarget.style.color = '#334155';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f1f5f9';
+                            e.currentTarget.style.color = '#475569';
+                          }}
+                        >
+                          🔐 Permisos
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Modal Permisos (solo ADMIN) */}
+      {selectedUserForPermissions && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '1rem'
+          }}
+          onClick={() => !savingPermissions && setSelectedUserForPermissions(null)}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '16px',
+              padding: cardPadding,
+              maxWidth: '480px',
+              width: '100%',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
+              border: '1px solid #e2e8f0'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 style={{ margin: '0 0 1rem', fontSize: titleFontSize, fontWeight: 700, color: '#1e293b' }}>
+              🔐 Permisos: {selectedUserForPermissions.fullName}
+            </h4>
+            <p style={{ margin: '0 0 1rem', fontSize: tableFontSize, color: '#64748b' }}>
+              Solo el administrador puede asignar permisos. Lista vacía = usar permisos por defecto del rol.
+            </p>
+            {permissionsMessage && (
+              <div style={{
+                marginBottom: '1rem',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                backgroundColor: permissionsMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
+                color: permissionsMessage.type === 'success' ? '#166534' : '#991b1b',
+                fontSize: tableFontSize
+              }}>
+                {permissionsMessage.text}
+              </div>
+            )}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: tableFontSize, fontWeight: 600, color: '#475569' }}>
+                Códigos de permiso
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <input
+                  type="text"
+                  value={newPermissionInput}
+                  onChange={(e) => setNewPermissionInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPermission())}
+                  placeholder="Ej: REPORTS_VIEW"
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem 0.75rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: tableFontSize
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={addPermission}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontSize: tableFontSize
+                  }}
+                >
+                  Agregar
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {permissionCodes.map((code) => (
+                  <span
+                    key={code}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '8px',
+                      backgroundColor: '#e0e7ff',
+                      color: '#3730a3',
+                      fontSize: badgeFontSize,
+                      fontWeight: 600
+                    }}
+                  >
+                    {code}
+                    <button
+                      type="button"
+                      onClick={() => removePermission(code)}
+                      style={{
+                        padding: 0,
+                        margin: 0,
+                        border: 'none',
+                        background: 'none',
+                        cursor: 'pointer',
+                        color: '#6366f1',
+                        fontSize: '1rem',
+                        lineHeight: 1
+                      }}
+                      aria-label={`Quitar ${code}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {permissionCodes.length === 0 && (
+                  <span style={{ fontSize: tableFontSize, color: '#94a3b8' }}>Ninguno (usa defaults del rol)</span>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => setSelectedUserForPermissions(null)}
+                disabled={savingPermissions}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: 'white',
+                  color: '#64748b',
+                  fontWeight: 600,
+                  cursor: savingPermissions ? 'not-allowed' : 'pointer',
+                  fontSize: tableFontSize
+                }}
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                onClick={savePermissions}
+                disabled={savingPermissions}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: savingPermissions ? '#94a3b8' : '#16a34a',
+                  color: 'white',
+                  fontWeight: 600,
+                  cursor: savingPermissions ? 'not-allowed' : 'pointer',
+                  fontSize: tableFontSize
+                }}
+              >
+                {savingPermissions ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -30,22 +30,26 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
     // Queries
     const { data: documentsData } = useQuery(GET_DOCUMENTS, {
         variables: { branchId: branchId! },
-        skip: !branchId
+        skip: !branchId,
+        fetchPolicy: 'network-only'
     });
 
     const { data: serialsData } = useQuery(GET_SERIALS_BY_DOCUMENT, {
         variables: { documentId: targetDocumentId },
-        skip: !targetDocumentId
+        skip: !targetDocumentId,
+        fetchPolicy: 'network-only'
     });
 
     const { data: clientsData } = useQuery(GET_PERSONS_BY_BRANCH, {
         variables: { branchId: branchId! },
-        skip: !branchId
+        skip: !branchId,
+        fetchPolicy: 'network-only'
     });
 
     const { data: itemsData, loading: itemsLoading } = useQuery(GET_REISSUEABLE_ITEMS, {
         variables: { annulledDocumentId: annulledDocument?.id },
-        skip: !annulledDocument?.id
+        skip: !annulledDocument?.id,
+        fetchPolicy: 'network-only'
     });
 
     const [createDocument, { loading: creating }] = useMutation(CREATE_ISSUED_DOCUMENT_FROM_ANNULLED);

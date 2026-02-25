@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_SUBCATEGORIES_WITH_MODIFIERS } from '../../graphql/queries';
-import { CREATE_MODIFIER } from '../../graphql/mutations';
+import { CREATE_MODIFIER, UPDATE_MODIFIER, DELETE_MODIFIER } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 
@@ -56,11 +56,16 @@ const Observation: React.FC = () => {
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Query para obtener categorías y subcategorías
+  // Query para obtener categorías y subcategorías (siempre del servidor, no caché)
   const { data, loading, error, refetch } = useQuery(GET_SUBCATEGORIES_WITH_MODIFIERS, {
     variables: { branchId: branchId! },
     skip: !branchId,
+    fetchPolicy: 'network-only',
   });
+
+  const [editingModifier, setEditingModifier] = useState<Modifier | null>(null);
+  const [editModifierForm, setEditModifierForm] = useState({ note: '', isActive: true });
+  const [deletingModifierId, setDeletingModifierId] = useState<string | null>(null);
 
   // Mutación para crear modificador
   const [createModifier, { loading: creating }] = useMutation(CREATE_MODIFIER, {
@@ -76,6 +81,34 @@ const Observation: React.FC = () => {
     onError: (error) => {
       setMessage({ type: 'error', text: error.message });
     },
+  });
+
+  const [updateModifier, { loading: updatingModifier }] = useMutation(UPDATE_MODIFIER, {
+    onCompleted: (res) => {
+      const result = res?.updateModifier;
+      if (result?.success) {
+        setMessage({ type: 'success', text: result.message || 'Observación actualizada' });
+        setEditingModifier(null);
+        refetch();
+      } else {
+        setMessage({ type: 'error', text: result?.message || 'No se pudo actualizar' });
+      }
+    },
+    onError: (err) => setMessage({ type: 'error', text: err.message }),
+  });
+
+  const [deleteModifier] = useMutation(DELETE_MODIFIER, {
+    onCompleted: (res) => {
+      const result = res?.deleteModifier;
+      if (result?.success) {
+        setMessage({ type: 'success', text: result.message || 'Observación eliminada' });
+        setDeletingModifierId(null);
+        refetch();
+      } else {
+        setMessage({ type: 'error', text: result?.message || 'No se pudo eliminar' });
+      }
+    },
+    onError: (err) => setMessage({ type: 'error', text: err.message }),
   });
 
   const categories: Category[] = data?.categoriesByBranch || [];
@@ -480,6 +513,16 @@ const Observation: React.FC = () => {
                       }}>
                         Estado
                       </th>
+                      <th style={{
+                        padding: tableCellPadding,
+                        textAlign: 'center',
+                        fontWeight: 600,
+                        color: '#374151',
+                        borderBottom: '1px solid #e5e7eb',
+                        width: '140px',
+                      }}>
+                        Acciones
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -513,12 +556,109 @@ const Observation: React.FC = () => {
                             {modifier.isActive ? 'Activo' : 'Inactivo'}
                           </span>
                         </td>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingModifier(modifier);
+                              setEditModifierForm({ note: modifier.note, isActive: modifier.isActive });
+                              setMessage(null);
+                            }}
+                            style={{
+                              padding: '0.3rem 0.5rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: '#6366f1',
+                              background: '#eef2ff',
+                              border: '1px solid #c7d2fe',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              marginRight: '0.35rem',
+                            }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingModifierId(modifier.id)}
+                            style={{
+                              padding: '0.3rem 0.5rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: '#dc2626',
+                              background: '#fee2e2',
+                              border: '1px solid #fca5a5',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Eliminar
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Modal editar observación */}
+        {editingModifier && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={() => setEditingModifier(null)}>
+            <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', maxWidth: '400px', width: '90%', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{ margin: '0 0 1rem', color: '#334155' }}>Editar Observación</h3>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  updateModifier({
+                    variables: {
+                      modifierId: editingModifier.id,
+                      note: editModifierForm.note.trim(),
+                      isActive: editModifierForm.isActive,
+                    },
+                  });
+                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+              >
+                <input
+                  value={editModifierForm.note}
+                  onChange={(e) => setEditModifierForm((p) => ({ ...p, note: e.target.value }))}
+                  placeholder="Observación"
+                  required
+                  maxLength={100}
+                  style={{ padding: '0.625rem 0.875rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
+                />
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', margin: 0, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={editModifierForm.isActive} onChange={(e) => setEditModifierForm((p) => ({ ...p, isActive: e.target.checked }))} />
+                  Activo
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button type="button" onClick={() => setEditingModifier(null)} style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', cursor: 'pointer', flex: 1 }}>Cancelar</button>
+                  <button type="submit" disabled={updatingModifier || !editModifierForm.note.trim()} style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: 'none', background: updatingModifier ? '#9ca3af' : '#6366f1', color: 'white', fontWeight: 600, cursor: updatingModifier ? 'not-allowed' : 'pointer', flex: 1 }}>{updatingModifier ? 'Guardando...' : 'Guardar'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal confirmar eliminar observación */}
+        {deletingModifierId && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={() => setDeletingModifierId(null)}>
+            <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', maxWidth: '360px', width: '90%', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={(e) => e.stopPropagation()}>
+              <p style={{ margin: '0 0 1rem', color: '#334155' }}>¿Eliminar esta observación?</p>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button type="button" onClick={() => setDeletingModifierId(null)} style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', cursor: 'pointer', flex: 1 }}>Cancelar</button>
+                <button
+                  type="button"
+                  onClick={() => deleteModifier({ variables: { modifierId: deletingModifierId } })}
+                  style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: 'none', background: '#dc2626', color: 'white', fontWeight: 600, cursor: 'pointer', flex: 1 }}
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

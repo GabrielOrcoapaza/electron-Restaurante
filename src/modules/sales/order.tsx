@@ -89,10 +89,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	useEffect(() => {
 		const accessCheck = canAccessTable();
 		if (!accessCheck.canAccess) {
-			setSaveError(accessCheck.reason || 'No tiene permiso para acceder a esta mesa.');
-			setTimeout(() => {
-				onClose();
-			}, 3000);
+			showToast(accessCheck.reason || 'No tiene permiso para acceder a esta mesa.', 'error');
+			setTimeout(() => onClose(), 3000);
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [table.id, table.currentOperationId, table.occupiedById, user?.id, companyData?.branch?.isMultiWaiterEnabled]);
@@ -107,7 +105,6 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const [selectedObservations, setSelectedObservations] = useState<Record<string, Set<string>>>({});
 	const [, setHideObservationsSection] = useState<Record<string, boolean>>({});
 	const [isSaving, setIsSaving] = useState(false);
-	const [saveError, setSaveError] = useState<string | null>(null);
 	const [lastAddedItemId, setLastAddedItemId] = useState<string | null>(null);
 	const [isPrintingPrecuenta, setIsPrintingPrecuenta] = useState(false);
 	const [showObservationModal, setShowObservationModal] = useState<string | null>(null);
@@ -121,36 +118,40 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const [updateTableStatusMutation] = useMutation(UPDATE_TABLE_STATUS);
 	const [printPrecuentaMutation] = useMutation(PRINT_PRECUENTA);
 
-	// Obtener categorías de la sucursal
+	// Obtener categorías de la sucursal (siempre del servidor para ver cambios)
 	const { data: categoriesData, loading: categoriesLoading } = useQuery(GET_CATEGORIES_BY_BRANCH, {
 		variables: { branchId: companyData?.branch.id },
-		skip: !companyData?.branch.id
+		skip: !companyData?.branch.id,
+		fetchPolicy: 'network-only'
 	});
 
 	const categories = categoriesData?.categoriesByBranch || [];
 
-	// Búsqueda de productos (si hay término de búsqueda)
+	// Búsqueda de productos (si hay término de búsqueda) - siempre del servidor
 	const { data: searchData, loading: searchLoading } = useQuery(SEARCH_PRODUCTS, {
 		variables: { search: searchTerm, branchId: companyData?.branch.id, limit: 50 },
 		skip: !companyData?.branch.id || searchTerm.length < 3,
-		errorPolicy: 'ignore'
+		errorPolicy: 'ignore',
+		fetchPolicy: 'network-only'
 	});
 
-	// Obtener productos por categoría (si hay una seleccionada y no hay búsqueda)
+	// Obtener productos por categoría (siempre del servidor para ver precios actualizados)
 	const { data: productsByCategoryData, loading: productsByCategoryLoading } = useQuery(GET_PRODUCTS_BY_CATEGORY, {
 		variables: { categoryId: selectedCategory },
-		skip: !selectedCategory || searchTerm.length >= 3
+		skip: !selectedCategory || searchTerm.length >= 3,
+		fetchPolicy: 'network-only'
 	});
 
-	// Obtener todos los productos de la sucursal (cargamos siempre para el fallback de búsqueda)
+	// Obtener todos los productos de la sucursal (siempre del servidor para precios y productos nuevos)
 	const { data: productsByBranchData, loading: productsByBranchLoading } = useQuery(GET_PRODUCTS_BY_BRANCH, {
 		variables: { branchId: companyData?.branch.id },
-		skip: !companyData?.branch.id
+		skip: !companyData?.branch.id,
+		fetchPolicy: 'network-only'
 	});
 
-	// Query lazy para obtener observaciones de una subcategoría
+	// Query lazy para obtener observaciones de una subcategoría (siempre del servidor)
 	const [getObservations] = useLazyQuery(GET_MODIFIERS_BY_SUBCATEGORY, {
-		fetchPolicy: 'cache-and-network'
+		fetchPolicy: 'network-only'
 	});
 
 	// Cambiar la lógica para que sea como en cashPay.tsx: solo depende de mesa y branch, NO de currentOperationId
@@ -337,8 +338,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 		// Validar que el precio sea un número válido
 		const productPrice = parseFloat(product.salePrice) || 0;
 		if (productPrice <= 0) {
-			setSaveError(`El producto "${product.name}" no tiene un precio válido`);
-			setTimeout(() => setSaveError(null), 3000);
+			showToast(`El producto "${product.name}" no tiene un precio válido`, 'error');
 			return;
 		}
 
@@ -618,19 +618,16 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			const message = isExistingOrder
 				? 'Debe agregar al menos un producto nuevo a la orden'
 				: 'Debe agregar al menos un producto a la orden';
-			setSaveError(message);
-			setTimeout(() => setSaveError(null), 3000);
+			showToast(message, 'error');
 			return;
 		}
 
 		if (!companyData?.branch.id) {
-			setSaveError('No se encontró información de la sucursal');
-			setTimeout(() => setSaveError(null), 3000);
+			showToast('No se encontró información de la sucursal', 'error');
 			return;
 		}
 
 		setIsSaving(true);
-		setSaveError(null);
 
 		try {
 			const invalidItems = itemsToProcess.filter(item =>
@@ -639,16 +636,14 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			);
 
 			if (invalidItems.length > 0) {
-				setSaveError('Algunos productos tienen valores inválidos. Por favor, verifique los precios y cantidades.');
-				setTimeout(() => setSaveError(null), 3000);
+				showToast('Algunos productos tienen valores inválidos. Por favor, verifique los precios y cantidades.', 'error');
 				return;
 			}
 
 			if (isExistingOrder) {
 				const operationId = existingOperation?.id || table?.currentOperationId;
 				if (!operationId) {
-					setSaveError('No se encontró la operación activa para esta mesa.');
-					setTimeout(() => setSaveError(null), 3000);
+					showToast('No se encontró la operación activa para esta mesa.', 'error');
 					return;
 				}
 
@@ -771,8 +766,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			if (isNaN(calculatedSubtotal) || calculatedSubtotal < 0 ||
 				isNaN(calculatedIgvAmount) || calculatedIgvAmount < 0 ||
 				isNaN(validTotal) || validTotal <= 0) {
-				setSaveError('Error al calcular los totales. Por favor, intente nuevamente.');
-				setTimeout(() => setSaveError(null), 3000);
+				showToast('Error al calcular los totales. Por favor, intente nuevamente.', 'error');
 				return;
 			}
 
@@ -917,13 +911,11 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					onClose();
 				}, 500);
 			} else {
-				setSaveError(result.data?.createOperation?.message || 'Error al guardar la orden');
-				setTimeout(() => setSaveError(null), 3000);
+				showToast(result.data?.createOperation?.message || 'Error al guardar la orden', 'error');
 			}
 		} catch (error: any) {
 			console.error('Error al guardar la orden:', error);
-			setSaveError(error.message || 'Error al guardar la orden');
-			setTimeout(() => setSaveError(null), 3000);
+			showToast(error.message || 'Error al guardar la orden', 'error');
 		} finally {
 			setIsSaving(false);
 		}
@@ -932,19 +924,16 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	// Función para imprimir precuenta
 	const handlePrecuenta = async () => {
 		if (!existingOperation || !table?.id || !companyData?.branch.id) {
-			setSaveError('No hay una orden disponible para imprimir precuenta');
-			setTimeout(() => setSaveError(null), 3000);
+			showToast('No hay una orden disponible para imprimir precuenta', 'error');
 			return;
 		}
 
 		if (existingOperation.status === 'COMPLETED') {
-			setSaveError('Esta orden ya ha sido completada');
-			setTimeout(() => setSaveError(null), 3000);
+			showToast('Esta orden ya ha sido completada', 'error');
 			return;
 		}
 
 		setIsPrintingPrecuenta(true);
-		setSaveError(null);
 
 		try {
 			// Obtener deviceId o MAC address
@@ -1041,18 +1030,15 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					onSuccess();
 				}
 
-				setSaveError(null);
 				// Mostrar mensaje de éxito (sin mencionar liberación de mesa)
 				// El mensaje del backend podría decir que liberó la mesa, pero no es correcto para precuenta
 				showToast('Precuenta enviada a imprimir exitosamente. Estado de mesa actualizado a TO_PAY', 'success');
 			} else {
-				setSaveError(result.data?.printAccount?.message || 'Error al imprimir la precuenta');
-				setTimeout(() => setSaveError(null), 3000);
+				showToast(result.data?.printAccount?.message || 'Error al imprimir la precuenta', 'error');
 			}
 		} catch (err: any) {
 			console.error('Error al imprimir precuenta:', err);
-			setSaveError(err.message || 'Error al imprimir la precuenta');
-			setTimeout(() => setSaveError(null), 3000);
+			showToast(err.message || 'Error al imprimir la precuenta', 'error');
 		} finally {
 			setIsPrintingPrecuenta(false);
 		}
@@ -1946,20 +1932,6 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 								</button>
 							)}
 						</div>
-						{saveError && (
-							<div style={{
-								marginTop: '0.5rem',
-								padding: '0.75rem',
-								background: '#fed7d7',
-								border: '1px solid #feb2b2',
-								borderRadius: 12,
-								color: '#742a2a',
-								fontSize: '0.875rem',
-								fontWeight: 600
-							}}>
-								❌ {saveError}
-							</div>
-						)}
 					</div>
 				</div>
 

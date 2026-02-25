@@ -97,7 +97,8 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
 
   const { data: categoriesData } = useQuery(GET_CATEGORIES_BY_BRANCH, {
     variables: { branchId: branchId! },
-    skip: !branchId
+    skip: !branchId,
+    fetchPolicy: 'network-only'
   });
 
   // Obtener productos según la query usada
