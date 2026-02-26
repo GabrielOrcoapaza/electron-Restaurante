@@ -94,13 +94,15 @@ const Inventories: React.FC = () => {
     GET_PRODUCTS_WITH_STOCK,
     {
       variables: { branchId: branchId! },
-      skip: !branchId
+      skip: !branchId,
+      fetchPolicy: 'network-only',
     }
   );
 
   const { data: categoriesData } = useQuery(GET_CATEGORIES_BY_BRANCH, {
     variables: { branchId: branchId! },
-    skip: !branchId
+    skip: !branchId,
+    fetchPolicy: 'network-only',
   });
 
   // Productos de la categoría seleccionada (usa el backend para saber qué productos pertenecen a la categoría)
@@ -110,7 +112,8 @@ const Inventories: React.FC = () => {
       productType: undefined,
       categoryId: selectedCategory || undefined
     },
-    skip: !branchId || !selectedCategory
+    skip: !branchId || !selectedCategory,
+    fetchPolicy: 'network-only',
   });
 
   const allProducts: Product[] = productsData?.productsByBranch || [];

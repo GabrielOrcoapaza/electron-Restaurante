@@ -127,18 +127,20 @@ const Delivery: React.FC = () => {
         fetchPolicy: 'network-only'
     });
 
-    // Obtener documentos con sus series
+    // Obtener documentos con sus series (siempre del servidor, no caché)
     const { data: documentsData } = useQuery(GET_DOCUMENTS_WITH_SERIALS, {
         variables: { branchId: companyData?.branch.id },
-        skip: !companyData?.branch.id
+        skip: !companyData?.branch.id,
+        fetchPolicy: 'network-only'
     });
 
     const documents = documentsData?.documentsByBranch || [];
 
-    // Obtener cajas registradoras
+    // Obtener cajas registradoras (siempre del servidor, no caché)
     const { data: cashRegistersData } = useQuery(GET_CASH_REGISTERS_BY_BRANCH, {
         variables: { branchId: companyData?.branch.id },
-        skip: !companyData?.branch.id
+        skip: !companyData?.branch.id,
+        fetchPolicy: 'network-only'
     });
 
     const cashRegisters = cashRegistersData?.cashRegistersByBranch || [];

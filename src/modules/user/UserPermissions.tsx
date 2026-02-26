@@ -1,16 +1,10 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_USERS_BY_BRANCH, GET_AVAILABLE_PERMISSIONS } from '../../graphql/queries';
+import { GET_USERS_BY_BRANCH } from '../../graphql/queries';
 import { SET_USER_PERMISSIONS } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
-
-interface Permission {
-  id: string;
-  code: string;
-  name?: string;
-  description?: string;
-}
+import { getPermissionOptions } from '../../constants/permissionLabels';
 
 interface User {
   id: string;
@@ -43,12 +37,8 @@ const UserPermissions: React.FC = () => {
     fetchPolicy: 'network-only'
   });
 
-  const { data: permissionsData, loading: permissionsLoading, error: permissionsError } = useQuery(GET_AVAILABLE_PERMISSIONS, {
-    skip: !isAdmin,
-    fetchPolicy: 'network-only'
-  });
-
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const permissionOptions = getPermissionOptions();
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -72,10 +62,6 @@ const UserPermissions: React.FC = () => {
   });
 
   const users: User[] = usersData?.usersByBranch || usersData?.users_by_branch || [];
-  const availablePermissions: Permission[] =
-    permissionsData?.available_permissions ||
-    permissionsData?.availablePermissions ||
-    [];
 
   const openModal = (u: User) => {
     setSelectedUser(u);
@@ -254,42 +240,38 @@ const UserPermissions: React.FC = () => {
                 {message.text}
               </div>
             )}
-            {permissionsLoading ? (
-              <p style={{ color: '#64748b', margin: 0 }}>Cargando permisos...</p>
-            ) : permissionsError ? (
-              <p style={{ color: '#dc2626', margin: 0 }}>No se pudieron cargar los permisos. Verifica que el backend exponga la query available_permissions.</p>
-            ) : availablePermissions.length === 0 ? (
-              <p style={{ color: '#64748b', margin: 0 }}>No hay permisos disponibles definidos en el sistema.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                {availablePermissions.map((perm) => (
-                  <label
-                    key={perm.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.75rem',
-                      padding: '0.5rem 0.75rem',
-                      borderRadius: '8px',
-                      backgroundColor: selectedCodes.has(perm.code) ? '#eff6ff' : '#f8fafc',
-                      border: `1px solid ${selectedCodes.has(perm.code) ? '#93c5fd' : '#e2e8f0'}`,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedCodes.has(perm.code)}
-                      onChange={() => togglePermission(perm.code)}
-                      style={{ width: '1rem', height: '1rem' }}
-                    />
-                    <span style={{ fontWeight: 500, color: '#334155' }}>{perm.code}</span>
-                    {perm.name && (
-                      <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>— {perm.name}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+              {permissionOptions.map((perm) => (
+                <label
+                  key={perm.code}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.75rem',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '8px',
+                    backgroundColor: selectedCodes.has(perm.code) ? '#eff6ff' : '#f8fafc',
+                    border: `1px solid ${selectedCodes.has(perm.code) ? '#93c5fd' : '#e2e8f0'}`,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCodes.has(perm.code)}
+                    onChange={() => togglePermission(perm.code)}
+                    style={{ width: '1rem', height: '1rem', marginTop: '0.2rem', flexShrink: 0 }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontWeight: 500, color: '#334155' }}>{perm.label}</span>
+                    {perm.description && (
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
+                        {perm.description}
+                      </div>
                     )}
-                  </label>
-                ))}
-              </div>
-            )}
+                  </div>
+                </label>
+              ))}
+            </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               <button
                 type="button"
@@ -311,7 +293,7 @@ const UserPermissions: React.FC = () => {
               <button
                 type="button"
                 onClick={savePermissions}
-                disabled={saving || permissionsLoading}
+                disabled={saving}
                 style={{
                   padding: '0.5rem 1rem',
                   borderRadius: '8px',

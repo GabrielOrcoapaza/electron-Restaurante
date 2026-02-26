@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
+import { useUserPermissions } from '../hooks/useUserPermissions';
 import { WebSocketProvider, useWebSocket } from '../context/WebSocketContext';
 import Floor from '../modules/sales/floor';
 import CashPay from '../modules/cash/cashPay';
@@ -90,9 +91,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const headerPadding = isSmall ? '0.75rem 1rem' : isMedium ? '1rem 1.25rem' : isSmallDesktop ? '1rem 1.5rem' : isMediumDesktop ? '1rem 1.75rem' : '1rem 2rem';
   const headerFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : '1.5rem';
   const headerSubFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
-  // Verificar si el usuario es mozo para establecer la vista inicial
-  const isWaiterInitial = user?.role?.toUpperCase() === 'WAITER';
-  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'permissions' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration' | 'delivery'>(isWaiterInitial ? 'floors' : 'dashboard');
+  const { hasPermission } = useUserPermissions();
+  const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'permissions' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration' | 'delivery'>('dashboard');
   const [configurationTab, setConfigurationTab] = useState<'category' | 'subcategory' | 'observation'>('category');
   const [reportType, setReportType] = useState<'sales' | 'cancellation' | 'productsSold' | 'employees'>('sales');
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
@@ -389,17 +389,56 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                               : 'Selecciona una mesa para revisar su orden.';
 
   const isFloorsSection = currentView === 'floors' || currentView === 'cash';
-
-  // Verificar si el usuario es mozo (WAITER) o administrador (ADMIN)
-  const isWaiter = user?.role?.toUpperCase() === 'WAITER';
   const isAdmin = user?.role?.toUpperCase() === 'ADMIN';
 
-  // Si el usuario es mozo, asegurar que solo vea mesas
+  // Permisos para visibilidad del menú (ADMIN ve todo)
+  const canSeeDashboard = isAdmin || hasPermission('branch.view');
+  const canSeeProducts = isAdmin || hasPermission('products.view');
+  const canSeeFloors = isAdmin || hasPermission('orders.create');
+  const canSeeDelivery = isAdmin || hasPermission('point_of_sale');
+  const canSeeConfiguration = isAdmin || hasPermission('config.manage');
+  const canSeeMessages = isAdmin || hasPermission('messages.view');
+  const canSeeEmployees = isAdmin || hasPermission('users.manage');
+  const canSeePermissions = isAdmin || hasPermission('users.manage');
+  const canSeePurchase = isAdmin || hasPermission('purchases.manage');
+  const canSeeCashs = isAdmin || hasPermission('sales.close');
+  const canSeeInventory = isAdmin || hasPermission('products.view');
+  const canSeeKardex = isAdmin || hasPermission('kardex.view');
+  const canSeeReports = isAdmin || hasPermission('reports.sales') || hasPermission('reports.cancellations') || hasPermission('reports.sold_products') || hasPermission('reports.user_sales');
+
+  // Si la vista actual no está permitida, redirigir a la primera permitida
   useEffect(() => {
-    if (isWaiter && currentView !== 'floors' && currentView !== 'cash') {
-      setCurrentView('floors');
+    const allowed = (v: typeof currentView) =>
+      (v === 'dashboard' && canSeeDashboard) ||
+      (v === 'floors' && canSeeFloors) ||
+      (v === 'cash' && canSeeFloors) ||
+      (v === 'delivery' && canSeeDelivery) ||
+      (v === 'products' && canSeeProducts) ||
+      (v === 'configuration' && canSeeConfiguration) ||
+      (v === 'messages' && canSeeMessages) ||
+      (v === 'employees' && canSeeEmployees) ||
+      (v === 'permissions' && canSeePermissions) ||
+      (v === 'purchase' && canSeePurchase) ||
+      (v === 'cashs' && canSeeCashs) ||
+      (v === 'inventory' && canSeeInventory) ||
+      (v === 'kardex' && canSeeKardex) ||
+      (v === 'reports' && canSeeReports);
+    if (!allowed(currentView)) {
+      if (canSeeDashboard) setCurrentView('dashboard');
+      else if (canSeeFloors) setCurrentView('floors');
+      else if (canSeeDelivery) setCurrentView('delivery');
+      else if (canSeeProducts) setCurrentView('products');
+      else if (canSeeCashs) setCurrentView('cashs');
+      else if (canSeeMessages) setCurrentView('messages');
+      else if (canSeeEmployees) setCurrentView('employees');
+      else if (canSeePermissions) setCurrentView('permissions');
+      else if (canSeePurchase) setCurrentView('purchase');
+      else if (canSeeInventory) setCurrentView('inventory');
+      else if (canSeeKardex) setCurrentView('kardex');
+      else if (canSeeReports) setCurrentView('reports');
+      else if (canSeeConfiguration) setCurrentView('configuration');
     }
-  }, [isWaiter, currentView]);
+  }, [currentView, canSeeDashboard, canSeeFloors, canSeeDelivery, canSeeProducts, canSeeConfiguration, canSeeMessages, canSeeEmployees, canSeePermissions, canSeePurchase, canSeeCashs, canSeeInventory, canSeeKardex, canSeeReports]);
 
   return (
     <div style={{
@@ -565,8 +604,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
             flexDirection: 'column',
             gap: '0.25rem'
           }}>
-            {/* Solo mostrar Dashboard si NO es mozo */}
-            {!isWaiter && (
+            {canSeeDashboard && (
               <button
                 onClick={() => handleMenuClick('dashboard')}
                 style={{
@@ -602,8 +640,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               </button>
             )}
 
-            {/* Solo mostrar Productos si NO es mozo */}
-            {!isWaiter && (
+            {canSeeProducts && (
               <button
                 onClick={() => handleMenuClick('products')}
                 style={{
@@ -639,7 +676,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               </button>
             )}
 
-            {/* Mesas - siempre visible para todos */}
+            {canSeeFloors && (
             <button
               onClick={() => handleMenuClick('floors')}
               style={{
@@ -673,9 +710,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               <span style={{ fontSize: '1.25rem' }}>🪑</span>
               {sidebarOpen && 'Mesas'}
             </button>
+            )}
 
-            {/* Delivery - visible para todos excepto mozos */}
-            {!isWaiter && (
+            {canSeeDelivery && (
               <button
                 onClick={() => handleMenuClick('delivery')}
                 style={{
@@ -711,8 +748,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               </button>
             )}
 
-            {/* Solo mostrar Configuración si NO es mozo */}
-            {!isWaiter && (
+            {canSeeConfiguration && (
               <button
                 onClick={() => handleMenuClick('configuration')}
                 style={{
@@ -748,8 +784,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               </button>
             )}
 
-            {/* Solo mostrar Mensajes si NO es mozo */}
-            {!isWaiter && (
+            {canSeeMessages && (
               <button
                 onClick={() => handleMenuClick('messages')}
                 style={{
@@ -785,8 +820,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               </button>
             )}
 
-            {/* Solo mostrar Empleados si NO es mozo */}
-            {!isWaiter && (
+            {canSeeEmployees && (
               <button
                 onClick={() => handleMenuClick('employees')}
                 style={{
@@ -822,8 +856,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               </button>
             )}
 
-            {/* Solo mostrar Permisos si es ADMIN */}
-            {isAdmin && (
+            {canSeePermissions && (
               <button
                 onClick={() => handleMenuClick('permissions')}
                 style={{
@@ -859,8 +892,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               </button>
             )}
 
-            {/* Solo mostrar Compras si NO es mozo */}
-            {!isWaiter && (
+            {canSeePurchase && (
               <button
                 onClick={() => handleMenuClick('purchase')}
                 style={{
@@ -896,8 +928,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               </button>
             )}
 
-            {/* Solo mostrar Caja si NO es mozo */}
-            {!isWaiter && (
+            {canSeeCashs && (
               <button
                 onClick={() => handleMenuClick('cashs')}
                 style={{
@@ -933,8 +964,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               </button>
             )}
 
-            {/* Solo mostrar Inventario si NO es mozo */}
-            {!isWaiter && (
+            {canSeeInventory && (
               <button
                 onClick={() => handleMenuClick('inventory')}
                 style={{
@@ -970,8 +1000,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               </button>
             )}
 
-            {/* Solo mostrar Kardex si NO es mozo */}
-            {!isWaiter && (
+            {canSeeKardex && (
               <button
                 onClick={() => handleMenuClick('kardex')}
                 style={{
@@ -1007,8 +1036,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               </button>
             )}
 
-            {/* Solo mostrar Reportes si NO es mozo */}
-            {!isWaiter && (
+            {canSeeReports && (
               <button
                 onClick={() => handleMenuClick('reports')}
                 style={{
@@ -1430,30 +1458,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
           minWidth: 0, // Permite que el contenido se comprima si es necesario
           position: 'relative'
         }}>
-          {/* Si es mozo, solo mostrar floors y cash */}
-          {isWaiter ? (
-            <>
-              {currentView === 'floors' && <Floor onOpenCash={handleOpenCash} />}
-              {currentView === 'cash' && (
-                <CashPay
-                  table={selectedCashTable}
-                  onBack={handleBackFromCash}
-                  onPaymentSuccess={() => {
-                    // El WebSocket debería actualizar automáticamente las mesas
-                    // pero podemos forzar un refetch si es necesario
-                    console.log('✅ Pago procesado exitosamente');
-                  }}
-                  onTableChange={(newTable) => {
-                    // Actualizar la mesa seleccionada cuando se cambia la mesa
-                    console.log('🔄 Mesa cambiada a:', newTable.name);
-                    setSelectedCashTable(newTable);
-                  }}
-                />
-              )}
-            </>
-          ) : (
-            <>
-              {currentView === 'dashboard' && children}
+          {currentView === 'dashboard' && children}
               {currentView === 'floors' && <Floor onOpenCash={handleOpenCash} />}
               {currentView === 'cash' && (
                 <CashPay
@@ -1668,8 +1673,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                 </div>
               )}
               {currentView === 'delivery' && <Delivery />}
-            </>
-          )}
         </main>
       </div>
     </div>

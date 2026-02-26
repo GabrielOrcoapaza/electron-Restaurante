@@ -4,6 +4,7 @@ import { GET_USERS_BY_BRANCH } from '../../graphql/queries';
 import { SET_USER_PERMISSIONS } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
+import { getPermissionOptions } from '../../constants/permissionLabels';
 
 interface User {
   id: string;
@@ -50,9 +51,9 @@ const ListUser: React.FC = () => {
   });
 
   const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<User | null>(null);
-  const [permissionCodes, setPermissionCodes] = useState<string[]>([]);
-  const [newPermissionInput, setNewPermissionInput] = useState('');
+  const [selectedPermissionCodes, setSelectedPermissionCodes] = useState<Set<string>>(new Set());
   const [permissionsMessage, setPermissionsMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const permissionOptions = getPermissionOptions();
 
   const [setUserPermissionsMutation, { loading: savingPermissions }] = useMutation(SET_USER_PERMISSIONS, {
     onCompleted: (res) => {
@@ -62,7 +63,7 @@ const ListUser: React.FC = () => {
         refetch();
         setTimeout(() => {
           setSelectedUserForPermissions(null);
-          setPermissionCodes([]);
+          setSelectedPermissionCodes(new Set());
           setPermissionsMessage(null);
         }, 1500);
       } else {
@@ -76,24 +77,18 @@ const ListUser: React.FC = () => {
 
   const openPermissionsModal = (u: User) => {
     setSelectedUserForPermissions(u);
-    setPermissionCodes(Array.isArray(u.customPermissions) ? [...u.customPermissions] : []);
-    setNewPermissionInput('');
+    const codes = Array.isArray(u.customPermissions) ? u.customPermissions : [];
+    setSelectedPermissionCodes(new Set(codes));
     setPermissionsMessage(null);
   };
 
-  const addPermission = () => {
-    const code = newPermissionInput.trim().toUpperCase();
-    if (!code) return;
-    if (permissionCodes.includes(code)) {
-      setNewPermissionInput('');
-      return;
-    }
-    setPermissionCodes((prev) => [...prev, code]);
-    setNewPermissionInput('');
-  };
-
-  const removePermission = (code: string) => {
-    setPermissionCodes((prev) => prev.filter((c) => c !== code));
+  const togglePermission = (code: string) => {
+    setSelectedPermissionCodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
   };
 
   const savePermissions = () => {
@@ -101,7 +96,7 @@ const ListUser: React.FC = () => {
     setUserPermissionsMutation({
       variables: {
         userId: selectedUserForPermissions.id,
-        permissionCodes
+        permissionCodes: Array.from(selectedPermissionCodes)
       }
     });
   };
@@ -329,7 +324,7 @@ const ListUser: React.FC = () => {
               🔐 Permisos: {selectedUserForPermissions.fullName}
             </h4>
             <p style={{ margin: '0 0 1rem', fontSize: tableFontSize, color: '#64748b' }}>
-              Solo el administrador puede asignar permisos. Lista vacía = usar permisos por defecto del rol.
+              Marca los permisos que tendrá este usuario. Sin marcar ninguno se usan los del rol.
             </p>
             {permissionsMessage && (
               <div style={{
@@ -343,82 +338,37 @@ const ListUser: React.FC = () => {
                 {permissionsMessage.text}
               </div>
             )}
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: tableFontSize, fontWeight: 600, color: '#475569' }}>
-                Códigos de permiso
-              </label>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                <input
-                  type="text"
-                  value={newPermissionInput}
-                  onChange={(e) => setNewPermissionInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPermission())}
-                  placeholder="Ej: REPORTS_VIEW"
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem', maxHeight: '50vh', overflowY: 'auto' }}>
+              {permissionOptions.map((perm) => (
+                <label
+                  key={perm.code}
                   style={{
-                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.75rem',
                     padding: '0.5rem 0.75rem',
-                    border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    fontSize: tableFontSize
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={addPermission}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    fontSize: tableFontSize
+                    backgroundColor: selectedPermissionCodes.has(perm.code) ? '#eff6ff' : '#f8fafc',
+                    border: `1px solid ${selectedPermissionCodes.has(perm.code) ? '#93c5fd' : '#e2e8f0'}`,
+                    cursor: 'pointer'
                   }}
                 >
-                  Agregar
-                </button>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                {permissionCodes.map((code) => (
-                  <span
-                    key={code}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '8px',
-                      backgroundColor: '#e0e7ff',
-                      color: '#3730a3',
-                      fontSize: badgeFontSize,
-                      fontWeight: 600
-                    }}
-                  >
-                    {code}
-                    <button
-                      type="button"
-                      onClick={() => removePermission(code)}
-                      style={{
-                        padding: 0,
-                        margin: 0,
-                        border: 'none',
-                        background: 'none',
-                        cursor: 'pointer',
-                        color: '#6366f1',
-                        fontSize: '1rem',
-                        lineHeight: 1
-                      }}
-                      aria-label={`Quitar ${code}`}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                {permissionCodes.length === 0 && (
-                  <span style={{ fontSize: tableFontSize, color: '#94a3b8' }}>Ninguno (usa defaults del rol)</span>
-                )}
-              </div>
+                  <input
+                    type="checkbox"
+                    checked={selectedPermissionCodes.has(perm.code)}
+                    onChange={() => togglePermission(perm.code)}
+                    style={{ width: '1rem', height: '1rem', marginTop: '0.2rem', flexShrink: 0 }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontWeight: 500, color: '#334155', fontSize: tableFontSize }}>{perm.label}</span>
+                    {perm.description && (
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
+                        {perm.description}
+                      </div>
+                    )}
+                  </div>
+                </label>
+              ))}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               <button

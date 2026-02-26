@@ -152,6 +152,7 @@ const Purchase: React.FC = () => {
   const { data: cashData } = useQuery(GET_CASH_REGISTERS, {
     variables: { branchId: branchId! },
     skip: !branchId,
+    fetchPolicy: 'network-only',
   });
 
   const cashRegisters = cashData?.cashRegistersByBranch || [];

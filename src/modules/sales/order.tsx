@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useUserPermissions } from '../../hooks/useUserPermissions';
 import { useWebSocket } from '../../context/WebSocketContext';
 import { useToast } from '../../context/ToastContext';
 import type { Table } from '../../types/table';
@@ -32,6 +33,7 @@ type OrderItem = {
 
 const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const { companyData, user, deviceId, getDeviceId, getMacAddress, updateTableInContext } = useAuth();
+	const { hasPermission } = useUserPermissions();
 	const { breakpoint } = useResponsive();
 	const { sendMessage } = useWebSocket();
 	const { showToast } = useToast();
@@ -50,10 +52,10 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const gridPadding = isSmall ? '0.6rem' : isMedium ? '0.8rem' : '1rem';
 	const breadcrumbFontSize = isSmall ? '0.75rem' : '0.875rem';
 
-	// Función para verificar si el usuario puede acceder a esta mesa
+	// Función para verificar si el usuario puede acceder a esta mesa (por permisos)
 	const canAccessTable = (): { canAccess: boolean; reason?: string } => {
-		// Los cajeros siempre pueden acceder (para procesar pagos)
-		if (user?.role?.toUpperCase() === 'CASHIER') {
+		// Quien tiene permiso de cobrar (sales.pay) puede acceder para procesar pagos
+		if (hasPermission('sales.pay')) {
 			return { canAccess: true };
 		}
 

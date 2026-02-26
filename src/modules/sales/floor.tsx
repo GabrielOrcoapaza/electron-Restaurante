@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useUserPermissions } from '../../hooks/useUserPermissions';
 import { useWebSocket } from '../../context/WebSocketContext';
 import { useToast } from '../../context/ToastContext';
 import type { Table, ProcessedTableColors } from '../../types/table';
@@ -14,6 +15,7 @@ type FloorProps = {
 
 const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   const { companyData, user } = useAuth();
+  const { hasPermission } = useUserPermissions();
   const { showToast } = useToast();
   const { breakpoint } = useResponsive();
   
@@ -148,10 +150,10 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     setSelectedFloorId('');
   };
 
-  // Función para verificar si el usuario puede acceder a una mesa específica
+  // Función para verificar si el usuario puede acceder a una mesa específica (por permisos)
   const canAccessTable = (table: Table): { canAccess: boolean; reason?: string } => {
-    // Los cajeros siempre pueden acceder (para procesar pagos)
-    if (user?.role?.toUpperCase() === 'CASHIER') {
+    // Quien tiene permiso de cobrar (sales.pay) puede acceder para procesar pagos
+    if (hasPermission('sales.pay')) {
       return { canAccess: true };
     }
 
@@ -205,41 +207,41 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   };
   
 
-  // Colores por defecto según el estado (del modelo Django TableStatusColor)
+  // Colores por defecto según el estado (más fuertes/saturados para mejor visibilidad)
   const DEFAULT_STATUS_COLORS: Record<string, ProcessedTableColors> = {
     'AVAILABLE': {
-      backgroundColor: '#d4edda',
-      borderColor: '#28a745',
-      textColor: '#155724',
-      badgeColor: '#28a745',
+      backgroundColor: '#86efac',
+      borderColor: '#15803d',
+      textColor: '#14532d',
+      badgeColor: '#15803d',
       badgeTextColor: '#ffffff'
     },
     'OCCUPIED': {
-      backgroundColor: '#f8d7da',
-      borderColor: '#dc3545',
-      textColor: '#721c24',
-      badgeColor: '#dc3545',
+      backgroundColor: '#fca5a5',
+      borderColor: '#b91c1c',
+      textColor: '#7f1d1d',
+      badgeColor: '#b91c1c',
       badgeTextColor: '#ffffff'
     },
     'TO_PAY': {
-      backgroundColor: '#fff3cd',
-      borderColor: '#ffc107',
-      textColor: '#856404',
-      badgeColor: '#ffc107',
-      badgeTextColor: '#856404'
+      backgroundColor: '#fde047',
+      borderColor: '#ca8a04',
+      textColor: '#713f12',
+      badgeColor: '#ca8a04',
+      badgeTextColor: '#ffffff'
     },
     'IN_PROCESS': {
-      backgroundColor: '#d1ecf1',
-      borderColor: '#17a2b8',
-      textColor: '#0c5460',
-      badgeColor: '#17a2b8',
+      backgroundColor: '#67e8f9',
+      borderColor: '#0e7490',
+      textColor: '#164e63',
+      badgeColor: '#0e7490',
       badgeTextColor: '#ffffff'
     },
     'MAINTENANCE': {
-      backgroundColor: '#e2e3e5',
-      borderColor: '#6c757d',
-      textColor: '#383d41',
-      badgeColor: '#6c757d',
+      backgroundColor: '#cbd5e1',
+      borderColor: '#475569',
+      textColor: '#1e293b',
+      badgeColor: '#475569',
       badgeTextColor: '#ffffff'
     }
   };
