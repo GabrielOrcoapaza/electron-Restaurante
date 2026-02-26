@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface Category {
   id: string;
@@ -15,7 +15,17 @@ interface CategoryListProps {
   onEdit?: (category: Category) => void;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 const CategoryList: React.FC<CategoryListProps> = ({ categories, onEdit }) => {
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(categories.length / ITEMS_PER_PAGE));
+  const categoriesPaginated = categories.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    setPage((p) => Math.min(p, totalPages));
+  }, [totalPages, categories.length]);
+
   return (
     <div
       style={{
@@ -34,19 +44,20 @@ const CategoryList: React.FC<CategoryListProps> = ({ categories, onEdit }) => {
           No hay categorías registradas.
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ textAlign: 'left', padding: '0.65rem' }}>Nombre</th>
-                <th style={{ textAlign: 'left', padding: '0.65rem' }}>Descripción</th>
-                <th style={{ textAlign: 'center', padding: '0.65rem' }}>Orden</th>
-                <th style={{ textAlign: 'center', padding: '0.65rem' }}>Estado</th>
-                {onEdit && <th style={{ textAlign: 'center', padding: '0.65rem', width: '80px' }}>Acción</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {categories.map((category) => (
+        <>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ textAlign: 'left', padding: '0.65rem' }}>Nombre</th>
+                  <th style={{ textAlign: 'left', padding: '0.65rem' }}>Descripción</th>
+                  <th style={{ textAlign: 'center', padding: '0.65rem' }}>Orden</th>
+                  <th style={{ textAlign: 'center', padding: '0.65rem' }}>Estado</th>
+                  {onEdit && <th style={{ textAlign: 'center', padding: '0.65rem', width: '80px' }}>Acción</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {categoriesPaginated.map((category) => (
                 <tr key={category.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '0.65rem', color: '#334155', fontWeight: 600 }}>{category.name}</td>
                   <td style={{ padding: '0.65rem', color: '#64748b' }}>{category.description || '-'}</td>
@@ -87,9 +98,59 @@ const CategoryList: React.FC<CategoryListProps> = ({ categories, onEdit }) => {
                   )}
                 </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
+              </tbody>
+            </table>
+          </div>
+          {totalPages > 1 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.75rem',
+              padding: '0.75rem 0',
+              borderTop: '1px solid #e2e8f0',
+              marginTop: '0.5rem',
+            }}>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px',
+                  background: page <= 1 ? '#f1f5f9' : 'white',
+                  color: page <= 1 ? '#94a3b8' : '#475569',
+                  cursor: page <= 1 ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                }}
+              >
+                Anterior
+              </button>
+              <span style={{ fontSize: '0.8125rem', color: '#64748b', fontWeight: 500 }}>
+                Página {page} de {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px',
+                  background: page >= totalPages ? '#f1f5f9' : 'white',
+                  color: page >= totalPages ? '#94a3b8' : '#475569',
+                  cursor: page >= totalPages ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                }}
+              >
+                Siguiente
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

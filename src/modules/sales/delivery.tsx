@@ -17,6 +17,7 @@ import {
 } from '../../graphql/queries';
 import { CREATE_PERSON } from '../../graphql/mutations';
 import ModalObservation from './modalObservation';
+import PayDeliveryModal from './payDelivery';
 
 // Tipo para los ítems del carrito
 type CartItem = {
@@ -63,8 +64,6 @@ const Delivery: React.FC = () => {
     const cardPadding = isSmall ? '0.75rem' : isMedium ? '1rem' : '1.25rem';
     const cartItemFontSize = isSmall ? '0.8125rem' : '0.875rem';
     const cartItemPadding = isSmall ? '0.35rem 0.5rem' : isMedium ? '0.45rem 0.55rem' : '0.6rem 0.75rem';
-    const paymentFormGap = isNarrow ? '0.5rem' : '0.65rem';
-    const inputPadding = isSmall ? '0.35rem' : '0.45rem';
 
     // IGV de la sucursal
     const igvPercentageFromBranch = Number(companyData?.branch?.igvPercentage) || 10.5;
@@ -91,6 +90,8 @@ const Delivery: React.FC = () => {
     // Descuento: monto fijo (S/) y/o porcentaje (%)
     const [discountAmount, setDiscountAmount] = useState<number>(0);
     const [discountPercent, setDiscountPercent] = useState<number>(0);
+    // Modal de información de pago (se abre al hacer click en Procesar Venta)
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
 
     // Mutación para crear venta
     const [createSaleCarryOutMutation] = useMutation(CREATE_SALE_CARRY_OUT);
@@ -481,6 +482,7 @@ const Delivery: React.FC = () => {
 
             if (result.data?.createSaleCarryOut?.success) {
                 showToast('Venta procesada exitosamente', 'success');
+                setShowPaymentModal(false);
 
                 // Limpiar formulario
                 setCartItems([]);
@@ -1240,274 +1242,9 @@ const Delivery: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Formulario de pago - Reducido para dar espacio */}
-                <div style={{
-                    flex: isNarrow ? 'none' : '1 1 0%',
-                    backgroundColor: 'white',
-                    borderRadius: '12px',
-                    padding: isMedium ? '0.75rem' : '1rem',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                    overflowY: 'auto',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: paymentFormGap
-                }}>
-                    <h3 style={{
-                        fontSize: isMedium ? '0.8125rem' : '0.875rem',
-                        fontWeight: '600',
-                        color: '#2d3748',
-                        margin: 0,
-                        marginBottom: '0.25rem'
-                    }}>
-                        Información de Pago
-                    </h3>
-                    {/* Contenedor compacto para los campos */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: paymentFormGap }}>
-                        {/* Cliente (igual que cashPay: búsqueda, dropdown, SUNAT) */}
-                        <div>
-                            <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>
-                                Cliente (opcional)
-                            </label>
-                            <div style={{ position: 'relative' }}>
-                                <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.35rem', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', overflow: 'hidden' }}>
-                                    <input
-                                        type="text"
-                                        value={personSearchTerm}
-                                        onChange={(e) => {
-                                            setPersonSearchTerm(e.target.value);
-                                            setSelectedPerson(null);
-                                        }}
-                                        placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'}
-                                        disabled={clientsLoading || isSaving}
-                                        style={{
-                                            flex: 1,
-                                            padding: inputPadding,
-                                            border: 'none',
-                                            fontSize: '0.75rem',
-                                            backgroundColor: 'transparent',
-                                            outline: 'none',
-                                            boxSizing: 'border-box',
-                                            cursor: clientsLoading || isSaving ? 'not-allowed' : 'text'
-                                        }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const term = (personSearchTerm || '').trim().replace(/\s/g, '');
-                                            const validDoc = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
-                                            if (validDoc) {
-                                                handleSearchSunat();
-                                            } else {
-                                                showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.', 'warning');
-                                            }
-                                        }}
-                                        disabled={clientsLoading || sunatSearchLoading || isSaving}
-                                        title="Buscar en SUNAT"
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            padding: '0 0.5rem',
-                                            border: 'none',
-                                            background: sunatSearchLoading ? '#e2e8f0' : '#0d9488',
-                                            color: 'white',
-                                            cursor: clientsLoading || sunatSearchLoading || isSaving ? 'not-allowed' : 'pointer',
-                                            opacity: clientsLoading || sunatSearchLoading || isSaving ? 0.7 : 1
-                                        }}
-                                    >
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <circle cx="11" cy="11" r="8" />
-                                            <path d="m21 21-4.35-4.35" />
-                                        </svg>
-                                    </button>
-                                </div>
-                                {personSearchTerm && !selectedPerson && filteredClients.length > 0 && (
-                                    <div style={{
-                                        position: 'absolute',
-                                        top: '100%',
-                                        left: 0,
-                                        right: 0,
-                                        marginTop: '0.25rem',
-                                        maxHeight: '140px',
-                                        overflowY: 'auto',
-                                        border: '1px solid #e5e7eb',
-                                        borderRadius: '6px',
-                                        backgroundColor: 'white',
-                                        boxShadow: '0 4px 6px rgba(0,0,0,0.07)',
-                                        zIndex: 10
-                                    }}>
-                                        {!isFactura && (
-                                            <div
-                                                onClick={() => { setSelectedPerson(null); setPersonSearchTerm(''); }}
-                                                style={{
-                                                    padding: '0.4rem 0.6rem',
-                                                    cursor: 'pointer',
-                                                    borderBottom: '1px solid #f1f5f9',
-                                                    fontSize: '0.75rem',
-                                                    color: '#64748b'
-                                                }}
-                                            >
-                                                Sin cliente (Consumidor final)
-                                            </div>
-                                        )}
-                                        {filteredClients.map((client: any) => (
-                                            <div
-                                                key={client.id}
-                                                onClick={() => {
-                                                    setSelectedPerson({
-                                                        id: client.id,
-                                                        name: client.name || '',
-                                                        documentType: client.documentType || '',
-                                                        documentNumber: client.documentNumber || ''
-                                                    });
-                                                    setPersonSearchTerm(client.name || '');
-                                                }}
-                                                style={{
-                                                    padding: '0.4rem 0.6rem',
-                                                    cursor: 'pointer',
-                                                    borderBottom: '1px solid #f1f5f9',
-                                                    fontSize: '0.75rem'
-                                                }}
-                                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#f7fafc'; }}
-                                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
-                                            >
-                                                <div style={{ fontWeight: 600 }}>{client.name}</div>
-                                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{client.documentType}: {client.documentNumber}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                {personSearchTerm && !selectedPerson && !clientsLoading && filteredClients.length === 0 && (
-                                    <div style={{ marginTop: '0.25rem' }}>
-                                        <div style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: '0.35rem' }}>
-                                            {isFactura ? 'No hay clientes con RUC' : 'No se encontraron clientes'}
-                                        </div>
-                                        {(() => {
-                                            const term = (personSearchTerm || '').trim().replace(/\s/g, '');
-                                            const canSearchSunat = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
-                                            return (
-                                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                                                    {canSearchSunat ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleSearchSunat}
-                                                            disabled={sunatSearchLoading || isSaving}
-                                                            style={{
-                                                                padding: '0.35rem 0.6rem',
-                                                                fontSize: '0.7rem',
-                                                                fontWeight: 600,
-                                                                color: '#0f766e',
-                                                                backgroundColor: '#ccfbf1',
-                                                                border: '1px solid #99f6e4',
-                                                                borderRadius: '6px',
-                                                                cursor: sunatSearchLoading || isSaving ? 'not-allowed' : 'pointer',
-                                                                opacity: sunatSearchLoading || isSaving ? 0.7 : 1
-                                                            }}
-                                                        >
-                                                            {sunatSearchLoading ? 'Buscando en SUNAT...' : '🔍 Buscar en SUNAT'}
-                                                        </button>
-                                                    ) : (
-                                                        <span>Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse el botón de lupa para traer el cliente desde SUNAT.</span>
-                                                    )}
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Fila: Documento y Serie */}
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <div style={{ flex: 2 }}>
-                                <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Tipo Documento *</label>
-                                <select
-                                    value={selectedDocument}
-                                    onChange={(e) => {
-                                        setSelectedDocument(e.target.value);
-                                        setSelectedSerial('');
-                                    }}
-                                    style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
-                                >
-                                    <option value="..."></option>
-                                    {documents.map((doc: any) => (
-                                        <option key={doc.id} value={doc.id}>{doc.description}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            {selectedDocument && (
-                                <div style={{ flex: 1 }}>
-                                    <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Serie *</label>
-                                    <select
-                                        value={selectedSerial}
-                                        onChange={(e) => setSelectedSerial(e.target.value)}
-                                        style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
-                                    >
-                                        <option value="">...</option>
-                                        {serials.map((serial: any) => (
-                                            <option key={serial.id} value={serial.serial}>{serial.serial}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Fila: Caja y Método */}
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <div style={{ flex: 1 }}>
-                                <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Caja *</label>
-                                <select
-                                    value={selectedCashRegister}
-                                    onChange={(e) => setSelectedCashRegister(e.target.value)}
-                                    style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
-                                >
-                                    <option value="">Seleccionar...</option>
-                                    {cashRegisters.map((cashRegister: any) => (
-                                        <option key={cashRegister.id} value={cashRegister.id}>{cashRegister.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Método *</label>
-                                <select
-                                    value={paymentMethod}
-                                    onChange={(e) => setPaymentMethod(e.target.value)}
-                                    style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
-                                >
-                                    <option value="CASH">Efectivo</option>
-                                    <option value="CARD">Tarjeta</option>
-                                    <option value="TRANSFER">Transferencia</option>
-                                    <option value="YAPE">Yape</option>
-                                    <option value="PLIN">Plin</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Monto Pagado */}
-                        <div>
-                            <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Monto Pagado *</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                placeholder="0.00"
-                                value={paidAmount}
-                                onChange={(e) => setPaidAmount(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    padding: inputPadding,
-                                    border: '1px solid #e2e8f0',
-                                    borderRadius: '6px',
-                                    fontSize: '0.75rem',
-                                    boxSizing: 'border-box'
-                                }}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Botón procesar fuera de los cards para visibilidad total */}
+                {/* Botón procesar: abre modal de información de pago */}
                 <button
-                    onClick={handleProcessSale}
+                    onClick={() => setShowPaymentModal(true)}
                     disabled={isSaving || cartItems.length === 0}
                     style={{
                         width: '100%',
@@ -1527,6 +1264,40 @@ const Delivery: React.FC = () => {
                     {isSaving ? 'Procesando...' : 'Procesar Venta'}
                 </button>
             </div>
+
+            {/* Modal Información de Pago - componente en payDelivery.tsx */}
+            {showPaymentModal && (
+                <PayDeliveryModal
+                    isOpen={showPaymentModal}
+                    onClose={() => setShowPaymentModal(false)}
+                    cartTotal={cartTotal}
+                    isFactura={isFactura}
+                    personSearchTerm={personSearchTerm}
+                    setPersonSearchTerm={setPersonSearchTerm}
+                    selectedPerson={selectedPerson}
+                    setSelectedPerson={setSelectedPerson}
+                    filteredClients={filteredClients}
+                    clientsLoading={clientsLoading}
+                    sunatSearchLoading={sunatSearchLoading}
+                    isSaving={isSaving}
+                    onSearchSunat={handleSearchSunat}
+                    showToast={showToast}
+                    documents={documents}
+                    selectedDocument={selectedDocument}
+                    setSelectedDocument={setSelectedDocument}
+                    serials={serials}
+                    selectedSerial={selectedSerial}
+                    setSelectedSerial={setSelectedSerial}
+                    cashRegisters={cashRegisters}
+                    selectedCashRegister={selectedCashRegister}
+                    setSelectedCashRegister={setSelectedCashRegister}
+                    paymentMethod={paymentMethod}
+                    setPaymentMethod={setPaymentMethod}
+                    paidAmount={paidAmount}
+                    setPaidAmount={setPaidAmount}
+                    onConfirm={handleProcessSale}
+                />
+            )}
 
             {showObservationModal && (() => {
                 const item = cartItems.find(i => i.id === showObservationModal);

@@ -64,7 +64,6 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     }
   `;
   const [selectedFloorId, setSelectedFloorId] = useState<string>('');
-  const [showTables, setShowTables] = useState(false);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showOrder, setShowOrder] = useState(false);
@@ -143,12 +142,10 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
 
   const handleFloorSelect = (floorId: string) => {
     setSelectedFloorId(floorId);
-    setShowTables(true);
   };
 
   const handleBackToFloors = () => {
     setSelectedFloorId('');
-    setShowTables(false);
   };
 
   // Función para verificar si el usuario puede acceder a una mesa específica
@@ -318,155 +315,6 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     );
   }
 
-  if (!showTables) {
-    return (
-        <div style={{
-          height: '100%',
-          width: '100%',
-          padding: '1rem',
-          boxSizing: 'border-box'
-        }}>
-        <div style={{
-          backgroundColor: 'white',
-          borderRadius: '12px',
-          padding: '2rem',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-          border: '1px solid #e2e8f0'
-        }}>
-          <h2 style={{
-            fontSize: titleFontSize,
-            fontWeight: '700',
-            color: '#2d3748',
-            marginBottom: '1rem',
-            textAlign: 'center'
-          }}>
-            Seleccionar Piso
-          </h2>
-          
-          <p style={{
-            fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem',
-            color: '#718096',
-            marginBottom: '2rem',
-            textAlign: 'center'
-          }}>
-            Elige un piso para ver sus mesas
-          </p>
-
-          {floorsData?.floorsByBranch?.length === 0 ? (
-            <div style={{
-              textAlign: 'center',
-              padding: isSmall ? '2rem' : isMedium ? '2.5rem' : isSmallDesktop ? '2.5rem' : '3rem',
-              color: '#718096'
-            }}>
-              <div style={{ fontSize: isSmall ? '2rem' : isMedium ? '2.5rem' : isSmallDesktop ? '2.5rem' : '3rem', marginBottom: '1rem' }}>🏢</div>
-              <p style={{ fontSize: isSmall ? '0.9375rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '1.125rem', margin: 0 }}>
-                No hay pisos disponibles para esta sucursal
-              </p>
-            </div>
-          ) : (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(10, 1fr)',
-              gap: isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.75rem' : '0.875rem',
-              width: '100%',
-              overflow: 'hidden',
-              boxSizing: 'border-box'
-            }}>
-              {floorsData?.floorsByBranch?.map((floor: any) => (
-                <div
-                  key={floor.id}
-                  onClick={() => handleFloorSelect(floor.id)}
-                  title={floor.name}
-                  style={{
-                    backgroundColor: '#f7fafc',
-                    border: '1.5px solid #e2e8f0',
-                    borderRadius: '8px',
-                    padding: isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.75rem' : '0.875rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    textAlign: 'center',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    minWidth: 0,
-                    boxSizing: 'border-box'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.borderColor = '#667eea';
-                    e.currentTarget.style.backgroundColor = '#f0f4ff';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 8px 25px rgba(102, 126, 234, 0.15)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.borderColor = '#e2e8f0';
-                    e.currentTarget.style.backgroundColor = '#f7fafc';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <div style={{
-                    fontSize: isSmall ? '1rem' : isMedium ? '1.125rem' : isSmallDesktop ? '1.25rem' : '1.375rem',
-                    marginBottom: '0.25rem',
-                    lineHeight: 1
-                  }}>
-                    🏢
-                  </div>
-                  
-                  <h3 style={{
-                    fontSize: isSmall ? '0.5600rem' : isMedium ? '0.600rem' : isSmallDesktop ? '0.6800rem' : '0.75rem',
-                    fontWeight: '600',
-                    color: '#2d3748',
-                    margin: '0 0 0.125rem 0',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'normal',
-                    width: '100%',
-                    lineHeight: 1.15,
-                    wordBreak: 'break-word',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    minHeight: '2.3em'
-                  }}>
-                    {floor.name}
-                  </h3>
-                  
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    fontSize: isSmall ? '0.5rem' : isMedium ? '0.5625rem' : isSmallDesktop ? '0.5625rem' : '0.625rem',
-                    color: '#718096',
-                    marginTop: '0.25rem',
-                    lineHeight: 1.2
-                  }}>
-                    <span>{floor.capacity}</span>
-                    <span>#{floor.order}</span>
-                  </div>
-                  
-                  <div style={{
-                    position: 'absolute',
-                    top: '0.25rem',
-                    right: '0.25rem',
-                    backgroundColor: '#667eea',
-                    color: 'white',
-                    padding: '0.1rem 0.375rem',
-                    borderRadius: '12px',
-                    fontSize: isSmall ? '0.5rem' : isMedium ? '0.5625rem' : isSmallDesktop ? '0.5625rem' : '0.625rem',
-                    fontWeight: '600',
-                    lineHeight: 1.2
-                  }}>
-                    {floor.order}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Vista de mesas del piso seleccionado
   const selectedFloor = floorsData?.floorsByBranch?.find((floor: any) => floor.id === selectedFloorId);
 
   return (
@@ -479,78 +327,216 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         width: '100%',
         padding: '1rem',
         boxSizing: 'border-box',
-        overflow: 'hidden'
-      }}>
-      <div style={{
-        backgroundColor: 'white',
-        borderRadius: '12px',
-        padding: isSmall ? '0.75rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '1.25rem',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        border: '1px solid #e2e8f0',
         overflow: 'hidden',
-        width: '100%',
-        boxSizing: 'border-box'
+        display: 'flex',
+        flexDirection: 'column'
       }}>
-        {/* Header con botón de regreso */}
+        {/* Sección pisos - con scroll */}
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: isSmall ? '1.25rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : '2rem',
-          paddingBottom: '1rem',
-          borderBottom: '1px solid #e2e8f0',
-          flexWrap: isSmall ? 'wrap' : isMedium ? 'wrap' : isSmallDesktop ? 'wrap' : 'nowrap',
-          gap: isSmall ? '1rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '0'
+          flexShrink: 0,
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          padding: isSmall ? '0.75rem' : isMedium ? '1rem' : '1.25rem',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          border: '1px solid #e2e8f0',
+          overflow: 'hidden',
+          width: '100%',
+          boxSizing: 'border-box'
         }}>
-          <div>
-            <h2 style={{
-              fontSize: titleFontSize,
-              fontWeight: '700',
-              color: '#2d3748',
-              margin: 0
+          {floorsData?.floorsByBranch?.length === 0 ? (
+            <div style={{
+              textAlign: 'center',
+              padding: isSmall ? '1.5rem' : isMedium ? '2rem' : '2.5rem',
+              color: '#718096'
             }}>
-              {selectedFloor?.name}
-            </h2>
-            <p style={{
-              fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem',
-              color: '#718096',
-              margin: '0.25rem 0 0 0'
+              <div style={{ fontSize: isSmall ? '2rem' : '2.5rem', marginBottom: '0.5rem' }}>🏢</div>
+              <p style={{ fontSize: isSmall ? '0.9375rem' : '1rem', margin: 0 }}>
+                No hay pisos disponibles para esta sucursal
+              </p>
+            </div>
+          ) : (
+            <div style={{
+              maxHeight: isSmall ? '140px' : isMedium ? '160px' : '180px',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              paddingRight: '0.25rem',
+              scrollbarWidth: 'thin'
             }}>
-              Mesas del piso
-            </p>
-          </div>
-          
-          <button
-            onClick={handleBackToFloors}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: isSmall ? '0.5rem 1rem' : isMedium ? '0.625rem 1.25rem' : isSmallDesktop ? '0.625rem 1.25rem' : '0.75rem 1.5rem',
-              backgroundColor: '#f7fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '8px',
-              color: '#4a5568',
-              cursor: 'pointer',
-              fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem',
-              fontWeight: '500',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.backgroundColor = '#edf2f7';
-              e.currentTarget.style.borderColor = '#cbd5e0';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.backgroundColor = '#f7fafc';
-              e.currentTarget.style.borderColor = '#e2e8f0';
-              
-            }}
-          >
-            ← Volver a pisos
-          </button>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(10, 1fr)',
+                gap: isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.75rem' : '0.875rem',
+                width: '100%',
+                boxSizing: 'border-box'
+              }}>
+                {floorsData?.floorsByBranch?.map((floor: any) => (
+                  <div
+                    key={floor.id}
+                    onClick={() => handleFloorSelect(floor.id)}
+                    title={floor.name}
+                    style={{
+                      backgroundColor: selectedFloorId === floor.id ? '#eef2ff' : '#f7fafc',
+                      border: selectedFloorId === floor.id ? '1.5px solid #667eea' : '1.5px solid #e2e8f0',
+                      borderRadius: '8px',
+                      padding: isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.75rem' : '0.875rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      textAlign: 'center',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      minWidth: 0,
+                      boxSizing: 'border-box'
+                    }}
+                    onMouseOver={(e) => {
+                      if (selectedFloorId !== floor.id) {
+                        e.currentTarget.style.borderColor = '#667eea';
+                        e.currentTarget.style.backgroundColor = '#f0f4ff';
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 8px 25px rgba(102, 126, 234, 0.15)';
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (selectedFloorId !== floor.id) {
+                        e.currentTarget.style.borderColor = '#e2e8f0';
+                        e.currentTarget.style.backgroundColor = '#f7fafc';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }
+                    }}
+                  >
+                    <div style={{
+                      fontSize: isSmall ? '1rem' : isMedium ? '1.125rem' : isSmallDesktop ? '1.25rem' : '1.375rem',
+                      marginBottom: '0.25rem',
+                      lineHeight: 1
+                    }}>
+                      🏢
+                    </div>
+                    <h3 style={{
+                      fontSize: isSmall ? '0.56rem' : isMedium ? '0.6rem' : isSmallDesktop ? '0.68rem' : '0.75rem',
+                      fontWeight: '600',
+                      color: '#2d3748',
+                      margin: '0 0 0.125rem 0',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'normal',
+                      width: '100%',
+                      lineHeight: 1.15,
+                      wordBreak: 'break-word',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      minHeight: '2.3em'
+                    }}>
+                      {floor.name}
+                    </h3>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: isSmall ? '0.5rem' : isMedium ? '0.5625rem' : isSmallDesktop ? '0.5625rem' : '0.625rem',
+                      color: '#718096',
+                      marginTop: '0.25rem',
+                      lineHeight: 1.2
+                    }}>
+                      <span>{floor.capacity}</span>
+                      <span>#{floor.order}</span>
+                    </div>
+                    <div style={{
+                      position: 'absolute',
+                      top: '0.25rem',
+                      right: '0.25rem',
+                      backgroundColor: selectedFloorId === floor.id ? '#667eea' : '#667eea',
+                      color: 'white',
+                      padding: '0.1rem 0.375rem',
+                      borderRadius: '12px',
+                      fontSize: isSmall ? '0.5rem' : isMedium ? '0.5625rem' : isSmallDesktop ? '0.5625rem' : '0.625rem',
+                      fontWeight: '600',
+                      lineHeight: 1.2
+                    }}>
+                      {floor.order}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Lista de mesas */}
+        {/* Sección mesas - solo cuando hay un piso seleccionado */}
+        {selectedFloorId && (
+          <div style={{
+            flex: 1,
+            minHeight: 0,
+            marginTop: '1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: isSmall ? '0.75rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '1.25rem',
+              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+              border: '1px solid #e2e8f0',
+              overflow: 'hidden',
+              width: '100%',
+              boxSizing: 'border-box',
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              {/* Header con botón de regreso */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem',
+                paddingBottom: '0.75rem',
+                borderBottom: '1px solid #e2e8f0',
+                flexWrap: 'wrap',
+                gap: '0.5rem',
+                flexShrink: 0
+              }}>
+                <h2 style={{
+                  fontSize: titleFontSize,
+                  fontWeight: '700',
+                  color: '#2d3748',
+                  margin: 0
+                }}>
+                  {selectedFloor?.name}
+                </h2>
+                <button
+                  onClick={handleBackToFloors}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: isSmall ? '0.5rem 1rem' : isMedium ? '0.625rem 1.25rem' : '0.75rem 1.5rem',
+                    backgroundColor: '#f7fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    color: '#4a5568',
+                    cursor: 'pointer',
+                    fontSize: isSmall ? '0.75rem' : '0.8125rem',
+                    fontWeight: '500',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#edf2f7';
+                    e.currentTarget.style.borderColor = '#cbd5e0';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f7fafc';
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                  }}
+                >
+                  ← Volver a pisos
+                </button>
+              </div>
+
+              {/* Lista de mesas */}
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
         {tablesLoading ? (
           <div style={{
             display: 'flex',
@@ -714,7 +700,10 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             })}
           </div>
         )}
-      </div>
+              </div>
+              </div>
+            </div>
+          )}
 
       {/* Modal de opciones de mesa */}
       {showStatusModal && selectedTable && (
