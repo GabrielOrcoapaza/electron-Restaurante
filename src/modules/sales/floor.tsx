@@ -207,40 +207,40 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   };
   
 
-  // Colores por defecto según el estado (más fuertes/saturados para mejor visibilidad)
+  // Colores por defecto según el estado (texto oscuro para buena legibilidad)
   const DEFAULT_STATUS_COLORS: Record<string, ProcessedTableColors> = {
     'AVAILABLE': {
       backgroundColor: '#86efac',
       borderColor: '#15803d',
-      textColor: '#14532d',
+      textColor: '#052e16',
       badgeColor: '#15803d',
       badgeTextColor: '#ffffff'
     },
     'OCCUPIED': {
       backgroundColor: '#fca5a5',
       borderColor: '#b91c1c',
-      textColor: '#7f1d1d',
+      textColor: '#450a0a',
       badgeColor: '#b91c1c',
       badgeTextColor: '#ffffff'
     },
     'TO_PAY': {
       backgroundColor: '#fde047',
       borderColor: '#ca8a04',
-      textColor: '#713f12',
+      textColor: '#422006',
       badgeColor: '#ca8a04',
       badgeTextColor: '#ffffff'
     },
     'IN_PROCESS': {
       backgroundColor: '#67e8f9',
       borderColor: '#0e7490',
-      textColor: '#164e63',
+      textColor: '#083344',
       badgeColor: '#0e7490',
       badgeTextColor: '#ffffff'
     },
     'MAINTENANCE': {
       backgroundColor: '#cbd5e1',
       borderColor: '#475569',
-      textColor: '#1e293b',
+      textColor: '#0f172a',
       badgeColor: '#475569',
       badgeTextColor: '#ffffff'
     }
@@ -640,17 +640,19 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                   width: '100%',
-                  lineHeight: 1.2
+                  lineHeight: 1.2,
+                  textShadow: '0 1px 2px rgba(0,0,0,0.15), 0 0 1px rgba(255,255,255,0.5)'
                 }}>
                   {table.name}
                 </h4>
                 
                 <div style={{
                   fontSize: isSmall ? '0.5rem' : isMedium ? '0.6rem' : isSmallDesktop ? '0.65rem' : '0.7rem',
-                  color: '#718096',
+                  color: '#1e293b',
                   marginBottom: '0.25rem',
                   fontWeight: '700',
-                  lineHeight: 1.2
+                  lineHeight: 1.2,
+                  textShadow: '0 1px 1px rgba(0,0,0,0.1)'
                 }}>
                   {table.capacity}
                 </div>
@@ -680,18 +682,18 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 {table.userName && table.status !== 'AVAILABLE' && (
                   <div style={{
                     fontSize: isSmall ? '0.5rem' : isMedium ? '0.5625rem' : isSmallDesktop ? '0.5625rem' : '0.625rem',
-                    color: colors.textColor,
+                    color: colors.badgeTextColor,
                     marginTop: '0.125rem',
                     backgroundColor: colors.badgeColor,
                     padding: isSmall ? '0.125rem 0.25rem' : isMedium ? '0.15rem 0.375rem' : isSmallDesktop ? '0.15rem 0.375rem' : '0.2rem 0.5rem',
                     borderRadius: '8px',
-                    fontWeight: '600',
-                    opacity: 0.9,
+                    fontWeight: '700',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                     maxWidth: '100%',
-                    lineHeight: 1.2
+                    lineHeight: 1.2,
+                    textShadow: '0 1px 1px rgba(0,0,0,0.3)'
                   }}>
                     {table.userName}
                   </div>

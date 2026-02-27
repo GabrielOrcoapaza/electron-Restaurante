@@ -973,6 +973,43 @@ export const GET_REISSUEABLE_ITEMS = gql`
   }
 `;
 
+// ——— Impresoras y Raspberry Pi (configuración) ———
+// Schema usa camelCase: raspberryPiByBranch, printersByBranch, categoryPrintersByBranch
+export const GET_PRINTERS_CONFIG = gql`
+  query GetPrintersConfig($branchId: ID!) {
+    raspberryPiByBranch(branchId: $branchId) {
+      id
+      name
+      branch { id }
+    }
+    printersByBranch(branchId: $branchId) {
+      id
+      name
+      code
+      ipAddress
+      port
+      printerType
+      paperWidth
+      charactersPerLine
+      encoding
+      isKitchen
+      isBar
+      isCashier
+      isReceipt
+      isInvoice
+      isActive
+      raspberryPi { id name }
+    }
+    categoryPrintersByBranch(branchId: $branchId) {
+      id
+      priority
+      isActive
+      category { id name }
+      printer { id name }
+    }
+  }
+`;
+
 // Aliases para compatibilidad con el componente Delivery
 export const GET_DOCUMENTS_BY_BRANCH = GET_DOCUMENTS;
 export const GET_CASH_REGISTERS_BY_BRANCH = GET_CASH_REGISTERS;

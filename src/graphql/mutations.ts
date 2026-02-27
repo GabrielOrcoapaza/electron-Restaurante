@@ -1423,3 +1423,161 @@ export const CREATE_SALE_CARRY_OUT = gql`
     }
   }
 `;
+
+// ——— Configuración de impresoras (backend Graphene: createPrinter, updatePrinter, etc.) ———
+export const CREATE_PRINTER = gql`
+  mutation CreatePrinter(
+    $raspberry_pi_id: ID!
+    $name: String!
+    $code: String!
+    $ip_address: String!
+    $port: Int
+    $printer_type: String
+    $paper_width: Int
+    $characters_per_line: Int
+    $encoding: String
+    $is_kitchen: Boolean
+    $is_bar: Boolean
+    $is_cashier: Boolean
+    $is_receipt: Boolean
+    $is_invoice: Boolean
+  ) {
+    createPrinter(
+      raspberry_pi_id: $raspberry_pi_id
+      name: $name
+      code: $code
+      ip_address: $ip_address
+      port: $port
+      printer_type: $printer_type
+      paper_width: $paper_width
+      characters_per_line: $characters_per_line
+      encoding: $encoding
+      is_kitchen: $is_kitchen
+      is_bar: $is_bar
+      is_cashier: $is_cashier
+      is_receipt: $is_receipt
+      is_invoice: $is_invoice
+    ) {
+      printer {
+        id
+        name
+        code
+        ip_address
+        port
+        printer_type
+        paper_width
+        characters_per_line
+        encoding
+        is_kitchen
+        is_bar
+        is_cashier
+        is_receipt
+        is_invoice
+        is_active
+      }
+      success
+      message
+    }
+  }
+`;
+
+export const UPDATE_PRINTER = gql`
+  mutation UpdatePrinter(
+    $printer_id: ID!
+    $name: String
+    $code: String
+    $ip_address: String
+    $port: Int
+    $printer_type: String
+    $paper_width: Int
+    $characters_per_line: Int
+    $encoding: String
+    $is_kitchen: Boolean
+    $is_bar: Boolean
+    $is_cashier: Boolean
+    $is_receipt: Boolean
+    $is_invoice: Boolean
+    $is_active: Boolean
+  ) {
+    updatePrinter(
+      printer_id: $printer_id
+      name: $name
+      code: $code
+      ip_address: $ip_address
+      port: $port
+      printer_type: $printer_type
+      paper_width: $paper_width
+      characters_per_line: $characters_per_line
+      encoding: $encoding
+      is_kitchen: $is_kitchen
+      is_bar: $is_bar
+      is_cashier: $is_cashier
+      is_receipt: $is_receipt
+      is_invoice: $is_invoice
+      is_active: $is_active
+    ) {
+      printer {
+        id
+        name
+        code
+        ip_address
+        port
+        printer_type
+        paper_width
+        characters_per_line
+        encoding
+        is_kitchen
+        is_bar
+        is_cashier
+        is_receipt
+        is_invoice
+        is_active
+      }
+      success
+      message
+    }
+  }
+`;
+
+export const ASSIGN_CATEGORY_TO_PRINTER = gql`
+  mutation AssignCategoryToPrinter($printerId: ID!, $categoryId: ID!, $priority: Int) {
+    assignCategoryToPrinter(printerId: $printerId, categoryId: $categoryId, priority: $priority) {
+      categoryPrinter {
+        id
+        priority
+        category { id name }
+        printer { id name }
+      }
+      success
+      message
+    }
+  }
+`;
+
+export const BULK_ASSIGN_CATEGORY_PRINTERS = gql`
+  mutation BulkAssignCategoryPrinters(
+    $categoryIds: [ID]!
+    $printerIds: [ID]!
+    $priority: Int
+  ) {
+    bulkAssignCategoryPrinters(
+      categoryIds: $categoryIds
+      printerIds: $printerIds
+      priority: $priority
+    ) {
+      success
+      message
+      createdCount
+    }
+  }
+`;
+
+export const REMOVE_CATEGORY_PRINTERS = gql`
+  mutation RemoveCategoryPrinters($ids: [ID]!) {
+    removeCategoryPrinters(ids: $ids) {
+      success
+      message
+      removedCount
+    }
+  }
+`;

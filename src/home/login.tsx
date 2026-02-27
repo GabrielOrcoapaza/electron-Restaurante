@@ -44,9 +44,6 @@ const Login: React.FC = () => {
       return fullName.includes(search) || dni.includes(search);
     });
 
-  // Obtener el empleado seleccionado
-  const selectedEmployeeData = allEmployees.find((e: any) => e.dni === formData.selectedEmployee);
-
   // Verificar que existan datos de la empresa
   useEffect(() => {
     if (!companyData) {
@@ -161,54 +158,128 @@ const Login: React.FC = () => {
     if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password.slice(0, -1) }));
   };
 
-  // Tamaños adaptativos según breakpoint
-  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
-  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
-  const showLeftPanel = breakpoint === 'lg' || breakpoint === 'xl' || breakpoint === '2xl';
-
+  // Tamaños adaptativos según breakpoint (lg: 1024+, xl: 1280+, 2xl: 1536+)
+  const isSmallDesktop = breakpoint === 'lg';
+  const isMediumDesktop = breakpoint === 'xl';
+  const isLargeDesktop = breakpoint === '2xl';
   const containerPadding = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '1rem' : '1.5rem';
-  const formMaxWidth = isSmallDesktop ? '100%' : isMediumDesktop ? '550px' : '650px';
+  // Contenedor más ancho para mostrar hasta 5 empleados por fila
+  const formMaxWidth = isSmallDesktop ? '100%' : isMediumDesktop ? '780px' : '960px';
   const titleFontSize = isSmallDesktop ? 'clamp(22px, 3.5vw, 28px)' : isMediumDesktop ? 'clamp(26px, 3.5vw, 32px)' : 'clamp(28px, 3.5vw, 36px)';
-  const subtitleFontSize = isSmallDesktop ? 'clamp(13px, 2vw, 15px)' : 'clamp(14px, 2vw, 16px)';
   const inputFontSize = isSmallDesktop ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
   const labelFontSize = isSmallDesktop ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
+  // Columnas del grid de empleados: responsive (hasta 5 por fila en pantallas grandes)
+  const employeesGridColumns = isLargeDesktop ? 5 : isMediumDesktop ? 5 : isSmallDesktop ? 4 : 3;
+  const avatarSize = isSmallDesktop ? 28 : 32;
+  const cardPadding = isSmallDesktop ? '0.4rem' : '0.5rem';
+  const cardFontSize = isSmallDesktop ? '11px' : '12px';
+  const cardDniFontSize = isSmallDesktop ? '10px' : '11px';
+
+  // Tema visual del login
+  const theme = {
+    font: "'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif",
+    bg: 'linear-gradient(160deg, #0f172a 0%, #1e293b 40%, #334155 100%)',
+    cardBg: 'rgba(255, 255, 255, 0.98)',
+    cardBorder: '1px solid rgba(255, 255, 255, 0.2)',
+    cardShadow: '0 32px 64px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+    accent: '#0ea5e9',
+    accentHover: '#0284c7',
+    accentMuted: 'rgba(14, 165, 233, 0.12)',
+    text: '#0f172a',
+    textMuted: '#64748b',
+    inputBg: '#f8fafc',
+    inputBorder: '#e2e8f0',
+    inputFocusBorder: '#0ea5e9',
+    inputFocusRing: 'rgba(14, 165, 233, 0.25)',
+    success: '#10b981',
+    radius: 14,
+    radiusSm: 10,
+  };
+
+  // Decoración restaurante: chef, croissants, utensilios, café, comida + "4 soluciones"
+  const iconSize = isSmallDesktop ? 'clamp(36px, 6vmin, 56px)' : 'clamp(44px, 7vmin, 72px)';
+  const croissantSize = isSmallDesktop ? 'clamp(40px, 6.5vmin, 64px)' : 'clamp(48px, 7.5vmin, 80px)';
+  const smallIconSize = isSmallDesktop ? 'clamp(28px, 4.5vmin, 44px)' : 'clamp(34px, 5vmin, 52px)';
+  const decorOpacity = 0.42;
+  const restaurantDecor: Array<{
+    key: string;
+    type: 'chef' | 'croissant' | 'utensils' | 'coffee' | 'food';
+    top: string;
+    left: string;
+  }> = [
+    { key: 'c1', type: 'chef', top: '5%', left: '3%' },
+    { key: 'c2', type: 'chef', top: '18%', left: '92%' },
+    { key: 'c3', type: 'chef', top: '38%', left: '4%' },
+    { key: 'c4', type: 'chef', top: '58%', left: '91%' },
+    { key: 'c5', type: 'chef', top: '12%', left: '72%' },
+    { key: 'c6', type: 'chef', top: '82%', left: '6%' },
+    { key: 'c7', type: 'chef', top: '72%', left: '94%' },
+    { key: 'c8', type: 'chef', top: '28%', left: '12%' },
+    { key: 'c9', type: 'chef', top: '45%', left: '86%' },
+    { key: 'p1', type: 'croissant', top: '8%', left: '22%' },
+    { key: 'p2', type: 'croissant', top: '14%', left: '60%' },
+    { key: 'p3', type: 'croissant', top: '32%', left: '6%' },
+    { key: 'p4', type: 'croissant', top: '40%', left: '78%' },
+    { key: 'p5', type: 'croissant', top: '58%', left: '24%' },
+    { key: 'p6', type: 'croissant', top: '65%', left: '68%' },
+    { key: 'p7', type: 'croissant', top: '86%', left: '32%' },
+    { key: 'p8', type: 'croissant', top: '90%', left: '52%' },
+    { key: 'p9', type: 'croissant', top: '25%', left: '42%' },
+    { key: 'p10', type: 'croissant', top: '48%', left: '58%' },
+    { key: 'p11', type: 'croissant', top: '18%', left: '38%' },
+    { key: 'p12', type: 'croissant', top: '75%', left: '78%' },
+    { key: 'u1', type: 'utensils', top: '7%', left: '48%' },
+    { key: 'u2', type: 'utensils', top: '42%', left: '28%' },
+    { key: 'u3', type: 'utensils', top: '70%', left: '62%' },
+    { key: 'u4', type: 'utensils', top: '22%', left: '85%' },
+    { key: 'u5', type: 'utensils', top: '88%', left: '18%' },
+    { key: 'cf1', type: 'coffee', top: '10%', left: '52%' },
+    { key: 'cf2', type: 'coffee', top: '55%', left: '38%' },
+    { key: 'cf3', type: 'coffee', top: '78%', left: '72%' },
+    { key: 'fd1', type: 'food', top: '30%', left: '62%' },
+    { key: 'fd2', type: 'food', top: '62%', left: '48%' },
+    { key: 'fd3', type: 'food', top: '15%', left: '28%' },
+    { key: 'fd4', type: 'food', top: '85%', left: '58%' },
+  ];
 
   // Bloquear acceso en móviles
   if (isMobile) {
     return (
-      <div style={{
+      <div className="login-root login-mobile-block" style={{
         height: '100vh',
         width: '100vw',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #42a5f5 0%, #66bb6a 25%, #ffa726 50%, #ff6b6b 75%, #ab47bc 100%)',
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+        background: theme.bg,
+        fontFamily: theme.font,
         padding: '2rem',
         textAlign: 'center'
       }}>
         <div style={{
-          background: 'rgba(255, 255, 255, 0.95)',
-          borderRadius: '20px',
-          padding: '3rem 2rem',
-          maxWidth: '500px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+          background: theme.cardBg,
+          borderRadius: 24,
+          padding: '2.5rem 2rem',
+          maxWidth: '420px',
+          boxShadow: theme.cardShadow,
+          border: theme.cardBorder
         }}>
-          <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>📱</div>
+          <div style={{ fontSize: '3.5rem', marginBottom: '1.25rem', opacity: 0.9 }}>📱</div>
           <h1 style={{
-            fontSize: '1.5rem',
+            fontSize: '1.35rem',
             fontWeight: 700,
-            color: '#1e293b',
-            marginBottom: '1rem'
+            color: theme.text,
+            marginBottom: '0.75rem',
+            letterSpacing: '-0.02em'
           }}>
             Acceso no disponible en móviles
           </h1>
           <p style={{
-            fontSize: '1rem',
-            color: '#64748b',
-            lineHeight: '1.6'
+            fontSize: '0.9375rem',
+            color: theme.textMuted,
+            lineHeight: 1.6
           }}>
-            Esta aplicación está diseñada para ser usada en tablets y computadoras. Por favor, accede desde un dispositivo con pantalla más grande.
+            Usa esta aplicación en tablet o computadora para continuar.
           </p>
         </div>
       </div>
@@ -216,12 +287,12 @@ const Login: React.FC = () => {
   }
 
   return (
-    <div style={{
+    <div className="login-root" style={{
       height: '100vh',
       width: '100vw',
       maxWidth: '100vw',
-      background: 'linear-gradient(135deg, #42a5f5 0%, #66bb6a 25%, #ffa726 50%, #ff6b6b 75%, #ab47bc 100%)',
-      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+      background: theme.bg,
+      fontFamily: theme.font,
       position: 'fixed',
       top: 0,
       left: 0,
@@ -229,520 +300,416 @@ const Login: React.FC = () => {
       margin: 0,
       padding: 0
     }}>
-      {/* Fondo con elementos decorativos de cocina */}
-      <div style={{
+      {/* Fondo sutil con ruido */}
+      <div className="login-bg-pattern" style={{
         position: 'absolute',
-        top: '0',
-        left: '0',
-        width: '100%',
-        height: '100%',
-        backgroundImage: `
-          url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxjaXJjbGUgY3g9IjIwIiBjeT0iMjAiIHI9IjMiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xKSIvPgo8Y2lyY2xlIGN4PSI4MCIgY3k9IjMwIiByPSI1IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDgpIi8+CjxjaXJjbGUgY3g9IjMwIiBjeT0iNzAiIHI9IjQiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xMikiLz4KPGNpcmNsZSBjeD0iNzAiIGN5PSI4MCIgcj0iNiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA2KSIvPgo8L3N2Zz4K'),
-          url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQwIDEwTDUwIDMwSDMwTDQwIDEwWiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA4KSIvPgo8cGF0aCBkPSJNMzAgNDBMMTAgNjBIMzBWNDBaIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDYpIi8+CjxwYXRoIGQ9Ik01MCA0MEw3MCA2MEg1MFY0MFoiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xKSIvPgo8L3N2Zz4K')
-        `,
-        backgroundSize: '200px 200px, 150px 150px',
-        backgroundPosition: '0 0, 100px 100px',
-        animation: 'float 20s ease-in-out infinite',
-        opacity: 0.3
-      }}></div>
+        inset: 0,
+        opacity: 0.4,
+        backgroundImage: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(14, 165, 233, 0.2), transparent), radial-gradient(ellipse 60% 40% at 100% 100%, rgba(14, 165, 233, 0.08), transparent)'
+      }} />
 
-      {/* Elementos flotantes decorativos */}
-      <div style={{
-        position: 'absolute',
-        top: '10%',
-        right: '10%',
-        width: '120px',
-        height: '120px',
-        background: 'linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))',
-        borderRadius: '50%',
-        animation: 'pulse 3s ease-in-out infinite'
-      }}></div>
-
-      <div style={{
-        position: 'absolute',
-        bottom: '15%',
-        left: '5%',
-        width: '80px',
-        height: '80px',
-        background: 'linear-gradient(45deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03))',
-        borderRadius: '50%',
-        animation: 'float 4s ease-in-out infinite reverse'
-      }}></div>
-
-      <div style={{
-        position: 'absolute',
-        top: '30%',
-        left: '15%',
-        width: '60px',
-        height: '60px',
-        background: 'linear-gradient(45deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02))',
-        borderRadius: '50%',
-        animation: 'pulse 5s ease-in-out infinite'
-      }}></div>
-
-      {/* Contenedor principal responsivo */}
-      <div className="main-container" style={{
-        display: 'flex',
-        width: '100vw',
-        height: '100vh',
-        position: 'relative',
-        zIndex: 1,
-        flexDirection: 'column',
-        margin: 0,
-        padding: 0
-      }}>
-        {/* Panel izquierdo con imagen de cocina - Solo visible en pantallas grandes */}
-        <div className="left-panel" style={{
-          display: 'none',
-          flex: '1',
-          background: 'linear-gradient(135deg, rgba(0,0,0,0.4), rgba(0,0,0,0.6))',
-          backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgdmlld0JveD0iMCAwIDQwMCA0MDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiBmaWxsPSIjNDJBOUY1IiBvcGFjaXR5PSIwLjEiLz4KPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMjAwLCAyMDApIj4KPGNpcmNsZSBjeD0iLTEwMCIgY3k9Ii01MCIgcj0iNDAiIGZpbGw9IiM2NkJCMkYiIG9wYWNpdHk9IjAuMiIvPgo8Y2lyY2xlIGN4PSIxMDAiIGN5PSItNDAiIHI9IjMwIiBmaWxsPSIjRkZBNzI2IiBvcGFjaXR5PSIwLjE1Ii8+CjxjaXJjbGUgY3g9Ii04MCIgY3k9IjgwIiByPSI1MCIgZmlsbD0iI0ZGNkI2QiIgb3BhY2l0eT0iMC4xOCIvPgo8Y2lyY2xlIGN4PSI5MCIgY3k9IjcwIiByPSIzNSIgZmlsbD0iI0FCNDdCQyIgb3BhY2l0eT0iMC4xMiIvPgo8L2c+CjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDIwMCwgMjAwKSByb3RhdGUoNDUpIj4KPHJlY3QgeD0iLTEwMCIgeT0iLTEwIiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMSkiIHJ4PSIxMCIvPgo8cmVjdCB4PSItMTAwIiB5PSIxMCIgd2lkdGg9IjE1MCIgaGVpZ2h0PSIyMCIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA4KSIgcng9IjEwIi8+CjxyZWN0IHg9Ii0xMDAiIHk9IjQwIiB3aWR0aD0iMTgwIiBoZWlnaHQ9IjIwIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMTIpIiByeD0iMTAiLz4KPC9nPgo8L3N2Zz4K')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: '4rem',
-          position: 'relative'
-        }}>
-          {/* Overlay con gradiente */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'linear-gradient(135deg, rgba(66,165,246,0.8) 0%, rgba(102,187,106,0.7) 25%, rgba(255,167,38,0.6) 50%, rgba(255,107,107,0.7) 75%, rgba(171,71,188,0.8) 100%)',
-            zIndex: 1
-          }}></div>
-
-          {/* Contenido del panel izquierdo */}
-          <div style={{
-            position: 'relative',
-            zIndex: 2,
-            textAlign: 'center',
-            color: 'white'
-          }}>
-            {selectedEmployeeData?.photoBase64 ? (
-              <div style={{
-                width: '250px',
-                height: '250px',
-                marginBottom: '2rem',
-                borderRadius: '50%',
-                overflow: 'hidden',
-                border: '5px solid rgba(255, 255, 255, 0.5)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-                animation: 'pulse 3s infinite',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'rgba(255,255,255,0.1)'
-              }}>
-                <img
-                  src={selectedEmployeeData.photoBase64.startsWith('data:')
-                    ? selectedEmployeeData.photoBase64
-                    : `data:image/jpeg;base64,${selectedEmployeeData.photoBase64}`}
-                  alt={`${selectedEmployeeData.firstName} ${selectedEmployeeData.lastName}`}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover'
-                  }}
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    e.currentTarget.parentElement!.innerHTML = '👤';
-                    e.currentTarget.parentElement!.style.fontSize = '80px';
-                    e.currentTarget.parentElement!.style.display = 'flex';
-                    e.currentTarget.parentElement!.style.alignItems = 'center';
-                    e.currentTarget.parentElement!.style.justifyContent = 'center';
-                  }}
-                />
-              </div>
-            ) : (
-              <div style={{
-                fontSize: '80px',
-                marginBottom: '2rem',
-                textShadow: '0 4px 8px rgba(0,0,0,0.3)',
-                animation: 'bounce 2s ease-in-out infinite'
-              }}>👨‍🍳</div>
-            )}
-
-            <h1 style={{
-              fontSize: '3rem',
-              fontWeight: '800',
-              marginBottom: '1rem',
-              textShadow: '0 4px 8px rgba(0,0,0,0.3)',
-              background: 'linear-gradient(45deg, #fff, #f0f0f0)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text'
-            }}>
-              Acceso Personal
-            </h1>
-
-            <p style={{
-              fontSize: '1.2rem',
-              marginBottom: '2rem',
-              textShadow: '0 2px 4px rgba(0,0,0,0.3)',
-              opacity: 0.9
-            }}>
-              Selecciona tu empleado y contraseña
-            </p>
-
-            {focusedInput ? (
-              <div ref={keyboardRef} style={{
-                width: '100%',
-                maxWidth: '540px',
-                minWidth: '480px',
-                marginTop: '0.5rem',
-                padding: '0.75rem',
-                background: 'rgba(255,255,255,0.95)',
-                borderRadius: '12px',
-                border: '2px solid rgba(255,255,255,0.6)',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
-              }}>
-                <div style={{ textAlign: 'center', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 700, color: 'rgba(255,255,255,0.95)', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
-                  ⌨️ Teclado virtual
-                </div>
-                <VirtualKeyboard
-                  onKeyPress={handleVirtualKeyPress}
-                  onBackspace={handleVirtualBackspace}
-                  compact={true}
-                />
-              </div>
-            ) : (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                gap: '2rem',
-                marginTop: '3rem'
-              }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👤</div>
-                  <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Empleados</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🔐</div>
-                  <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Seguridad</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⚡</div>
-                  <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Rápido</div>
-                </div>
-              </div>
-            )}
+      <div
+        className="main-container"
+        style={{
+          display: 'flex',
+          flexDirection: focusedInput ? 'column' : 'row',
+          flexWrap: 'nowrap',
+          width: '100vw',
+          height: '100vh',
+          position: 'relative',
+          zIndex: 1,
+          margin: 0,
+          padding: 0,
+          justifyContent: focusedInput ? 'flex-start' : 'center',
+          alignItems: 'stretch',
+          overflow: 'hidden'
+        }}
+      >
+        {/* Teclado virtual en la parte superior (cubre título y subtítulo) */}
+        {focusedInput && (
+          <div
+            ref={keyboardRef}
+            className="login-keyboard-panel"
+            style={{
+              flex: '0 0 auto',
+              width: '100%',
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'stretch',
+              padding: isSmallDesktop ? '0.4rem 0.75rem' : '0.5rem 1rem',
+              background: theme.cardBg,
+              borderBottom: `1px solid ${theme.inputBorder}`,
+              boxSizing: 'border-box',
+              overflow: 'hidden',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.06)'
+            }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: '0.25rem', fontSize: '0.75rem', fontWeight: 600, color: theme.text }}>
+              ⌨️ Teclado virtual
+            </div>
+            <div style={{ width: '100%', minWidth: 0 }}>
+            <VirtualKeyboard
+              onKeyPress={handleVirtualKeyPress}
+              onBackspace={handleVirtualBackspace}
+              compact={true}
+            />
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Panel derecho con formulario - Siempre visible */}
         <div className="form-panel" style={{
-          flex: '1.5',
+          flex: '1',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'center',
+          justifyContent: focusedInput ? 'flex-start' : 'center',
           alignItems: 'center',
-          padding: isSmallDesktop ? '0.25rem' : isMediumDesktop ? '0.5rem' : '0.5rem',
-          background: 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(20px)',
+          padding: isSmallDesktop ? '0.5rem' : '1rem',
+          background: theme.cardBg,
+          backdropFilter: 'blur(24px)',
           position: 'relative',
-          height: '100vh',
+          minHeight: 0,
+          minWidth: 0,
           width: '100%',
           maxWidth: '100%',
           boxSizing: 'border-box',
           overflow: 'auto'
         }}>
+          {/* Decoración restaurante: chef, platos (con color), utensilios, café, comida + "4 soluciones" */}
+          <div className="login-decorations" aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
+            {restaurantDecor.map((d) => {
+              const isEmoji = d.type === 'chef' || d.type === 'croissant' || d.type === 'utensils' || d.type === 'coffee' || d.type === 'food';
+              const emoji = d.type === 'chef' ? '👨‍🍳' : d.type === 'croissant' ? '🥐' : d.type === 'utensils' ? '🍴' : d.type === 'coffee' ? '☕' : d.type === 'food' ? '🍽️' : null;
+              const size = d.type === 'chef' ? iconSize : d.type === 'croissant' ? croissantSize : smallIconSize;
+              return (
+                <div
+                  key={d.key}
+                  className={`login-deco login-deco--${d.key}`}
+                  style={{
+                    position: 'absolute',
+                    top: d.top,
+                    left: d.left,
+                    width: size,
+                    height: size,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: decorOpacity,
+                    transform: 'translate(-50%, -50%)',
+                    fontSize: isEmoji ? size : undefined,
+                    lineHeight: 1,
+                    filter: isEmoji ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.06))' : undefined,
+                  }}
+                >
+                  {emoji}
+                </div>
+              );
+            })}
+            {/* Badge "4 soluciones" con el 4 destacado */}
+            <div
+              className="login-4soluciones"
+              style={{
+                position: 'absolute',
+                bottom: '1.5rem',
+                right: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: 0.85,
+              }}
+            >
+              <span style={{
+                display: 'block',
+                fontSize: isSmallDesktop ? '2.5rem' : '3.25rem',
+                fontWeight: 800,
+                lineHeight: 1,
+                color: theme.accent,
+                textShadow: '0 1px 2px rgba(0,0,0,0.08)',
+              }}>4</span>
+              <span style={{
+                display: 'block',
+                fontSize: isSmallDesktop ? '0.7rem' : '0.8125rem',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                color: theme.textMuted,
+                textTransform: 'uppercase',
+                marginTop: '0.15rem',
+              }}>soluciones</span>
+            </div>
+          </div>
           <div className="form-container" style={{
             width: '100%',
             maxWidth: formMaxWidth,
             position: 'relative',
+            zIndex: 1,
             padding: containerPadding,
             boxSizing: 'border-box'
           }}>
-            {/* Elementos decorativos del formulario */}
-            <div style={{
-              position: 'absolute',
-              top: '-20px',
-              right: '-20px',
-              width: '60px',
-              height: '60px',
-              background: 'linear-gradient(45deg, #42a5f5, #66bb6a)',
-              borderRadius: '50%',
-              opacity: 0.1,
-              animation: 'pulse 4s ease-in-out infinite'
-            }}></div>
-
-            <div style={{
-              position: 'absolute',
-              bottom: '-30px',
-              left: '-30px',
-              width: '80px',
-              height: '80px',
-              background: 'linear-gradient(45deg, #ffa726, #ff6b6b)',
-              borderRadius: '50%',
-              opacity: 0.08,
-              animation: 'float 6s ease-in-out infinite reverse'
-            }}></div>
-
-            <div style={{ textAlign: 'center', marginBottom: isSmallDesktop ? '1rem' : isMediumDesktop ? '1.5rem' : '2rem' }}>
+            {/* Ocultar cabecera cuando el teclado está visible (el teclado ocupa esa zona) */}
+            {!focusedInput && (
+            <header style={{ textAlign: 'center', marginBottom: isSmallDesktop ? '1.25rem' : '1.75rem' }}>
               <div style={{
-                width: isSmallDesktop ? '60px' : isMediumDesktop ? '70px' : '80px',
-                height: isSmallDesktop ? '60px' : isMediumDesktop ? '70px' : '80px',
-                background: 'linear-gradient(135deg, #42a5f5, #66bb6a)',
-                borderRadius: '20px',
-                margin: `0 auto ${isSmallDesktop ? '0.75rem' : isMediumDesktop ? '1rem' : '1.5rem'}`,
+                width: isSmallDesktop ? 56 : 72,
+                height: isSmallDesktop ? 56 : 72,
+                background: `linear-gradient(145deg, ${theme.accent}, #0284c7)`,
+                borderRadius: 18,
+                margin: `0 auto ${isSmallDesktop ? '0.75rem' : '1rem'}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: isSmallDesktop ? '24px' : isMediumDesktop ? '28px' : '32px',
+                fontSize: isSmallDesktop ? 28 : 36,
                 color: 'white',
-                boxShadow: '0 15px 30px rgba(66, 165, 246, 0.4)',
-                animation: 'bounce 3s ease-in-out infinite'
+                boxShadow: `0 12px 28px ${theme.accentMuted}`,
+                border: '1px solid rgba(255,255,255,0.2)'
               }}>
                 👤
               </div>
               <h2 style={{
-                margin: '0',
-                color: '#2d3748',
+                margin: 0,
+                color: theme.text,
                 fontSize: titleFontSize,
-                fontWeight: '800',
-                background: 'linear-gradient(135deg, #42a5f5, #66bb6a)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
+                fontWeight: 700,
+                letterSpacing: '-0.03em'
               }}>
-                Acceso Personal
+                Iniciar sesión
               </h2>
-              <p style={{
-                color: '#718096',
-                margin: '0.5rem 0 0',
-                fontSize: subtitleFontSize,
-                fontWeight: '500'
-              }}>
-                Selecciona tu empleado y contraseña
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.9375rem', color: theme.textMuted }}>
+                Elige tu usuario e ingresa tu contraseña
               </p>
-            </div>
+            </header>
+            )}
 
             <form onSubmit={handleSubmit}>
               {/* Buscador de Empleados */}
-              <div style={{ marginBottom: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.875rem' : '1rem' }}>
+              <div style={{ marginBottom: isSmallDesktop ? '0.75rem' : '1rem' }}>
                 <label style={{
                   display: 'block',
-                  marginBottom: isSmallDesktop ? '0.375rem' : isMediumDesktop ? '0.5rem' : '0.625rem',
-                  color: '#2d3748',
-                  fontSize: isSmallDesktop ? 'clamp(12px, 2vw, 13px)' : isMediumDesktop ? 'clamp(12.5px, 2vw, 14px)' : 'clamp(13px, 2vw, 15px)',
-                  fontWeight: '700',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
+                  fontSize: labelFontSize,
+                  fontWeight: 600,
                   textAlign: 'center'
                 }}>
-                  🔍 Buscar Empleado
+                  🔍 Buscar empleado
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Buscar por nombre o DNI..."
-                    className="form-inputs"
+                    placeholder="Nombre o DNI..."
+                    className="login-input form-inputs"
                     style={{
                       width: '100%',
-                      padding: isSmallDesktop ? '0.75rem 0.75rem 0.75rem 2.5rem' : isMediumDesktop ? '0.875rem 0.875rem 0.875rem 2.75rem' : '0.875rem 0.875rem 0.875rem 2.75rem',
-                      border: '2px solid #e2e8f0',
-                      borderRadius: '10px',
-                      fontSize: isSmallDesktop ? 'clamp(12px, 2vw, 13px)' : isMediumDesktop ? 'clamp(12.5px, 2vw, 14px)' : 'clamp(13px, 2vw, 15px)',
-                      backgroundColor: '#f8fafc',
-                      transition: 'all 0.3s ease',
+                      padding: isSmallDesktop ? '0.75rem 0.75rem 0.75rem 2.5rem' : '0.875rem 0.875rem 0.875rem 2.75rem',
+                      border: `2px solid ${theme.inputBorder}`,
+                      borderRadius: theme.radiusSm,
+                      fontSize: inputFontSize,
+                      backgroundColor: theme.inputBg,
+                      transition: 'border-color 0.2s, box-shadow 0.2s, background-color 0.2s',
                       outline: 'none',
                       boxSizing: 'border-box',
-                      fontWeight: '500'
+                      fontWeight: 500
                     }}
                     onFocus={(e) => {
                       setFocusedInput('search');
-                      e.target.style.borderColor = '#42a5f5';
+                      e.target.style.borderColor = theme.inputFocusBorder;
                       e.target.style.backgroundColor = 'white';
-                      e.target.style.boxShadow = '0 0 0 4px rgba(66, 165, 246, 0.1)';
-                      e.target.style.transform = 'translateY(-2px)';
+                      e.target.style.boxShadow = `0 0 0 4px ${theme.inputFocusRing}`;
                     }}
                     onBlur={(e) => {
                       if (!keyboardRef.current?.contains(e.relatedTarget as Node)) setFocusedInput(null);
-                      e.target.style.borderColor = '#e2e8f0';
-                      e.target.style.backgroundColor = '#f8fafc';
+                      e.target.style.borderColor = theme.inputBorder;
+                      e.target.style.backgroundColor = theme.inputBg;
                       e.target.style.boxShadow = 'none';
-                      e.target.style.transform = 'translateY(0)';
                     }}
                   />
-                  <div style={{
+                  <span style={{
                     position: 'absolute',
                     left: '0.75rem',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    fontSize: isSmallDesktop ? '16px' : isMediumDesktop ? '17px' : '18px'
-                  }}>🔍</div>
+                    fontSize: '1rem',
+                    opacity: 0.7
+                  }}>🔍</span>
                 </div>
                 {searchTerm && (
-                  <div style={{
-                    marginTop: isSmallDesktop ? '0.375rem' : isMediumDesktop ? '0.5rem' : '0.5rem',
-                    fontSize: isSmallDesktop ? '12px' : isMediumDesktop ? '13px' : '14px',
-                    color: '#718096',
+                  <p style={{
+                    margin: '0.375rem 0 0',
+                    fontSize: '0.8125rem',
+                    color: theme.textMuted,
                     textAlign: 'center',
-                    fontWeight: '500'
+                    fontWeight: 500
                   }}>
-                    {filteredEmployees.length} empleado(s) encontrado(s)
-                  </div>
+                    {filteredEmployees.length} empleado(s)
+                  </p>
                 )}
               </div>
 
-              {/* Selección de Empleados con Botones */}
-              <div style={{ marginBottom: '2rem' }}>
+              {/* Selección de Empleados */}
+              <div style={{ marginBottom: '1.5rem' }}>
                 <label style={{
                   display: 'block',
-                  marginBottom: '1rem',
-                  color: '#2d3748',
+                  marginBottom: '0.75rem',
+                  color: theme.text,
                   fontSize: labelFontSize,
-                  fontWeight: '700',
+                  fontWeight: 600,
                   textAlign: 'center'
                 }}>
-                  👥 Selecciona tu Empleado
+                  👥 Selecciona tu empleado
                 </label>
 
                 {employeesLoading ? (
                   <div style={{
-                    color: '#42a5f5',
-                    fontSize: isSmallDesktop ? '14px' : isMediumDesktop ? '15px' : '16px',
+                    color: theme.accent,
+                    fontSize: '0.9375rem',
                     textAlign: 'center',
-                    padding: isSmallDesktop ? '1rem' : isMediumDesktop ? '1.5rem' : '2rem',
-                    backgroundColor: '#e3f2fd',
-                    borderRadius: '16px',
-                    border: '2px solid #90caf9',
-                    fontWeight: '500'
+                    padding: '1.25rem',
+                    backgroundColor: theme.accentMuted,
+                    borderRadius: theme.radius,
+                    border: `1px solid ${theme.inputFocusBorder}`,
+                    fontWeight: 500
                   }}>
                     ⏳ Cargando empleados...
                   </div>
                 ) : filteredEmployees.length === 0 ? (
                   <p style={{
-                    color: '#e53e3e',
-                    fontSize: isSmallDesktop ? '14px' : isMediumDesktop ? '15px' : '16px',
+                    color: '#b91c1c',
+                    fontSize: '0.9375rem',
                     textAlign: 'center',
-                    padding: isSmallDesktop ? '1rem' : isMediumDesktop ? '1.5rem' : '2rem',
+                    padding: '1.25rem',
                     backgroundColor: '#fef2f2',
-                    borderRadius: '16px',
-                    border: '2px solid #fecaca',
-                    fontWeight: '500'
+                    borderRadius: theme.radius,
+                    border: '1px solid #fecaca',
+                    fontWeight: 500,
+                    margin: 0
                   }}>
                     {searchTerm
-                      ? `🔍 No se encontraron empleados con "${searchTerm}"`
-                      : '⚠️ No hay empleados activos en esta sucursal'
+                      ? `No hay resultados para "${searchTerm}"`
+                      : 'No hay empleados activos en esta sucursal'
                     }
                   </p>
                 ) : (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(2, 1fr)',
-                    gap: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem',
-                    maxHeight: isSmallDesktop ? '200px' : isMediumDesktop ? '225px' : '250px',
-                    overflowY: 'auto',
-                    padding: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem',
-                    backgroundColor: '#f8fafc',
-                    borderRadius: '12px',
-                    border: '2px solid #e2e8f0'
-                  }}>
-                    {filteredEmployees.map((employee: any) => (
-                      <button
-                        key={employee.id}
-                        type="button"
-                        onClick={() => {
-                          setFormData({ ...formData, selectedEmployee: employee.dni });
-                          showToast(`Empleado seleccionado: ${employee.firstName} ${employee.lastName}`, 'success');
-                        }}
-                        style={{
-                          padding: isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.75rem' : '0.875rem',
-                          border: formData.selectedEmployee === employee.dni
-                            ? '2px solid #42a5f5'
-                            : '2px solid #e2e8f0',
-                          borderRadius: '10px',
-                          backgroundColor: formData.selectedEmployee === employee.dni
-                            ? '#e3f2fd'
-                            : 'white',
-                          cursor: 'pointer',
-                          transition: 'all 0.3s ease',
-                          textAlign: 'left',
-                          fontSize: isSmallDesktop ? '12px' : isMediumDesktop ? '12.5px' : '13px',
-                          fontWeight: '600',
-                          color: '#2d3748',
-                          boxShadow: formData.selectedEmployee === employee.dni
-                            ? '0 6px 16px rgba(66, 165, 246, 0.3)'
-                            : '0 2px 6px rgba(0, 0, 0, 0.1)',
-                          transform: formData.selectedEmployee === employee.dni
-                            ? 'translateY(-2px)'
-                            : 'translateY(0)'
-                        }}
-                        onMouseOver={(e) => {
-                          if (formData.selectedEmployee !== employee.dni) {
-                            e.currentTarget.style.borderColor = '#42a5f5';
-                            e.currentTarget.style.backgroundColor = '#e3f2fd';
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = '0 6px 16px rgba(66, 165, 246, 0.2)';
-                          }
-                        }}
-                        onMouseOut={(e) => {
-                          if (formData.selectedEmployee !== employee.dni) {
-                            e.currentTarget.style.borderColor = '#e2e8f0';
-                            e.currentTarget.style.backgroundColor = 'white';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.1)';
-                          }
-                        }}
-                      >
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          marginBottom: '0.375rem'
-                        }}>
-                          {employee.photoBase64 ? (
-                            <img
-                              src={employee.photoBase64.startsWith('data:')
-                                ? employee.photoBase64
-                                : `data:image/jpeg;base64,${employee.photoBase64}`}
-                              alt={`${employee.firstName} ${employee.lastName}`}
-                              style={{
-                                width: '60px',
-                                height: '60px',
-                                borderRadius: '50%',
-                                objectFit: 'cover',
-                                border: '2px solid #e2e8f0'
-                              }}
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                                e.currentTarget.parentElement!.insertAdjacentHTML('afterbegin', '<span style="font-size: 24px;">👤</span>');
-                              }}
-                            />
-                          ) : (
-                            <span style={{ fontSize: '24px' }}>👤</span>
-                          )}
-                          <span style={{ fontWeight: '700', fontSize: 'inherit' }}>
-                            {employee.firstName} {employee.lastName}
-                          </span>
-                        </div>
-                        <div style={{
-                          fontSize: isSmallDesktop ? '11px' : isMediumDesktop ? '11.5px' : '12px',
-                          color: '#718096',
-                          marginLeft: '1.75rem',
-                          fontWeight: '500'
-                        }}>
-                          DNI: {employee.dni}
-                        </div>
-                      </button>
-                    ))}
+                  <div
+                    className="login-employees-grid"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${employeesGridColumns}, minmax(0, 1fr))`,
+                      gap: isSmallDesktop ? '0.4rem' : '0.5rem',
+                      maxHeight: isSmallDesktop ? 180 : 220,
+                      overflowY: 'auto',
+                      padding: '0.5rem',
+                      backgroundColor: theme.inputBg,
+                      borderRadius: theme.radius,
+                      border: `1px solid ${theme.inputBorder}`
+                    }}
+                  >
+                    {filteredEmployees.map((employee: any) => {
+                      const selected = formData.selectedEmployee === employee.dni;
+                      return (
+                        <button
+                          key={employee.id}
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, selectedEmployee: employee.dni });
+                            showToast(`Empleado seleccionado: ${employee.firstName} ${employee.lastName}`, 'success');
+                          }}
+                          className="login-employee-btn"
+                          style={{
+                            padding: cardPadding,
+                            border: selected ? `2px solid ${theme.accent}` : `1px solid ${theme.inputBorder}`,
+                            borderRadius: theme.radiusSm,
+                            backgroundColor: selected ? theme.accentMuted : 'white',
+                            cursor: 'pointer',
+                            transition: 'border-color 0.2s, background-color 0.2s, box-shadow 0.2s',
+                            textAlign: 'left',
+                            fontSize: cardFontSize,
+                            fontWeight: 600,
+                            color: theme.text,
+                            boxShadow: selected ? `0 2px 8px ${theme.accentMuted}` : 'none',
+                            minWidth: 0
+                          }}
+                          onMouseOver={(e) => {
+                            if (!selected) {
+                              e.currentTarget.style.borderColor = theme.accent;
+                              e.currentTarget.style.backgroundColor = theme.accentMuted;
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (!selected) {
+                              e.currentTarget.style.borderColor = theme.inputBorder;
+                              e.currentTarget.style.backgroundColor = 'white';
+                            }
+                          }}
+                        >
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            marginBottom: '0.2rem',
+                            minWidth: 0
+                          }}>
+                            {employee.photoBase64 ? (
+                              <img
+                                src={employee.photoBase64.startsWith('data:')
+                                  ? employee.photoBase64
+                                  : `data:image/jpeg;base64,${employee.photoBase64}`}
+                                alt={`${employee.firstName} ${employee.lastName}`}
+                                style={{
+                                  width: avatarSize,
+                                  height: avatarSize,
+                                  minWidth: avatarSize,
+                                  borderRadius: '50%',
+                                  objectFit: 'cover',
+                                  border: `1px solid ${theme.inputBorder}`
+                                }}
+                                onError={(e) => {
+                                  const el = e.currentTarget;
+                                  el.style.display = 'none';
+                                  const span = document.createElement('span');
+                                  span.setAttribute('style', `font-size: ${Math.round(avatarSize * 0.65)}px; min-width: ${avatarSize}px; text-align: center;`);
+                                  span.textContent = '👤';
+                                  el.parentElement?.insertBefore(span, el);
+                                }}
+                              />
+                            ) : (
+                              <span style={{ fontSize: `${Math.round(avatarSize * 0.65)}px`, minWidth: avatarSize, textAlign: 'center' }}>👤</span>
+                            )}
+                            <span style={{
+                              fontWeight: 600,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {employee.firstName} {employee.lastName}
+                            </span>
+                          </div>
+                          <div style={{
+                            fontSize: cardDniFontSize,
+                            color: '#000',
+                            marginLeft: avatarSize + 6,
+                            fontWeight: 600,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            DNI: {employee.dni}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              <div style={{ marginBottom: isSmallDesktop ? '0.25rem' : isMediumDesktop ? '0.5rem' : '0.5rem', marginTop: 0 }}>
+              <div style={{ marginBottom: '1rem', marginTop: 0 }}>
                 <label className="form-labels" style={{
                   display: 'block',
-                  marginBottom: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.75rem' : '1rem',
-                  color: '#2d3748',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
                   fontSize: labelFontSize,
-                  fontWeight: '700'
+                  fontWeight: 600
                 }}>
                   🔒 Contraseña
                 </label>
@@ -754,48 +721,47 @@ const Login: React.FC = () => {
                     onChange={handleChange}
                     placeholder="••••••••"
                     required
-                    className="form-inputs"
+                    className="login-input form-inputs"
                     style={{
                       width: '100%',
-                      padding: isSmallDesktop ? '0.75rem 2.5rem 0.75rem 2.5rem' : isMediumDesktop ? '0.875rem 2.75rem 0.875rem 2.75rem' : '1rem 3.5rem 1rem 3rem',
-                      border: '2px solid #e2e8f0',
-                      borderRadius: '12px',
+                      padding: isSmallDesktop ? '0.75rem 2.5rem 0.75rem 2.5rem' : '0.875rem 2.75rem 0.875rem 2.75rem',
+                      border: `2px solid ${theme.inputBorder}`,
+                      borderRadius: theme.radius,
                       fontSize: inputFontSize,
-                      backgroundColor: '#f8fafc',
-                      transition: 'all 0.3s ease',
+                      backgroundColor: theme.inputBg,
+                      transition: 'border-color 0.2s, box-shadow 0.2s, background-color 0.2s',
                       outline: 'none',
                       boxSizing: 'border-box',
-                      fontWeight: '500'
+                      fontWeight: 500
                     }}
                     onFocus={(e) => {
                       setFocusedInput('password');
-                      e.target.style.borderColor = '#ffa726';
+                      e.target.style.borderColor = theme.inputFocusBorder;
                       e.target.style.backgroundColor = 'white';
-                      e.target.style.boxShadow = '0 0 0 4px rgba(255, 167, 38, 0.1)';
-                      e.target.style.transform = 'translateY(-2px)';
+                      e.target.style.boxShadow = `0 0 0 4px ${theme.inputFocusRing}`;
                     }}
                     onBlur={(e) => {
                       if (!keyboardRef.current?.contains(e.relatedTarget as Node)) setFocusedInput(null);
-                      e.target.style.borderColor = '#e2e8f0';
-                      e.target.style.backgroundColor = '#f8fafc';
+                      e.target.style.borderColor = theme.inputBorder;
+                      e.target.style.backgroundColor = theme.inputBg;
                       e.target.style.boxShadow = 'none';
-                      e.target.style.transform = 'translateY(0)';
                     }}
                   />
-                  <div style={{
+                  <span style={{
                     position: 'absolute',
                     left: '1rem',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    fontSize: isSmallDesktop ? '18px' : '20px',
-                    pointerEvents: 'none'
-                  }}>🔒</div>
+                    fontSize: '1.125rem',
+                    pointerEvents: 'none',
+                    opacity: 0.7
+                  }}>🔒</span>
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     style={{
                       position: 'absolute',
-                      right: '1rem',
+                      right: '0.75rem',
                       top: '50%',
                       transform: 'translateY(-50%)',
                       background: 'none',
@@ -805,18 +771,18 @@ const Login: React.FC = () => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: isSmallDesktop ? '18px' : '20px',
-                      color: '#718096',
-                      transition: 'all 0.2s ease',
-                      borderRadius: '8px'
+                      fontSize: '1.125rem',
+                      color: theme.textMuted,
+                      transition: 'background-color 0.2s, color 0.2s',
+                      borderRadius: 8
                     }}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#f1f5f9';
-                      e.currentTarget.style.color = '#2d3748';
+                      e.currentTarget.style.backgroundColor = theme.inputBg;
+                      e.currentTarget.style.color = theme.text;
                     }}
                     onMouseOut={(e) => {
                       e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = '#718096';
+                      e.currentTarget.style.color = theme.textMuted;
                     }}
                   >
                     {showPassword ? '👁️' : '👁️‍🗨️'}
@@ -827,47 +793,39 @@ const Login: React.FC = () => {
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
-                gap: isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem'
+                gap: isSmallDesktop ? '0.5rem' : '0.75rem'
               }}>
                 <button
                   type="submit"
                   disabled={loading}
                   style={{
                     width: '100%',
-                    padding: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.875rem' : '1rem',
-                    background: loading ? '#ccc' : 'linear-gradient(135deg, #42a5f5 0%, #66bb6a 50%, #ffa726 100%)',
+                    padding: isSmallDesktop ? '0.75rem' : '0.9375rem 1rem',
+                    background: loading ? '#cbd5e1' : `linear-gradient(145deg, ${theme.accent}, ${theme.accentHover})`,
                     color: 'white',
                     border: 'none',
-                    borderRadius: '12px',
-                    fontSize: isSmallDesktop ? 'clamp(12px, 2vw, 14px)' : isMediumDesktop ? 'clamp(13px, 2vw, 15px)' : 'clamp(14px, 2vw, 16px)',
-                    fontWeight: '700',
+                    borderRadius: theme.radius,
+                    fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem',
+                    fontWeight: 600,
                     cursor: loading ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.3s ease',
-                    boxShadow: '0 15px 30px rgba(66, 165, 246, 0.4)',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    opacity: loading ? 0.7 : 1,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.3px'
+                    transition: 'opacity 0.2s, transform 0.2s, box-shadow 0.2s',
+                    boxShadow: loading ? 'none' : `0 8px 24px ${theme.accentMuted}`,
+                    opacity: loading ? 0.8 : 1
                   }}
                   onMouseOver={(e) => {
                     if (!loading) {
-                      e.currentTarget.style.transform = 'translateY(-3px)';
-                      e.currentTarget.style.boxShadow = '0 20px 40px rgba(66, 165, 246, 0.6)';
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #1976d2 0%, #4caf50 50%, #ff9800 100%)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = `0 12px 28px ${theme.accentMuted}`;
                     }
                   }}
                   onMouseOut={(e) => {
                     if (!loading) {
                       e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 15px 30px rgba(66, 165, 246, 0.4)';
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #42a5f5 0%, #66bb6a 50%, #ffa726 100%)';
+                      e.currentTarget.style.boxShadow = `0 8px 24px ${theme.accentMuted}`;
                     }
                   }}
                 >
-                  <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem', fontSize: 'inherit' }}>
-                    {loading ? '⏳' : '✨'} {loading ? 'Autenticando...' : 'Iniciar Sesión'}
-                  </span>
+                  {loading ? '⏳ Autenticando...' : '✨ Iniciar sesión'}
                 </button>
 
                 <button
@@ -875,71 +833,37 @@ const Login: React.FC = () => {
                   onClick={handleBackToCompany}
                   style={{
                     width: '100%',
-                    padding: isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.875rem' : '1rem',
-                    background: 'rgba(108, 117, 125, 0.1)',
-                    color: '#6c757d',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '12px',
-                    fontSize: isSmallDesktop ? 'clamp(12px, 2vw, 14px)' : isMediumDesktop ? 'clamp(13px, 2vw, 15px)' : 'clamp(14px, 2vw, 16px)',
-                    fontWeight: '600',
+                    padding: isSmallDesktop ? '0.75rem' : '0.9375rem 1rem',
+                    background: `linear-gradient(145deg, ${theme.accent}, ${theme.accentHover})`,
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: theme.radius,
+                    fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem',
+                    fontWeight: 600,
                     cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    position: 'relative',
-                    overflow: 'hidden'
+                    transition: 'opacity 0.2s, transform 0.2s, box-shadow 0.2s',
+                    boxShadow: `0 8px 24px ${theme.accentMuted}`,
                   }}
                   onMouseOver={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(108, 117, 125, 0.2)';
-                    e.currentTarget.style.borderColor = '#6c757d';
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(108, 117, 125, 0.2)';
+                    e.currentTarget.style.boxShadow = `0 12px 28px ${theme.accentMuted}`;
                   }}
                   onMouseOut={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(108, 117, 125, 0.1)';
-                    e.currentTarget.style.borderColor = '#e2e8f0';
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
+                    e.currentTarget.style.boxShadow = `0 8px 24px ${theme.accentMuted}`;
                   }}
                 >
-                  <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem', fontSize: 'inherit' }}>
-                    🔙 Volver
-                  </span>
+                  🔙 Volver
                 </button>
               </div>
             </form>
           </div>
-
-          {focusedInput && !showLeftPanel && (
-            <div ref={keyboardRef} style={{
-              width: '100%',
-              maxWidth: '680px',
-              minWidth: '560px',
-              marginTop: '1rem',
-              padding: '1rem',
-              background: 'linear-gradient(145deg, #f1f5f9, #e2e8f0)',
-              borderRadius: '16px',
-              border: '3px solid #64748b',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.5)'
-            }}>
-              <div style={{ textAlign: 'center', marginBottom: '0.75rem', fontSize: '1rem', fontWeight: 700, color: '#334155' }}>
-                ⌨️ Teclado virtual
-              </div>
-              <VirtualKeyboard
-                onKeyPress={handleVirtualKeyPress}
-                onBackspace={handleVirtualBackspace}
-                compact={false}
-              />
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Estilos CSS para animaciones y responsividad */}
       <style>{`
-        /* Asegurar que el contenedor principal ocupe toda la pantalla */
-        * {
-          box-sizing: border-box !important;
-        }
-        
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        * { box-sizing: border-box !important; }
         body, html {
           margin: 0 !important;
           padding: 0 !important;
@@ -947,78 +871,25 @@ const Login: React.FC = () => {
           height: 100vh !important;
           width: 100vw !important;
         }
-        
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-20px); }
+        .login-root .form-panel {
+          height: 100vh !important;
+          width: 100% !important;
+          max-width: 100% !important;
         }
-        
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); opacity: 0.1; }
-          50% { transform: scale(1.1); opacity: 0.2; }
+        .login-root .login-input:focus {
+          outline: none;
         }
-        
-        @keyframes bounce {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
+        .login-root .login-keyboard-panel {
+          min-width: 0;
         }
-        
-        /* Media queries para responsividad - Solo tablets y desktop */
-        @media (min-width: 1536px) {
-          .main-container {
-            flex-direction: row !important;
-            height: 100vh !important;
-          }
-          .left-panel {
-            display: flex !important;
-            height: 100vh !important;
-          }
-          .form-panel {
-            height: 100vh !important;
-            overflow: hidden !important;
-          }
+        .login-root .login-decorations .login-deco {
+          transition: opacity 0.25s ease;
         }
-        
-        @media (min-width: 1280px) and (max-width: 1535px) {
-          .main-container {
-            flex-direction: row !important;
-            height: 100vh !important;
-          }
-          .left-panel {
-            display: flex !important;
-            height: 100vh !important;
-          }
-          .form-panel {
-            height: 100vh !important;
-            overflow: hidden !important;
-          }
+        @media (max-width: 900px) {
+          .login-root .login-decorations .login-deco { opacity: 0.3 !important; }
         }
-        
-        @media (min-width: 1024px) and (max-width: 1279px) {
-          .main-container {
-            flex-direction: row !important;
-            height: 100vh !important;
-          }
-          .left-panel {
-            display: flex !important;
-            height: 100vh !important;
-          }
-          .form-panel {
-            height: 100vh !important;
-            overflow: hidden !important;
-          }
-        }
-        
-        @media (min-width: 768px) and (max-width: 1023px) {
-          .left-panel {
-            display: none !important;
-          }
-          .form-panel {
-            height: 100vh !important;
-            width: 100vw !important;
-            max-width: 100vw !important;
-            overflow: hidden !important;
-          }
+        @media (max-width: 700px) {
+          .login-root .login-decorations .login-deco { opacity: 0.2 !important; }
         }
       `}</style>
     </div>

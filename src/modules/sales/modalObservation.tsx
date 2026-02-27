@@ -338,14 +338,14 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 							)}
 						</div>
 
-						{/* Teclado virtual */}
+						{/* Teclado virtual (compacto para que se vean bien Cancelar y Aplicar) */}
 						{canEdit && (
-							<div style={{ marginTop: '0.75rem' }}>
+							<div style={{ marginTop: '0.5rem', maxWidth: '100%' }}>
 								<VirtualKeyboard
 									onKeyPress={handleVirtualKeyPress}
 									onBackspace={handleVirtualBackspace}
 									disabled={!canEdit}
-									compact={isSmall || isMedium}
+									compact={true}
 								/>
 							</div>
 						)}

@@ -46,12 +46,14 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 		if (shift && key !== ' ') setShift(false);
 	};
 
-	// Teclas más grandes y gruesas para uso táctil (mozos, dedos gordos)
+	// Teclas más grandes y gruesas para uso táctil (mozos, dedos gordos). flex: 1 para ocupar todo el ancho disponible.
+	// Modo compact: menos altura para dejar espacio a los botones Iniciar sesión / Volver.
 	const keyStyle: React.CSSProperties = {
-		minWidth: compact ? 42 : 48,
-		height: compact ? 58 : 68,
-		padding: compact ? '0.4rem 0.5rem' : '0.5rem 0.6rem',
-		fontSize: compact ? 34 : 37,
+		flex: 1,
+		minWidth: compact ? 28 : 32,
+		height: compact ? 46 : 68,
+		padding: compact ? '0.25rem 0.2rem' : '0.5rem 0.35rem',
+		fontSize: compact ? 28 : 37,
 		fontWeight: 700,
 		border: '1px solid #cbd5e0',
 		borderRadius: 8,
@@ -70,31 +72,41 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 		...keyStyle,
 		background: '#e2e8f0',
 		color: '#475569',
-		minWidth: compact ? 48 : 56
+		flex: '0 0 auto',
+		minWidth: compact ? 40 : 56
 	};
 
 	const spaceKeyStyle: React.CSSProperties = {
 		...keyStyle,
 		flex: 1,
-		minWidth: compact ? 120 : 180,
-		maxWidth: compact ? 200 : 300,
+		minWidth: compact ? 60 : 120,
 		background: '#e2e8f0',
 		color: '#334155',
 		border: '2px solid #94a3b8',
 		fontWeight: 700,
-		fontSize: compact ? 13 : 15
+		fontSize: compact ? 12 : 15
 	};
 
 	const rowStyle: React.CSSProperties = {
 		display: 'flex',
-		gap: compact ? 5 : 6,
-		justifyContent: 'center',
-		marginBottom: compact ? 5 : 6
+		width: '100%',
+		gap: compact ? 4 : 6,
+		justifyContent: 'stretch',
+		marginBottom: compact ? 3 : 6
+	};
+
+	const containerStyle: React.CSSProperties = {
+		width: '100%',
+		boxSizing: 'border-box',
+		padding: compact ? '0.4rem 0.6rem' : '0.9rem',
+		background: '#f8fafc',
+		borderRadius: 10,
+		border: '1px solid #e2e8f0'
 	};
 
 	if (showNumbers) {
 		return (
-			<div style={{ padding: compact ? '0.6rem' : '0.9rem', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+			<div style={containerStyle}>
 				<div style={rowStyle}>
 					{NUMBERS.map(k => (
 						<button
@@ -139,7 +151,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 	}
 
 	return (
-		<div style={{ padding: compact ? '0.6rem' : '0.9rem', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+		<div style={containerStyle}>
 			<div style={rowStyle}>
 				{ROW1.map(k => (
 					<button

@@ -22,6 +22,7 @@ import ReportEmployee from '../modules/reports/reportEmployee';
 import Observation from '../modules/configuration/observation';
 import Subcategory from '../modules/configuration/subcategory';
 import CategoryModule from '../modules/configuration/category';
+import Printers from '../modules/configuration/printers';
 import Delivery from '../modules/sales/delivery';
 import { GET_MY_UNREAD_MESSAGES } from '../graphql/queries';
 import { MARK_MESSAGE_READ } from '../graphql/mutations';
@@ -93,7 +94,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const headerSubFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
   const { hasPermission } = useUserPermissions();
   const [currentView, setCurrentView] = useState<'dashboard' | 'floors' | 'cash' | 'cashs' | 'messages' | 'employees' | 'permissions' | 'products' | 'inventory' | 'kardex' | 'purchase' | 'reports' | 'configuration' | 'delivery'>('dashboard');
-  const [configurationTab, setConfigurationTab] = useState<'category' | 'subcategory' | 'observation'>('category');
+  const [configurationTab, setConfigurationTab] = useState<'category' | 'subcategory' | 'observation' | 'printers'>('category');
   const [reportType, setReportType] = useState<'sales' | 'cancellation' | 'productsSold' | 'employees'>('sales');
   const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -1665,11 +1666,32 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                       <span>📝</span>
                       Observaciones
                     </button>
+                    <button
+                      onClick={() => setConfigurationTab('printers')}
+                      style={{
+                        padding: isSmall ? '0.375rem 0.75rem' : isMedium ? '0.45rem 1rem' : '0.5rem 1.5rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: configurationTab === 'printers' ? '#0d9488' : 'transparent',
+                        color: configurationTab === 'printers' ? 'white' : '#64748b',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <span>🖨️</span>
+                      Impresoras
+                    </button>
                   </div>
 
                   {configurationTab === 'category' && <CategoryModule />}
                   {configurationTab === 'subcategory' && <Subcategory />}
                   {configurationTab === 'observation' && <Observation />}
+                  {configurationTab === 'printers' && <Printers />}
                 </div>
               )}
               {currentView === 'delivery' && <Delivery />}
