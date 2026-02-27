@@ -21,6 +21,7 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<'search' | 'password' | null>(null);
   const keyboardRef = useRef<HTMLDivElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   const [userLoginMutation, { loading }] = useMutation(USER_LOGIN);
 
@@ -614,6 +615,8 @@ const Login: React.FC = () => {
                           onClick={() => {
                             setFormData({ ...formData, selectedEmployee: employee.dni });
                             showToast(`Empleado seleccionado: ${employee.firstName} ${employee.lastName}`, 'success');
+                            setFocusedInput('password');
+                            setTimeout(() => passwordInputRef.current?.focus(), 0);
                           }}
                           className="login-employee-btn"
                           style={{
@@ -715,6 +718,7 @@ const Login: React.FC = () => {
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
+                    ref={passwordInputRef}
                     type={showPassword ? 'text' : 'password'}
                     name="password"
                     value={formData.password}
