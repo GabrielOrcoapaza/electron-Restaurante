@@ -185,6 +185,8 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     };
   };
 
+  const isMozo = (user?.role || '').toUpperCase() === 'WAITER';
+
   const handleTableClick = (table: Table) => {
     // Verificar si el usuario puede acceder a esta mesa
     const accessCheck = canAccessTable(table);
@@ -195,8 +197,16 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     }
     
     setSelectedTable(table);
-    // Si la mesa ya tiene una orden (ocupada o por pagar), mostrar modal para elegir Orden o Caja
     const hasExistingOrder = Boolean(table.currentOperationId) || table.status === 'OCCUPIED' || table.status === 'TO_PAY';
+    
+    // Solo para mozos: nunca mostrar el modal Orden/Caja, ir siempre directo a order.tsx
+    if (isMozo) {
+      setShowStatusModal(false);
+      setShowOrder(true);
+      return;
+    }
+    
+    // Caja, Admin, etc.: si la mesa tiene orden, mostrar modal para elegir Orden o Caja
     if (hasExistingOrder) {
       setShowOrder(false);
       setShowStatusModal(true);

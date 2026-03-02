@@ -1649,14 +1649,6 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 															gap: '4px'
 														}}>
 															{item.name}
-															{item.isPrinted && (
-																<span
-																	title={`Impreso ${item.printedAt ? `el ${new Date(item.printedAt).toLocaleString()}` : ''}`}
-																	style={{ fontSize: '0.85rem', flexShrink: 0 }}
-																>
-																	🖨️
-																</span>
-															)}
 														</div>
 													</div>
 
