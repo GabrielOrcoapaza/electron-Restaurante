@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
-import { GET_STOCK_MOVEMENTS_REPORT, GET_PRODUCTS_WITH_STOCK } from '../../graphql/queries';
+import { GET_STOCK_MOVEMENTS_REPORT, GET_PRODUCTS_WITH_STOCK, GET_STOCKS_BY_BRANCH } from '../../graphql/queries';
 
 interface StockMovement {
   id: string;
@@ -35,6 +35,8 @@ interface Product {
   id: string;
   code: string;
   name: string;
+  productType?: string;
+  currentStock?: number;
 }
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
@@ -90,12 +92,33 @@ const Kardex: React.FC = () => {
   const [selectedProductId, setSelectedProductId] = useState<string>('');
 
   // Obtener productos para el selector
-  const { data: productsData } = useQuery(GET_PRODUCTS_WITH_STOCK, {
+  const { data: productsData, refetch: refetchProducts } = useQuery(GET_PRODUCTS_WITH_STOCK, {
     variables: { branchId: branchId! },
-    skip: !branchId
+    skip: !branchId,
+    fetchPolicy: 'network-only'
   });
 
-  const products: Product[] = productsData?.productsByBranch || [];
+  const allProducts: Product[] = productsData?.productsByBranch || [];
+  const products = allProducts.filter(
+    (p) => p.productType === 'INGREDIENT' || p.productType === 'BEVERAGE'
+  );
+
+  // Stock actual desde el servidor (stocksByBranch) — se actualiza al registrar o vender
+  const { data: stocksData, refetch: refetchStocks } = useQuery(GET_STOCKS_BY_BRANCH, {
+    variables: { branchId: branchId! },
+    skip: !branchId,
+    fetchPolicy: 'network-only'
+  });
+
+  const stocksByBranchList = stocksData?.stocksByBranch ?? [];
+  const currentStockFromServer: Record<string, number> = {};
+  stocksByBranchList.forEach((s: { product?: { id: string }; currentQuantity?: number }) => {
+    const pid = s.product?.id;
+    if (pid != null) {
+      const q = Number(s.currentQuantity);
+      if (!Number.isNaN(q)) currentStockFromServer[pid] = q;
+    }
+  });
 
   // Convertir fechas a formato ISO para GraphQL
   const startDateTime = startDate ? `${startDate}T00:00:00` : null;
@@ -114,6 +137,53 @@ const Kardex: React.FC = () => {
   });
 
   const movements: StockMovement[] = data?.stockMovementsReport || [];
+
+  // Extraer stock objetivo del motivo cuando viene "X -> Y" (ej. "1.0000 -> 100.0")
+  const getAdjustmentTargetFromReason = (reason: string | null | undefined): number | null => {
+    if (!reason || typeof reason !== 'string') return null;
+    const trimmed = reason.trim();
+    // Aceptar "->" o "→" y capturar el número destino (el que va después de la flecha)
+    const match = trimmed.match(/(?:->|→)\s*([\d.,]+)/);
+    if (!match) return null;
+    const numStr = match[1].replace(',', '.');
+    const n = parseFloat(numStr);
+    return Number.isNaN(n) ? null : n;
+  };
+
+  // Saldo después de cada movimiento POR PRODUCTO (cada producto tiene su propio balance)
+  const balanceAfterMovementId: Record<string, number> = (() => {
+    const map: Record<string, number> = {};
+    const sorted = [...movements].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    const balanceByProduct: Record<string, number> = {};
+    for (const m of sorted) {
+      const productId = m.productId || '';
+      let balance = balanceByProduct[productId] ?? 0;
+      const q = Number(m.quantity) || 0;
+      switch ((m.movementType || '').toUpperCase()) {
+        case 'IN':
+          balance += q;
+          break;
+        case 'OUT':
+          balance -= q;
+          break;
+        case 'ADJUSTMENT': {
+          const targetFromReason = getAdjustmentTargetFromReason(m.reason);
+          balance = targetFromReason != null ? targetFromReason : q;
+          break;
+        }
+        case 'TRANSFER':
+          balance += q;
+          break;
+        default:
+          balance += q;
+      }
+      balanceByProduct[productId] = balance;
+      map[m.id] = balance;
+    }
+    return map;
+  })();
 
   // Función para obtener el color según el tipo de movimiento
   const getMovementTypeColor = (type: string) => {
@@ -200,7 +270,9 @@ const Kardex: React.FC = () => {
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          marginBottom: containerGap
+          marginBottom: containerGap,
+          flexWrap: 'wrap',
+          gap: '0.75rem'
         }}>
           <div>
             <h2 style={{ 
@@ -212,9 +284,31 @@ const Kardex: React.FC = () => {
               📋 Kardex
             </h2>
             <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: subtitleFontSize }}>
-              Registro de movimientos de inventario
+              Registro de movimientos. Stock actual desde el servidor o calculado por movimiento.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              refetch();
+              refetchProducts();
+              refetchStocks();
+            }}
+            disabled={loading}
+            style={{
+              padding: '0.625rem 1rem',
+              fontSize: buttonFontSize,
+              fontWeight: 600,
+              color: 'white',
+              background: loading ? '#94a3b8' : '#667eea',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 8px rgba(102, 126, 234, 0.35)'
+            }}
+          >
+            {loading ? 'Actualizando...' : '🔄 Refrescar'}
+          </button>
         </div>
 
         {/* Filtros */}
@@ -581,7 +675,11 @@ const Kardex: React.FC = () => {
                             fontWeight: 500,
                             fontSize: tableFontSize
                           }}>
-                            {formatNumber(movement.quantity)}
+                            {formatNumber(
+                              (movement.movementType || '').toUpperCase() === 'ADJUSTMENT' && getAdjustmentTargetFromReason(movement.reason) != null
+                                ? getAdjustmentTargetFromReason(movement.reason)!
+                                : movement.quantity
+                            )}
                           </td>
                           <td style={{ 
                             padding: tableCellPadding, 
@@ -606,7 +704,12 @@ const Kardex: React.FC = () => {
                             color: '#64748b',
                             fontSize: tableFontSize
                           }}>
-                            {formatNumber(movement.currentQuantity)}
+                            {formatNumber(
+                              balanceAfterMovementId[movement.id] ??
+                              movement.currentQuantity ??
+                              currentStockFromServer[movement.productId] ??
+                              0
+                            )}
                           </td>
                           <td style={{ 
                             padding: tableCellPadding, 

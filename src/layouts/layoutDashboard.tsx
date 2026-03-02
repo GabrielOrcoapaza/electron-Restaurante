@@ -112,7 +112,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     variables: { limit: 20 },
     skip: !user?.id,
     pollInterval: 30000,
-    fetchPolicy: 'network-only'
+    fetchPolicy: 'no-cache',
+    nextFetchPolicy: 'no-cache'
   });
 
   const {
@@ -122,8 +123,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
     refetch: refetchBroadcastMessages
   } = useQuery(GET_MY_UNREAD_MESSAGES, {
     skip: !user?.id,
-    pollInterval: 10000, // Polling cada 10 segundos como respaldo, pero el WebSocket actualiza inmediatamente
-    fetchPolicy: 'network-only'
+    pollInterval: 10000,
+    fetchPolicy: 'no-cache',
+    nextFetchPolicy: 'no-cache'
   });
 
   const [markMessageReadMutation] = useMutation(MARK_MESSAGE_READ);

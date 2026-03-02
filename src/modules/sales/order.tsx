@@ -1856,36 +1856,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							>
 								{isSaving ? 'Guardando...' : 'Enviar a cocina (sin imprimir)'}
 							</button>
-							<button
-								onClick={() => handleSaveOrder('TO_PAY')}
-								disabled={isSaving || orderItems.length === 0}
-								style={{
-									padding: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem',
-									background: isSaving || orderItems.length === 0 ? '#cbd5e0' : 'linear-gradient(135deg,#667eea,#764ba2)',
-									color: 'white',
-									border: 'none',
-									borderRadius: isSmall ? '8px' : isMedium ? '10px' : '12px',
-									cursor: isSaving || orderItems.length === 0 ? 'not-allowed' : 'pointer',
-									fontWeight: 800,
-									opacity: isSaving || orderItems.length === 0 ? 0.6 : 1,
-									fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
-									boxShadow: isSaving || orderItems.length === 0 ? 'none' : '0 3px 10px rgba(102, 126, 234, 0.35)',
-									transition: 'all 0.2s ease',
-									textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-								}}
-								onMouseEnter={(e) => {
-									if (!isSaving && orderItems.length > 0) {
-										e.currentTarget.style.transform = 'translateY(-2px)';
-										e.currentTarget.style.boxShadow = '0 5px 14px rgba(102, 126, 234, 0.45)';
-									}
-								}}
-								onMouseLeave={(e) => {
-									e.currentTarget.style.transform = 'translateY(0)';
-									e.currentTarget.style.boxShadow = isSaving || orderItems.length === 0 ? 'none' : '0 3px 10px rgba(102, 126, 234, 0.35)';
-								}}
-							>
-								{isSaving ? 'Cancelando...' : 'Cancelar Orden'}
-							</button>
+							
 							{/* Botón de Precuenta - solo visible cuando hay una orden existente */}
 							{isExistingOrder && (
 								<button

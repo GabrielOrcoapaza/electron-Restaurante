@@ -175,7 +175,6 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
         zIndex: 1000,
         padding: '1rem'
       }}
-      onClick={onClose}
     >
       <div
         style={{

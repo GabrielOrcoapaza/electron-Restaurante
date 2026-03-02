@@ -48,10 +48,10 @@ const Login: React.FC = () => {
   // Verificar que existan datos de la empresa
   useEffect(() => {
     if (!companyData) {
-      console.log('Primero debes iniciar sesion con los datos de la empresa')
+      showToast('Primero debes iniciar sesión con los datos de la empresa', 'warning');
       navigate('/login-company');
     }
-  }, [companyData, navigate]);
+  }, [companyData, navigate, showToast]);
 
   // Refrescar empleados cuando cambia el branchId o cuando se monta el componente
   useEffect(() => {
@@ -65,7 +65,7 @@ const Login: React.FC = () => {
 
     // Verificar datos de empresa
     if (!companyData) {
-      console.log('No hay datps de empresa. Redirigiendo...')
+      showToast('No hay datos de empresa. Redirigiendo...', 'error');
       navigate('/login-company');
       return;
     }
@@ -78,7 +78,6 @@ const Login: React.FC = () => {
 
     // Verificar que se haya seleccionado un empleado
     if (!formData.selectedEmployee) {
-      console.log('Por favor selecciona un empleado')
       showToast('Por favor selecciona un empleado', 'warning');
       return;
     }
@@ -122,11 +121,10 @@ const Login: React.FC = () => {
         // Redirigir al dashboard
         navigate('/dashboard');
       } else {
-        console.log('❌ Error en el login:', data?.userLogin?.message);
-        console.log('❌ deviceRegistered en error:', data?.userLogin?.deviceRegistered);
+        showToast(data?.userLogin?.message || 'Error en el login', 'error');
       }
     } catch (err: any) {
-      console.error('Error en login de usuario:', err);
+      showToast(err?.message || 'Error en login de usuario', 'error');
     }
   };
 

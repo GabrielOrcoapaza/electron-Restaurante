@@ -552,6 +552,25 @@ export const GET_RECIPES_BY_PRODUCT = gql`
   }
 `;
 
+// Query para obtener stocks por sucursal (Stock actual desde el servidor)
+export const GET_STOCKS_BY_BRANCH = gql`
+  query GetStocksByBranch($branchId: ID!) {
+    stocksByBranch(branchId: $branchId) {
+      id
+      currentQuantity
+      averageCost
+      product {
+        id
+        code
+        name
+        productType
+        unitMeasure
+        isActive
+      }
+    }
+  }
+`;
+
 // Query para obtener reporte de movimientos de stock (Kardex)
 export const GET_STOCK_MOVEMENTS_REPORT = gql`
   query GetStockMovementsReport(

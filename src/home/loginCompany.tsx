@@ -29,12 +29,12 @@ const LoginCompany: React.FC = () => {
         const mac = await getMacAddress();
         setMacAddress(mac);
       } catch (error) {
-        console.error('Error al obtener MAC address:', error);
+        showToast('Error al obtener la dirección MAC del dispositivo', 'error');
         setMacAddress('No disponible');
       }
     };
     fetchMacAddress();
-  }, [getMacAddress]);
+  }, [getMacAddress, showToast]);
 
   const [companyLoginMutation, { loading }] = useMutation(COMPANY_LOGIN);
 
