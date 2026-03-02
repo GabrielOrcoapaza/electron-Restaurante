@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@apollo/client';
-import { GET_PRODUCTS_BY_BRANCH, GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS } from '../../graphql/queries';
+import { GET_PRODUCTS_BY_BRANCH, GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS, SEARCH_PRODUCTS } from '../../graphql/queries';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import RecipeModal from './recipe';
@@ -48,7 +48,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
   const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
-  
+
   // Tamaños adaptativos
   const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
   const gapSize = isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '0.875rem' : isMediumDesktop ? '1rem' : '1rem';
@@ -63,6 +63,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
 
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedProductType, setSelectedProductType] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedProductForRecipe, setSelectedProductForRecipe] = useState<{ id: string; name: string; productType?: string } | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 20;
@@ -70,17 +71,25 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
   // Determinar si hay algún filtro activo
   const hasFilters = Boolean(selectedProductType || selectedCategory);
 
+  // Búsqueda de productos (si hay término de búsqueda) - siempre del servidor
+  const { data: searchData, loading: searchLoading, error: searchError } = useQuery(SEARCH_PRODUCTS, {
+    variables: { search: searchTerm, branchId: branchId, limit: 50 },
+    skip: !branchId || searchTerm.length < 3,
+    errorPolicy: 'ignore',
+    fetchPolicy: 'network-only'
+  });
+
   // Query optimizada con filtros (productType y/o categoryId)
   // Esta query se usa cuando hay al menos un filtro activo
   const { data: filteredProductsData, loading: filteredProductsLoading, error: filteredProductsError, refetch: refetchFilteredProducts } = useQuery(
     GET_PRODUCTS,
     {
-      variables: { 
+      variables: {
         branchId: branchId!,
         ...(selectedProductType && { productType: selectedProductType }),
         ...(selectedCategory && { categoryId: selectedCategory })
       },
-      skip: !branchId || !hasFilters,
+      skip: !branchId || (!hasFilters || searchTerm.length >= 3),
       fetchPolicy: 'network-only'
     }
   );
@@ -90,7 +99,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
     GET_PRODUCTS_BY_BRANCH,
     {
       variables: { branchId: branchId! },
-      skip: !branchId || hasFilters,
+      skip: !branchId,
       fetchPolicy: 'network-only'
     }
   );
@@ -102,33 +111,51 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
   });
 
   // Obtener productos según la query usada
-  const filteredProducts: Product[] = hasFilters 
-    ? (filteredProductsData?.products || [])
-    : (productsData?.productsByBranch || []);
-  
+  let products: Product[] = [];
+  if (searchTerm.length >= 3) {
+    products = searchData?.searchProducts || [];
+
+    // Fallback: Si la búsqueda del servidor no devuelve resultados, búsqueda local
+    if (products.length === 0) {
+      const allProducts = productsData?.productsByBranch || [];
+      const searchLower = searchTerm.toLowerCase();
+      products = (allProducts as Product[]).filter((p: Product) =>
+        p.name?.toLowerCase().includes(searchLower) ||
+        p.code?.toLowerCase().includes(searchLower) ||
+        p.description?.toLowerCase().includes(searchLower)
+      );
+    }
+  } else if (hasFilters) {
+    products = filteredProductsData?.products || [];
+  } else {
+    products = productsData?.productsByBranch || [];
+  }
+
   const categories: Category[] = categoriesData?.categoriesByBranch || [];
-  const loading = hasFilters ? filteredProductsLoading : productsLoading;
-  const error = hasFilters ? filteredProductsError : productsError;
+  const loading = searchTerm.length >= 3 ? searchLoading : (hasFilters ? filteredProductsLoading : productsLoading);
+  const error = searchTerm.length >= 3 ? searchError : (hasFilters ? filteredProductsError : productsError);
 
   // Calcular paginación
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const totalPages = Math.ceil(products.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+  const paginatedProducts = products.slice(startIndex, endIndex);
 
-  // Resetear página cuando cambie la categoría o el tipo de producto
+  // Resetear página cuando cambie la categoría, el tipo de producto o el término de búsqueda
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [selectedCategory, selectedProductType]);
+  }, [selectedCategory, selectedProductType, searchTerm]);
 
   // Refrescar cuando cambie el refreshKey
   React.useEffect(() => {
-    if (hasFilters) {
-      refetchFilteredProducts();
-    } else {
-      refetchProducts();
+    if (searchTerm.length < 3) {
+      if (hasFilters) {
+        refetchFilteredProducts();
+      } else {
+        refetchProducts();
+      }
     }
-  }, [refreshKey, hasFilters, refetchProducts, refetchFilteredProducts]);
+  }, [refreshKey, hasFilters, refetchProducts, refetchFilteredProducts, searchTerm]);
 
   if (!branchId) {
     return (
@@ -163,6 +190,62 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
         marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem',
         flexWrap: 'wrap'
       }}>
+        {/* Búsqueda */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          padding: cardPadding,
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+          border: '1px solid #e2e8f0',
+          flex: '1',
+          minWidth: isSmall ? '100%' : isMedium ? '250px' : isSmallDesktop ? '300px' : '350px'
+        }}>
+          <label style={{
+            display: 'block',
+            marginBottom: '0.5rem',
+            fontWeight: 500,
+            fontSize: labelFontSize,
+            color: '#475569'
+          }}>
+            Buscar producto:
+          </label>
+          <div style={{ position: 'relative' }}>
+            <span style={{ position: 'absolute', left: 10, top: 10, opacity: 0.6 }}>🔎</span>
+            <input
+              type="text"
+              placeholder="Buscar producto o escanear código"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.65rem 0.85rem 0.65rem 2.2rem',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                fontSize: inputFontSize,
+                boxSizing: 'border-box',
+                backgroundColor: 'white'
+              }}
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  top: 10,
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  opacity: 0.5,
+                  fontSize: '1rem'
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Filtro de categorías */}
         {categories.length > 0 && (
           <div style={{
@@ -174,12 +257,12 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
             flex: '1',
             minWidth: isSmall ? '100%' : isMedium ? '200px' : isSmallDesktop ? '200px' : '250px'
           }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '0.5rem', 
-              fontWeight: 500, 
-              fontSize: labelFontSize, 
-              color: '#475569' 
+            <label style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              fontWeight: 500,
+              fontSize: labelFontSize,
+              color: '#475569'
             }}>
               Filtrar por categoría:
             </label>
@@ -218,12 +301,12 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
           flex: '1',
           minWidth: isSmall ? '100%' : isMedium ? '200px' : isSmallDesktop ? '200px' : '250px'
         }}>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '0.5rem', 
-            fontWeight: 500, 
-            fontSize: labelFontSize, 
-            color: '#475569' 
+          <label style={{
+            display: 'block',
+            marginBottom: '0.5rem',
+            fontWeight: 500,
+            fontSize: labelFontSize,
+            color: '#475569'
           }}>
             Filtrar por tipo:
           </label>
@@ -261,20 +344,20 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <h3 style={{ margin: 0, fontSize: titleFontSize, fontWeight: 600, color: '#334155' }}>
-            📋 Lista de Productos ({filteredProducts.length})
+            📋 Lista de Productos ({products.length})
           </h3>
-          {filteredProducts.length > itemsPerPage && (
+          {products.length > itemsPerPage && (
             <p style={{ margin: 0, fontSize: inputFontSize, color: '#64748b' }}>
               Página {currentPage} de {totalPages}
             </p>
           )}
         </div>
-        
-        {filteredProducts.length === 0 ? (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: isSmall ? '2rem' : isMedium ? '2.5rem' : '3rem', 
-            color: '#64748b' 
+
+        {products.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: isSmall ? '2rem' : isMedium ? '2.5rem' : '3rem',
+            color: '#64748b'
           }}>
             <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem', margin: 0 }}>No hay productos registrados</p>
             <p style={{ fontSize: labelFontSize, margin: '0.5rem 0 0' }}>
@@ -282,15 +365,15 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
             </p>
           </div>
         ) : (
-          <div style={{ 
+          <div style={{
             overflowX: 'auto',
             width: '100%',
             maxWidth: '100%',
             boxSizing: 'border-box',
             WebkitOverflowScrolling: 'touch'
           }}>
-            <table style={{ 
-              width: '100%', 
+            <table style={{
+              width: '100%',
               borderCollapse: 'collapse',
               fontSize: tableFontSize,
               tableLayout: 'fixed',
@@ -352,21 +435,21 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                         </div>
                       )}
                     </td>
-                    <td style={{ 
-                      padding: isSmall ? '0.375rem' : '0.5rem', 
-                      textAlign: 'center', 
-                      color: '#334155', 
-                      fontFamily: 'monospace', 
+                    <td style={{
+                      padding: isSmall ? '0.375rem' : '0.5rem',
+                      textAlign: 'center',
+                      color: '#334155',
+                      fontFamily: 'monospace',
                       fontSize: tableFontSize,
                       whiteSpace: 'nowrap'
                     }}>
                       {product.code}
                     </td>
-                    <td style={{ 
-                      padding: isSmall ? '0.375rem' : '0.5rem', 
-                      textAlign: 'center', 
-                      color: '#334155', 
-                      fontWeight: 500, 
+                    <td style={{
+                      padding: isSmall ? '0.375rem' : '0.5rem',
+                      textAlign: 'center',
+                      color: '#334155',
+                      fontWeight: 500,
                       fontSize: tableFontSize,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -374,10 +457,10 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                     }}>
                       {product.name}
                     </td>
-                    <td style={{ 
-                      padding: isSmall ? '0.375rem' : '0.5rem', 
-                      textAlign: 'center', 
-                      color: '#64748b', 
+                    <td style={{
+                      padding: isSmall ? '0.375rem' : '0.5rem',
+                      textAlign: 'center',
+                      color: '#64748b',
                       fontSize: tableFontSize,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -386,20 +469,20 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                     }}>
                       {product.description || '-'}
                     </td>
-                    <td style={{ 
-                      padding: isSmall ? '0.375rem' : '0.5rem', 
-                      textAlign: 'center', 
-                      color: '#334155', 
-                      fontWeight: 600, 
+                    <td style={{
+                      padding: isSmall ? '0.375rem' : '0.5rem',
+                      textAlign: 'center',
+                      color: '#334155',
+                      fontWeight: 600,
                       fontSize: tableFontSize,
                       whiteSpace: 'nowrap'
                     }}>
                       {currencyFormatter.format(product.salePrice)}
                     </td>
-                    <td style={{ 
-                      padding: isSmall ? '0.375rem' : '0.5rem', 
-                      textAlign: 'center', 
-                      color: '#64748b', 
+                    <td style={{
+                      padding: isSmall ? '0.375rem' : '0.5rem',
+                      textAlign: 'center',
+                      color: '#64748b',
                       fontSize: tableFontSize,
                       whiteSpace: 'nowrap'
                     }}>
@@ -418,10 +501,10 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                       </span>
                     </td>
                     <td style={{ padding: isSmall ? '0.375rem' : '0.5rem', textAlign: 'center' }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        gap: isSmall ? '0.25rem' : '0.375rem', 
-                        justifyContent: 'center', 
+                      <div style={{
+                        display: 'flex',
+                        gap: isSmall ? '0.25rem' : '0.375rem',
+                        justifyContent: 'center',
                         flexWrap: 'nowrap',
                         alignItems: 'center'
                       }}>
@@ -477,7 +560,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
         )}
 
         {/* Controles de paginación */}
-        {filteredProducts.length > itemsPerPage && (
+        {products.length > itemsPerPage && (
           <div style={{
             display: 'flex',
             justifyContent: 'center',
@@ -513,19 +596,19 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
             </button>
 
             {/* Números de página */}
-            <div style={{ 
-              display: 'flex', 
-              gap: isSmall ? '0.125rem' : '0.25rem', 
+            <div style={{
+              display: 'flex',
+              gap: isSmall ? '0.125rem' : '0.25rem',
               alignItems: 'center',
               flexWrap: isSmall ? 'wrap' : 'nowrap'
             }}>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
                 // Mostrar solo algunas páginas alrededor de la actual
-                const showPage = 
-                  page === 1 || 
-                  page === totalPages || 
+                const showPage =
+                  page === 1 ||
+                  page === totalPages ||
                   (page >= currentPage - 2 && page <= currentPage + 2);
-                
+
                 if (!showPage) {
                   // Mostrar puntos suspensivos
                   if (page === currentPage - 3 || page === currentPage + 3) {
