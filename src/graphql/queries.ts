@@ -252,6 +252,12 @@ export const GET_PRODUCTS_BY_BRANCH = gql`
       productType
       isActive
       subcategoryId
+      purchasePrice
+      unitMeasure
+      currentStock
+      stockMin
+      stockMax
+
     }
   }
 `;
@@ -269,6 +275,11 @@ export const GET_PRODUCTS = gql`
       preparationTime
       productType
       isActive
+      purchasePrice
+      unitMeasure
+      currentStock
+      stockMin
+      stockMax
     }
   }
 `;
@@ -308,6 +319,12 @@ export const SEARCH_PRODUCTS = gql`
       preparationTime
       isActive
       subcategoryId
+      productType
+      purchasePrice
+      unitMeasure
+      currentStock
+      stockMin
+      stockMax
     }
   }
 `;

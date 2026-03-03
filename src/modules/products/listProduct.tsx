@@ -14,6 +14,11 @@ interface Product {
   imageBase64?: string;
   preparationTime?: number;
   productType?: string;
+  purchasePrice?: number;
+  unitMeasure?: string;
+  currentStock?: number;
+  stockMin?: number;
+  stockMax?: number;
   isActive: boolean;
 }
 

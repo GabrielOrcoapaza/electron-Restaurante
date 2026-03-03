@@ -13,6 +13,12 @@ interface Product {
   salePrice: number;
   imageBase64?: string;
   preparationTime?: number;
+  productType?: string;
+  purchasePrice?: number;
+  unitMeasure?: string;
+  currentStock?: number;
+  stockMin?: number;
+  stockMax?: number;
   isActive: boolean;
 }
 
@@ -23,13 +29,13 @@ const Products: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  
+
   // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
   const isSmall = breakpoint === 'sm'; // 640px - 767px
   const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
-  
+
   // Tamaños adaptativos
   const containerPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
   const containerGap = isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2rem';
@@ -65,7 +71,7 @@ const Products: React.FC = () => {
   }
 
   return (
-      <div
+    <div
       style={{
         minHeight: '100%',
         width: '100%',
@@ -111,9 +117,9 @@ const Products: React.FC = () => {
       {/* Contenido principal */}
       <div style={{ position: 'relative', zIndex: 1 }}>
         {/* Header */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
           alignItems: isSmall ? 'flex-start' : 'center',
           flexDirection: isSmall ? 'column' : 'row',
           marginBottom: isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : '2rem',
@@ -121,11 +127,11 @@ const Products: React.FC = () => {
           gap: isSmall || isMedium ? '1rem' : '0'
         }}>
           <div>
-            <h2 style={{ 
-              margin: 0, 
-              fontSize: titleFontSize, 
-              fontWeight: 700, 
-              color: '#1e293b' 
+            <h2 style={{
+              margin: 0,
+              fontSize: titleFontSize,
+              fontWeight: 700,
+              color: '#1e293b'
             }}>
               🍽️ Gestión de Productos
             </h2>

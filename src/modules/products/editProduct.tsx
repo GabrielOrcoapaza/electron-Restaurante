@@ -4,6 +4,7 @@ import { UPDATE_PRODUCT } from '../../graphql/mutations';
 import { GET_CATEGORIES_BY_BRANCH } from '../../graphql/queries';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useToast } from '../../context/ToastContext';
 
 interface Product {
   id: string;
@@ -84,7 +85,8 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
     currentStock: product.currentStock?.toString() || '0',
     isActive: product.isActive !== undefined ? product.isActive : true,
   });
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [enableStockEdit, setEnableStockEdit] = useState(false);
+  const { showToast } = useToast();
 
   const { data: categoriesData } = useQuery(GET_CATEGORIES_BY_BRANCH, {
     variables: { branchId: branchId! },
@@ -99,16 +101,16 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
   const [updateProduct, { loading }] = useMutation(UPDATE_PRODUCT, {
     onCompleted: (data) => {
       if (data.updateProduct.success) {
-        setMessage({ type: 'success', text: data.updateProduct.message });
+        showToast(data.updateProduct.message, 'success');
         setTimeout(() => {
           onSuccess();
         }, 1000);
       } else {
-        setMessage({ type: 'error', text: data.updateProduct.message });
+        showToast(data.updateProduct.message, 'error');
       }
     },
     onError: (error) => {
-      setMessage({ type: 'error', text: error.message });
+      showToast(error.message, 'error');
     },
   });
 
@@ -127,7 +129,6 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage(null);
 
     const variables: any = {
       productId: product.id,
@@ -141,9 +142,16 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
       preparationTime: formData.preparationTime ? parseInt(formData.preparationTime) : undefined,
       stockMin: formData.stockMin ? parseFloat(formData.stockMin) : undefined,
       stockMax: formData.stockMax ? parseFloat(formData.stockMax) : undefined,
-      currentStock: formData.currentStock ? parseFloat(formData.currentStock) : undefined,
       isActive: formData.isActive,
     };
+
+    // Solo enviar el stock si la edición está habilitada y ha cambiado respecto al valor original
+    if (enableStockEdit) {
+      const currentStockFloat = formData.currentStock ? parseFloat(formData.currentStock) : 0;
+      if (currentStockFloat !== (product.currentStock || 0)) {
+        variables.currentStock = currentStockFloat;
+      }
+    }
 
     // Solo incluir subcategoryId si se seleccionó una
     if (formData.subcategoryId) {
@@ -224,20 +232,6 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
         }}>
           ✏️ Editar Producto
         </h2>
-
-        {/* Mensaje */}
-        {message && (
-          <div style={{
-            padding: '1rem',
-            borderRadius: '10px',
-            marginBottom: '1rem',
-            backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-            color: message.type === 'success' ? '#166534' : '#991b1b',
-            border: `1px solid ${message.type === 'success' ? '#86efac' : '#fecaca'}`
-          }}>
-            {message.text}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
@@ -513,81 +507,107 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
               </div>
             </div>
 
-            {/* Stock */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : '1fr 1fr 1fr',
-              gap: gapSize
-            }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
-                  Stock Mínimo
-                </label>
-                <input
-                  type="number"
-                  name="stockMin"
-                  value={formData.stockMin}
-                  onChange={handleChange}
-                  min="0"
-                  step="0.01"
-                  placeholder="0"
-                  style={{
-                    width: '100%',
-                    padding: inputPadding,
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: inputFontSize,
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
+            {/* Stock - Solo visible para Bebidas e Ingredientes */}
+            {(formData.productType === 'BEVERAGE' || formData.productType === 'INGREDIENT') && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : '1fr 1fr 1fr',
+                gap: gapSize
+              }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
+                    Stock Mínimo
+                  </label>
+                  <input
+                    type="number"
+                    name="stockMin"
+                    value={formData.stockMin}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    style={{
+                      width: '100%',
+                      padding: inputPadding,
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: inputFontSize,
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
 
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
-                  Stock Máximo
-                </label>
-                <input
-                  type="number"
-                  name="stockMax"
-                  value={formData.stockMax}
-                  onChange={handleChange}
-                  min="0"
-                  step="0.01"
-                  placeholder="0"
-                  style={{
-                    width: '100%',
-                    padding: inputPadding,
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: inputFontSize,
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
+                    Stock Máximo
+                  </label>
+                  <input
+                    type="number"
+                    name="stockMax"
+                    value={formData.stockMax}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    style={{
+                      width: '100%',
+                      padding: inputPadding,
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: inputFontSize,
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
 
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
-                  Stock Actual
-                </label>
-                <input
-                  type="number"
-                  name="currentStock"
-                  value={formData.currentStock}
-                  onChange={handleChange}
-                  min="0"
-                  step="0.01"
-                  placeholder="0"
-                  style={{
-                    width: '100%',
-                    padding: inputPadding,
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: inputFontSize,
-                    boxSizing: 'border-box'
-                  }}
-                />
+                <div>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    marginBottom: '0.5rem',
+                    fontWeight: 500,
+                    fontSize: '0.875rem',
+                    color: '#475569'
+                  }}>
+                    Stock Actual
+                    <input
+                      type="checkbox"
+                      checked={enableStockEdit}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setEnableStockEdit(checked);
+                        if (checked) {
+                          showToast('Advertencia: Cambiar el stock afectará tu Kardex y generará un ajuste.', 'warning');
+                        }
+                      }}
+                      title="Habilitar edición de stock"
+                      style={{ width: '14px', height: '14px', cursor: 'pointer' }}
+                    />
+                  </label>
+                  <input
+                    type="number"
+                    name="currentStock"
+                    value={formData.currentStock}
+                    onChange={handleChange}
+                    disabled={!enableStockEdit}
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    style={{
+                      width: '100%',
+                      padding: inputPadding,
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: inputFontSize,
+                      boxSizing: 'border-box',
+                      backgroundColor: enableStockEdit ? 'white' : '#f8fafc',
+                      cursor: enableStockEdit ? 'text' : 'not-allowed'
+                    }}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Estado Activo */}
             <div>
