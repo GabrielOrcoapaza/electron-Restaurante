@@ -262,10 +262,16 @@ const UserPermissions: React.FC = () => {
                     style={{ width: '1rem', height: '1rem', marginTop: '0.2rem', flexShrink: 0 }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontWeight: 500, color: '#334155' }}>{perm.label}</span>
+                    <span style={{ fontWeight: 500, color: '#334155' }}>
+                      {selectedUser.role === 'WAITER' && perm.code === 'users.manage'
+                        ? 'Requiere contraseña para ingresar'
+                        : perm.label}
+                    </span>
                     {perm.description && (
                       <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
-                        {perm.description}
+                        {selectedUser.role === 'WAITER' && perm.code === 'users.manage'
+                          ? 'Si está marcado, el mozo deberá ingresar su contraseña. Si no, ingresa directamente.'
+                          : perm.description}
                       </div>
                     )}
                   </div>

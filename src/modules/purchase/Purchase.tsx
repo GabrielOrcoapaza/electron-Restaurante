@@ -95,8 +95,8 @@ const Purchase: React.FC = () => {
   const { companyData, user } = useAuth();
   const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
-  // IGV de la sucursal (float). Por defecto 10.5% para sedes.
-  const igvPercentage = Number(companyData?.branch?.igvPercentage) || 10.5;
+  // IGV para compras establecido en 18% según solicitud
+  const igvPercentage = 18;
 
   // Adaptar según tamaño de pantalla de PC
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
@@ -285,10 +285,12 @@ const Purchase: React.FC = () => {
   };
 
   const calculateTotals = () => {
-    const subtotal = purchaseDetails.reduce((sum, detail) => sum + detail.subtotal, 0);
-    const igvAmount = subtotal * (igvPercentage / 100);
-    const total = subtotal + igvAmount;
-    return { subtotal, igvAmount, total };
+    // Para compras, el precio ingresado ya incluye el IGV (Total)
+    // El usuario desea que el IGV se calcule como el 18% del Total
+    const totalSum = purchaseDetails.reduce((sum, detail) => sum + detail.subtotal, 0);
+    const igvAmount = totalSum * (igvPercentage / 100);
+    const subtotalCalculated = totalSum - igvAmount;
+    return { subtotal: subtotalCalculated, igvAmount, total: totalSum };
   };
 
   const handleCreatePurchase = async () => {
@@ -335,7 +337,7 @@ const Purchase: React.FC = () => {
       totalAmount: total,
       paymentDate: operationDateTime,
       referenceNumber: referenceNumber || null,
-      notes: `Pago de compra #${new Date().getTime()}`
+      notes: `Pago de compra - Proveedor: ${suppliers.find(s => s.id === selectedSupplierId)?.name || 'Sin proveedor'}`
     }];
 
     try {

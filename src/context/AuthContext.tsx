@@ -80,11 +80,13 @@ export interface CompanyData {
     isCommandItemMode?: boolean;
     isKitchenPrint?: boolean;
     isKitchenDisplay?: boolean;
+    requireWaiterPassword?: boolean;
     users?: Array<{
       id: string;
       firstName: string;
       lastName: string;
       dni: string;
+      role: string;
     }>;
     floors?: Floor[];
     categories?: Category[];

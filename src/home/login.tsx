@@ -22,6 +22,7 @@ const Login: React.FC = () => {
   const [focusedInput, setFocusedInput] = useState<'search' | 'password' | null>(null);
   const keyboardRef = useRef<HTMLDivElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
+  const [showConfirmExit, setShowConfirmExit] = useState(false);
 
   const [userLoginMutation, { loading }] = useMutation(USER_LOGIN);
 
@@ -44,6 +45,16 @@ const Login: React.FC = () => {
       const search = searchTerm.toLowerCase();
       return fullName.includes(search) || dni.includes(search);
     });
+
+  // Determinar si el empleado seleccionado requiere contraseña
+  // Para mozos: solo si tienen el permiso 'users.manage'
+  // Para otros roles: siempre
+  const selectedEmployeeObj = allEmployees.find((e: any) => e.dni === formData.selectedEmployee);
+  const needsPassword = selectedEmployeeObj
+    ? (selectedEmployeeObj.role === 'WAITER'
+      ? (selectedEmployeeObj.customPermissions || []).includes('users.manage')
+      : true)
+    : true;
 
   // Verificar que existan datos de la empresa
   useEffect(() => {
@@ -82,10 +93,16 @@ const Login: React.FC = () => {
       return;
     }
 
+    // Verificar contraseña solo si es requerida para este empleado
+    if (needsPassword && !formData.password) {
+      showToast('Por favor ingresa tu contraseña', 'warning');
+      return;
+    }
+
     try {
       const variables = {
         dni: formData.selectedEmployee,
-        password: formData.password,
+        password: formData.password || '', // Enviar vacío si no se requiere
         branchId: companyData.branch.id,
         deviceId: deviceId
       };
@@ -110,6 +127,20 @@ const Login: React.FC = () => {
 
       if (data?.userLogin?.success) {
         console.log('✅ Login exitoso, deviceRegistered:', data.userLogin.deviceRegistered);
+
+        // Si el usuario es un mozo, guardar su contraseña en caché para facilitar el próximo ingreso
+        const loggedUser = data.userLogin.user;
+        if (loggedUser.role === 'WAITER') {
+          try {
+            const cachedPasswords = JSON.parse(localStorage.getItem('cached_waiter_passwords') || '{}');
+            cachedPasswords[loggedUser.dni] = formData.password;
+            localStorage.setItem('cached_waiter_passwords', JSON.stringify(cachedPasswords));
+            console.log('💾 Contraseña de mozo guardada en caché local');
+          } catch (e) {
+            console.error('Error guardando contraseña en caché:', e);
+          }
+        }
+
         // Usar el hook useAuth para guardar datos
         loginUser(
           data.userLogin.token,
@@ -129,6 +160,10 @@ const Login: React.FC = () => {
   };
 
   const handleBackToCompany = () => {
+    setShowConfirmExit(true);
+  };
+
+  const confirmExit = () => {
     // Limpiar datos de la compañía usando el método del contexto
     clearCompanyData();
     // Limpiar también tokens y datos de usuario por si acaso
@@ -206,40 +241,40 @@ const Login: React.FC = () => {
     top: string;
     left: string;
   }> = [
-    { key: 'c1', type: 'chef', top: '5%', left: '3%' },
-    { key: 'c2', type: 'chef', top: '18%', left: '92%' },
-    { key: 'c3', type: 'chef', top: '38%', left: '4%' },
-    { key: 'c4', type: 'chef', top: '58%', left: '91%' },
-    { key: 'c5', type: 'chef', top: '12%', left: '72%' },
-    { key: 'c6', type: 'chef', top: '82%', left: '6%' },
-    { key: 'c7', type: 'chef', top: '72%', left: '94%' },
-    { key: 'c8', type: 'chef', top: '28%', left: '12%' },
-    { key: 'c9', type: 'chef', top: '45%', left: '86%' },
-    { key: 'p1', type: 'croissant', top: '8%', left: '22%' },
-    { key: 'p2', type: 'croissant', top: '14%', left: '60%' },
-    { key: 'p3', type: 'croissant', top: '32%', left: '6%' },
-    { key: 'p4', type: 'croissant', top: '40%', left: '78%' },
-    { key: 'p5', type: 'croissant', top: '58%', left: '24%' },
-    { key: 'p6', type: 'croissant', top: '65%', left: '68%' },
-    { key: 'p7', type: 'croissant', top: '86%', left: '32%' },
-    { key: 'p8', type: 'croissant', top: '90%', left: '52%' },
-    { key: 'p9', type: 'croissant', top: '25%', left: '42%' },
-    { key: 'p10', type: 'croissant', top: '48%', left: '58%' },
-    { key: 'p11', type: 'croissant', top: '18%', left: '38%' },
-    { key: 'p12', type: 'croissant', top: '75%', left: '78%' },
-    { key: 'u1', type: 'utensils', top: '7%', left: '48%' },
-    { key: 'u2', type: 'utensils', top: '42%', left: '28%' },
-    { key: 'u3', type: 'utensils', top: '70%', left: '62%' },
-    { key: 'u4', type: 'utensils', top: '22%', left: '85%' },
-    { key: 'u5', type: 'utensils', top: '88%', left: '18%' },
-    { key: 'cf1', type: 'coffee', top: '10%', left: '52%' },
-    { key: 'cf2', type: 'coffee', top: '55%', left: '38%' },
-    { key: 'cf3', type: 'coffee', top: '78%', left: '72%' },
-    { key: 'fd1', type: 'food', top: '30%', left: '62%' },
-    { key: 'fd2', type: 'food', top: '62%', left: '48%' },
-    { key: 'fd3', type: 'food', top: '15%', left: '28%' },
-    { key: 'fd4', type: 'food', top: '85%', left: '58%' },
-  ];
+      { key: 'c1', type: 'chef', top: '5%', left: '3%' },
+      { key: 'c2', type: 'chef', top: '18%', left: '92%' },
+      { key: 'c3', type: 'chef', top: '38%', left: '4%' },
+      { key: 'c4', type: 'chef', top: '58%', left: '91%' },
+      { key: 'c5', type: 'chef', top: '12%', left: '72%' },
+      { key: 'c6', type: 'chef', top: '82%', left: '6%' },
+      { key: 'c7', type: 'chef', top: '72%', left: '94%' },
+      { key: 'c8', type: 'chef', top: '28%', left: '12%' },
+      { key: 'c9', type: 'chef', top: '45%', left: '86%' },
+      { key: 'p1', type: 'croissant', top: '8%', left: '22%' },
+      { key: 'p2', type: 'croissant', top: '14%', left: '60%' },
+      { key: 'p3', type: 'croissant', top: '32%', left: '6%' },
+      { key: 'p4', type: 'croissant', top: '40%', left: '78%' },
+      { key: 'p5', type: 'croissant', top: '58%', left: '24%' },
+      { key: 'p6', type: 'croissant', top: '65%', left: '68%' },
+      { key: 'p7', type: 'croissant', top: '86%', left: '32%' },
+      { key: 'p8', type: 'croissant', top: '90%', left: '52%' },
+      { key: 'p9', type: 'croissant', top: '25%', left: '42%' },
+      { key: 'p10', type: 'croissant', top: '48%', left: '58%' },
+      { key: 'p11', type: 'croissant', top: '18%', left: '38%' },
+      { key: 'p12', type: 'croissant', top: '75%', left: '78%' },
+      { key: 'u1', type: 'utensils', top: '7%', left: '48%' },
+      { key: 'u2', type: 'utensils', top: '42%', left: '28%' },
+      { key: 'u3', type: 'utensils', top: '70%', left: '62%' },
+      { key: 'u4', type: 'utensils', top: '22%', left: '85%' },
+      { key: 'u5', type: 'utensils', top: '88%', left: '18%' },
+      { key: 'cf1', type: 'coffee', top: '10%', left: '52%' },
+      { key: 'cf2', type: 'coffee', top: '55%', left: '38%' },
+      { key: 'cf3', type: 'coffee', top: '78%', left: '72%' },
+      { key: 'fd1', type: 'food', top: '30%', left: '62%' },
+      { key: 'fd2', type: 'food', top: '62%', left: '48%' },
+      { key: 'fd3', type: 'food', top: '15%', left: '28%' },
+      { key: 'fd4', type: 'food', top: '85%', left: '58%' },
+    ];
 
   // Bloquear acceso en móviles
   if (isMobile) {
@@ -348,11 +383,11 @@ const Login: React.FC = () => {
               ⌨️ Teclado virtual
             </div>
             <div style={{ width: '100%', minWidth: 0 }}>
-            <VirtualKeyboard
-              onKeyPress={handleVirtualKeyPress}
-              onBackspace={handleVirtualBackspace}
-              compact={true}
-            />
+              <VirtualKeyboard
+                onKeyPress={handleVirtualKeyPress}
+                onBackspace={handleVirtualBackspace}
+                compact={true}
+              />
             </div>
           </div>
         )}
@@ -447,36 +482,36 @@ const Login: React.FC = () => {
           }}>
             {/* Ocultar cabecera cuando el teclado está visible (el teclado ocupa esa zona) */}
             {!focusedInput && (
-            <header style={{ textAlign: 'center', marginBottom: isSmallDesktop ? '1.25rem' : '1.75rem' }}>
-              <div style={{
-                width: isSmallDesktop ? 56 : 72,
-                height: isSmallDesktop ? 56 : 72,
-                background: `linear-gradient(145deg, ${theme.accent}, #0284c7)`,
-                borderRadius: 18,
-                margin: `0 auto ${isSmallDesktop ? '0.75rem' : '1rem'}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: isSmallDesktop ? 28 : 36,
-                color: 'white',
-                boxShadow: `0 12px 28px ${theme.accentMuted}`,
-                border: '1px solid rgba(255,255,255,0.2)'
-              }}>
-                👤
-              </div>
-              <h2 style={{
-                margin: 0,
-                color: theme.text,
-                fontSize: titleFontSize,
-                fontWeight: 700,
-                letterSpacing: '-0.03em'
-              }}>
-                Iniciar sesión
-              </h2>
-              <p style={{ margin: '0.25rem 0 0', fontSize: '0.9375rem', color: theme.textMuted }}>
-                Elige tu usuario e ingresa tu contraseña
-              </p>
-            </header>
+              <header style={{ textAlign: 'center', marginBottom: isSmallDesktop ? '1.25rem' : '1.75rem' }}>
+                <div style={{
+                  width: isSmallDesktop ? 56 : 72,
+                  height: isSmallDesktop ? 56 : 72,
+                  background: `linear-gradient(145deg, ${theme.accent}, #0284c7)`,
+                  borderRadius: 18,
+                  margin: `0 auto ${isSmallDesktop ? '0.75rem' : '1rem'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: isSmallDesktop ? 28 : 36,
+                  color: 'white',
+                  boxShadow: `0 12px 28px ${theme.accentMuted}`,
+                  border: '1px solid rgba(255,255,255,0.2)'
+                }}>
+                  👤
+                </div>
+                <h2 style={{
+                  margin: 0,
+                  color: theme.text,
+                  fontSize: titleFontSize,
+                  fontWeight: 700,
+                  letterSpacing: '-0.03em'
+                }}>
+                  Iniciar sesión
+                </h2>
+                <p style={{ margin: '0.25rem 0 0', fontSize: '0.9375rem', color: theme.textMuted }}>
+                  Elige tu usuario e ingresa tu contraseña
+                </p>
+              </header>
             )}
 
             <form onSubmit={handleSubmit}>
@@ -611,10 +646,32 @@ const Login: React.FC = () => {
                           key={employee.id}
                           type="button"
                           onClick={() => {
-                            setFormData({ ...formData, selectedEmployee: employee.dni });
+                            const isWaiter = employee.role === 'WAITER';
+                            const requirePass = companyData?.branch?.requireWaiterPassword !== false; // Default true if undefined
+
+                            let foundPassword = '';
+                            if (isWaiter) {
+                              try {
+                                const cachedPasswords = JSON.parse(localStorage.getItem('cached_waiter_passwords') || '{}');
+                                foundPassword = cachedPasswords[employee.dni] || '';
+                              } catch (e) {
+                                console.error('Error leyendo caché de contraseñas:', e);
+                              }
+                            }
+
+                            setFormData({
+                              ...formData,
+                              selectedEmployee: employee.dni,
+                              password: isWaiter ? foundPassword : ''
+                            });
+
                             showToast(`Empleado seleccionado: ${employee.firstName} ${employee.lastName}`, 'success');
-                            setFocusedInput('password');
-                            setTimeout(() => passwordInputRef.current?.focus(), 0);
+
+                            // Enfocar contraseña solo si no se auto-rellenó o si es caja
+                            if (!isWaiter || !foundPassword || requirePass) {
+                              setFocusedInput('password');
+                              setTimeout(() => passwordInputRef.current?.focus(), 0);
+                            }
                           }}
                           className="login-employee-btn"
                           style={{
@@ -862,6 +919,76 @@ const Login: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showConfirmExit && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: 24,
+            padding: '2.5rem',
+            maxWidth: '400px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+          }}>
+            <div style={{ fontSize: '3.5rem', marginBottom: '1.25rem' }}>👋</div>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.75rem' }}>¿Estas seguro que quieres salir?</h3>
+            <p style={{ color: '#64748b', marginBottom: '2rem', lineHeight: 1.6 }}>Al volver se cerrará la sesión actual de la empresa.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <button
+                onClick={() => setShowConfirmExit(false)}
+                style={{
+                  padding: '0.875rem',
+                  borderRadius: 14,
+                  border: '1px solid #e2e8f0',
+                  background: 'white',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  color: '#0f172a'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f8fafc';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'white';
+                }}
+              >
+                No, quedar
+              </button>
+              <button
+                onClick={confirmExit}
+                style={{
+                  padding: '0.875rem',
+                  borderRadius: 14,
+                  border: 'none',
+                  background: `linear-gradient(145deg, ${theme.accent}, ${theme.accentHover})`,
+                  color: 'white',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: `0 8px 16px ${theme.accentMuted}`
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                Sí, salir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');

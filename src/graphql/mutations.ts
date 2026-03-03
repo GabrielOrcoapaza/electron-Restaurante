@@ -38,11 +38,13 @@ export const COMPANY_LOGIN = gql`
         isCommandItemMode
         isKitchenPrint
         isKitchenDisplay
+        requireWaiterPassword
         users {
           id
           firstName
           lastName 
           dni
+          role
         }
         floors {
           id

@@ -98,8 +98,9 @@ interface PaymentMovement {
   transactionType: string;
   paymentMethod: string;
   status: string;
+  notes?: string;
   user?: { id: string; fullName: string };
-  operation?: { id: string };
+  operation?: { id: string; order?: string };
   issuedDocument?: { id: string; serial?: string; number?: string };
 }
 
@@ -152,7 +153,7 @@ const Cashs: React.FC = () => {
   const [showMovements, setShowMovements] = useState(false);
   // Mostrar/ocultar totales generales en el preview
   const [showTotalesGenerales, setShowTotalesGenerales] = useState(true);
-  
+
   // Query para obtener cajas
   const { data: cashRegistersData, loading: cashRegistersLoading, refetch: refetchCashRegisters } = useQuery(
     GET_CASH_REGISTERS,
@@ -647,98 +648,98 @@ const Cashs: React.FC = () => {
                 </button>
               </div>
               {summaryVisible.cajas && (
-              <>
-              {cashRegisters.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: isSmall ? '1.5rem' : isMedium ? '2rem' : isSmallDesktop ? '2rem' : '3rem',
-                  color: '#64748b'
-                }}>
-                  <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', margin: 0 }}>No hay cajas registradas</p>
-                </div>
-              ) : (
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(auto-fill, minmax(${cashCardMinWidth}, 1fr))`,
-                  gap: gridGap
-                }}>
-                  {cashRegisters.map((cashRegister) => {
-                    const typeColors = getCashTypeColor(cashRegister.cashType);
-                    return (
-                      <div
-                        key={cashRegister.id}
-                        style={{
-                          padding: cardPadding,
-                          borderRadius: '12px',
-                          border: `2px solid ${typeColors.border}`,
-                          backgroundColor: typeColors.bg,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
-                        }}
-                        onClick={() => handleShowPreview(cashRegister.id)}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'translateY(-2px)';
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.05)';
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                          <div>
-                            <h4 style={{ margin: '0 0 0.5rem', fontSize: isSmall ? '0.9375rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '1.125rem', fontWeight: 700, color: typeColors.color }}>
-                              {cashRegister.name}
-                            </h4>
-                            <span style={{
-                              padding: '0.25rem 0.75rem',
-                              borderRadius: '9999px',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              backgroundColor: 'white',
-                              color: typeColors.color,
-                              display: 'inline-block'
-                            }}>
-                              {getCashTypeLabel(cashRegister.cashType)}
-                            </span>
-                          </div>
-                        </div>
-                        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${typeColors.border}` }}>
-                          <div style={{ fontSize: '0.875rem', color: typeColors.color, marginBottom: '0.5rem' }}>
-                            Total vendido (hasta ahora)
-                          </div>
-                          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: typeColors.color }}>
-                            {currencyFormatter.format(salesTotalsByRegister[cashRegister.id] ?? cashRegister.currentBalance)}
-                          </div>
-                        </div>
-                        <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                          <button
+                <>
+                  {cashRegisters.length === 0 ? (
+                    <div style={{
+                      textAlign: 'center',
+                      padding: isSmall ? '1.5rem' : isMedium ? '2rem' : isSmallDesktop ? '2rem' : '3rem',
+                      color: '#64748b'
+                    }}>
+                      <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', margin: 0 }}>No hay cajas registradas</p>
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(auto-fill, minmax(${cashCardMinWidth}, 1fr))`,
+                      gap: gridGap
+                    }}>
+                      {cashRegisters.map((cashRegister) => {
+                        const typeColors = getCashTypeColor(cashRegister.cashType);
+                        return (
+                          <div
+                            key={cashRegister.id}
                             style={{
-                              padding: buttonPadding,
-                              borderRadius: '8px',
-                              border: 'none',
-                              backgroundColor: typeColors.color,
-                              color: 'white',
+                              padding: cardPadding,
+                              borderRadius: '12px',
+                              border: `2px solid ${typeColors.border}`,
+                              backgroundColor: typeColors.bg,
                               cursor: 'pointer',
-                              fontWeight: 600,
-                              fontSize: buttonFontSize,
-                              width: '100%'
+                              transition: 'all 0.2s',
+                              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
                             }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleShowPreview(cashRegister.id);
+                            onClick={() => handleShowPreview(cashRegister.id)}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = 'translateY(-2px)';
+                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'translateY(0)';
+                              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.05)';
                             }}
                           >
-                            Ver Detalles / Cerrar Caja
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              </>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                              <div>
+                                <h4 style={{ margin: '0 0 0.5rem', fontSize: isSmall ? '0.9375rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '1.125rem', fontWeight: 700, color: typeColors.color }}>
+                                  {cashRegister.name}
+                                </h4>
+                                <span style={{
+                                  padding: '0.25rem 0.75rem',
+                                  borderRadius: '9999px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 600,
+                                  backgroundColor: 'white',
+                                  color: typeColors.color,
+                                  display: 'inline-block'
+                                }}>
+                                  {getCashTypeLabel(cashRegister.cashType)}
+                                </span>
+                              </div>
+                            </div>
+                            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${typeColors.border}` }}>
+                              <div style={{ fontSize: '0.875rem', color: typeColors.color, marginBottom: '0.5rem' }}>
+                                Total vendido (hasta ahora)
+                              </div>
+                              <div style={{ fontSize: '1.75rem', fontWeight: 700, color: typeColors.color }}>
+                                {currencyFormatter.format(salesTotalsByRegister[cashRegister.id] ?? cashRegister.currentBalance)}
+                              </div>
+                            </div>
+                            <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                              <button
+                                style={{
+                                  padding: buttonPadding,
+                                  borderRadius: '8px',
+                                  border: 'none',
+                                  backgroundColor: typeColors.color,
+                                  color: 'white',
+                                  cursor: 'pointer',
+                                  fontWeight: 600,
+                                  fontSize: buttonFontSize,
+                                  width: '100%'
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleShowPreview(cashRegister.id);
+                                }}
+                              >
+                                Ver Detalles / Cerrar Caja
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -851,46 +852,46 @@ const Cashs: React.FC = () => {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: showTotalesGenerales ? '1rem' : 0 }}>
                   <h4 style={{ margin: 0, fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
-                  Totales Generales
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => setShowTotalesGenerales((v) => !v)}
-                  style={{
-                    padding: buttonPadding,
-                    borderRadius: '8px',
-                    border: '1px solid #e2e8f0',
-                    backgroundColor: showTotalesGenerales ? '#64748b' : '#3b82f6',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    fontSize: buttonFontSize
-                  }}
-                >
-                  {showTotalesGenerales ? 'Ocultar' : 'Visualizar'}
-                </button>
+                    Totales Generales
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setShowTotalesGenerales((v) => !v)}
+                    style={{
+                      padding: buttonPadding,
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0',
+                      backgroundColor: showTotalesGenerales ? '#64748b' : '#3b82f6',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: buttonFontSize
+                    }}
+                  >
+                    {showTotalesGenerales ? 'Ocultar' : 'Visualizar'}
+                  </button>
                 </div>
                 {showTotalesGenerales && (
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${statCardMinWidth}, 1fr))`, gap: gridGap }}>
-                  <div>
-                    <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>Total Ingresos</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#16a34a' }}>
-                      {currencyFormatter.format(preview.totalIncome)}
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${statCardMinWidth}, 1fr))`, gap: gridGap }}>
+                    <div>
+                      <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>Total Ingresos</div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#16a34a' }}>
+                        {currencyFormatter.format(preview.totalIncome)}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>Total Egresos</div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#dc2626' }}>
+                        {currencyFormatter.format(preview.totalExpense)}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>Neto Total</div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 700, color: preview.netTotal >= 0 ? '#16a34a' : '#dc2626' }}>
+                        {currencyFormatter.format(preview.netTotal)}
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>Total Egresos</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#dc2626' }}>
-                      {currencyFormatter.format(preview.totalExpense)}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>Neto Total</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: preview.netTotal >= 0 ? '#16a34a' : '#dc2626' }}>
-                      {currencyFormatter.format(preview.netTotal)}
-                    </div>
-                  </div>
-                </div>
                 )}
               </div>
 
@@ -943,6 +944,7 @@ const Cashs: React.FC = () => {
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Método</th>
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Monto</th>
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Usuario</th>
+                              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Referencia / Notas</th>
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Documento</th>
                             </tr>
                           </thead>
@@ -986,6 +988,14 @@ const Cashs: React.FC = () => {
                                     {mov.user?.fullName ?? (mov as any).user?.full_name ?? '—'}
                                   </td>
                                   <td style={{ padding: '0.75rem', color: '#64748b', fontSize: '0.75rem' }}>
+                                    <div style={{ fontWeight: 600, color: '#475569' }}>
+                                      {mov.operation?.order ? `Op: ${mov.operation.order}` : '—'}
+                                    </div>
+                                    <div style={{ fontStyle: 'italic', marginTop: '0.1rem' }}>
+                                      {mov.notes || '—'}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '0.75rem', color: '#64748b', fontSize: '0.75rem' }}>
                                     {docLabel}
                                   </td>
                                 </tr>
@@ -999,9 +1009,9 @@ const Cashs: React.FC = () => {
                 )}
               </div>
 
-              
-                
-          
+
+
+
 
               {/* Resumen por Usuario (solo cajeros) */}
               {usersSummarySoloCajeros.length > 0 && (

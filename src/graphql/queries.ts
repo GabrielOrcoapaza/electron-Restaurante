@@ -519,12 +519,14 @@ export const GET_PAYMENTS_PENDING_CLOSURE = gql`
       }
       operation {
         id
+        order
       }
       issuedDocument {
         id
         serial
         number
       }
+      notes
     }
   }
 `;
