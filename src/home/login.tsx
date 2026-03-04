@@ -359,38 +359,6 @@ const Login: React.FC = () => {
           overflow: 'hidden'
         }}
       >
-        {/* Teclado virtual en la parte superior (cubre título y subtítulo) */}
-        {focusedInput && (
-          <div
-            ref={keyboardRef}
-            className="login-keyboard-panel"
-            style={{
-              flex: '0 0 auto',
-              width: '100%',
-              minWidth: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'stretch',
-              padding: isSmallDesktop ? '0.4rem 0.75rem' : '0.5rem 1rem',
-              background: theme.cardBg,
-              borderBottom: `1px solid ${theme.inputBorder}`,
-              boxSizing: 'border-box',
-              overflow: 'hidden',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.06)'
-            }}
-          >
-            <div style={{ textAlign: 'center', marginBottom: '0.25rem', fontSize: '0.75rem', fontWeight: 600, color: theme.text }}>
-              ⌨️ Teclado virtual
-            </div>
-            <div style={{ width: '100%', minWidth: 0 }}>
-              <VirtualKeyboard
-                onKeyPress={handleVirtualKeyPress}
-                onBackspace={handleVirtualBackspace}
-                compact={true}
-              />
-            </div>
-          </div>
-        )}
 
         <div className="form-panel" style={{
           flex: '1',
@@ -855,6 +823,34 @@ const Login: React.FC = () => {
                 gap: isSmallDesktop ? '0.5rem' : '0.75rem'
               }}>
                 <button
+                  type="button"
+                  onClick={handleBackToCompany}
+                  style={{
+                    width: '100%',
+                    padding: isSmallDesktop ? '0.75rem' : '0.9375rem 1rem',
+                    background: `linear-gradient(145deg, ${theme.accent}, ${theme.accentHover})`,
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: theme.radius,
+                    fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'opacity 0.2s, transform 0.2s, box-shadow 0.2s',
+                    boxShadow: `0 8px 24px ${theme.accentMuted}`,
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = `0 12px 28px ${theme.accentMuted}`;
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = `0 8px 24px ${theme.accentMuted}`;
+                  }}
+                >
+                  🔙 Volver
+                </button>
+
+                <button
                   type="submit"
                   disabled={loading}
                   style={{
@@ -887,37 +883,45 @@ const Login: React.FC = () => {
                   {loading ? '⏳ Autenticando...' : '✨ Iniciar sesión'}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleBackToCompany}
-                  style={{
-                    width: '100%',
-                    padding: isSmallDesktop ? '0.75rem' : '0.9375rem 1rem',
-                    background: `linear-gradient(145deg, ${theme.accent}, ${theme.accentHover})`,
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: theme.radius,
-                    fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'opacity 0.2s, transform 0.2s, box-shadow 0.2s',
-                    boxShadow: `0 8px 24px ${theme.accentMuted}`,
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = `0 12px 28px ${theme.accentMuted}`;
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = `0 8px 24px ${theme.accentMuted}`;
-                  }}
-                >
-                  🔙 Volver
-                </button>
+
               </div>
             </form>
           </div>
         </div>
+
+        {/* Teclado virtual en la parte inferior */}
+        {focusedInput && (
+          <div
+            ref={keyboardRef}
+            className="login-keyboard-panel"
+            style={{
+              flex: '0 0 auto',
+              width: '100%',
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'stretch',
+              padding: isSmallDesktop ? '0.4rem 0.75rem' : '0.5rem 1rem',
+              background: theme.cardBg,
+              borderTop: `1px solid ${theme.inputBorder}`,
+              boxSizing: 'border-box',
+              overflow: 'hidden',
+              boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
+              zIndex: 10
+            }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: '0.25rem', fontSize: '0.75rem', fontWeight: 600, color: theme.text }}>
+              ⌨️ Teclado virtual
+            </div>
+            <div style={{ width: '100%', minWidth: 0 }}>
+              <VirtualKeyboard
+                onKeyPress={handleVirtualKeyPress}
+                onBackspace={handleVirtualBackspace}
+                compact={true}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {showConfirmExit && (

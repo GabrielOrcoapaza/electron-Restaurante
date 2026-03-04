@@ -676,9 +676,9 @@ const Kardex: React.FC = () => {
                             fontSize: tableFontSize
                           }}>
                             {formatNumber(
-                              (movement.movementType || '').toUpperCase() === 'ADJUSTMENT' && getAdjustmentTargetFromReason(movement.reason) != null
-                                ? getAdjustmentTargetFromReason(movement.reason)!
-                                : movement.quantity
+                              (movement.movementType || '').toUpperCase() === 'OUT'
+                                ? -(Math.abs(Number(movement.quantity)) || 0)
+                                : Number(movement.quantity) || 0
                             )}
                           </td>
                           <td style={{ 
