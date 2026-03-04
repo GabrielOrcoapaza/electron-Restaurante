@@ -554,7 +554,7 @@ const Kardex: React.FC = () => {
                         fontSize: tableFontSize,
                         whiteSpace: 'nowrap'
                       }}>
-                        Cantidad
+                        Movimiento
                       </th>
                       <th style={{ 
                         padding: tableCellPadding, 
