@@ -12,6 +12,7 @@ import {
   CREATE_PURCHASE_OPERATION,
   CANCEL_PURCHASE_OPERATION
 } from '../../graphql/mutations';
+import CreateSupplierModal from './createSupplier';
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
   style: 'currency',
@@ -120,6 +121,7 @@ const Purchase: React.FC = () => {
   const [selectedOperationId, setSelectedOperationId] = useState<string>('');
   const [cancellationReason, setCancellationReason] = useState<string>('');
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showCreateSupplierModal, setShowCreateSupplierModal] = useState(false);
 
   // Estados para Pago
   const [cashRegisterId, setCashRegisterId] = useState<string>('');
@@ -128,7 +130,7 @@ const Purchase: React.FC = () => {
 
   // Queries
   // Usa personsByBranch (del backend: persons_by_branch) y filtra proveedores (isSupplier=true) en el frontend
-  const { data: personsData, loading: suppliersLoading } = useQuery(GET_SUPPLIERS_BY_BRANCH, {
+  const { data: personsData, loading: suppliersLoading, refetch: refetchSuppliers } = useQuery(GET_SUPPLIERS_BY_BRANCH, {
     variables: { branchId: branchId! },
     skip: !branchId,
     fetchPolicy: 'network-only'
@@ -608,30 +610,71 @@ const Purchase: React.FC = () => {
             {suppliersLoading ? (
               <div>Cargando proveedores...</div>
             ) : (
-              <select
-                value={selectedSupplierId}
-                onChange={(e) => setSelectedSupplierId(e.target.value)}
-                style={{
-                  width: '100%',
-                  maxWidth: '400px',
-                  padding: '0.625rem 0.875rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: '0.875rem',
-                  boxSizing: 'border-box'
-                }}
-              >
-                <option value="">Selecciona un proveedor</option>
-                {suppliers
-                  .filter(s => s.isActive)
-                  .map((supplier) => (
-                    <option key={supplier.id} value={supplier.id}>
-                      {supplier.name} {supplier.documentNumber ? `(${supplier.documentNumber})` : ''}
-                    </option>
-                  ))}
-              </select>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <select
+                  value={selectedSupplierId}
+                  onChange={(e) => setSelectedSupplierId(e.target.value)}
+                  style={{
+                    flex: '1',
+                    minWidth: '200px',
+                    maxWidth: '400px',
+                    padding: '0.625rem 0.875rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '0.875rem',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="">Selecciona un proveedor</option>
+                  {suppliers
+                    .filter(s => s.isActive)
+                    .map((supplier) => (
+                      <option key={supplier.id} value={supplier.id}>
+                        {supplier.name} {supplier.documentNumber ? `(${supplier.documentNumber})` : ''}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateSupplierModal(true)}
+                  style={{
+                    padding: '0.625rem 1rem',
+                    background: 'linear-gradient(135deg, #0d9488, #0f766e)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}
+                >
+                  + Crear proveedor
+                </button>
+              </div>
             )}
           </div>
+
+          {showCreateSupplierModal && branchId && (
+            <CreateSupplierModal
+              isOpen={showCreateSupplierModal}
+              onClose={() => setShowCreateSupplierModal(false)}
+              branchId={branchId}
+              suppliers={suppliers}
+              refetchSuppliers={refetchSuppliers}
+              onSuccess={(supplier) => {
+                setSelectedSupplierId(supplier.id);
+                setShowCreateSupplierModal(false);
+              }}
+              showToast={(msg, type) => {
+                setMessage({ type: type === 'error' ? 'error' : 'success', text: msg });
+                setTimeout(() => setMessage(null), 5000);
+              }}
+            />
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div>
