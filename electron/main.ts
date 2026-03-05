@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, dialog } from 'electron';
+import { app, BrowserWindow, session, dialog, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import * as path from 'path';
@@ -76,6 +76,27 @@ autoUpdater.on('update-downloaded', () => {
 
 autoUpdater.on('error', (err) => {
   log.error('Error en autoUpdater:', err);
+});
+
+// IPC para que el renderer pueda solicitar búsqueda de actualizaciones (botón "Actualizar")
+ipcMain.handle('check-for-updates', async () => {
+  if (isDev) {
+    return { success: false, message: 'En modo desarrollo no se buscan actualizaciones.' };
+  }
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    const hasUpdate = result?.updateInfo != null;
+    return {
+      success: true,
+      hasUpdate,
+      message: hasUpdate
+        ? 'Actualización encontrada. Se está descargando...'
+        : 'No hay actualizaciones disponibles. Ya tienes la última versión.'
+    };
+  } catch (err: any) {
+    log.error('Error al buscar actualizaciones:', err);
+    return { success: false, message: err?.message || 'Error al buscar actualizaciones.' };
+  }
 });
 
 app.whenReady().then(() => {

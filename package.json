@@ -24,7 +24,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "GabrielOrcoapaza", 
+        "owner": "GabrielOrcoapaza",
         "repo": "electron-Restaurante"
       }
     ],

@@ -23,8 +23,26 @@ const Login: React.FC = () => {
   const keyboardRef = useRef<HTMLDivElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const [showConfirmExit, setShowConfirmExit] = useState(false);
+  const [updateChecking, setUpdateChecking] = useState(false);
 
   const [userLoginMutation, { loading }] = useMutation(USER_LOGIN);
+
+  // Solo disponible en Electron (app empaquetada)
+  const isElectron = typeof window !== 'undefined' && typeof (window as any).require === 'function';
+
+  const handleCheckForUpdates = async () => {
+    if (!isElectron) return;
+    setUpdateChecking(true);
+    try {
+      const { ipcRenderer } = (window as any).require('electron');
+      const result = await ipcRenderer.invoke('check-for-updates');
+      showToast(result?.message || 'Listo', result?.success ? 'success' : 'info');
+    } catch (e: any) {
+      showToast(e?.message || 'Error al verificar actualizaciones', 'error');
+    } finally {
+      setUpdateChecking(false);
+    }
+  };
 
   // Obtener empleados actualizados desde el servidor usando GraphQL
   const { data: usersData, loading: employeesLoading, refetch: refetchEmployees } = useQuery(GET_USERS_BY_BRANCH, {
@@ -874,7 +892,27 @@ const Login: React.FC = () => {
                   {loading ? '⏳ Autenticando...' : '✨ Iniciar sesión'}
                 </button>
 
-
+                {isElectron && (
+                  <button
+                    type="button"
+                    onClick={handleCheckForUpdates}
+                    disabled={updateChecking}
+                    style={{
+                      gridColumn: '1 / -1',
+                      padding: '0.5rem',
+                      background: 'transparent',
+                      color: theme.textMuted,
+                      border: 'none',
+                      fontSize: '0.8125rem',
+                      fontWeight: 500,
+                      cursor: updateChecking ? 'not-allowed' : 'pointer',
+                      opacity: updateChecking ? 0.7 : 1,
+                      marginTop: '0.25rem'
+                    }}
+                  >
+                    {updateChecking ? '⏳ Buscando actualizaciones...' : '🔄 Actualizar sistema'}
+                  </button>
+                )}
               </div>
             </form>
           </div>
