@@ -98,64 +98,51 @@ const Login: React.FC = () => {
       showToast('Por favor ingresa tu contraseña', 'warning');
       return;
     }
+    await performLogin(formData.selectedEmployee, formData.password || '');
+  };
 
+  // Función reutilizable para ejecutar el login (usada por handleSubmit y por click directo de mozo)
+  const performLogin = async (dni: string, password: string) => {
+    if (!companyData) {
+      showToast('No hay datos de empresa. Redirigiendo...', 'error');
+      navigate('/login-company');
+      return false;
+    }
     try {
-      const variables = {
-        dni: formData.selectedEmployee,
-        password: formData.password || '', // Enviar vacío si no se requiere
-        branchId: companyData.branch.id,
-        deviceId: deviceId
-      };
-
-      console.log('📡 Variables completas para USER_LOGIN:', variables);
-      console.log('📡 Enviando USER_LOGIN con deviceId (MAC):', deviceId);
-      console.log('📡 branchId que se está enviando:', companyData.branch.id);
-      console.log('📡 Tipo de branchId:', typeof companyData.branch.id);
-      console.log('📡 DNI que se está enviando:', formData.selectedEmployee);
-      console.log('📡 Password que se está enviando:', formData.password);
-
-      // Debug: Mostrar todos los datos de la empresa
-      console.log('🏢 Datos completos de la empresa:', companyData);
-
+      const deviceId = await getMacAddress();
       const { data } = await userLoginMutation({
-        variables: variables
+        variables: {
+          dni,
+          password: password || '',
+          branchId: companyData.branch.id,
+          deviceId
+        }
       });
-
-      console.log('📥 Respuesta completa del servidor:', data);
-      console.log('📥 userLogin object:', data?.userLogin);
-      console.log('📥 deviceRegistered value:', data?.userLogin?.deviceRegistered);
-
       if (data?.userLogin?.success) {
-        console.log('✅ Login exitoso, deviceRegistered:', data.userLogin.deviceRegistered);
-
-        // Si el usuario es un mozo, guardar su contraseña en caché para facilitar el próximo ingreso
         const loggedUser = data.userLogin.user;
-        if (loggedUser.role === 'WAITER') {
+        if (loggedUser.role === 'WAITER' && password) {
           try {
             const cachedPasswords = JSON.parse(localStorage.getItem('cached_waiter_passwords') || '{}');
-            cachedPasswords[loggedUser.dni] = formData.password;
+            cachedPasswords[loggedUser.dni] = password;
             localStorage.setItem('cached_waiter_passwords', JSON.stringify(cachedPasswords));
-            console.log('💾 Contraseña de mozo guardada en caché local');
           } catch (e) {
             console.error('Error guardando contraseña en caché:', e);
           }
         }
-
-        // Usar el hook useAuth para guardar datos
         loginUser(
           data.userLogin.token,
           data.userLogin.refreshToken,
           data.userLogin.user,
           data.userLogin.userPhotoBase64
         );
-
-        // Redirigir al dashboard
         navigate('/dashboard');
-      } else {
-        showToast(data?.userLogin?.message || 'Error en el login', 'error');
+        return true;
       }
+      showToast(data?.userLogin?.message || 'Error en el login', 'error');
+      return false;
     } catch (err: any) {
       showToast(err?.message || 'Error en login de usuario', 'error');
+      return false;
     }
   };
 
@@ -613,33 +600,37 @@ const Login: React.FC = () => {
                         <button
                           key={employee.id}
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
                             const isWaiter = employee.role === 'WAITER';
-                            const requirePass = companyData?.branch?.requireWaiterPassword !== false; // Default true if undefined
 
-                            let foundPassword = '';
                             if (isWaiter) {
+                              // Mozo: intentar entrar directamente (con contraseña en caché o vacía)
+                              let password = '';
                               try {
                                 const cachedPasswords = JSON.parse(localStorage.getItem('cached_waiter_passwords') || '{}');
-                                foundPassword = cachedPasswords[employee.dni] || '';
+                                password = cachedPasswords[employee.dni] || '';
                               } catch (e) {
                                 console.error('Error leyendo caché de contraseñas:', e);
                               }
+                              const ok = await performLogin(employee.dni, password);
+                              if (!ok) {
+                                // Si falla, mostrar formulario para que ingrese contraseña
+                                setFormData({ ...formData, selectedEmployee: employee.dni, password: '' });
+                                setFocusedInput('password');
+                                setTimeout(() => passwordInputRef.current?.focus(), 0);
+                              }
+                              return;
                             }
 
+                            // Caja u otro rol: seleccionar y pedir contraseña
                             setFormData({
                               ...formData,
                               selectedEmployee: employee.dni,
-                              password: isWaiter ? foundPassword : ''
+                              password: ''
                             });
-
                             showToast(`Empleado seleccionado: ${employee.firstName} ${employee.lastName}`, 'success');
-
-                            // Enfocar contraseña solo si no se auto-rellenó o si es caja
-                            if (!isWaiter || !foundPassword || requirePass) {
-                              setFocusedInput('password');
-                              setTimeout(() => passwordInputRef.current?.focus(), 0);
-                            }
+                            setFocusedInput('password');
+                            setTimeout(() => passwordInputRef.current?.focus(), 0);
                           }}
                           className="login-employee-btn"
                           style={{
