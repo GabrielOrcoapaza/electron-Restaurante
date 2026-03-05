@@ -6,7 +6,9 @@ import {
   GET_SUPPLIERS_BY_BRANCH,
   GET_PURCHASE_OPERATIONS,
   GET_PRODUCTS_WITH_STOCK,
-  GET_CASH_REGISTERS
+  GET_CASH_REGISTERS,
+  SEARCH_PRODUCTS,
+  GET_PRODUCTS_BY_BRANCH
 } from '../../graphql/queries';
 import {
   CREATE_PURCHASE_OPERATION,
@@ -142,6 +144,22 @@ const Purchase: React.FC = () => {
     fetchPolicy: 'network-only'
   });
 
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [productSearchFocused, setProductSearchFocused] = useState(false);
+
+  const { data: searchData, loading: searchLoading } = useQuery(SEARCH_PRODUCTS, {
+    variables: { search: productSearchTerm, branchId: branchId!, limit: 50 },
+    skip: !branchId || productSearchTerm.length < 3,
+    errorPolicy: 'ignore',
+    fetchPolicy: 'network-only'
+  });
+
+  const { data: productsByBranchData } = useQuery(GET_PRODUCTS_BY_BRANCH, {
+    variables: { branchId: branchId! },
+    skip: !branchId,
+    fetchPolicy: 'network-only'
+  });
+
   const { data: operationsData, loading: operationsLoading, refetch: refetchOperations } = useQuery(
     GET_PURCHASE_OPERATIONS,
     {
@@ -230,10 +248,33 @@ const Purchase: React.FC = () => {
   const allPersons = personsData?.personsByBranch || [];
   const suppliers: Supplier[] = allPersons.filter((person: any) => person.isSupplier === true);
   const allProducts: Product[] = productsData?.productsByBranch || [];
-  // Filtrar solo ingredientes y bebidas
-  const availableProducts = allProducts.filter(
+  const allProductsByBranch = productsByBranchData?.productsByBranch || [];
+  const baseProducts = allProducts.filter(
     p => (p.productType === 'INGREDIENT' || p.productType === 'BEVERAGE') && p.isActive
   );
+
+  const productSearchResults = (() => {
+    if (productSearchTerm.length < 3) return baseProducts.slice(0, 50);
+    const fromSearch = (searchData?.searchProducts || []).filter(
+      (p: any) => (p.productType === 'INGREDIENT' || p.productType === 'BEVERAGE') && p.isActive !== false
+    );
+    if (fromSearch.length > 0) return fromSearch;
+    const lower = productSearchTerm.toLowerCase();
+    return baseProducts.filter(
+      (p: any) =>
+        (p.name || '').toLowerCase().includes(lower) ||
+        (p.code || '').toLowerCase().includes(lower) ||
+        (p.description || '').toLowerCase().includes(lower)
+    ).slice(0, 50);
+  })();
+
+  const selectedProductForDisplay = selectedProductId
+    ? productSearchResults.find((p: any) => p.id === selectedProductId) ||
+      baseProducts.find((p: any) => p.id === selectedProductId) ||
+      allProductsByBranch.find((p: any) => p.id === selectedProductId)
+    : null;
+
+  const availableProducts = baseProducts;
   const operations: PurchaseOperation[] = operationsData?.purchasesByBranch || [];
 
   const resetForm = () => {
@@ -242,12 +283,18 @@ const Purchase: React.FC = () => {
     setNotes('');
     setPurchaseDetails([]);
     setSelectedProductId('');
+    setProductSearchTerm('');
     setQuantity('1');
     setUnitPrice('');
     setProductNotes('');
     setPaymentMethod('CASH');
     setReferenceNumber('');
   };
+
+  const findProductById = (id: string) =>
+    productSearchResults.find((p: any) => p.id === id) ||
+    baseProducts.find((p: any) => p.id === id) ||
+    allProductsByBranch.find((p: any) => p.id === id);
 
   const handleAddProduct = () => {
     if (!selectedProductId || !quantity || parseFloat(quantity) <= 0) {
@@ -256,7 +303,7 @@ const Purchase: React.FC = () => {
       return;
     }
 
-    const product = availableProducts.find(p => p.id === selectedProductId);
+    const product = findProductById(selectedProductId);
     if (!product) return;
 
     const qty = parseFloat(quantity);
@@ -277,6 +324,7 @@ const Purchase: React.FC = () => {
 
     setPurchaseDetails([...purchaseDetails, detail]);
     setSelectedProductId('');
+    setProductSearchTerm('');
     setQuantity('1');
     setUnitPrice('');
     setProductNotes('');
@@ -727,32 +775,113 @@ const Purchase: React.FC = () => {
               Agregar Producto
             </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
-              <div>
+              <div style={{ position: 'relative' }}>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
                   Producto
                 </label>
                 {productsLoading ? (
                   <div>Cargando productos...</div>
                 ) : (
-                  <select
-                    value={selectedProductId}
-                    onChange={(e) => handleProductSelect(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.625rem 0.875rem',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      fontSize: '0.875rem',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="">Selecciona un producto</option>
-                    {availableProducts.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.code} - {product.name} ({product.productType})
-                      </option>
-                    ))}
-                  </select>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{
+                      position: 'absolute',
+                      left: '0.65rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      fontSize: '0.9rem',
+                      opacity: 0.6,
+                      pointerEvents: 'none'
+                    }}>🔎</span>
+                    <input
+                      type="text"
+                      value={selectedProductForDisplay ? `${selectedProductForDisplay.code} - ${selectedProductForDisplay.name}` : productSearchTerm}
+                      onChange={(e) => {
+                        setSelectedProductId('');
+                        setProductSearchTerm(e.target.value);
+                      }}
+                      onFocus={() => setProductSearchFocused(true)}
+                      onBlur={() => setTimeout(() => setProductSearchFocused(false), 200)}
+                      placeholder="Buscar producto o escanear código..."
+                      style={{
+                        width: '100%',
+                        padding: '0.625rem 0.875rem 0.625rem 2rem',
+                        paddingRight: selectedProductForDisplay ? '2.5rem' : undefined,
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        fontSize: '0.875rem',
+                        boxSizing: 'border-box',
+                        outline: 'none'
+                      }}
+                    />
+                    {selectedProductForDisplay && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedProductId('');
+                          setProductSearchTerm('');
+                        }}
+                        style={{
+                          position: 'absolute',
+                          right: '0.5rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: '#f1f5f9',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '0.25rem 0.5rem',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          color: '#64748b',
+                          fontWeight: 500
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                )}
+                {productSearchFocused && productSearchTerm.length >= 3 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '0.25rem',
+                    maxHeight: '260px',
+                    overflowY: 'auto',
+                    backgroundColor: 'white',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    zIndex: 20
+                  }}>
+                    {productSearchTerm.length >= 3 && searchLoading ? (
+                      <div style={{ padding: '0.75rem', fontSize: '0.875rem', color: '#64748b' }}>Buscando...</div>
+                    ) : productSearchResults.length === 0 ? (
+                      <div style={{ padding: '0.75rem', fontSize: '0.875rem', color: '#64748b' }}>No se encontraron productos (ingredientes o bebidas)</div>
+                    ) : (
+                      productSearchResults.slice(0, 40).map((p: any) => (
+                        <div
+                          key={p.id}
+                          onClick={() => {
+                            handleProductSelect(p.id);
+                            setProductSearchTerm('');
+                            setProductSearchFocused(false);
+                          }}
+                          style={{
+                            padding: '0.5rem 0.75rem',
+                            cursor: 'pointer',
+                            fontSize: '0.875rem',
+                            borderBottom: '1px solid #f1f5f9'
+                          }}
+                          onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                          onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
+                        >
+                          <span style={{ fontWeight: 600 }}>{p.code}</span> - {p.name} <span style={{ fontSize: '0.75rem', color: '#64748b' }}>({p.productType})</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 )}
               </div>
               <div>

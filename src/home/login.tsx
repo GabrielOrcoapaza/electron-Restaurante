@@ -899,15 +899,30 @@ const Login: React.FC = () => {
                     disabled={updateChecking}
                     style={{
                       gridColumn: '1 / -1',
-                      padding: '0.5rem',
-                      background: 'transparent',
-                      color: theme.textMuted,
+                      width: '100%',
+                      padding: isSmallDesktop ? '0.75rem' : '0.9375rem 1rem',
+                      background: updateChecking ? '#cbd5e1' : 'linear-gradient(145deg, #64748b, #475569)',
+                      color: 'white',
                       border: 'none',
-                      fontSize: '0.8125rem',
-                      fontWeight: 500,
+                      borderRadius: theme.radius,
+                      fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem',
+                      fontWeight: 600,
                       cursor: updateChecking ? 'not-allowed' : 'pointer',
-                      opacity: updateChecking ? 0.7 : 1,
-                      marginTop: '0.25rem'
+                      opacity: updateChecking ? 0.8 : 1,
+                      transition: 'opacity 0.2s, transform 0.2s, box-shadow 0.2s',
+                      boxShadow: updateChecking ? 'none' : '0 8px 24px rgba(100, 116, 139, 0.35)'
+                    }}
+                    onMouseOver={(e) => {
+                      if (!updateChecking) {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 12px 28px rgba(100, 116, 139, 0.4)';
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (!updateChecking) {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 8px 24px rgba(100, 116, 139, 0.35)';
+                      }
                     }}
                   >
                     {updateChecking ? '⏳ Buscando actualizaciones...' : '🔄 Actualizar sistema'}

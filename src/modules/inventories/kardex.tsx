@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
-import { GET_STOCK_MOVEMENTS_REPORT, GET_PRODUCTS_WITH_STOCK, GET_STOCKS_BY_BRANCH } from '../../graphql/queries';
+import { GET_STOCK_MOVEMENTS_REPORT, GET_STOCKS_BY_BRANCH, SEARCH_PRODUCTS, GET_PRODUCTS_BY_BRANCH } from '../../graphql/queries';
 
 interface StockMovement {
   id: string;
@@ -29,14 +29,6 @@ interface StockMovement {
   userName: string;
   branchId: string;
   branchName: string;
-}
-
-interface Product {
-  id: string;
-  code: string;
-  name: string;
-  productType?: string;
-  currentStock?: number;
 }
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
@@ -90,18 +82,43 @@ const Kardex: React.FC = () => {
     return date.toISOString().split('T')[0];
   });
   const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [productSearchTerm, setProductSearchTerm] = useState<string>('');
+  const [searchFocused, setSearchFocused] = useState(false);
 
-  // Obtener productos para el selector
-  const { data: productsData, refetch: refetchProducts } = useQuery(GET_PRODUCTS_WITH_STOCK, {
+  // Búsqueda de productos (como order.tsx)
+  const { data: searchData, loading: searchLoading } = useQuery(SEARCH_PRODUCTS, {
+    variables: { search: productSearchTerm, branchId: branchId!, limit: 50 },
+    skip: !branchId || productSearchTerm.length < 3,
+    errorPolicy: 'ignore',
+    fetchPolicy: 'network-only'
+  });
+
+  // Todos los productos para fallback cuando la búsqueda no encuentra nada
+  const { data: productsData, refetch: refetchProducts } = useQuery(GET_PRODUCTS_BY_BRANCH, {
     variables: { branchId: branchId! },
     skip: !branchId,
     fetchPolicy: 'network-only'
   });
 
-  const allProducts: Product[] = productsData?.productsByBranch || [];
-  const products = allProducts.filter(
-    (p) => p.productType === 'INGREDIENT' || p.productType === 'BEVERAGE'
-  );
+  const allProductsFromBranch = productsData?.productsByBranch || [];
+  const searchResults = (() => {
+    if (productSearchTerm.length < 3) return [];
+    const fromSearch = searchData?.searchProducts || [];
+    if (fromSearch.length > 0) return fromSearch;
+    const lower = productSearchTerm.toLowerCase();
+    return allProductsFromBranch.filter(
+      (p: any) =>
+        (p.productType === 'INGREDIENT' || p.productType === 'BEVERAGE') &&
+        ((p.name || '').toLowerCase().includes(lower) ||
+          (p.code || '').toLowerCase().includes(lower) ||
+          (p.description || '').toLowerCase().includes(lower))
+    );
+  })().filter((p: any) => p.productType === 'INGREDIENT' || p.productType === 'BEVERAGE');
+
+  const selectedProduct = selectedProductId
+    ? searchResults.find((p: any) => p.id === selectedProductId) ||
+      allProductsFromBranch.find((p: any) => p.id === selectedProductId)
+    : null;
 
   // Stock actual desde el servidor (stocksByBranch) — se actualiza al registrar o vender
   const { data: stocksData, refetch: refetchStocks } = useQuery(GET_STOCKS_BY_BRANCH, {
@@ -382,7 +399,7 @@ const Kardex: React.FC = () => {
                 onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
               />
             </div>
-            <div>
+            <div style={{ position: 'relative' }}>
               <label style={{
                 display: 'block',
                 marginBottom: '0.5rem',
@@ -392,30 +409,119 @@ const Kardex: React.FC = () => {
               }}>
                 Producto (Opcional)
               </label>
-              <select
-                value={selectedProductId}
-                onChange={(e) => setSelectedProductId(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: inputPadding,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  fontSize: inputFontSize,
-                  outline: 'none',
-                  transition: 'all 0.2s',
+              <div style={{ position: 'relative' }}>
+                <span style={{
+                  position: 'absolute',
+                  left: '0.65rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  fontSize: '0.9rem',
+                  opacity: 0.6,
+                  pointerEvents: 'none'
+                }}>🔎</span>
+                <input
+                  type="text"
+                  value={selectedProduct ? `${selectedProduct.code} - ${selectedProduct.name}` : productSearchTerm}
+                  onChange={(e) => {
+                    setSelectedProductId('');
+                    setProductSearchTerm(e.target.value);
+                  }}
+                  onFocus={() => {
+                    setSearchFocused(true);
+                    if (selectedProduct) {
+                      setSelectedProductId('');
+                      setProductSearchTerm('');
+                    }
+                  }}
+                  onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+                  placeholder="Buscar producto (nombre o código)..."
+                  style={{
+                    width: '100%',
+                    padding: inputPadding,
+                    paddingLeft: '2rem',
+                    paddingRight: selectedProduct ? '3.5rem' : undefined,
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    fontSize: inputFontSize,
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    backgroundColor: 'white',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                {selectedProduct && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProductId('');
+                      setProductSearchTerm('');
+                    }}
+                    style={{
+                      position: 'absolute',
+                      right: '0.5rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: '#f1f5f9',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '0.25rem 0.5rem',
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                      color: '#64748b',
+                      fontWeight: 500
+                    }}
+                  >
+                    ✕ Todos
+                  </button>
+                )}
+              </div>
+              {searchFocused && productSearchTerm.length >= 3 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  marginTop: '0.25rem',
+                  maxHeight: '240px',
+                  overflowY: 'auto',
                   backgroundColor: 'white',
-                  boxSizing: 'border-box'
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-              >
-                <option value="">Todos los productos</option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.code} - {product.name}
-                  </option>
-                ))}
-              </select>
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  zIndex: 20
+                }}>
+                  {searchLoading ? (
+                    <div style={{ padding: '0.75rem', fontSize: inputFontSize, color: '#64748b' }}>
+                      Buscando...
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div style={{ padding: '0.75rem', fontSize: inputFontSize, color: '#64748b' }}>
+                      No se encontraron productos
+                    </div>
+                  ) : (
+                    searchResults.slice(0, 30).map((p: any) => (
+                      <div
+                        key={p.id}
+                        onClick={() => {
+                          setSelectedProductId(p.id);
+                          setProductSearchTerm('');
+                          setSearchFocused(false);
+                        }}
+                        style={{
+                          padding: '0.5rem 0.75rem',
+                          cursor: 'pointer',
+                          fontSize: inputFontSize,
+                          borderBottom: '1px solid #f1f5f9'
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
+                      >
+                        <span style={{ fontWeight: 600 }}>{p.code}</span> - {p.name}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <button

@@ -106,6 +106,27 @@ electron_updater_1.autoUpdater.on('update-downloaded', () => {
 electron_updater_1.autoUpdater.on('error', (err) => {
     electron_log_1.default.error('Error en autoUpdater:', err);
 });
+// IPC para que el renderer pueda solicitar búsqueda de actualizaciones (botón "Actualizar")
+electron_1.ipcMain.handle('check-for-updates', async () => {
+    if (isDev) {
+        return { success: false, message: 'En modo desarrollo no se buscan actualizaciones.' };
+    }
+    try {
+        const result = await electron_updater_1.autoUpdater.checkForUpdates();
+        const hasUpdate = result?.updateInfo != null;
+        return {
+            success: true,
+            hasUpdate,
+            message: hasUpdate
+                ? 'Actualización encontrada. Se está descargando...'
+                : 'No hay actualizaciones disponibles. Ya tienes la última versión.'
+        };
+    }
+    catch (err) {
+        electron_log_1.default.error('Error al buscar actualizaciones:', err);
+        return { success: false, message: err?.message || 'Error al buscar actualizaciones.' };
+    }
+});
 electron_1.app.whenReady().then(() => {
     // Desactivar caché en producción para asegurar que se carguen los últimos cambios
     if (!isDev) {
