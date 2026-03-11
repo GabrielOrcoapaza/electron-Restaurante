@@ -202,17 +202,17 @@ const Login: React.FC = () => {
   const isMediumDesktop = breakpoint === 'xl';
   const isLargeDesktop = breakpoint === '2xl';
   const containerPadding = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '1rem' : '1.5rem';
-  // Contenedor más ancho para mostrar hasta 5 empleados por fila
-  const formMaxWidth = isSmallDesktop ? '100%' : isMediumDesktop ? '780px' : '960px';
-  const titleFontSize = isSmallDesktop ? 'clamp(22px, 3.5vw, 28px)' : isMediumDesktop ? 'clamp(26px, 3.5vw, 32px)' : 'clamp(28px, 3.5vw, 36px)';
-  const inputFontSize = isSmallDesktop ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
-  const labelFontSize = isSmallDesktop ? 'clamp(13px, 2.5vw, 15px)' : 'clamp(14px, 2.5vw, 16px)';
-  // Columnas del grid de empleados: responsive (hasta 5 por fila en pantallas grandes)
-  const employeesGridColumns = isLargeDesktop ? 5 : isMediumDesktop ? 5 : isSmallDesktop ? 4 : 3;
-  const avatarSize = isSmallDesktop ? 28 : 32;
-  const cardPadding = isSmallDesktop ? '0.4rem' : '0.5rem';
-  const cardFontSize = isSmallDesktop ? '11px' : '12px';
-  const cardDniFontSize = isSmallDesktop ? '10px' : '11px';
+  // Contenedor más ancho: ocupa toda la pantalla para la lista de empleados
+  const formMaxWidth = '100%';
+  const titleFontSize = isSmallDesktop ? 'clamp(28px, 4vw, 36px)' : isMediumDesktop ? 'clamp(32px, 4vw, 42px)' : 'clamp(36px, 4.5vw, 48px)';
+  const inputFontSize = isSmallDesktop ? 'clamp(16px, 2.5vw, 18px)' : 'clamp(17px, 2.5vw, 20px)';
+  const labelFontSize = isSmallDesktop ? 'clamp(16px, 2.5vw, 18px)' : 'clamp(17px, 2.5vw, 20px)';
+  // Columnas del grid de empleados: responsive (hasta 6 por fila en pantallas grandes)
+  const employeesGridColumns = isLargeDesktop ? 6 : isMediumDesktop ? 5 : isSmallDesktop ? 4 : 3;
+  const avatarSize = isSmallDesktop ? 36 : 44;
+  const cardPadding = isSmallDesktop ? '0.6rem' : '0.75rem';
+  const cardFontSize = isSmallDesktop ? '14px' : '16px';
+  const cardDniFontSize = isSmallDesktop ? '13px' : '14px';
 
   // Tema visual del login
   const theme = {
@@ -369,8 +369,8 @@ const Login: React.FC = () => {
           flex: '1',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: focusedInput ? 'flex-start' : 'center',
-          alignItems: 'center',
+          justifyContent: 'flex-start',
+          alignItems: 'stretch',
           padding: isSmallDesktop ? '0.5rem' : '1rem',
           background: theme.cardBg,
           backdropFilter: 'blur(24px)',
@@ -380,7 +380,7 @@ const Login: React.FC = () => {
           width: '100%',
           maxWidth: '100%',
           boxSizing: 'border-box',
-          overflow: 'auto'
+          overflow: 'hidden'
         }}>
           {/* Decoración restaurante: chef, platos (con color), utensilios, café, comida + "4 soluciones" */}
           <div className="login-decorations" aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
@@ -451,21 +451,26 @@ const Login: React.FC = () => {
             position: 'relative',
             zIndex: 1,
             padding: containerPadding,
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0,
+            height: '100%'
           }}>
             {/* Ocultar cabecera cuando el teclado está visible (el teclado ocupa esa zona) */}
             {!focusedInput && (
-              <header style={{ textAlign: 'center', marginBottom: isSmallDesktop ? '1.25rem' : '1.75rem' }}>
+              <header style={{ textAlign: 'center', marginBottom: isSmallDesktop ? '1.25rem' : '1.75rem', flexShrink: 0 }}>
                 <div style={{
-                  width: isSmallDesktop ? 56 : 72,
-                  height: isSmallDesktop ? 56 : 72,
+                  width: isSmallDesktop ? 72 : 88,
+                  height: isSmallDesktop ? 72 : 88,
                   background: `linear-gradient(145deg, ${theme.accent}, #0284c7)`,
-                  borderRadius: 18,
+                  borderRadius: 20,
                   margin: `0 auto ${isSmallDesktop ? '0.75rem' : '1rem'}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: isSmallDesktop ? 28 : 36,
+                  fontSize: isSmallDesktop ? 36 : 44,
                   color: 'white',
                   boxShadow: `0 12px 28px ${theme.accentMuted}`,
                   border: '1px solid rgba(255,255,255,0.2)'
@@ -481,15 +486,15 @@ const Login: React.FC = () => {
                 }}>
                   Iniciar sesión
                 </h2>
-                <p style={{ margin: '0.25rem 0 0', fontSize: '0.9375rem', color: theme.textMuted }}>
+                <p style={{ margin: '0.25rem 0 0', fontSize: isSmallDesktop ? '1.125rem' : '1.25rem', color: theme.textMuted }}>
                   Elige tu usuario e ingresa tu contraseña
                 </p>
               </header>
             )}
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
               {/* Buscador de Empleados */}
-              <div style={{ marginBottom: isSmallDesktop ? '0.75rem' : '1rem' }}>
+              <div style={{ marginBottom: isSmallDesktop ? '0.75rem' : '1rem', flexShrink: 0 }}>
                 <label style={{
                   display: 'block',
                   marginBottom: '0.5rem',
@@ -537,14 +542,14 @@ const Login: React.FC = () => {
                     left: '0.75rem',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    fontSize: '1rem',
+                    fontSize: isSmallDesktop ? '1.125rem' : '1.25rem',
                     opacity: 0.7
                   }}>🔍</span>
                 </div>
                 {searchTerm && (
                   <p style={{
                     margin: '0.375rem 0 0',
-                    fontSize: '0.8125rem',
+                    fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
                     color: theme.textMuted,
                     textAlign: 'center',
                     fontWeight: 500
@@ -554,15 +559,16 @@ const Login: React.FC = () => {
                 )}
               </div>
 
-              {/* Selección de Empleados */}
-              <div style={{ marginBottom: '1.5rem' }}>
+              {/* Selección de Empleados - ocupa todo el espacio disponible */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, marginBottom: '1rem' }}>
                 <label style={{
                   display: 'block',
                   marginBottom: '0.75rem',
                   color: theme.text,
                   fontSize: labelFontSize,
                   fontWeight: 600,
-                  textAlign: 'center'
+                  textAlign: 'center',
+                  flexShrink: 0
                 }}>
                   👥 Selecciona tu empleado
                 </label>
@@ -570,7 +576,7 @@ const Login: React.FC = () => {
                 {employeesLoading ? (
                   <div style={{
                     color: theme.accent,
-                    fontSize: '0.9375rem',
+                    fontSize: isSmallDesktop ? '1rem' : '1.125rem',
                     textAlign: 'center',
                     padding: '1.25rem',
                     backgroundColor: theme.accentMuted,
@@ -583,7 +589,7 @@ const Login: React.FC = () => {
                 ) : filteredEmployees.length === 0 ? (
                   <p style={{
                     color: '#b91c1c',
-                    fontSize: '0.9375rem',
+                    fontSize: isSmallDesktop ? '1rem' : '1.125rem',
                     textAlign: 'center',
                     padding: '1.25rem',
                     backgroundColor: '#fef2f2',
@@ -603,10 +609,11 @@ const Login: React.FC = () => {
                     style={{
                       display: 'grid',
                       gridTemplateColumns: `repeat(${employeesGridColumns}, minmax(0, 1fr))`,
-                      gap: isSmallDesktop ? '0.4rem' : '0.5rem',
-                      maxHeight: isSmallDesktop ? 180 : 220,
+                      gap: isSmallDesktop ? '0.5rem' : '0.75rem',
+                      flex: 1,
+                      minHeight: 0,
                       overflowY: 'auto',
-                      padding: '0.5rem',
+                      padding: '0.75rem',
                       backgroundColor: theme.inputBg,
                       borderRadius: theme.radius,
                       border: `1px solid ${theme.inputBorder}`
@@ -738,7 +745,7 @@ const Login: React.FC = () => {
                 )}
               </div>
 
-              <div style={{ marginBottom: '1rem', marginTop: 0 }}>
+              <div style={{ marginBottom: '1rem', marginTop: 0, flexShrink: 0 }}>
                 <label className="form-labels" style={{
                   display: 'block',
                   marginBottom: '0.5rem',
@@ -829,7 +836,8 @@ const Login: React.FC = () => {
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
-                gap: isSmallDesktop ? '0.5rem' : '0.75rem'
+                gap: isSmallDesktop ? '0.5rem' : '0.75rem',
+                flexShrink: 0
               }}>
                 <button
                   type="button"
@@ -841,7 +849,7 @@ const Login: React.FC = () => {
                     color: 'white',
                     border: 'none',
                     borderRadius: theme.radius,
-                    fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem',
+                    fontSize: isSmallDesktop ? '1rem' : '1.0625rem',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'opacity 0.2s, transform 0.2s, box-shadow 0.2s',
@@ -869,7 +877,7 @@ const Login: React.FC = () => {
                     color: 'white',
                     border: 'none',
                     borderRadius: theme.radius,
-                    fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem',
+                    fontSize: isSmallDesktop ? '1rem' : '1.0625rem',
                     fontWeight: 600,
                     cursor: loading ? 'not-allowed' : 'pointer',
                     transition: 'opacity 0.2s, transform 0.2s, box-shadow 0.2s',
@@ -905,7 +913,7 @@ const Login: React.FC = () => {
                       color: 'white',
                       border: 'none',
                       borderRadius: theme.radius,
-                      fontSize: isSmallDesktop ? '0.875rem' : '0.9375rem',
+                      fontSize: isSmallDesktop ? '1rem' : '1.0625rem',
                       fontWeight: 600,
                       cursor: updateChecking ? 'not-allowed' : 'pointer',
                       opacity: updateChecking ? 0.8 : 1,

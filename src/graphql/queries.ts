@@ -200,6 +200,8 @@ export const GET_CATEGORIES_BY_BRANCH = gql`
         id
         name
         description
+        icon
+        color
         order
         isActive
       }
@@ -214,6 +216,8 @@ export const GET_SUBCATEGORIES_BY_CATEGORY = gql`
       id
       name
       description
+      icon
+      color
       order
       isActive
     }
@@ -257,7 +261,7 @@ export const GET_PRODUCTS_BY_BRANCH = gql`
       currentStock
       stockMin
       stockMax
-
+      managesStock
     }
   }
 `;
@@ -280,6 +284,7 @@ export const GET_PRODUCTS = gql`
       currentStock
       stockMin
       stockMax
+      managesStock
     }
   }
 `;
@@ -302,6 +307,7 @@ export const GET_PRODUCTS_WITH_STOCK = gql`
       isActive
       productType
       subcategoryId
+      managesStock
     }
   }
 `;
@@ -325,6 +331,7 @@ export const SEARCH_PRODUCTS = gql`
       currentStock
       stockMin
       stockMax
+      managesStock
     }
   }
 `;
@@ -591,6 +598,7 @@ export const GET_STOCKS_BY_BRANCH = gql`
 `;
 
 // Query para obtener reporte de movimientos de stock (Kardex)
+// StockMovementsReportResultType tiene: movements (lista) y openingBalances (lista)
 export const GET_STOCK_MOVEMENTS_REPORT = gql`
   query GetStockMovementsReport(
     $branchId: ID!
@@ -604,30 +612,37 @@ export const GET_STOCK_MOVEMENTS_REPORT = gql`
       startDate: $startDate
       endDate: $endDate
     ) {
-      id
-      movementType
-      movementTypeDisplay
-      quantity
-      unitCost
-      totalCost
-      reason
-      createdAt
-      productId
-      productCode
-      productName
-      productType
-      productTypeDisplay
-      stockId
-      currentQuantity
-      averageCost
-      operationId
-      operationOrder
-      operationType
-      operationDate
-      userId
-      userName
-      branchId
-      branchName
+      movements {
+        id
+        movementType
+        movementTypeDisplay
+        quantity
+        unitCost
+        totalCost
+        reason
+        createdAt
+        productId
+        productCode
+        productName
+        productType
+        productTypeDisplay
+        stockId
+        currentQuantity
+        averageCost
+        operationId
+        operationOrder
+        operationType
+        operationDate
+        userId
+        userName
+        branchId
+        branchName
+      }
+      openingBalances {
+        stockId
+        productId
+        openingQuantity
+      }
     }
   }
 `;
@@ -936,10 +951,14 @@ export const GET_SUBCATEGORIES_WITH_MODIFIERS = gql`
     categoriesByBranch(branchId: $branchId) {
       id
       name
+      icon
+      color
       subcategories {
         id
         name
         description
+        icon
+        color
         order
         isActive
         notes {

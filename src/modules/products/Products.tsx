@@ -20,6 +20,8 @@ interface Product {
   stockMin?: number;
   stockMax?: number;
   isActive: boolean;
+  managesStock?: boolean;
+  managesStockLocked?: boolean;
 }
 
 const Products: React.FC = () => {

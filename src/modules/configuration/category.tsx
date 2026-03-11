@@ -3,6 +3,8 @@ import { useMutation, useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { GET_CATEGORIES_BY_BRANCH } from '../../graphql/queries';
 import { CREATE_CATEGORY, UPDATE_CATEGORY } from '../../graphql/mutations';
+import { CATEGORY_ICONS } from '../../constants/categoryIcons';
+import CategoryIcon from '../../components/CategoryIcon';
 import CategoryList from './categoryList';
 
 interface Category {
@@ -22,12 +24,14 @@ const CategoryModule: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    icon: 'category',
+    color: '#6366f1',
     order: 0,
     isActive: true,
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [editFormData, setEditFormData] = useState({ name: '', description: '', order: 0, isActive: true });
+  const [editFormData, setEditFormData] = useState({ name: '', description: '', icon: 'category', color: '#6366f1', order: 0, isActive: true });
 
   const { data, loading, error, refetch } = useQuery(GET_CATEGORIES_BY_BRANCH, {
     variables: { branchId: branchId! },
@@ -43,6 +47,8 @@ const CategoryModule: React.FC = () => {
         setFormData({
           name: '',
           description: '',
+          icon: 'category',
+          color: '#6366f1',
           order: 0,
           isActive: true,
         });
@@ -135,8 +141,8 @@ const CategoryModule: React.FC = () => {
                 branchId,
                 name: formData.name.trim(),
                 description: formData.description.trim() || null,
-                icon: null,
-                color: '#000000',
+                icon: formData.icon || null,
+                color: formData.color || '#6366f1',
                 order: Number(formData.order) || 0,
                 isActive: formData.isActive,
               },
@@ -158,6 +164,42 @@ const CategoryModule: React.FC = () => {
             placeholder="Descripción (opcional)"
             style={{ padding: '0.625rem 0.875rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
           />
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#334155' }}>Icono</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', padding: '0.5rem', background: '#f8fafc', borderRadius: '8px', maxHeight: '100px', overflowY: 'auto' }}>
+              {CATEGORY_ICONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setFormData((p) => ({ ...p, icon: opt.id }))}
+                  title={opt.label}
+                  style={{
+                    padding: '0.35rem',
+                    border: formData.icon === opt.id ? '2px solid #6366f1' : '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    background: formData.icon === opt.id ? '#eef2ff' : 'white',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <CategoryIcon iconId={opt.id} type="category" size="1.5rem" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#334155' }}>Color</label>
+            <input
+              type="color"
+              value={formData.color}
+              onChange={(e) => setFormData((prev) => ({ ...prev, color: e.target.value }))}
+              style={{ width: '48px', height: '36px', padding: '2px', border: '1px solid #d1d5db', borderRadius: '8px', cursor: 'pointer' }}
+            />
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <input
@@ -195,7 +237,7 @@ const CategoryModule: React.FC = () => {
         </form>
       </div>
 
-      <CategoryList categories={categories} onEdit={(cat) => { setEditingCategory(cat); setEditFormData({ name: cat.name, description: cat.description || '', order: cat.order ?? 0, isActive: cat.isActive }); setMessage(null); }} />
+      <CategoryList categories={categories} onEdit={(cat) => { setEditingCategory(cat); setEditFormData({ name: cat.name, description: cat.description || '', icon: cat.icon || 'category', color: cat.color || '#6366f1', order: cat.order ?? 0, isActive: cat.isActive }); setMessage(null); }} />
 
       {/* Modal editar categoría */}
       {editingCategory && (
@@ -210,6 +252,8 @@ const CategoryModule: React.FC = () => {
                     categoryId: editingCategory.id,
                     name: editFormData.name.trim(),
                     description: editFormData.description.trim() || null,
+                    icon: editFormData.icon || null,
+                    color: editFormData.color || null,
                     order: editFormData.order,
                     isActive: editFormData.isActive,
                   },
@@ -230,6 +274,37 @@ const CategoryModule: React.FC = () => {
                 placeholder="Descripción (opcional)"
                 style={{ padding: '0.625rem 0.875rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
               />
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.875rem' }}>Icono</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', padding: '0.5rem', background: '#f8fafc', borderRadius: '8px', maxHeight: '90px', overflowY: 'auto' }}>
+                  {CATEGORY_ICONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setEditFormData((p) => ({ ...p, icon: opt.id }))}
+                      title={opt.label}
+                      style={{
+                        padding: '0.3rem',
+                        border: editFormData.icon === opt.id ? '2px solid #6366f1' : '1px solid #e2e8f0',
+                        borderRadius: '6px',
+                        background: editFormData.icon === opt.id ? '#eef2ff' : 'white',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <CategoryIcon iconId={opt.id} type="category" size="1.25rem" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.875rem' }}>Color</label>
+                <input
+                  type="color"
+                  value={editFormData.color}
+                  onChange={(e) => setEditFormData((p) => ({ ...p, color: e.target.value }))}
+                  style={{ width: '48px', height: '32px', padding: '2px', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer' }}
+                />
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <input
                   type="number"

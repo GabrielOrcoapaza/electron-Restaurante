@@ -450,29 +450,35 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                     }}>
                       {product.code}
                     </td>
-                    <td style={{
-                      padding: isSmall ? '0.375rem' : '0.5rem',
-                      textAlign: 'center',
-                      color: '#334155',
-                      fontWeight: 500,
-                      fontSize: tableFontSize,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {product.name}
+                    <td style={{ padding: isSmall ? '0.375rem' : '0.5rem', verticalAlign: 'top' }}>
+                      <div style={{
+                        fontSize: tableFontSize,
+                        color: '#334155',
+                        overflow: 'hidden',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 5,
+                        WebkitBoxOrient: 'vertical' as 'vertical',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: 1.4
+                      }}>
+                        {product.name}
+                      </div>
                     </td>
-                    <td style={{
-                      padding: isSmall ? '0.375rem' : '0.5rem',
-                      textAlign: 'center',
-                      color: '#64748b',
-                      fontSize: tableFontSize,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      maxWidth: 0
-                    }}>
-                      {product.description || '-'}
+                    <td style={{ padding: isSmall ? '0.375rem' : '0.5rem', verticalAlign: 'top' }}>
+                      <div style={{
+                        color: '#64748b',
+                        fontSize: tableFontSize,
+                        overflow: 'hidden',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 5,
+                        WebkitBoxOrient: 'vertical' as 'vertical',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: 1.4
+                      }}>
+                        {product.description || '-'}
+                      </div>
                     </td>
                     <td style={{
                       padding: isSmall ? '0.375rem' : '0.5rem',

@@ -4,6 +4,8 @@ interface Subcategory {
   id: string;
   name: string;
   description?: string;
+  icon?: string;
+  color?: string;
   order?: number;
   isActive: boolean;
 }

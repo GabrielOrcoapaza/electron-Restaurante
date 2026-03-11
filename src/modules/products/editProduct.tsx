@@ -20,6 +20,7 @@ interface Product {
   stockMax?: number;
   currentStock?: number;
   isActive?: boolean;
+  managesStock?: boolean;
 }
 
 interface EditProductProps {
@@ -84,6 +85,7 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
     stockMax: product.stockMax?.toString() || '0',
     currentStock: product.currentStock?.toString() || '0',
     isActive: product.isActive !== undefined ? product.isActive : true,
+    managesStock: product.managesStock ?? false,
   });
   const [enableStockEdit, setEnableStockEdit] = useState(false);
   const { showToast } = useToast();
@@ -143,6 +145,7 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
       stockMin: formData.stockMin ? parseFloat(formData.stockMin) : undefined,
       stockMax: formData.stockMax ? parseFloat(formData.stockMax) : undefined,
       isActive: formData.isActive,
+      managesStock: formData.managesStock,
     };
 
     // Solo enviar el stock si la edición está habilitada y ha cambiado respecto al valor original
@@ -605,6 +608,43 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                       cursor: enableStockEdit ? 'text' : 'not-allowed'
                     }}
                   />
+                </div>
+              </div>
+            )}
+
+            {/* Manejo de Stock - Solo para Bebidas e Ingredientes */}
+            {(formData.productType === 'BEVERAGE' || formData.productType === 'INGREDIENT') && (
+              <div style={{
+                padding: '0.75rem',
+                borderRadius: '8px',
+                backgroundColor: formData.managesStock ? '#eff6ff' : '#f8fafc',
+                border: `1px solid ${formData.managesStock ? '#bfdbfe' : '#e2e8f0'}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                cursor: 'pointer'
+              }}
+                onClick={() => {
+                  setFormData(prev => ({ ...prev, managesStock: !prev.managesStock }));
+                }}
+              >
+                <input
+                  type="checkbox"
+                  name="managesStock"
+                  checked={formData.managesStock}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setFormData(prev => ({ ...prev, managesStock: e.target.checked }));
+                  }}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: labelFontSize, color: '#1e40af' }}>
+                    Manejar Stock e Inventario
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                    Si se activa, este producto generará movimientos en el Kardex. Una vez guardado, no se podrá desactivar.
+                  </div>
                 </div>
               </div>
             )}

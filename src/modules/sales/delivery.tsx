@@ -18,6 +18,7 @@ import {
 import { CREATE_PERSON } from '../../graphql/mutations';
 import ModalObservation from './modalObservation';
 import PayDeliveryModal from './payDelivery';
+import CategoryIcon from '../../components/CategoryIcon';
 
 // Tipo para los ítems del carrito
 type CartItem = {
@@ -804,7 +805,7 @@ const Delivery: React.FC = () => {
                                         onMouseOver={(e) => {
                                             e.currentTarget.style.transform = 'translateY(-2px)';
                                             e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-                                            e.currentTarget.style.borderColor = '#667eea';
+                                            e.currentTarget.style.borderColor = category.color || '#667eea';
                                         }}
                                         onMouseOut={(e) => {
                                             e.currentTarget.style.transform = 'translateY(0)';
@@ -812,8 +813,8 @@ const Delivery: React.FC = () => {
                                             e.currentTarget.style.borderColor = '#e2e8f0';
                                         }}
                                     >
-                                        <div style={{ fontSize: isSmall ? '2rem' : '2.5rem', marginBottom: '0.5rem' }}>
-                                            {category.icon || '📁'}
+                                        <div style={{ fontSize: isSmall ? '2rem' : '2.5rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <CategoryIcon iconId={category.icon} type="category" size={isSmall ? '2rem' : '2.5rem'} />
                                         </div>
                                         <div style={{
                                             fontSize: isSmall ? '0.75rem' : breadcrumbFontSize,
@@ -846,7 +847,7 @@ const Delivery: React.FC = () => {
                                             boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                                         }}
                                         onMouseOver={(e) => {
-                                            e.currentTarget.style.borderColor = '#667eea';
+                                            e.currentTarget.style.borderColor = sub.color || '#667eea';
                                             e.currentTarget.style.backgroundColor = '#f0f4ff';
                                         }}
                                         onMouseOut={(e) => {
@@ -854,7 +855,9 @@ const Delivery: React.FC = () => {
                                             e.currentTarget.style.backgroundColor = '#ffffff';
                                         }}
                                     >
-                                        <div style={{ fontSize: isSmall ? '1.5rem' : '2rem', marginBottom: '0.25rem' }}>📂</div>
+                                        <div style={{ fontSize: isSmall ? '1.5rem' : '2rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <CategoryIcon iconId={sub.icon} type="subcategory" size={isSmall ? '1.5rem' : '2rem'} />
+                                        </div>
                                         <div style={{
                                             fontSize: isSmall ? '0.75rem' : '0.8125rem',
                                             fontWeight: '600',

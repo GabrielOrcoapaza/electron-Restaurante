@@ -9,6 +9,7 @@ import type { Table } from '../../types/table';
 import { CREATE_OPERATION, ADD_ITEMS_TO_OPERATION, UPDATE_TABLE_STATUS, PRINT_PRECUENTA } from '../../graphql/mutations';
 import { GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS_BY_CATEGORY, GET_PRODUCTS_BY_BRANCH, GET_OPERATION_BY_TABLE, GET_OPERATION_BY_ID, SEARCH_PRODUCTS, GET_MODIFIERS_BY_SUBCATEGORY } from '../../graphql/queries';
 import ModalObservation from './modalObservation';
+import CategoryIcon from '../../components/CategoryIcon';
 
 type OrderProps = {
 	table: Table;
@@ -1348,8 +1349,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 														e.currentTarget.style.borderColor = '#e2e8f0';
 													}}
 												>
-													<div style={{ fontSize: isSmall ? '2rem' : '2.5rem', marginBottom: '0.5rem' }}>
-														{category.icon || '📁'}
+													<div style={{ fontSize: isSmall ? '2rem' : '2.5rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+														<CategoryIcon iconId={category.icon} type="category" size={isSmall ? '2rem' : '2.5rem'} />
 													</div>
 													<div style={{ fontSize: isSmall ? '0.75rem' : breadcrumbFontSize, fontWeight: '700', color: '#1e293b', textAlign: 'center' }}>
 														{category.name}
@@ -1378,7 +1379,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 													boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
 												}}
 												onMouseOver={(e) => {
-													e.currentTarget.style.borderColor = '#667eea';
+													e.currentTarget.style.borderColor = sub.color || '#667eea';
 													e.currentTarget.style.backgroundColor = '#f0f4ff';
 												}}
 												onMouseOut={(e) => {
@@ -1386,7 +1387,9 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 													e.currentTarget.style.backgroundColor = '#ffffff';
 												}}
 											>
-												<div style={{ fontSize: isSmall ? '1.5rem' : '2rem', marginBottom: '0.25rem' }}>📂</div>
+												<div style={{ fontSize: isSmall ? '1.5rem' : '2rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+													<CategoryIcon iconId={sub.icon} type="subcategory" size={isSmall ? '1.5rem' : '2rem'} />
+												</div>
 												<div style={{ fontSize: isSmall ? '0.75rem' : '0.8125rem', fontWeight: '600', color: '#334155', textAlign: 'center' }}>
 													{sub.name}
 												</div>
@@ -1453,7 +1456,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 															</div>
 														)}
 														<div style={{
-															fontSize: isSmall ? '0.7rem' : '0.75rem',
+															fontSize: isSmall ? '0.8125rem' : '0.875rem',
 															fontWeight: '600',
 															color: '#1e293b',
 															marginBottom: '0.25rem',
@@ -1467,7 +1470,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 															{product.name}
 														</div>
 														<div style={{
-															fontSize: isSmall ? '0.75rem' : '0.8125rem',
+															fontSize: isSmall ? '0.8125rem' : '0.9375rem',
 															fontWeight: '700',
 															color: '#4f46e5',
 															marginTop: 'auto'
@@ -1476,7 +1479,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 														</div>
 														{product.preparationTime > 0 && (
 															<div style={{
-																fontSize: isSmall ? '0.65rem' : '0.7rem',
+																fontSize: isSmall ? '0.7rem' : '0.8125rem',
 																color: '#718096',
 																display: 'flex',
 																alignItems: 'center',
@@ -1639,7 +1642,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 														<div style={{
 															fontWeight: 700,
 															color: '#2d3748',
-															fontSize: isSmall ? '0.6rem' : isMedium ? '0.65rem' : '0.7rem',
+															fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8125rem',
 															overflow: 'hidden',
 															whiteSpace: 'normal',
 															wordBreak: 'break-word',
@@ -1664,7 +1667,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 														<div style={{
 															fontWeight: 700,
 															color: '#2d3748',
-															fontSize: isSmall ? '0.65rem' : isMedium ? '0.7rem' : '0.75rem',
+															fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8125rem',
 															textAlign: 'right'
 														}}>
 															S/ {item.total.toFixed(2)}

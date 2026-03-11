@@ -3,6 +3,8 @@ import { useMutation, useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { GET_CATEGORIES_BY_BRANCH } from '../../graphql/queries';
 import { CREATE_SUBCATEGORY, UPDATE_SUBCATEGORY } from '../../graphql/mutations';
+import { SUBCATEGORY_ICONS } from '../../constants/categoryIcons';
+import CategoryIcon from '../../components/CategoryIcon';
 import SubcategoryList from './subcategoryList';
 
 interface Subcategory {
@@ -28,12 +30,14 @@ const Subcategory: React.FC = () => {
     categoryId: '',
     name: '',
     description: '',
+    icon: 'category',
+    color: '#3b82f6',
     order: 0,
     isActive: true,
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [editingRow, setEditingRow] = useState<{ id: string; categoryId: string; categoryName: string; name: string; description?: string; order?: number; isActive: boolean } | null>(null);
-  const [editFormData, setEditFormData] = useState({ name: '', description: '', order: 0, isActive: true });
+  const [editingRow, setEditingRow] = useState<{ id: string; categoryId: string; categoryName: string; name: string; description?: string; icon?: string; color?: string; order?: number; isActive: boolean } | null>(null);
+  const [editFormData, setEditFormData] = useState({ name: '', description: '', icon: 'category', color: '#3b82f6', order: 0, isActive: true });
 
   const { data, loading, error, refetch } = useQuery(GET_CATEGORIES_BY_BRANCH, {
     variables: { branchId: branchId! },
@@ -50,6 +54,8 @@ const Subcategory: React.FC = () => {
           ...prev,
           name: '',
           description: '',
+          icon: 'category',
+          color: '#3b82f6',
           order: 0,
           isActive: true,
         }));
@@ -143,6 +149,8 @@ const Subcategory: React.FC = () => {
                 categoryId: formData.categoryId,
                 name: formData.name.trim(),
                 description: formData.description.trim() || null,
+                icon: formData.icon || null,
+                color: formData.color || null,
                 order: Number(formData.order) || 0,
                 isActive: formData.isActive,
               },
@@ -178,6 +186,39 @@ const Subcategory: React.FC = () => {
             placeholder="Descripción (opcional)"
             style={{ padding: '0.625rem 0.875rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
           />
+
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#334155' }}>Icono</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', padding: '0.5rem', background: '#f8fafc', borderRadius: '8px', maxHeight: '100px', overflowY: 'auto' }}>
+              {SUBCATEGORY_ICONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setFormData((p) => ({ ...p, icon: opt.id }))}
+                  title={opt.label}
+                  style={{
+                    padding: '0.35rem',
+                    border: formData.icon === opt.id ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    background: formData.icon === opt.id ? '#eff6ff' : 'white',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <CategoryIcon iconId={opt.id} type="subcategory" size="1.5rem" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#334155' }}>Color</label>
+            <input
+              type="color"
+              value={formData.color}
+              onChange={(e) => setFormData((prev) => ({ ...prev, color: e.target.value }))}
+              style={{ width: '48px', height: '36px', padding: '2px', border: '1px solid #d1d5db', borderRadius: '8px', cursor: 'pointer' }}
+            />
+          </div>
 
           <input
             type="number"
@@ -217,8 +258,8 @@ const Subcategory: React.FC = () => {
       <SubcategoryList
         categories={categories}
         onEdit={(row) => {
-          setEditingRow({ id: row.id, categoryId: row.categoryId, categoryName: row.categoryName, name: row.name, description: row.description, order: row.order ?? 0, isActive: row.isActive });
-          setEditFormData({ name: row.name, description: row.description || '', order: row.order ?? 0, isActive: row.isActive });
+          setEditingRow({ id: row.id, categoryId: row.categoryId, categoryName: row.categoryName, name: row.name, description: row.description, icon: row.icon, color: row.color, order: row.order ?? 0, isActive: row.isActive });
+          setEditFormData({ name: row.name, description: row.description || '', icon: row.icon || 'category', color: row.color || '#3b82f6', order: row.order ?? 0, isActive: row.isActive });
           setMessage(null);
         }}
       />
@@ -235,6 +276,8 @@ const Subcategory: React.FC = () => {
                     subcategoryId: editingRow.id,
                     name: editFormData.name.trim(),
                     description: editFormData.description.trim() || null,
+                    icon: editFormData.icon || null,
+                    color: editFormData.color || null,
                     order: editFormData.order,
                     isActive: editFormData.isActive,
                   },
@@ -255,6 +298,37 @@ const Subcategory: React.FC = () => {
                 placeholder="Descripción (opcional)"
                 style={{ padding: '0.625rem 0.875rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
               />
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.875rem' }}>Icono</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', padding: '0.5rem', background: '#f8fafc', borderRadius: '8px', maxHeight: '90px', overflowY: 'auto' }}>
+                  {SUBCATEGORY_ICONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setEditFormData((p) => ({ ...p, icon: opt.id }))}
+                      title={opt.label}
+                      style={{
+                        padding: '0.3rem',
+                        border: editFormData.icon === opt.id ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                        borderRadius: '6px',
+                        background: editFormData.icon === opt.id ? '#eff6ff' : 'white',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <CategoryIcon iconId={opt.id} type="subcategory" size="1.25rem" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.875rem' }}>Color</label>
+                <input
+                  type="color"
+                  value={editFormData.color}
+                  onChange={(e) => setEditFormData((p) => ({ ...p, color: e.target.value }))}
+                  style={{ width: '48px', height: '32px', padding: '2px', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer' }}
+                />
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <input
                   type="number"

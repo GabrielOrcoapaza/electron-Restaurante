@@ -65,6 +65,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({ onClose, onSuccess }) => 
     stockMin: '',
     stockMax: '',
     currentStock: '',
+    managesStock: false,
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -147,6 +148,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({ onClose, onSuccess }) => 
         stockMin: toFloat(formData.stockMin),
         stockMax: toFloat(formData.stockMax),
         currentStock: toFloat(formData.currentStock),
+        managesStock: formData.managesStock,
       },
     });
   };
@@ -580,6 +582,42 @@ const CreateProduct: React.FC<CreateProductProps> = ({ onClose, onSuccess }) => 
                 />
               </div>
             </div>
+
+            {/* Manejo de Stock - Solo para Bebidas e Ingredientes */}
+            {(formData.productType === 'BEVERAGE' || formData.productType === 'INGREDIENT') && (
+              <div style={{
+                padding: '0.75rem',
+                borderRadius: '8px',
+                backgroundColor: formData.managesStock ? '#eff6ff' : '#f8fafc',
+                border: `1px solid ${formData.managesStock ? '#bfdbfe' : '#e2e8f0'}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                cursor: 'pointer'
+              }}
+                onClick={() => setFormData(prev => ({ ...prev, managesStock: !prev.managesStock }))}
+              >
+                <input
+                  type="checkbox"
+                  name="managesStock"
+                  checked={formData.managesStock}
+                  onChange={(e) => {
+                    // Evitar propagación para no disparar el onClick del contenedor
+                    e.stopPropagation();
+                    setFormData(prev => ({ ...prev, managesStock: e.target.checked }));
+                  }}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: labelFontSize, color: '#1e40af' }}>
+                    Manejar Stock e Inventario
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                    Si se activa, este producto generará movimientos en el Kardex. Una vez guardado con esta opción activa, no se podrá desactivar.
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Botones */}
             <div style={{

@@ -72,8 +72,8 @@ export const COMPANY_LOGIN = gql`
           id
           name
           description
-          icon
-          color
+          #icon
+          #color
           order
           isActive
           subcategories {
@@ -117,6 +117,40 @@ export const USER_LOGIN = gql`
         name
       }
       deviceRegistered 
+    }
+  }
+`;
+
+// Mutación para crear piso
+export const CREATE_FLOOR = gql`
+  mutation CreateFloor($branchId: ID!, $name: String!, $capacity: Int, $order: Int) {
+    createFloor(branchId: $branchId, name: $name, capacity: $capacity, order: $order) {
+      success
+      message
+      floor {
+        id
+        name
+        capacity
+        order
+      }
+    }
+  }
+`;
+
+// Mutación para crear mesa
+export const CREATE_TABLE = gql`
+  mutation CreateTable($floorId: ID!, $name: String!, $shape: String, $positionX: Float, $positionY: Float, $capacity: Int) {
+    createTable(floorId: $floorId, name: $name, shape: $shape, positionX: $positionX, positionY: $positionY, capacity: $capacity) {
+      success
+      message
+      table {
+        id
+        name
+        shape
+        positionX
+        positionY
+        capacity
+      }
     }
   }
 `;
@@ -703,6 +737,7 @@ export const CREATE_PRODUCT = gql`
     $description: String
     $subcategoryId: ID
     $imageBase64: String
+    $managesStock: Boolean
   ) {
     createProduct(
       branchId: $branchId
@@ -719,6 +754,7 @@ export const CREATE_PRODUCT = gql`
       description: $description
       subcategoryId: $subcategoryId
       imageBase64: $imageBase64
+      managesStock: $managesStock
     ) {
       success
       message
@@ -760,6 +796,7 @@ export const UPDATE_PRODUCT = gql`
     $stockMax: Float
     $currentStock: Float
     $isActive: Boolean
+    $managesStock: Boolean
   ) {
     updateProduct(
       productId: $productId
@@ -776,6 +813,7 @@ export const UPDATE_PRODUCT = gql`
       stockMax: $stockMax
       currentStock: $currentStock
       isActive: $isActive
+      managesStock: $managesStock
     ) {
       success
       message
@@ -1006,6 +1044,8 @@ export const CREATE_SUBCATEGORY = gql`
     $categoryId: ID!
     $name: String!
     $description: String
+    $icon: String
+    $color: String
     $order: Int
     $isActive: Boolean
   ) {
@@ -1013,6 +1053,8 @@ export const CREATE_SUBCATEGORY = gql`
       categoryId: $categoryId
       name: $name
       description: $description
+      icon: $icon
+      color: $color
       order: $order
       isActive: $isActive
     ) {
@@ -1022,6 +1064,8 @@ export const CREATE_SUBCATEGORY = gql`
         id
         name
         description
+        icon
+        color
         order
         isActive
         category {
@@ -1105,6 +1149,8 @@ export const UPDATE_SUBCATEGORY = gql`
     $subcategoryId: ID!
     $name: String
     $description: String
+    $icon: String
+    $color: String
     $order: Int
     $isActive: Boolean
   ) {
@@ -1112,6 +1158,8 @@ export const UPDATE_SUBCATEGORY = gql`
       subcategoryId: $subcategoryId
       name: $name
       description: $description
+      icon: $icon
+      color: $color
       order: $order
       isActive: $isActive
     ) {
@@ -1121,6 +1169,8 @@ export const UPDATE_SUBCATEGORY = gql`
         id
         name
         description
+        icon
+        color
         order
         isActive
         category {
