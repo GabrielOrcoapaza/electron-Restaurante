@@ -11,6 +11,7 @@ import {
 } from '../../graphql/queries';
 import { CLOSE_CASH, REPRINT_CLOSURE } from '../../graphql/mutations';
 import ManualTransactionModal from './manualTransactionModal';
+import CashDetailModal, { type CashClosureForDetail } from './cashDetailModal';
 
 interface CashRegister {
   id: string;
@@ -153,6 +154,8 @@ const Cashs: React.FC = () => {
   const [showMovements, setShowMovements] = useState(false);
   // Mostrar/ocultar totales generales en el preview
   const [showTotalesGenerales, setShowTotalesGenerales] = useState(true);
+  // Modal de detalle de cierre (al hacer clic en una fila del historial)
+  const [selectedClosureForDetail, setSelectedClosureForDetail] = useState<CashClosureForDetail | null>(null);
 
   // Query para obtener cajas
   const { data: cashRegistersData, loading: cashRegistersLoading, refetch: refetchCashRegisters } = useQuery(
@@ -1374,13 +1377,13 @@ const Cashs: React.FC = () => {
                       borderBottom: '2px solid #e2e8f0',
                       backgroundColor: '#f8fafc'
                     }}>
-                      <th style={{ padding: '1rem', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>N° Cierre</th>
-                      <th style={{ padding: '1rem', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Caja</th>
-                      <th style={{ padding: '1rem', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Usuario</th>
-                      <th style={{ padding: '1rem', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Fecha y Hora</th>
-                      <th style={{ padding: '1rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Ingresos</th>
-                      <th style={{ padding: '1rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Egresos</th>
-                      <th style={{ padding: '1rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Neto</th>
+                      <th style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>N° Cierre</th>
+                      <th style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Caja</th>
+                      <th style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Usuario</th>
+                      <th style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Fecha y Hora</th>
+                      <th style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Ingresos</th>
+                      <th style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Egresos</th>
+                      <th style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Neto</th>
                       <th style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Acciones</th>
                     </tr>
                   </thead>
@@ -1395,6 +1398,7 @@ const Cashs: React.FC = () => {
                             transition: 'background-color 0.2s',
                             cursor: 'pointer'
                           }}
+                          onClick={() => setSelectedClosureForDetail(closure as CashClosureForDetail)}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.backgroundColor = '#f8fafc';
                           }}
@@ -1442,28 +1446,25 @@ const Cashs: React.FC = () => {
                               <div>{formatDate(closure.closedAt)}</div>
                             </div>
                           </td>
-                          <td style={{ padding: '1rem', textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>
+                          <td style={{ padding: '1rem', textAlign: 'center', color: '#16a34a', fontWeight: 600 }}>
                             {currencyFormatter.format(Number((closure as any).totalIncome ?? (closure as any).total_income ?? 0))}
                           </td>
-                          <td style={{ padding: '1rem', textAlign: 'right', color: '#dc2626', fontWeight: 600 }}>
+                          <td style={{ padding: '1rem', textAlign: 'center', color: '#dc2626', fontWeight: 600 }}>
                             {currencyFormatter.format(Number((closure as any).totalExpense ?? (closure as any).total_expense ?? 0))}
                           </td>
                           <td style={{
                             padding: '1rem',
-                            textAlign: 'right',
+                            textAlign: 'center',
                             fontWeight: 700,
                             fontSize: '1rem',
                             color: (Number((closure as any).netTotal ?? (closure as any).net_total ?? 0) >= 0) ? '#16a34a' : '#dc2626'
                           }}>
                             {currencyFormatter.format(Number((closure as any).netTotal ?? (closure as any).net_total ?? 0))}
                           </td>
-                          <td style={{ padding: '1rem', textAlign: 'center', verticalAlign: 'middle' }}>
+                          <td style={{ padding: '1rem', textAlign: 'center', verticalAlign: 'middle' }} onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleReprintClosure(closure);
-                              }}
+                              onClick={() => handleReprintClosure(closure)}
                               disabled={reprintingClosureId === closure.id || reprintingClosure}
                               title="Reimprimir este cierre"
                               style={{
@@ -1649,6 +1650,15 @@ const Cashs: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de detalle de cierre de caja */}
+      <CashDetailModal
+        isOpen={!!selectedClosureForDetail}
+        onClose={() => setSelectedClosureForDetail(null)}
+        closure={selectedClosureForDetail}
+        onReprint={handleReprintClosure}
+        reprintingClosureId={reprintingClosureId}
+      />
 
       {/* Modal de Transacción Manual */}
       <ManualTransactionModal

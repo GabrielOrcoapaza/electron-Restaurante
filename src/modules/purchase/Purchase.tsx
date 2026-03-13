@@ -4,17 +4,14 @@ import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import {
   GET_SUPPLIERS_BY_BRANCH,
-  GET_PURCHASE_OPERATIONS,
   GET_PRODUCTS_WITH_STOCK,
   GET_CASH_REGISTERS,
   SEARCH_PRODUCTS,
   GET_PRODUCTS_BY_BRANCH
 } from '../../graphql/queries';
-import {
-  CREATE_PURCHASE_OPERATION,
-  CANCEL_PURCHASE_OPERATION
-} from '../../graphql/mutations';
+import { CREATE_PURCHASE_OPERATION } from '../../graphql/mutations';
 import CreateSupplierModal from './createSupplier';
+import PurchaseList from './purchaseList';
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
   style: 'currency',
@@ -57,43 +54,6 @@ interface PurchaseDetail {
   notes?: string;
 }
 
-interface PurchaseOperation {
-  id: string;
-  order: string;
-  operationDate: string;
-  status: string;
-  subtotal: number;
-  igvAmount: number;
-  igvPercentage: number;
-  total: number;
-  notes?: string;
-  cancelledAt?: string;
-  person: {
-    id: string;
-    name: string;
-    documentNumber?: string;
-  } | null;
-  user: {
-    id: string;
-    fullName: string;
-  };
-  details: Array<{
-    id: string;
-    quantity: number;
-    unitMeasure: string;
-    unitValue: number;
-    unitPrice: number;
-    notes?: string;
-    isCanceled: boolean;
-    product: {
-      id: string;
-      code: string;
-      name: string;
-      productType: string;
-    };
-  }>;
-}
-
 const Purchase: React.FC = () => {
   const { companyData, user } = useAuth();
   const { breakpoint } = useResponsive();
@@ -120,9 +80,6 @@ const Purchase: React.FC = () => {
   const [productNotes, setProductNotes] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [selectedOperationId, setSelectedOperationId] = useState<string>('');
-  const [cancellationReason, setCancellationReason] = useState<string>('');
-  const [showCancelModal, setShowCancelModal] = useState(false);
   const [showCreateSupplierModal, setShowCreateSupplierModal] = useState(false);
 
   // Estados para Pago
@@ -160,15 +117,6 @@ const Purchase: React.FC = () => {
     fetchPolicy: 'network-only'
   });
 
-  const { data: operationsData, loading: operationsLoading, refetch: refetchOperations } = useQuery(
-    GET_PURCHASE_OPERATIONS,
-    {
-      variables: { branchId: branchId! },
-      skip: !branchId || view !== 'list',
-      fetchPolicy: 'network-only'
-    }
-  );
-
   const { data: cashData } = useQuery(GET_CASH_REGISTERS, {
     variables: { branchId: branchId! },
     skip: !branchId,
@@ -196,7 +144,6 @@ const Purchase: React.FC = () => {
           });
           resetForm();
           setView('list');
-          refetchOperations();
           setTimeout(() => setMessage(null), 5000);
         } else {
           setMessage({
@@ -210,35 +157,6 @@ const Purchase: React.FC = () => {
       onError: (error) => {
         setMessage({ type: 'error', text: error.message });
         setIsProcessing(false);
-        setTimeout(() => setMessage(null), 5000);
-      }
-    }
-  );
-
-  const [cancelPurchaseOperation, { loading: cancelingPurchase }] = useMutation(
-    CANCEL_PURCHASE_OPERATION,
-    {
-      onCompleted: (data) => {
-        if (data.cancelPurchaseOperation.success) {
-          setMessage({
-            type: 'success',
-            text: data.cancelPurchaseOperation.message
-          });
-          setShowCancelModal(false);
-          setSelectedOperationId('');
-          setCancellationReason('');
-          refetchOperations();
-          setTimeout(() => setMessage(null), 5000);
-        } else {
-          setMessage({
-            type: 'error',
-            text: data.cancelPurchaseOperation.message
-          });
-          setTimeout(() => setMessage(null), 5000);
-        }
-      },
-      onError: (error) => {
-        setMessage({ type: 'error', text: error.message });
         setTimeout(() => setMessage(null), 5000);
       }
     }
@@ -275,7 +193,6 @@ const Purchase: React.FC = () => {
     : null;
 
   const availableProducts = baseProducts;
-  const operations: PurchaseOperation[] = operationsData?.purchasesByBranch || [];
 
   const resetForm = () => {
     setSelectedSupplierId('');
@@ -412,29 +329,6 @@ const Purchase: React.FC = () => {
     }
   };
 
-  const handleCancelPurchase = () => {
-    if (!cancellationReason.trim()) {
-      setMessage({ type: 'error', text: 'Ingresa una razón de cancelación' });
-      setTimeout(() => setMessage(null), 3000);
-      return;
-    }
-
-    if (!user?.id) {
-      setMessage({ type: 'error', text: 'Usuario no encontrado' });
-      setTimeout(() => setMessage(null), 3000);
-      return;
-    }
-
-    cancelPurchaseOperation({
-      variables: {
-        operationId: selectedOperationId,
-        branchId: branchId!,
-        userId: user.id,
-        cancellationReason: cancellationReason
-      }
-    });
-  };
-
   const handleProductSelect = (productId: string) => {
     const product = availableProducts.find(p => p.id === productId);
     if (product) {
@@ -542,103 +436,7 @@ const Purchase: React.FC = () => {
 
       {/* Contenido según la vista */}
       {view === 'list' ? (
-        <div style={{
-          backgroundColor: 'white',
-          borderRadius: '16px',
-          padding: '1.5rem',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-          border: '1px solid #e2e8f0'
-        }}>
-          <h3 style={{ margin: '0 0 1.5rem', fontSize: '1.1rem', fontWeight: 600, color: '#334155' }}>
-            📋 Lista de Compras ({operations.length})
-          </h3>
-
-          {operationsLoading ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
-              Cargando compras...
-            </div>
-          ) : operations.length === 0 ? (
-            <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
-              <p>No hay compras registradas</p>
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Orden</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Fecha</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Proveedor</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Subtotal</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>IGV</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Total</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Estado</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {operations.map((operation) => (
-                    <tr key={operation.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '0.75rem', color: '#334155', fontFamily: 'monospace' }}>
-                        #{operation.order}
-                      </td>
-                      <td style={{ padding: '0.75rem', color: '#334155' }}>
-                        {new Date(operation.operationDate).toLocaleDateString('es-PE')}
-                      </td>
-                      <td style={{ padding: '0.75rem', color: '#334155' }}>
-                        {operation.person?.name || 'Sin proveedor'}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#334155', fontWeight: 500 }}>
-                        {currencyFormatter.format(operation.subtotal)}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#334155' }}>
-                        {currencyFormatter.format(operation.igvAmount)}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#334155', fontWeight: 600 }}>
-                        {currencyFormatter.format(operation.total)}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                        <span style={{
-                          padding: '0.25rem 0.75rem',
-                          borderRadius: '9999px',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          backgroundColor: operation.status === 'CANCELLED' ? '#fee2e2' : '#dcfce7',
-                          color: operation.status === 'CANCELLED' ? '#991b1b' : '#166534'
-                        }}>
-                          {operation.status === 'CANCELLED' ? 'Cancelada' : 'Procesada'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                        {operation.status !== 'CANCELLED' && (
-                          <button
-                            onClick={() => {
-                              setSelectedOperationId(operation.id);
-                              setShowCancelModal(true);
-                            }}
-                            style={{
-                              padding: '0.5rem 1rem',
-                              background: '#dc2626',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '8px',
-                              fontWeight: 500,
-                              cursor: 'pointer',
-                              fontSize: '0.75rem',
-                              transition: 'all 0.2s'
-                            }}
-                          >
-                            Cancelar
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <PurchaseList branchId={branchId!} setMessage={setMessage} />
       ) : (
         <div style={{
           backgroundColor: 'white',
@@ -1187,100 +985,6 @@ const Purchase: React.FC = () => {
             >
               {isProcessing || creatingPurchase ? 'Guardando...' : 'Guardar Compra'}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de cancelación */}
-      {showCancelModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '16px',
-            padding: '2rem',
-            maxWidth: '500px',
-            width: '90%',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-          }}>
-            <h3 style={{ margin: '0 0 1rem', fontSize: '1.25rem', fontWeight: 600, color: '#334155' }}>
-              Cancelar Compra
-            </h3>
-            <p style={{ margin: '0 0 1.5rem', color: '#64748b' }}>
-              ¿Estás seguro de que deseas cancelar esta compra? Esta acción reducirá el stock de los productos.
-            </p>
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#475569' }}>
-                Razón de cancelación *
-              </label>
-              <textarea
-                value={cancellationReason}
-                onChange={(e) => setCancellationReason(e.target.value)}
-                placeholder="Ingresa la razón de cancelación..."
-                rows={4}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem 0.875rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: '0.875rem',
-                  boxSizing: 'border-box',
-                  fontFamily: 'inherit',
-                  resize: 'vertical'
-                }}
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              <button
-                onClick={() => {
-                  setShowCancelModal(false);
-                  setSelectedOperationId('');
-                  setCancellationReason('');
-                }}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  background: '#64748b',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '10px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontSize: '0.875rem'
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleCancelPurchase}
-                disabled={cancelingPurchase || !cancellationReason.trim()}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  background: cancelingPurchase || !cancellationReason.trim()
-                    ? '#94a3b8'
-                    : '#dc2626',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '10px',
-                  fontWeight: 600,
-                  cursor: cancelingPurchase || !cancellationReason.trim()
-                    ? 'not-allowed'
-                    : 'pointer',
-                  fontSize: '0.875rem'
-                }}
-              >
-                {cancelingPurchase ? 'Cancelando...' : 'Confirmar Cancelación'}
-              </button>
-            </div>
           </div>
         </div>
       )}

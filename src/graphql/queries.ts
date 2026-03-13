@@ -555,6 +555,35 @@ export const GET_PAYMENTS_PENDING_CLOSURE = gql`
   }
 `;
 
+// Query para obtener pagos de un cierre de caja (detalle)
+export const GET_PAYMENTS_BY_CLOSURE = gql`
+  query GetPaymentsByClosure($cashClosureId: ID!) {
+    paymentsByClosure(cashClosureId: $cashClosureId) {
+      id
+      paymentDate
+      paidAmount
+      totalAmount
+      transactionType
+      paymentMethod
+      status
+      user {
+        id
+        fullName
+      }
+      operation {
+        id
+        order
+      }
+      issuedDocument {
+        id
+        serial
+        number
+      }
+      notes
+    }
+  }
+`;
+
 // Query para obtener recetas de un producto
 export const GET_RECIPES_BY_PRODUCT = gql`
   query GetRecipesByProduct($productId: ID!) {
