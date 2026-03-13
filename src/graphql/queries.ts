@@ -312,6 +312,31 @@ export const GET_PRODUCTS_WITH_STOCK = gql`
   }
 `;
 
+// Query para obtener producto por código (productByCode en schema camelCase)
+// Búsqueda exacta, insensible a mayúsculas/minúsculas
+export const GET_PRODUCT_BY_CODE = gql`
+  query GetProductByCode($branchId: ID!, $code: String!) {
+    productByCode(branchId: $branchId, code: $code) {
+      id
+      code
+      name
+      description
+      salePrice
+      imageBase64
+      preparationTime
+      isActive
+      subcategoryId
+      productType
+      purchasePrice
+      unitMeasure
+      currentStock
+      stockMin
+      stockMax
+      managesStock
+    }
+  }
+`;
+
 // Query para buscar productos
 export const SEARCH_PRODUCTS = gql`
   query SearchProducts($search: String!, $branchId: ID!, $limit: Int) {

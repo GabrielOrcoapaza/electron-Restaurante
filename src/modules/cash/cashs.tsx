@@ -1389,7 +1389,7 @@ const Cashs: React.FC = () => {
                   </thead>
                   <tbody>
                     {closures.map((closure, index) => {
-                      const cashTypeColors = getCashTypeColor(closure.cashRegister.cashType);
+                      const { bg: cashBg, color: cashColor } = getCashTypeColor(closure.cashRegister.cashType);
                       return (
                         <tr
                           key={closure.id}
@@ -1418,19 +1418,18 @@ const Cashs: React.FC = () => {
                               #{closure.closureNumber}
                             </span>
                           </td>
-                          <td style={{ padding: '1rem', color: '#334155' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <td style={{ padding: '1rem', color: '#334155', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', textAlign: 'center', gap: '0.5rem' }}>
                               <span style={{
+                                textAlign: 'center',
+                                fontWeight: 500,
                                 padding: '0.25rem 0.5rem',
                                 borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                fontWeight: 600,
-                                backgroundColor: cashTypeColors.bg,
-                                color: cashTypeColors.color
+                                backgroundColor: cashBg,
+                                color: cashColor
                               }}>
-                                {getCashTypeLabel(closure.cashRegister.cashType)}
+                                {closure.cashRegister.name}
                               </span>
-                              <span style={{ fontWeight: 500 }}>{closure.cashRegister.name}</span>
                             </div>
                           </td>
                           <td style={{ padding: '1rem', color: '#334155' }}>

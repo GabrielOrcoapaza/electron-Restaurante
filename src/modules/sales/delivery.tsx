@@ -9,6 +9,7 @@ import {
     GET_PRODUCTS_BY_CATEGORY,
     GET_PRODUCTS_BY_BRANCH,
     SEARCH_PRODUCTS,
+    GET_PRODUCT_BY_CODE,
     GET_DOCUMENTS_WITH_SERIALS,
     GET_CASH_REGISTERS_BY_BRANCH,
     GET_PERSONS_BY_BRANCH,
@@ -73,6 +74,7 @@ const Delivery: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState<string>('');
+    const [searchByCodeOnly, setSearchByCodeOnly] = useState<boolean>(false);
     const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -107,9 +109,19 @@ const Delivery: React.FC = () => {
     const categories = categoriesData?.categoriesByBranch || [];
 
     // Búsqueda de productos (siempre del servidor)
+    // Cuando searchByCodeOnly: usar product_by_code. Si no: searchProducts con 3+ caracteres.
+    const searchMinLength = searchByCodeOnly ? 1 : 3;
     const { data: searchData, loading: searchLoading } = useQuery(SEARCH_PRODUCTS, {
-        variables: { search: searchTerm, branchId: companyData?.branch.id, limit: 50 },
-        skip: !companyData?.branch.id || searchTerm.length < 3,
+        variables: { search: searchTerm.trim(), branchId: companyData?.branch.id, limit: 50 },
+        skip: !companyData?.branch.id || searchByCodeOnly || searchTerm.trim().length < searchMinLength,
+        errorPolicy: 'ignore',
+        fetchPolicy: 'network-only'
+    });
+
+    // Búsqueda solo por código: usa product_by_code del backend (insensible a mayúsculas/minúsculas)
+    const { data: productByCodeData, loading: productByCodeLoading } = useQuery(GET_PRODUCT_BY_CODE, {
+        variables: { branchId: companyData?.branch.id, code: searchTerm.trim() },
+        skip: !companyData?.branch.id || !searchByCodeOnly || !searchTerm.trim(),
         errorPolicy: 'ignore',
         fetchPolicy: 'network-only'
     });
@@ -117,7 +129,7 @@ const Delivery: React.FC = () => {
     // Obtener productos por categoría (siempre del servidor para precios actualizados)
     const { data: productsByCategoryData, loading: productsByCategoryLoading } = useQuery(GET_PRODUCTS_BY_CATEGORY, {
         variables: { categoryId: selectedCategory },
-        skip: !selectedCategory || searchTerm.length >= 3,
+        skip: !selectedCategory || searchByCodeOnly || searchTerm.length >= 3,
         fetchPolicy: 'network-only'
     });
 
@@ -182,9 +194,14 @@ const Delivery: React.FC = () => {
     let products;
     let productsLoading;
 
-    const isSearching = searchTerm.length >= 3;
+    const isSearching = searchByCodeOnly ? searchTerm.trim().length >= 1 : searchTerm.length >= 3;
 
-    if (isSearching) {
+    if (searchByCodeOnly && searchTerm.trim().length >= 1) {
+        // Búsqueda solo por código: usa product_by_code del backend (insensible a mayúsculas)
+        const found = productByCodeData?.product_by_code;
+        products = found ? [found] : [];
+        productsLoading = productByCodeLoading;
+    } else if (isSearching) {
         products = searchData?.searchProducts;
         productsLoading = searchLoading;
 
@@ -635,22 +652,44 @@ const Delivery: React.FC = () => {
                     backgroundColor: 'white',
                     borderRadius: isSmall ? '10px' : '12px',
                     padding: searchPadding,
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem'
                 }}>
-                    <input
-                        type="text"
-                        placeholder="Buscar productos..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: isSmall ? '0.5rem 0.6rem' : '0.75rem',
-                            border: '1px solid #e2e8f0',
-                            borderRadius: '8px',
-                            fontSize: searchFontSize,
-                            boxSizing: 'border-box'
-                        }}
-                    />
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <input
+                            type="text"
+                            placeholder={searchByCodeOnly ? 'Código del producto...' : 'Buscar productos...'}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            style={{
+                                flex: 1,
+                                padding: isSmall ? '0.5rem 0.6rem' : '0.75rem',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '8px',
+                                fontSize: searchFontSize,
+                                boxSizing: 'border-box'
+                            }}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setSearchByCodeOnly((v) => !v)}
+                            style={{
+                                padding: isSmall ? '0.5rem 0.75rem' : '0.6rem 1rem',
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0',
+                                backgroundColor: searchByCodeOnly ? '#3b82f6' : 'white',
+                                color: searchByCodeOnly ? 'white' : '#64748b',
+                                fontSize: isSmall ? '0.75rem' : '0.8125rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            Búsqueda solo código
+                        </button>
+                    </div>
                 </div>
 
                 {/* Área de navegación y Lista de items */}

@@ -486,9 +486,7 @@ const Login: React.FC = () => {
                 }}>
                   Iniciar sesión
                 </h2>
-                <p style={{ margin: '0.25rem 0 0', fontSize: isSmallDesktop ? '1.125rem' : '1.25rem', color: theme.textMuted }}>
-                  Elige tu usuario e ingresa tu contraseña
-                </p>
+                
               </header>
             )}
 

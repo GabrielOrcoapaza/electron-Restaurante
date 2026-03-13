@@ -7,7 +7,7 @@ import { useWebSocket } from '../../context/WebSocketContext';
 import { useToast } from '../../context/ToastContext';
 import type { Table } from '../../types/table';
 import { CREATE_OPERATION, ADD_ITEMS_TO_OPERATION, UPDATE_TABLE_STATUS, PRINT_PRECUENTA } from '../../graphql/mutations';
-import { GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS_BY_CATEGORY, GET_PRODUCTS_BY_BRANCH, GET_OPERATION_BY_TABLE, GET_OPERATION_BY_ID, SEARCH_PRODUCTS, GET_MODIFIERS_BY_SUBCATEGORY } from '../../graphql/queries';
+import { GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS_BY_CATEGORY, GET_PRODUCTS_BY_BRANCH, GET_OPERATION_BY_TABLE, GET_OPERATION_BY_ID, SEARCH_PRODUCTS, GET_PRODUCT_BY_CODE, GET_MODIFIERS_BY_SUBCATEGORY } from '../../graphql/queries';
 import ModalObservation from './modalObservation';
 import CategoryIcon from '../../components/CategoryIcon';
 
@@ -48,10 +48,10 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const isMedium = breakpoint === 'md'; // 768px - 1023px
 
 	// Valores para grid y breadcrumb (como en delivery.tsx)
-	const gridMinCol = isSmall ? '100px' : isMedium ? '115px' : '130px';
+	const gridMinCol = isSmall ? '110px' : isMedium ? '125px' : '150px';
 	const gridGap = isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem';
-	const gridPadding = isSmall ? '0.6rem' : isMedium ? '0.8rem' : '1rem';
-	const breadcrumbFontSize = isSmall ? '0.75rem' : '0.875rem';
+	const gridPadding = isSmall ? '0.6rem' : isMedium ? '0.8rem' : '1.25rem';
+	const breadcrumbFontSize = isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem';
 
 	// Función para verificar si el usuario puede acceder a esta mesa (por permisos)
 	const canAccessTable = (): { canAccess: boolean; reason?: string } => {
@@ -100,6 +100,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
 	const [searchTerm, setSearchTerm] = useState<string>('');
+	const [searchByCodeOnly, setSearchByCodeOnly] = useState<boolean>(false);
 	const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 	const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 	const [initializedFromExistingOrder, setInitializedFromExistingOrder] = useState(false);
@@ -131,9 +132,19 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const categories = categoriesData?.categoriesByBranch || [];
 
 	// Búsqueda de productos (si hay término de búsqueda) - siempre del servidor
+	// Cuando searchByCodeOnly: usar product_by_code (backend). Si no: searchProducts con 3+ caracteres.
+	const searchMinLength = searchByCodeOnly ? 1 : 3;
 	const { data: searchData, loading: searchLoading } = useQuery(SEARCH_PRODUCTS, {
-		variables: { search: searchTerm, branchId: companyData?.branch.id, limit: 50 },
-		skip: !companyData?.branch.id || searchTerm.length < 3,
+		variables: { search: searchTerm.trim(), branchId: companyData?.branch.id, limit: 50 },
+		skip: !companyData?.branch.id || searchByCodeOnly || searchTerm.trim().length < searchMinLength,
+		errorPolicy: 'ignore',
+		fetchPolicy: 'network-only'
+	});
+
+	// Búsqueda solo por código: usa product_by_code del backend (insensible a mayúsculas)
+	const { data: productByCodeData, loading: productByCodeLoading } = useQuery(GET_PRODUCT_BY_CODE, {
+		variables: { branchId: companyData?.branch.id, code: searchTerm.trim() },
+		skip: !companyData?.branch.id || !searchByCodeOnly || !searchTerm.trim(),
 		errorPolicy: 'ignore',
 		fetchPolicy: 'network-only'
 	});
@@ -141,7 +152,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	// Obtener productos por categoría (siempre del servidor para ver precios actualizados)
 	const { data: productsByCategoryData, loading: productsByCategoryLoading } = useQuery(GET_PRODUCTS_BY_CATEGORY, {
 		variables: { categoryId: selectedCategory },
-		skip: !selectedCategory || searchTerm.length >= 3,
+		skip: !selectedCategory || searchByCodeOnly || searchTerm.length >= 3,
 		fetchPolicy: 'network-only'
 	});
 
@@ -182,7 +193,12 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	let products;
 	let productsLoading;
 
-	if (searchTerm.length >= 3) {
+	if (searchByCodeOnly && searchTerm.trim().length >= 1) {
+		// Búsqueda solo por código: usa product_by_code del backend (búsqueda exacta, insensible a mayúsculas)
+		const p = productByCodeData?.product_by_code;
+		products = p ? [p] : [];
+		productsLoading = productByCodeLoading;
+	} else if (searchTerm.length >= 3) {
 		// Prioridad 1: Búsqueda avanzada (del servidor)
 		products = searchData?.searchProducts;
 		productsLoading = searchLoading;
@@ -219,7 +235,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 		: [];
 
 	// Navegación como en delivery: mostrar categorías, subcategorías o productos en el grid
-	const isSearching = searchTerm.length >= 3;
+	const isSearching = searchByCodeOnly ? searchTerm.trim().length >= 1 : searchTerm.length >= 3;
 	const showCategoriesInGrid = !isSearching && !selectedCategory;
 	const showSubcategoriesInGrid = !isSearching && selectedCategory && !selectedSubcategory && subcategoriesOfCategory.length > 0;
 	const showProductsInGrid = isSearching || (selectedCategory && (selectedSubcategory || subcategoriesOfCategory.length === 0));
@@ -1054,23 +1070,19 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			left: 0,
 			right: 0,
 			bottom: 0,
-			background: 'linear-gradient(135deg, rgba(102,126,234,0.15), rgba(118,75,162,0.15))',
-			backdropFilter: 'blur(6px)',
+			background: '#f8fafc',
 			display: 'flex',
 			justifyContent: 'center',
 			alignItems: 'center',
 			zIndex: 1100,
-			padding: isSmall ? '0.25rem' : isMedium ? '0.5rem' : '1rem'
+			margin: 0,
+			padding: 0
 		}}>
 			<div style={{
-				background: 'rgba(255,255,255,0.9)',
-				borderRadius: isSmall ? '12px' : isMedium ? '14px' : '16px',
-				width: '100%',
-				maxWidth: '1400px',
-				height: isSmall ? '98vh' : isMedium ? '95vh' : '92vh',
-				boxShadow: '0 25px 80px rgba(0,0,0,0.20)',
+				background: 'white',
+				width: '100vw',
+				height: '100vh',
 				overflow: 'hidden',
-				border: '1px solid rgba(226,232,240,0.8)',
 				display: 'flex',
 				flexDirection: 'column'
 			}}>
@@ -1095,34 +1107,36 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 						}}>
 							{isExistingOrder ? '🍽️ Orden Actual' : '🍽️ Nueva Orden'}
 						</div>
-						<h3 style={{ margin: 0, fontSize: isSmall ? '0.875rem' : isMedium ? '1rem' : '1.15rem', fontWeight: 800 }}>Mesa {table.name.replace('MESA ', '')}</h3>
-						<span style={{ opacity: 0.9, fontSize: isSmall ? '0.75rem' : '1rem' }}>•</span>
+						<h3 style={{ margin: 0, fontSize: isSmall ? '1rem' : isMedium ? '1.15rem' : '1.35rem', fontWeight: 800 }}>Mesa {table.name.replace('MESA ', '')}</h3>
+						<span style={{ opacity: 0.9, fontSize: isSmall ? '0.75rem' : '1.15rem' }}>•</span>
 						<div style={{
 							backgroundColor: 'rgba(255,255,255,0.15)',
 							borderRadius: isSmall ? '8px' : '12px',
-							padding: isSmall ? '0.25rem 0.5rem' : '0.35rem 0.6rem',
+							padding: isSmall ? '0.25rem 0.5rem' : '0.35rem 0.75rem',
 							fontWeight: 600,
-							fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem'
+							fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1.05rem'
 						}}>
 							Capacidad {table.capacity}
 						</div>
 						{isExistingOrder && (
 							<>
-								<span style={{ opacity: 0.9 }}>•</span>
+								<span style={{ opacity: 0.9, fontSize: isSmall ? '0.75rem' : '1.15rem' }}>•</span>
 								<div style={{
 									backgroundColor: 'rgba(255,255,255,0.15)',
 									borderRadius: 12,
-									padding: '0.35rem 0.6rem',
-									fontWeight: 600
+									padding: '0.35rem 0.75rem',
+									fontWeight: 600,
+									fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1.05rem'
 								}}>
 									Orden #{existingOperation?.order ?? (isLoadingExistingOrder ? '...' : '—')}
 								</div>
-								<span style={{ opacity: 0.9 }}>•</span>
+								<span style={{ opacity: 0.9, fontSize: isSmall ? '0.75rem' : '1.15rem' }}>•</span>
 								<div style={{
 									backgroundColor: 'rgba(255,255,255,0.15)',
 									borderRadius: 12,
-									padding: '0.35rem 0.6rem',
-									fontWeight: 600
+									padding: '0.35rem 0.75rem',
+									fontWeight: 600,
+									fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1.05rem'
 								}}>
 									Estado {existingOperation?.status ?? (isLoadingExistingOrder ? '...' : '—')}
 								</div>
@@ -1133,11 +1147,11 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 						background: 'rgba(255,255,255,0.15)',
 						border: '1px solid rgba(255,255,255,0.35)',
 						color: 'white',
-						padding: isSmall ? '0.35rem 0.75rem' : isMedium ? '0.4rem 0.85rem' : '0.45rem 0.9rem',
+						padding: isSmall ? '0.45rem 1rem' : isMedium ? '0.55rem 1.25rem' : '0.65rem 1.5rem',
 						borderRadius: isSmall ? '8px' : '10px',
 						cursor: 'pointer',
-						fontWeight: 600,
-						fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem'
+						fontWeight: 700,
+						fontSize: isSmall ? '0.875rem' : isMedium ? '1rem' : '1.125rem'
 					}}>
 						Cerrar
 					</button>
@@ -1146,9 +1160,9 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				{/* Body */}
 				<div style={{
 					display: 'grid',
-					gridTemplateColumns: isSmall || isMedium ? '1fr' : '1.3fr 1.1fr', // Más espacio al panel de detalle
-					gap: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
-					padding: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
+					gridTemplateColumns: isSmall || isMedium ? '1fr' : '1.5fr 1fr', // Ajustado a 1.5fr y 1fr para mejor balance
+					gap: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1.25rem',
+					padding: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1.25rem',
 					flex: 1,
 					overflow: 'hidden'
 				}}>
@@ -1165,19 +1179,44 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							background: 'white',
 							border: '1px solid #e2e8f0',
 							borderRadius: isSmall ? '10px' : isMedium ? '12px' : '14px',
-							padding: isSmall ? '0.5rem 0.625rem' : isMedium ? '0.625rem 0.75rem' : '0.85rem 0.9rem',
+							padding: isSmall ? '0.75rem' : isMedium ? '0.85rem' : '1rem',
 							flexShrink: 0
 						}}>
+							<div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+								<button
+									type="button"
+									onClick={() => setSearchByCodeOnly((v) => !v)}
+									style={{
+										padding: isSmall ? '0.35rem 0.6rem' : '0.4rem 0.75rem',
+										borderRadius: '8px',
+										border: '1px solid #e2e8f0',
+										backgroundColor: searchByCodeOnly ? '#3b82f6' : 'white',
+										color: searchByCodeOnly ? 'white' : '#64748b',
+										fontSize: isSmall ? '0.75rem' : '0.8125rem',
+										fontWeight: 600,
+										cursor: 'pointer',
+										whiteSpace: 'nowrap'
+									}}
+								>
+									Búsqueda solo código
+								</button>
+								{searchByCodeOnly && (
+									<span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+										(escribe o escanea el código)
+									</span>
+								)}
+							</div>
 							<div style={{ position: 'relative' }}>
-								<span style={{ position: 'absolute', left: 10, top: 10, opacity: 0.6 }}>🔎</span>
+								<span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', opacity: 0.6, fontSize: '1.2rem' }}>🔎</span>
 								<input
 									type="text"
-									placeholder="Buscar producto o escanear código"
+									placeholder={searchByCodeOnly ? 'Código del producto...' : 'Buscar producto o escanear código'}
 									value={searchTerm}
 									onChange={(e) => setSearchTerm(e.target.value)}
 									style={{
-										width: '100%', padding: '0.65rem 0.85rem 0.65rem 2rem',
-										border: '1px solid #e2e8f0', borderRadius: 10
+										width: '100%', padding: '0.85rem 1rem 0.85rem 2.75rem',
+										border: '1px solid #e2e8f0', borderRadius: 12,
+										fontSize: '1.05rem'
 									}}
 								/>
 							</div>
@@ -1410,8 +1449,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 														style={{
 															backgroundColor: '#f8fafc',
 															border: '1px solid #e2e8f0',
-															borderRadius: isSmall ? '8px' : '10px',
-															padding: isSmall ? '0.4rem' : '0.5rem',
+															borderRadius: isSmall ? '8px' : '12px',
+															padding: isSmall ? '0.5rem' : '0.75rem',
 															cursor: 'pointer',
 															transition: 'all 0.2s ease',
 															textAlign: 'center',
@@ -1521,9 +1560,9 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 								minHeight: 0
 							}}>
 							<h4 style={{
-								margin: `0 0 ${isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem'} 0`,
+								margin: `0 0 ${isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem'} 0`,
 								color: '#2d3748',
-								fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem'
+								fontSize: isSmall ? '0.875rem' : isMedium ? '1rem' : '1.25rem'
 							}}>Detalle</h4>
 							{isLoadingExistingOrder ? (
 								<div style={{
@@ -1859,7 +1898,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							>
 								{isSaving ? 'Guardando...' : 'Enviar a cocina (sin imprimir)'}
 							</button>
-							
+
 							{/* Botón de Precuenta - solo visible cuando hay una orden existente */}
 							{isExistingOrder && (
 								<button
