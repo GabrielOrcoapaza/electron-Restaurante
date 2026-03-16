@@ -198,7 +198,7 @@ const Delivery: React.FC = () => {
 
     if (searchByCodeOnly && searchTerm.trim().length >= 1) {
         // Búsqueda solo por código: usa product_by_code del backend (insensible a mayúsculas)
-        const found = productByCodeData?.product_by_code;
+        const found = productByCodeData?.productByCode; 
         products = found ? [found] : [];
         productsLoading = productByCodeLoading;
     } else if (isSearching) {
@@ -663,6 +663,12 @@ const Delivery: React.FC = () => {
                             placeholder={searchByCodeOnly ? 'Código del producto...' : 'Buscar productos...'}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && productsList.length > 0) {
+                                    e.preventDefault();
+                                    handleAddProduct(productsList[0].id, 1);
+                                }
+                            }}
                             style={{
                                 flex: 1,
                                 padding: isSmall ? '0.5rem 0.6rem' : '0.75rem',

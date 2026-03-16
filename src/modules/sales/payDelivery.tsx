@@ -155,6 +155,12 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
                                         setPersonSearchTerm(e.target.value);
                                         setSelectedPerson(null);
                                     }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleSearchSunatClick();
+                                        }
+                                    }}
                                     placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'}
                                     disabled={clientsLoading || isSaving}
                                     style={{

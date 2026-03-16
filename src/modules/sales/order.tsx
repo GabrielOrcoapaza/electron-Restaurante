@@ -194,8 +194,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	let productsLoading;
 
 	if (searchByCodeOnly && searchTerm.trim().length >= 1) {
-		// Búsqueda solo por código: usa product_by_code del backend (búsqueda exacta, insensible a mayúsculas)
-		const p = productByCodeData?.product_by_code;
+		// Búsqueda solo por código: soporta productByCode (camelCase) y product_by_code (snake_case según backend)
+		const p = productByCodeData?.productByCode ?? productByCodeData?.product_by_code;
 		products = p ? [p] : [];
 		productsLoading = productByCodeLoading;
 	} else if (searchTerm.length >= 3) {
@@ -224,8 +224,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	}
 
 	let productsList = products || [];
-	// Filtrar por subcategoría cuando hay categoría y subcategoría seleccionadas
-	if (selectedCategory && selectedSubcategory && productsList.length > 0) {
+	// Filtrar por subcategoría solo cuando se navega por categorías (NO cuando se busca por código)
+	if (!(searchByCodeOnly && searchTerm.trim().length >= 1) && selectedCategory && selectedSubcategory && productsList.length > 0) {
 		productsList = productsList.filter((p: any) => String(p.subcategoryId) === String(selectedSubcategory));
 	}
 
@@ -1213,6 +1213,12 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 									placeholder={searchByCodeOnly ? 'Código del producto...' : 'Buscar producto o escanear código'}
 									value={searchTerm}
 									onChange={(e) => setSearchTerm(e.target.value)}
+									onKeyDown={(e) => {
+										if (e.key === 'Enter' && productsList.length > 0) {
+											e.preventDefault();
+											handleAddProduct(productsList[0].id, 1);
+										}
+									}}
 									style={{
 										width: '100%', padding: '0.85rem 1rem 0.85rem 2.75rem',
 										border: '1px solid #e2e8f0', borderRadius: 12,

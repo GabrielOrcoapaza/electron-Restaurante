@@ -82,6 +82,14 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
   const { breakpoint, isMobile } = useResponsive();
   const isSmall = breakpoint === 'sm' || isMobile;
   const isMedium = breakpoint === 'md';
+  const isSmallDesktop = breakpoint === 'lg';
+
+  // Responsive: pantalla completa en todos los tamaños; valores de padding/fuentes adaptados para sm, md, lg y xl
+  const headerPadding = isSmall ? '0.75rem 1rem' : isMedium ? '1rem 1.5rem' : isSmallDesktop ? '1.25rem 2rem' : '1.5rem 2.5rem';
+  const titleFontSize = isSmall ? '1.1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.35rem' : '1.5rem';
+  const contentPadding = isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '2rem' : '2.5rem';
+  const btnPadding = isSmall ? '0.4rem 0.8rem' : isMedium ? '0.5rem 1rem' : '0.6rem 1.25rem';
+  const btnFontSize = isSmall ? '0.8rem' : isMedium ? '0.85rem' : '0.9rem';
 
   const { data, loading } = useQuery(GET_PAYMENTS_BY_CLOSURE, {
     variables: { cashClosureId: closure?.id ?? '' },
@@ -145,7 +153,7 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
       >
         <div style={{
           background: 'linear-gradient(135deg, #667eea, #764ba2)',
-          padding: isSmall ? '0.75rem 1rem' : '1.25rem 2rem',
+          padding: headerPadding,
           color: 'white',
           display: 'flex',
           justifyContent: 'space-between',
@@ -154,7 +162,7 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
           gap: '0.75rem',
           flexShrink: 0
         }}>
-          <h3 style={{ margin: 0, fontSize: isSmall ? '1.1rem' : isMedium ? '1.25rem' : '1.5rem', fontWeight: 700 }}>
+          <h3 style={{ margin: 0, fontSize: titleFontSize, fontWeight: 700 }}>
             Detalle del Cierre de Caja #{closure?.closureNumber ?? '—'}
           </h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -164,14 +172,14 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
                 onClick={() => onReprint(closure)}
                 disabled={reprintingClosureId === closure.id}
                 style={{
-                  padding: isSmall ? '0.4rem 0.8rem' : '0.5rem 1rem',
+                  padding: btnPadding,
                   borderRadius: isSmall ? '8px' : '10px',
                   border: '1px solid rgba(255,255,255,0.3)',
                   backgroundColor: reprintingClosureId === closure.id ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)',
                   color: 'white',
                   cursor: reprintingClosureId === closure.id ? 'not-allowed' : 'pointer',
                   fontWeight: 600,
-                  fontSize: isSmall ? '0.8rem' : '0.875rem'
+                  fontSize: btnFontSize
                 }}
               >
                 {reprintingClosureId === closure.id ? 'Imprimiendo...' : '🖨️ Reimprimir'}
@@ -180,14 +188,14 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
             <button
               onClick={onClose}
               style={{
-                padding: isSmall ? '0.4rem 0.8rem' : '0.5rem 1.25rem',
+                padding: btnPadding,
                 borderRadius: isSmall ? '8px' : '10px',
                 border: '1px solid rgba(255,255,255,0.3)',
                 backgroundColor: 'rgba(255,255,255,0.15)',
                 color: 'white',
                 cursor: 'pointer',
                 fontWeight: 600,
-                fontSize: isSmall ? '0.8rem' : '0.875rem'
+                fontSize: btnFontSize
               }}
             >
               ✕ Cerrar
@@ -198,7 +206,7 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
         <div style={{
           flex: 1,
           overflowY: 'auto',
-          padding: isSmall ? '1rem' : '2rem',
+          padding: contentPadding,
           backgroundColor: '#f8fafc'
         }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto', width: '100%' }}>

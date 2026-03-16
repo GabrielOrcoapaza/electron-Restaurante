@@ -606,6 +606,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         const newPerson = createData.createPerson.person;
         setSelectedClientId(newPerson.id);
         setClientSearchTerm(newPerson.name || '');
+        // Refrescar la lista de clientes para que selectedClient esté disponible al pagar
+        await refetchClients();
       } else {
         showToast(createData?.createPerson?.message || 'Error al registrar el cliente.', 'error');
       }
@@ -2858,6 +2860,18 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     onChange={(e) => {
                       setClientSearchTerm(e.target.value);
                       setSelectedClientId('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
+                        const validDoc = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
+                        if (validDoc) {
+                          handleSearchSunat();
+                        } else {
+                          showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.', 'warning');
+                        }
+                      }
                     }}
                     placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'}
                     disabled={clientsLoading || isProcessing}

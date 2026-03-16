@@ -430,6 +430,18 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                                     setClientSearchTerm(e.target.value);
                                     setSelectedClientId('');
                                 }}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
+                                        const validDoc = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
+                                        if (validDoc) {
+                                            handleSearchSunat();
+                                        } else {
+                                            showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa', 'warning');
+                                        }
+                                    }
+                                }}
                                 disabled={clientsLoading}
                                 style={{
                                     flex: 1,
