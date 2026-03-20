@@ -389,6 +389,83 @@ export const GET_BRANCHES = gql`
   }
 `;
 
+// Query para obtener datos completos de una sucursal (multisucursal)
+// Nota: Si el backend no tiene branchById, switchBranch usará un fallback con queries existentes
+export const GET_BRANCH_FULL = gql`
+  query GetBranchFull($branchId: ID!) {
+    branch(id: $branchId) {
+      id
+      serial
+      name
+      address
+      phone
+      logo
+      latitude
+      longitude
+      igvPercentage
+      pdfSize
+      pdfColor
+      isActive
+      isPayment
+      isBilling
+      isDelivery
+      isMultiWaiterEnabled
+      isCommandItemMode
+      isKitchenPrint
+      isKitchenDisplay
+      requireWaiterPassword
+      users {
+        id
+        firstName
+        lastName
+        dni
+        role
+      }
+      floors {
+        id
+        name
+        capacity
+        floorImage
+        isActive
+        order
+        tables {
+          id
+          name
+          shape
+          positionX
+          positionY
+          capacity
+          status
+          isActive
+          statusColors
+          currentOperationId
+          occupiedById
+          userName
+        }
+      }
+      categories {
+        id
+        name
+        description
+        order
+        isActive
+        subcategories {
+          id
+          name
+          description
+          order
+          isActive
+          notes {
+            id
+            note
+            isActive
+          }
+        }
+      }
+    }
+  }
+`;
+
 // Query para obtener usuarios/empleados por sucursal
 export const GET_USERS_BY_BRANCH = gql`
   query GetUsersByBranch($branchId: ID!) {

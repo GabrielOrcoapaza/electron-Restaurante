@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@apollo/client';
-import { GET_PRODUCTS_BY_BRANCH, GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS, SEARCH_PRODUCTS } from '../../graphql/queries';
+import { GET_PRODUCTS_BY_BRANCH, GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS } from '../../graphql/queries';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import RecipeModal from './recipe';
@@ -76,14 +76,6 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
   // Determinar si hay algún filtro activo
   const hasFilters = Boolean(selectedProductType || selectedCategory);
 
-  // Búsqueda de productos (si hay término de búsqueda) - siempre del servidor
-  const { data: searchData, loading: searchLoading, error: searchError } = useQuery(SEARCH_PRODUCTS, {
-    variables: { search: searchTerm, branchId: branchId, limit: 50 },
-    skip: !branchId || searchTerm.length < 3,
-    errorPolicy: 'ignore',
-    fetchPolicy: 'network-only'
-  });
-
   // Query optimizada con filtros (productType y/o categoryId)
   // Esta query se usa cuando hay al menos un filtro activo
   const { data: filteredProductsData, loading: filteredProductsLoading, error: filteredProductsError, refetch: refetchFilteredProducts } = useQuery(
@@ -94,7 +86,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
         ...(selectedProductType && { productType: selectedProductType }),
         ...(selectedCategory && { categoryId: selectedCategory })
       },
-      skip: !branchId || (!hasFilters || searchTerm.length >= 3),
+      skip: !branchId || !hasFilters,
       fetchPolicy: 'network-only'
     }
   );
@@ -115,30 +107,27 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
     fetchPolicy: 'network-only'
   });
 
-  // Obtener productos según la query usada
+  // Obtener productos según la query usada (sin búsqueda al servidor - filtrado local como order.tsx)
   let products: Product[] = [];
-  if (searchTerm.length >= 3) {
-    products = searchData?.searchProducts || [];
-
-    // Fallback: Si la búsqueda del servidor no devuelve resultados, búsqueda local
-    if (products.length === 0) {
-      const allProducts = productsData?.productsByBranch || [];
-      const searchLower = searchTerm.toLowerCase();
-      products = (allProducts as Product[]).filter((p: Product) =>
-        p.name?.toLowerCase().includes(searchLower) ||
-        p.code?.toLowerCase().includes(searchLower) ||
-        p.description?.toLowerCase().includes(searchLower)
-      );
-    }
-  } else if (hasFilters) {
+  if (hasFilters) {
     products = filteredProductsData?.products || [];
   } else {
     products = productsData?.productsByBranch || [];
   }
 
+  // Filtrado local por término de búsqueda (sin llamadas al servidor, sin "Cargando productos...")
+  if (searchTerm.trim()) {
+    const searchLower = searchTerm.toLowerCase().trim();
+    products = products.filter((p: Product) =>
+      p.name?.toLowerCase().includes(searchLower) ||
+      p.code?.toLowerCase().includes(searchLower) ||
+      (p.description && p.description.toLowerCase().includes(searchLower))
+    );
+  }
+
   const categories: Category[] = categoriesData?.categoriesByBranch || [];
-  const loading = searchTerm.length >= 3 ? searchLoading : (hasFilters ? filteredProductsLoading : productsLoading);
-  const error = searchTerm.length >= 3 ? searchError : (hasFilters ? filteredProductsError : productsError);
+  const loading = hasFilters ? filteredProductsLoading : productsLoading;
+  const error = hasFilters ? filteredProductsError : productsError;
 
   // Calcular paginación
   const totalPages = Math.ceil(products.length / itemsPerPage);
@@ -153,14 +142,12 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
 
   // Refrescar cuando cambie el refreshKey
   React.useEffect(() => {
-    if (searchTerm.length < 3) {
-      if (hasFilters) {
-        refetchFilteredProducts();
-      } else {
-        refetchProducts();
-      }
+    if (hasFilters) {
+      refetchFilteredProducts();
+    } else {
+      refetchProducts();
     }
-  }, [refreshKey, hasFilters, refetchProducts, refetchFilteredProducts, searchTerm]);
+  }, [refreshKey, hasFilters, refetchProducts, refetchFilteredProducts]);
 
   if (!branchId) {
     return (

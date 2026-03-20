@@ -6,15 +6,16 @@ import { client } from './apollo/client';
 import { ToastProvider } from './context/ToastContext';
 import { AuthProvider } from './context/AuthContext';
 import './index.css'; // importa los estilos de Tailwind
+import './styles/responsive.css'; // escalado según resolución de pantalla (debe ir después para sobrescribir base)
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ApolloProvider client={client}>
-      <AuthProvider>
-        <ToastProvider>
+    <ToastProvider>
+      <ApolloProvider client={client}>
+        <AuthProvider>
           <App />
-        </ToastProvider>
-      </AuthProvider>
-    </ApolloProvider>
+        </AuthProvider>
+      </ApolloProvider>
+    </ToastProvider>
   </React.StrictMode>
 );

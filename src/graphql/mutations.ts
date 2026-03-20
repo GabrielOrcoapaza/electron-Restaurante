@@ -92,6 +92,15 @@ export const COMPANY_LOGIN = gql`
       }
       companyLogoBase64
       branchLogoBase64
+      availableBranches {
+        id
+        name
+        address
+        igvPercentage
+        isPayment
+        isBilling
+        isDelivery
+      }
     }
   }
 `;

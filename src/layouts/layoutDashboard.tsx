@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
+import { useSwitchBranch } from '../hooks/useSwitchBranch';
 import { useUserPermissions } from '../hooks/useUserPermissions';
 import { WebSocketProvider, useWebSocket } from '../context/WebSocketContext';
 import Floor from '../modules/sales/floor';
@@ -78,8 +79,10 @@ interface LayoutDashboardProps {
 // Componente interno que usa el WebSocket
 const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) => {
   const navigate = useNavigate();
-  const { user, companyData, logout } = useAuth();
+  const { user, companyData, logout, getMacAddress } = useAuth();
+  const [macAddress, setMacAddress] = useState<string>('');
   const { disconnect, subscribe } = useWebSocket();
+  const { switchToBranch, loading: switchingBranch } = useSwitchBranch();
   const { breakpoint } = useResponsive();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -132,6 +135,14 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   });
 
   const [markMessageReadMutation] = useMutation(MARK_MESSAGE_READ);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMacAddress().then((mac) => {
+      if (!cancelled && mac) setMacAddress(mac);
+    });
+    return () => { cancelled = true; };
+  }, [getMacAddress]);
 
   useEffect(() => {
     if (notificationsError) {
@@ -503,6 +514,16 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
               }}>
                 {companyData?.company.denomination}
               </p>
+              {macAddress && (
+                <p style={{
+                  fontSize: isSmall ? '0.65rem' : isMedium ? '0.6875rem' : isSmallDesktop ? '0.6875rem' : '0.75rem',
+                  color: '#a0aec0',
+                  margin: '0.25rem 0 0',
+                  fontFamily: 'monospace'
+                }}>
+                  MAC: {macAddress}
+                </p>
+              )}
             </div>
           )}
           <button
@@ -1165,18 +1186,47 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
             alignItems: 'center',
             gap: '1rem'
           }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.5rem 1rem',
-              backgroundColor: '#f7fafc',
-              borderRadius: '8px',
-              fontSize: '0.875rem',
-              color: '#4a5568'
-            }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.5rem 1rem',
+            backgroundColor: '#f7fafc',
+            borderRadius: '8px',
+            fontSize: '0.875rem',
+            color: '#4a5568'
+          }}>
               <span>🏢</span>
-              <span>{companyData?.branch.name}</span>
+              {(companyData?.availableBranches?.length ?? 0) > 1 ? (
+                <select
+                  value={companyData?.branch.id ?? ''}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    if (id) {
+                      disconnect();
+                      switchToBranch(id);
+                    }
+                  }}
+                  disabled={switchingBranch}
+                  style={{
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    padding: '0.25rem 0.5rem',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    color: '#2d3748',
+                    backgroundColor: 'white',
+                    cursor: switchingBranch ? 'wait' : 'pointer',
+                    minWidth: '140px'
+                  }}
+                >
+                  {companyData?.availableBranches?.map((b: any) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <span>{companyData?.branch.name}</span>
+              )}
             </div>
             <div
               ref={notificationsRef}

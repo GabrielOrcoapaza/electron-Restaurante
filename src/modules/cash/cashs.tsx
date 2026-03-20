@@ -9,7 +9,7 @@ import {
   GET_CASH_CLOSURES,
   GET_PAYMENTS_PENDING_CLOSURE
 } from '../../graphql/queries';
-import { CLOSE_CASH, REPRINT_CLOSURE } from '../../graphql/mutations';
+import { CLOSE_CASH, REPRINT_CLOSURE, PRINT_PAYMENT } from '../../graphql/mutations';
 import ManualTransactionModal from './manualTransactionModal';
 import CashDetailModal, { type CashClosureForDetail } from './cashDetailModal';
 
@@ -218,6 +218,10 @@ const Cashs: React.FC = () => {
   const [reprintClosureMutation, { loading: reprintingClosure }] = useMutation(REPRINT_CLOSURE);
   const [reprintingClosureId, setReprintingClosureId] = useState<string | null>(null);
 
+  // Mutación para imprimir movimiento de caja individual
+  const [printPaymentMutation] = useMutation(PRINT_PAYMENT);
+  const [printingPaymentId, setPrintingPaymentId] = useState<string | null>(null);
+
   const handleReprintClosure = async (closure: CashClosure) => {
     try {
       const mac = await getMacAddress();
@@ -249,6 +253,30 @@ const Cashs: React.FC = () => {
       showToast(err?.message || 'Error de conexión al reimprimir', 'error');
     } finally {
       setReprintingClosureId(null);
+    }
+  };
+
+  const handlePrintPayment = async (paymentId: string) => {
+    try {
+      const mac = await getMacAddress();
+      if (!mac) {
+        showToast('No se pudo obtener la MAC de la PC. Intenta de nuevo.', 'error');
+        return;
+      }
+      setPrintingPaymentId(paymentId);
+      const result = await printPaymentMutation({
+        variables: { paymentId, deviceId: mac }
+      });
+      const data = result.data?.printPayment;
+      if (data?.success) {
+        showToast(data.message || 'Impresión enviada', 'success');
+      } else {
+        showToast(data?.message || 'Error al imprimir', 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Error de conexión al imprimir', 'error');
+    } finally {
+      setPrintingPaymentId(null);
     }
   };
 
@@ -949,6 +977,7 @@ const Cashs: React.FC = () => {
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Usuario</th>
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Referencia / Notas</th>
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Documento</th>
+                              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Imprimir</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1000,6 +1029,29 @@ const Cashs: React.FC = () => {
                                   </td>
                                   <td style={{ padding: '0.75rem', color: '#64748b', fontSize: '0.75rem' }}>
                                     {docLabel}
+                                  </td>
+                                  <td style={{ padding: '0.75rem', textAlign: 'center', verticalAlign: 'middle' }}>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handlePrintPayment(mov.id);
+                                      }}
+                                      disabled={printingPaymentId === mov.id}
+                                      title="Imprimir este movimiento"
+                                      style={{
+                                        padding: '0.35rem 0.6rem',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        backgroundColor: printingPaymentId === mov.id ? '#94a3b8' : '#2563eb',
+                                        color: 'white',
+                                        fontSize: '0.75rem',
+                                        cursor: printingPaymentId === mov.id ? 'not-allowed' : 'pointer',
+                                        opacity: printingPaymentId === mov.id ? 0.8 : 1
+                                      }}
+                                    >
+                                      {printingPaymentId === mov.id ? 'Imprimiendo...' : '🖨️'}
+                                    </button>
                                   </td>
                                 </tr>
                               );

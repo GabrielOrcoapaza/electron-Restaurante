@@ -46,17 +46,17 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 		if (shift && key !== ' ') setShift(false);
 	};
 
-	// Teclas más grandes y gruesas para uso táctil (mozos, dedos gordos). flex: 1 para ocupar todo el ancho disponible.
+	// Teclas escalables con rem para que se adapten a la resolución de pantalla
 	// Modo compact: menos altura para dejar espacio a los botones Iniciar sesión / Volver.
 	const keyStyle: React.CSSProperties = {
 		flex: 1,
-		minWidth: compact ? 28 : 32,
-		height: compact ? 46 : 68,
+		minWidth: compact ? '1.75rem' : '2rem',
+		height: compact ? '2.9rem' : '4.25rem',
 		padding: compact ? '0.25rem 0.2rem' : '0.5rem 0.35rem',
-		fontSize: compact ? 28 : 37,
+		fontSize: compact ? '1.75rem' : '2.3rem',
 		fontWeight: 700,
 		border: '1px solid #cbd5e0',
-		borderRadius: 8,
+		borderRadius: '0.5rem',
 		background: '#fff',
 		color: '#1e293b',
 		cursor: disabled ? 'not-allowed' : 'pointer',
@@ -73,26 +73,26 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 		background: '#e2e8f0',
 		color: '#475569',
 		flex: '0 0 auto',
-		minWidth: compact ? 40 : 56
+		minWidth: compact ? '2.5rem' : '3.5rem'
 	};
 
 	const spaceKeyStyle: React.CSSProperties = {
 		...keyStyle,
 		flex: 1,
-		minWidth: compact ? 60 : 120,
+		minWidth: compact ? '3.75rem' : '7.5rem',
 		background: '#e2e8f0',
 		color: '#334155',
 		border: '2px solid #94a3b8',
 		fontWeight: 700,
-		fontSize: compact ? 12 : 15
+		fontSize: compact ? '0.75rem' : '0.95rem'
 	};
 
 	const rowStyle: React.CSSProperties = {
 		display: 'flex',
 		width: '100%',
-		gap: compact ? 4 : 6,
+		gap: compact ? '0.25rem' : '0.375rem',
 		justifyContent: 'stretch',
-		marginBottom: compact ? 3 : 6
+		marginBottom: compact ? '0.2rem' : '0.375rem'
 	};
 
 	const containerStyle: React.CSSProperties = {
@@ -100,7 +100,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 		boxSizing: 'border-box',
 		padding: compact ? '0.4rem 0.6rem' : '0.9rem',
 		background: '#f8fafc',
-		borderRadius: 10,
+		borderRadius: '0.625rem',
 		border: '1px solid #e2e8f0'
 	};
 

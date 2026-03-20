@@ -134,6 +134,7 @@ export interface AuthContextType {
   loginUser: (token: string, refreshToken: string, userData: UserData, userPhoto?: string) => void;
   logout: () => void;
   clearCompanyData: () => void; // Limpiar solo los datos de la compañía
+  switchBranch: (newBranch: CompanyData['branch']) => void; // Cambiar sucursal (multisucursal)
 
   // Métodos para mesas
   updateTableInContext: (updatedTable: UpdatedTable) => void;
@@ -298,6 +299,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setCompanyData(null);
   };
 
+  // Cambiar sucursal activa (multisucursal) - actualiza branch manteniendo company
+  const switchBranch = (newBranch: CompanyData['branch']) => {
+    if (!companyData) return;
+    const allTables = (newBranch.floors || []).flatMap((floor) =>
+      (floor.tables || []).map((t) => ({
+        ...t,
+        floorId: floor.id,
+        floorName: floor.name,
+      }))
+    );
+    const updated: CompanyData = {
+      ...companyData,
+      branch: {
+        ...newBranch,
+        tables: allTables,
+      },
+    };
+    console.log('🏢 Cambiando sucursal a:', newBranch.name);
+    setCompanyData(updated);
+    localStorage.setItem('companyData', JSON.stringify(updated));
+  };
+
   // Actualizar el estado de una mesa en el contexto
   const updateTableInContext = (updatedTable: UpdatedTable) => {
     if (!companyData) return;
@@ -376,6 +399,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loginUser,
     logout,
     clearCompanyData,
+    switchBranch,
     updateTableInContext,
     getDeviceId,
     getMacAddress,

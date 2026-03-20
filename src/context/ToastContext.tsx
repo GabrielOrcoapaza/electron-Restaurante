@@ -15,12 +15,15 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
+// Fallback no-op cuando se usa fuera del provider (evita crash en transiciones/navegación)
+const noopToast = (() => {
+    const fn = (_message: string, _type: ToastType) => {};
+    return { showToast: fn };
+})();
+
 export const useToast = () => {
     const context = useContext(ToastContext);
-    if (!context) {
-        throw new Error('useToast must be used within a ToastProvider');
-    }
-    return context;
+    return context ?? noopToast;
 };
 
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {

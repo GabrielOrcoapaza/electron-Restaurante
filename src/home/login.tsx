@@ -11,23 +11,25 @@ import VirtualKeyboard from '../components/VirtualKeyboard';
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { loginUser, companyData, getMacAddress, clearCompanyData } = useAuth();
-  const { breakpoint, isMobile } = useResponsive();
+  const { isMobile, isTablet } = useResponsive();
   const { showToast } = useToast();
+  
   const [formData, setFormData] = useState({
     selectedEmployee: '',
     password: ''
   });
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<'search' | 'password' | null>(null);
   const keyboardRef = useRef<HTMLDivElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [showConfirmExit, setShowConfirmExit] = useState(false);
   const [updateChecking, setUpdateChecking] = useState(false);
 
   const [userLoginMutation, { loading }] = useMutation(USER_LOGIN);
 
-  // Solo disponible en Electron (app empaquetada)
   const isElectron = typeof window !== 'undefined' && typeof (window as any).require === 'function';
 
   const handleCheckForUpdates = async () => {
@@ -44,29 +46,23 @@ const Login: React.FC = () => {
     }
   };
 
-  // Obtener empleados actualizados desde el servidor usando GraphQL
   const { data: usersData, loading: employeesLoading, refetch: refetchEmployees } = useQuery(GET_USERS_BY_BRANCH, {
     variables: { branchId: companyData?.branch?.id },
     skip: !companyData?.branch?.id,
-    fetchPolicy: 'network-only' // Siempre obtener datos frescos del servidor
+    fetchPolicy: 'network-only'
   });
 
-  // Usar los empleados de la query, o fallback a los del companyData si no hay datos aún
   const allEmployees = usersData?.usersByBranch || companyData?.branch?.users || [];
 
-  // Filtrar solo empleados activos y por término de búsqueda
   const filteredEmployees = allEmployees
-    .filter((employee: any) => employee.isActive !== false) // Solo empleados activos
+    .filter((employee: any) => employee.isActive !== false)
     .filter((employee: any) => {
-      const fullName = `${employee.firstName || ''} ${employee.lastName || ''}`.toLowerCase();
+      const fullName = `\${employee.firstName || ''} \${employee.lastName || ''}`.toLowerCase();
       const dni = (employee.dni || '').toLowerCase();
       const search = searchTerm.toLowerCase();
       return fullName.includes(search) || dni.includes(search);
     });
 
-  // Determinar si el empleado seleccionado requiere contraseña
-  // Para mozos: solo si tienen el permiso 'users.manage'
-  // Para otros roles: siempre
   const selectedEmployeeObj = allEmployees.find((e: any) => e.dni === formData.selectedEmployee);
   const needsPassword = selectedEmployeeObj
     ? (selectedEmployeeObj.role === 'WAITER'
@@ -74,7 +70,6 @@ const Login: React.FC = () => {
       : true)
     : true;
 
-  // Verificar que existan datos de la empresa
   useEffect(() => {
     if (!companyData) {
       showToast('Primero debes iniciar sesión con los datos de la empresa', 'warning');
@@ -82,7 +77,6 @@ const Login: React.FC = () => {
     }
   }, [companyData, navigate, showToast]);
 
-  // Refrescar empleados cuando cambia el branchId o cuando se monta el componente
   useEffect(() => {
     if (companyData?.branch?.id && refetchEmployees) {
       refetchEmployees();
@@ -92,34 +86,25 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Verificar datos de empresa
     if (!companyData) {
       showToast('No hay datos de empresa. Redirigiendo...', 'error');
       navigate('/login-company');
       return;
     }
 
-    // Obtener MAC real del dispositivo
-    const deviceId = await getMacAddress();
-    console.log('🔍 MAC obtenida del dispositivo:', deviceId);
-    console.log('🔍 Tipo de deviceId:', typeof deviceId);
-    console.log('🔍 Longitud de deviceId:', deviceId.length);
-
-    // Verificar que se haya seleccionado un empleado
     if (!formData.selectedEmployee) {
       showToast('Por favor selecciona un empleado', 'warning');
       return;
     }
 
-    // Verificar contraseña solo si es requerida para este empleado
     if (needsPassword && !formData.password) {
       showToast('Por favor ingresa tu contraseña', 'warning');
       return;
     }
+    
     await performLogin(formData.selectedEmployee, formData.password || '');
   };
 
-  // Función reutilizable para ejecutar el login (usada por handleSubmit y por click directo de mozo)
   const performLogin = async (dni: string, password: string) => {
     if (!companyData) {
       showToast('No hay datos de empresa. Redirigiendo...', 'error');
@@ -153,13 +138,21 @@ const Login: React.FC = () => {
           data.userLogin.user,
           data.userLogin.userPhotoBase64
         );
+        showToast(`¡Bienvenido, ${loggedUser.firstName || 'usuario'}!`, 'success');
         navigate('/dashboard');
         return true;
       }
-      showToast(data?.userLogin?.message || 'Error en el login', 'error');
+      showToast(data?.userLogin?.message || 'Contraseña incorrecta', 'error');
       return false;
     } catch (err: any) {
-      showToast(err?.message || 'Error en login de usuario', 'error');
+      let errorMessage = 'Contraseña incorrecta';
+      if (err.graphQLErrors && err.graphQLErrors.length > 0) {
+        const firstMsg = err.graphQLErrors[0]?.message;
+        if (firstMsg) errorMessage = firstMsg;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      showToast(errorMessage, 'error');
       return false;
     }
   };
@@ -169,23 +162,16 @@ const Login: React.FC = () => {
   };
 
   const confirmExit = () => {
-    // Limpiar datos de la compañía usando el método del contexto
     clearCompanyData();
-    // Limpiar también tokens y datos de usuario por si acaso
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('userData');
     localStorage.removeItem('userPhoto');
-    console.log('🧹 Datos de compañía limpiados, redirigiendo a login de compañía...');
-    // Navegar al login de compañía
     navigate('/login-company', { replace: true });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleVirtualKeyPress = (key: string) => {
@@ -197,882 +183,567 @@ const Login: React.FC = () => {
     if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password.slice(0, -1) }));
   };
 
-  // Tamaños adaptativos según breakpoint (lg: 1024+, xl: 1280+, 2xl: 1536+)
-  const isSmallDesktop = breakpoint === 'lg';
-  const isMediumDesktop = breakpoint === 'xl';
-  const isLargeDesktop = breakpoint === '2xl';
-  const containerPadding = isSmallDesktop ? '0.75rem' : isMediumDesktop ? '1rem' : '1.5rem';
-  // Contenedor más ancho: ocupa toda la pantalla para la lista de empleados
-  const formMaxWidth = '100%';
-  const titleFontSize = isSmallDesktop ? 'clamp(28px, 4vw, 36px)' : isMediumDesktop ? 'clamp(32px, 4vw, 42px)' : 'clamp(36px, 4.5vw, 48px)';
-  const inputFontSize = isSmallDesktop ? 'clamp(16px, 2.5vw, 18px)' : 'clamp(17px, 2.5vw, 20px)';
-  const labelFontSize = isSmallDesktop ? 'clamp(16px, 2.5vw, 18px)' : 'clamp(17px, 2.5vw, 20px)';
-  // Columnas del grid de empleados: responsive (hasta 6 por fila en pantallas grandes)
-  const employeesGridColumns = isLargeDesktop ? 6 : isMediumDesktop ? 5 : isSmallDesktop ? 4 : 3;
-  const avatarSize = isSmallDesktop ? 36 : 44;
-  const cardPadding = isSmallDesktop ? '0.6rem' : '0.75rem';
-  const cardFontSize = isSmallDesktop ? '14px' : '16px';
-  const cardDniFontSize = isSmallDesktop ? '13px' : '14px';
-
-  // Tema visual del login
-  const theme = {
-    font: "'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif",
-    bg: 'linear-gradient(160deg, #0f172a 0%, #1e293b 40%, #334155 100%)',
-    cardBg: 'rgba(255, 255, 255, 0.98)',
-    cardBorder: '1px solid rgba(255, 255, 255, 0.2)',
-    cardShadow: '0 32px 64px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.05)',
-    accent: '#0ea5e9',
-    accentHover: '#0284c7',
-    accentMuted: 'rgba(14, 165, 233, 0.12)',
-    text: '#0f172a',
-    textMuted: '#64748b',
-    inputBg: '#f8fafc',
-    inputBorder: '#e2e8f0',
-    inputFocusBorder: '#0ea5e9',
-    inputFocusRing: 'rgba(14, 165, 233, 0.25)',
-    success: '#10b981',
-    radius: 14,
-    radiusSm: 10,
-  };
-
-  // Decoración restaurante: chef, croissants, utensilios, café, comida + "4 soluciones"
-  const iconSize = isSmallDesktop ? 'clamp(36px, 6vmin, 56px)' : 'clamp(44px, 7vmin, 72px)';
-  const croissantSize = isSmallDesktop ? 'clamp(40px, 6.5vmin, 64px)' : 'clamp(48px, 7.5vmin, 80px)';
-  const smallIconSize = isSmallDesktop ? 'clamp(28px, 4.5vmin, 44px)' : 'clamp(34px, 5vmin, 52px)';
-  const decorOpacity = 0.42;
-  const restaurantDecor: Array<{
-    key: string;
-    type: 'chef' | 'croissant' | 'utensils' | 'coffee' | 'food';
-    top: string;
-    left: string;
-  }> = [
-      { key: 'c1', type: 'chef', top: '5%', left: '3%' },
-      { key: 'c2', type: 'chef', top: '18%', left: '92%' },
-      { key: 'c3', type: 'chef', top: '38%', left: '4%' },
-      { key: 'c4', type: 'chef', top: '58%', left: '91%' },
-      { key: 'c5', type: 'chef', top: '12%', left: '72%' },
-      { key: 'c6', type: 'chef', top: '82%', left: '6%' },
-      { key: 'c7', type: 'chef', top: '72%', left: '94%' },
-      { key: 'c8', type: 'chef', top: '28%', left: '12%' },
-      { key: 'c9', type: 'chef', top: '45%', left: '86%' },
-      { key: 'p1', type: 'croissant', top: '8%', left: '22%' },
-      { key: 'p2', type: 'croissant', top: '14%', left: '60%' },
-      { key: 'p3', type: 'croissant', top: '32%', left: '6%' },
-      { key: 'p4', type: 'croissant', top: '40%', left: '78%' },
-      { key: 'p5', type: 'croissant', top: '58%', left: '24%' },
-      { key: 'p6', type: 'croissant', top: '65%', left: '68%' },
-      { key: 'p7', type: 'croissant', top: '86%', left: '32%' },
-      { key: 'p8', type: 'croissant', top: '90%', left: '52%' },
-      { key: 'p9', type: 'croissant', top: '25%', left: '42%' },
-      { key: 'p10', type: 'croissant', top: '48%', left: '58%' },
-      { key: 'p11', type: 'croissant', top: '18%', left: '38%' },
-      { key: 'p12', type: 'croissant', top: '75%', left: '78%' },
-      { key: 'u1', type: 'utensils', top: '7%', left: '48%' },
-      { key: 'u2', type: 'utensils', top: '42%', left: '28%' },
-      { key: 'u3', type: 'utensils', top: '70%', left: '62%' },
-      { key: 'u4', type: 'utensils', top: '22%', left: '85%' },
-      { key: 'u5', type: 'utensils', top: '88%', left: '18%' },
-      { key: 'cf1', type: 'coffee', top: '10%', left: '52%' },
-      { key: 'cf2', type: 'coffee', top: '55%', left: '38%' },
-      { key: 'cf3', type: 'coffee', top: '78%', left: '72%' },
-      { key: 'fd1', type: 'food', top: '30%', left: '62%' },
-      { key: 'fd2', type: 'food', top: '62%', left: '48%' },
-      { key: 'fd3', type: 'food', top: '15%', left: '28%' },
-      { key: 'fd4', type: 'food', top: '85%', left: '58%' },
-    ];
-
-  // Bloquear acceso en móviles
-  if (isMobile) {
-    return (
-      <div className="login-root login-mobile-block" style={{
-        height: '100vh',
-        width: '100vw',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: theme.bg,
-        fontFamily: theme.font,
-        padding: '2rem',
-        textAlign: 'center'
-      }}>
-        <div style={{
-          background: theme.cardBg,
-          borderRadius: 24,
-          padding: '2.5rem 2rem',
-          maxWidth: '420px',
-          boxShadow: theme.cardShadow,
-          border: theme.cardBorder
-        }}>
-          <div style={{ fontSize: '3.5rem', marginBottom: '1.25rem', opacity: 0.9 }}>📱</div>
-          <h1 style={{
-            fontSize: '1.35rem',
-            fontWeight: 700,
-            color: theme.text,
-            marginBottom: '0.75rem',
-            letterSpacing: '-0.02em'
-          }}>
-            Acceso no disponible en móviles
-          </h1>
-          <p style={{
-            fontSize: '0.9375rem',
-            color: theme.textMuted,
-            lineHeight: 1.6
-          }}>
-            Usa esta aplicación en tablet o computadora para continuar.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="login-root" style={{
-      height: '100vh',
-      width: '100vw',
-      maxWidth: '100vw',
-      background: theme.bg,
-      fontFamily: theme.font,
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      overflow: 'hidden',
-      margin: 0,
-      padding: 0
-    }}>
-      {/* Fondo sutil con ruido */}
-      <div className="login-bg-pattern" style={{
-        position: 'absolute',
-        inset: 0,
-        opacity: 0.4,
-        backgroundImage: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(14, 165, 233, 0.2), transparent), radial-gradient(ellipse 60% 40% at 100% 100%, rgba(14, 165, 233, 0.08), transparent)'
-      }} />
-
-      <div
-        className="main-container"
-        style={{
-          display: 'flex',
-          flexDirection: focusedInput ? 'column' : 'row',
-          flexWrap: 'nowrap',
-          width: '100vw',
-          height: '100vh',
-          position: 'relative',
-          zIndex: 1,
-          margin: 0,
-          padding: 0,
-          justifyContent: focusedInput ? 'flex-start' : 'center',
-          alignItems: 'stretch',
-          overflow: 'hidden'
-        }}
-      >
-
-        <div className="form-panel" style={{
-          flex: '1',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-start',
-          alignItems: 'stretch',
-          padding: isSmallDesktop ? '0.5rem' : '1rem',
-          background: theme.cardBg,
-          backdropFilter: 'blur(24px)',
-          position: 'relative',
-          minHeight: 0,
-          minWidth: 0,
-          width: '100%',
-          maxWidth: '100%',
-          boxSizing: 'border-box',
-          overflow: 'hidden'
-        }}>
-          {/* Decoración restaurante: chef, platos (con color), utensilios, café, comida + "4 soluciones" */}
-          <div className="login-decorations" aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
-            {restaurantDecor.map((d) => {
-              const isEmoji = d.type === 'chef' || d.type === 'croissant' || d.type === 'utensils' || d.type === 'coffee' || d.type === 'food';
-              const emoji = d.type === 'chef' ? '👨‍🍳' : d.type === 'croissant' ? '🥐' : d.type === 'utensils' ? '🍴' : d.type === 'coffee' ? '☕' : d.type === 'food' ? '🍽️' : null;
-              const size = d.type === 'chef' ? iconSize : d.type === 'croissant' ? croissantSize : smallIconSize;
-              return (
-                <div
-                  key={d.key}
-                  className={`login-deco login-deco--${d.key}`}
-                  style={{
-                    position: 'absolute',
-                    top: d.top,
-                    left: d.left,
-                    width: size,
-                    height: size,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: decorOpacity,
-                    transform: 'translate(-50%, -50%)',
-                    fontSize: isEmoji ? size : undefined,
-                    lineHeight: 1,
-                    filter: isEmoji ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.06))' : undefined,
+    <div className="login-user-wrapper">
+      <div className="login-bg-image"></div>
+      <div className="login-overlay"></div>
+      
+      <div className={`fullscreen-glass-card \${focusedInput ? 'keyboard-active' : ''}`}>
+        
+        {/* CABECERA: Ahora integra el buscador de empleados */}
+        <div className="card-header">
+          <div className="header-top-row">
+            <div className="header-info">
+              <div className="user-icon-ring">
+                <span className="user-icon">👤</span>
+              </div>
+              {/* SEARCH BOX integrado al lado del usuario */}
+              <div className="search-container">
+                <span className="search-icon">🔍</span>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar empleado por nombre o DNI..."
+                  className={`search-input \${focusedInput === 'search' ? 'focused' : ''}`}
+                  onFocus={() => {
+                    setFocusedInput('search');
+                    setTimeout(() => { if (searchInputRef.current) searchInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
                   }}
-                >
-                  {emoji}
-                </div>
-              );
-            })}
-            {/* Badge "4 soluciones" con el 4 destacado */}
-            <div
-              className="login-4soluciones"
-              style={{
-                position: 'absolute',
-                bottom: '1.5rem',
-                right: '1.5rem',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: 0.85,
-              }}
-            >
-              <span style={{
-                display: 'block',
-                fontSize: isSmallDesktop ? '2.5rem' : '3.25rem',
-                fontWeight: 800,
-                lineHeight: 1,
-                color: theme.accent,
-                textShadow: '0 1px 2px rgba(0,0,0,0.08)',
-              }}>4</span>
-              <span style={{
-                display: 'block',
-                fontSize: isSmallDesktop ? '0.7rem' : '0.8125rem',
-                fontWeight: 700,
-                letterSpacing: '0.04em',
-                color: theme.textMuted,
-                textTransform: 'uppercase',
-                marginTop: '0.15rem',
-              }}>soluciones</span>
+                />
+              </div>
+            </div>
+            
+            <div className="header-actions">
+               <button type="button" className="btn-back" onClick={handleBackToCompany}>
+                  🔙 <span className="action-text">Cambiar Local</span>
+               </button>
+               {isElectron && (
+                  <button type="button" className="btn-update" onClick={handleCheckForUpdates} disabled={updateChecking}>
+                    {updateChecking ? '⏳' : '🔄'} <span className="action-text">Actualizar</span>
+                  </button>
+               )}
             </div>
           </div>
-          <div className="form-container" style={{
-            width: '100%',
-            maxWidth: formMaxWidth,
-            position: 'relative',
-            zIndex: 1,
-            padding: containerPadding,
-            boxSizing: 'border-box',
-            display: 'flex',
-            flexDirection: 'column',
-            flex: 1,
-            minHeight: 0,
-            height: '100%'
-          }}>
-            {/* Ocultar cabecera cuando el teclado está visible (el teclado ocupa esa zona) */}
-            {!focusedInput && (
-              <header style={{ textAlign: 'center', marginBottom: isSmallDesktop ? '1.25rem' : '1.75rem', flexShrink: 0 }}>
-                <div style={{
-                  width: isSmallDesktop ? 72 : 88,
-                  height: isSmallDesktop ? 72 : 88,
-                  background: `linear-gradient(145deg, ${theme.accent}, #0284c7)`,
-                  borderRadius: 20,
-                  margin: `0 auto ${isSmallDesktop ? '0.75rem' : '1rem'}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: isSmallDesktop ? 36 : 44,
-                  color: 'white',
-                  boxShadow: `0 12px 28px ${theme.accentMuted}`,
-                  border: '1px solid rgba(255,255,255,0.2)'
-                }}>
-                  👤
-                </div>
-                <h2 style={{
-                  margin: 0,
-                  color: theme.text,
-                  fontSize: titleFontSize,
-                  fontWeight: 700,
-                  letterSpacing: '-0.03em'
-                }}>
-                  Iniciar sesión
-                </h2>
-                
-              </header>
-            )}
+          
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-              {/* Buscador de Empleados */}
-              <div style={{ marginBottom: isSmallDesktop ? '0.75rem' : '1rem', flexShrink: 0 }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '0.5rem',
-                  color: theme.text,
-                  fontSize: labelFontSize,
-                  fontWeight: 600,
-                  textAlign: 'center'
-                }}>
-                  🔍 Buscar empleado
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Nombre o DNI..."
-                    className="login-input form-inputs"
-                    style={{
-                      width: '100%',
-                      padding: isSmallDesktop ? '0.75rem 0.75rem 0.75rem 2.5rem' : '0.875rem 0.875rem 0.875rem 2.75rem',
-                      border: `2px solid ${theme.inputBorder}`,
-                      borderRadius: theme.radiusSm,
-                      fontSize: inputFontSize,
-                      backgroundColor: theme.inputBg,
-                      transition: 'border-color 0.2s, box-shadow 0.2s, background-color 0.2s',
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      fontWeight: 500
-                    }}
-                    onFocus={(e) => {
-                      setFocusedInput('search');
-                      e.target.style.borderColor = theme.inputFocusBorder;
-                      e.target.style.backgroundColor = 'white';
-                      e.target.style.boxShadow = `0 0 0 4px ${theme.inputFocusRing}`;
-                    }}
-                    onBlur={(e) => {
-                      if (!keyboardRef.current?.contains(e.relatedTarget as Node)) setFocusedInput(null);
-                      e.target.style.borderColor = theme.inputBorder;
-                      e.target.style.backgroundColor = theme.inputBg;
-                      e.target.style.boxShadow = 'none';
-                    }}
-                  />
-                  <span style={{
-                    position: 'absolute',
-                    left: '0.75rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    fontSize: isSmallDesktop ? '1.125rem' : '1.25rem',
-                    opacity: 0.7
-                  }}>🔍</span>
+        </div>
+
+        <div className="card-body">
+          
+          <div className="left-column">
+            {/* EMPLOYEES GRID */}
+            <div className="employees-scroll-area employees-scroll-area-content">
+              {employeesLoading ? (
+                <div className="loading-state">
+                  <span className="spinner">⏳</span>
+                  <p>Cargando personal...</p>
                 </div>
-                {searchTerm && (
-                  <p style={{
-                    margin: '0.375rem 0 0',
-                    fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
-                    color: theme.textMuted,
-                    textAlign: 'center',
-                    fontWeight: 500
-                  }}>
-                    {filteredEmployees.length} empleado(s)
-                  </p>
-                )}
+              ) : filteredEmployees.length === 0 ? (
+                <div className="empty-state">
+                  <span>😟</span>
+                  <p>{searchTerm ? `No se encontró a "\${searchTerm}"` : 'El local está vacío.'}</p>
+                </div>
+              ) : (
+                <div className="employees-grid">
+                  {filteredEmployees.map((employee: any) => {
+                    const selected = formData.selectedEmployee === employee.dni;
+                    return (
+                      <button
+                        key={employee.id}
+                        type="button"
+                        className={`employee-card \${selected ? 'selected' : ''}`}
+                        onClick={async () => {
+                          const isWaiter = employee.role === 'WAITER';
+
+                          if (isWaiter) {
+                            let password = '';
+                            try {
+                              const cachedPasswords = JSON.parse(localStorage.getItem('cached_waiter_passwords') || '{}');
+                              password = cachedPasswords[employee.dni] || '';
+                            } catch (e) {}
+                            const ok = await performLogin(employee.dni, password);
+                            if (!ok) {
+                              setFormData({ ...formData, selectedEmployee: employee.dni, password: '' });
+                              setFocusedInput('password');
+                              setTimeout(() => passwordInputRef.current?.focus(), 0);
+                            }
+                            return;
+                          }
+
+                          setFormData({
+                            ...formData,
+                            selectedEmployee: employee.dni,
+                            password: ''        
+
+                          });
+                          showToast(`Has seleccionado a ${employee.firstName}`, 'success');
+                          setFocusedInput('password');
+                          setTimeout(() => passwordInputRef.current?.focus(), 0);
+                        }}
+                      >
+                        <div className="employee-avatar">
+                          {employee.photoBase64 ? (
+                            <img
+                              src={employee.photoBase64.startsWith('data:')
+                                ? employee.photoBase64
+                                : `data:image/jpeg;base64,\${employee.photoBase64}`}
+                              alt={employee.firstName}
+                              onError={(e) => {
+                                const el = e.currentTarget;
+                                el.style.display = 'none';
+                                el.nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                          ) : null}
+                          <span className={`fallback-avatar \${employee.photoBase64 ? 'hidden' : ''}`}>👤</span>
+                        </div>
+                        <div className="employee-info">
+                          <span className="employee-name">{employee.firstName} {employee.lastName}</span>
+                          <span className="employee-role">{employee.dni}</span>
+                        </div>
+                        {selected && <div className="selected-badge">✓</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* TECLADO VIRTUAL - aparece sobre los empleados */}
+            <div 
+              ref={keyboardRef} 
+              className={`keyboard-overlay \${focusedInput ? 'visible' : ''}`}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              <div className="keyboard-container">
+              
+                <VirtualKeyboard
+                  onKeyPress={handleVirtualKeyPress}
+                  onBackspace={handleVirtualBackspace}
+                  compact={isMobile || isTablet}
+                />
+              </div>
+            </div>
+          </div>
+              
+          <div className="right-column">
+             {/* PASSWORD AREA */}
+            <form className="password-area" onSubmit={handleSubmit}>
+              <div className="password-header">
+                <h2>Contraseña</h2>
+                <p>{formData.selectedEmployee ? 'Ingresa tu llave privada' : 'Selecciona tu usuario primero'}</p>
               </div>
 
-              {/* Selección de Empleados - ocupa todo el espacio disponible */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, marginBottom: '1rem' }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '0.75rem',
-                  color: theme.text,
-                  fontSize: labelFontSize,
-                  fontWeight: 600,
-                  textAlign: 'center',
-                  flexShrink: 0
-                }}>
-                  👥 Selecciona tu empleado
-                </label>
-
-                {employeesLoading ? (
-                  <div style={{
-                    color: theme.accent,
-                    fontSize: isSmallDesktop ? '1rem' : '1.125rem',
-                    textAlign: 'center',
-                    padding: '1.25rem',
-                    backgroundColor: theme.accentMuted,
-                    borderRadius: theme.radius,
-                    border: `1px solid ${theme.inputFocusBorder}`,
-                    fontWeight: 500
-                  }}>
-                    ⏳ Cargando empleados...
-                  </div>
-                ) : filteredEmployees.length === 0 ? (
-                  <p style={{
-                    color: '#b91c1c',
-                    fontSize: isSmallDesktop ? '1rem' : '1.125rem',
-                    textAlign: 'center',
-                    padding: '1.25rem',
-                    backgroundColor: '#fef2f2',
-                    borderRadius: theme.radius,
-                    border: '1px solid #fecaca',
-                    fontWeight: 500,
-                    margin: 0
-                  }}>
-                    {searchTerm
-                      ? `No hay resultados para "${searchTerm}"`
-                      : 'No hay empleados activos en esta sucursal'
-                    }
-                  </p>
-                ) : (
-                  <div
-                    className="login-employees-grid"
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: `repeat(${employeesGridColumns}, minmax(0, 1fr))`,
-                      gap: isSmallDesktop ? '0.5rem' : '0.75rem',
-                      flex: 1,
-                      minHeight: 0,
-                      overflowY: 'auto',
-                      padding: '0.75rem',
-                      backgroundColor: theme.inputBg,
-                      borderRadius: theme.radius,
-                      border: `1px solid ${theme.inputBorder}`
-                    }}
-                  >
-                    {filteredEmployees.map((employee: any) => {
-                      const selected = formData.selectedEmployee === employee.dni;
-                      return (
-                        <button
-                          key={employee.id}
-                          type="button"
-                          onClick={async () => {
-                            const isWaiter = employee.role === 'WAITER';
-
-                            if (isWaiter) {
-                              // Mozo: intentar entrar directamente (con contraseña en caché o vacía)
-                              let password = '';
-                              try {
-                                const cachedPasswords = JSON.parse(localStorage.getItem('cached_waiter_passwords') || '{}');
-                                password = cachedPasswords[employee.dni] || '';
-                              } catch (e) {
-                                console.error('Error leyendo caché de contraseñas:', e);
-                              }
-                              const ok = await performLogin(employee.dni, password);
-                              if (!ok) {
-                                // Si falla, mostrar formulario para que ingrese contraseña
-                                setFormData({ ...formData, selectedEmployee: employee.dni, password: '' });
-                                setFocusedInput('password');
-                                setTimeout(() => passwordInputRef.current?.focus(), 0);
-                              }
-                              return;
-                            }
-
-                            // Caja u otro rol: seleccionar y pedir contraseña
-                            setFormData({
-                              ...formData,
-                              selectedEmployee: employee.dni,
-                              password: ''
-                            });
-                            showToast(`Empleado seleccionado: ${employee.firstName} ${employee.lastName}`, 'success');
-                            setFocusedInput('password');
-                            setTimeout(() => passwordInputRef.current?.focus(), 0);
-                          }}
-                          className="login-employee-btn"
-                          style={{
-                            padding: cardPadding,
-                            border: selected ? `2px solid ${theme.accent}` : `1px solid ${theme.inputBorder}`,
-                            borderRadius: theme.radiusSm,
-                            backgroundColor: selected ? theme.accentMuted : 'white',
-                            cursor: 'pointer',
-                            transition: 'border-color 0.2s, background-color 0.2s, box-shadow 0.2s',
-                            textAlign: 'left',
-                            fontSize: cardFontSize,
-                            fontWeight: 600,
-                            color: theme.text,
-                            boxShadow: selected ? `0 2px 8px ${theme.accentMuted}` : 'none',
-                            minWidth: 0
-                          }}
-                          onMouseOver={(e) => {
-                            if (!selected) {
-                              e.currentTarget.style.borderColor = theme.accent;
-                              e.currentTarget.style.backgroundColor = theme.accentMuted;
-                            }
-                          }}
-                          onMouseOut={(e) => {
-                            if (!selected) {
-                              e.currentTarget.style.borderColor = theme.inputBorder;
-                              e.currentTarget.style.backgroundColor = 'white';
-                            }
-                          }}
-                        >
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            marginBottom: '0.2rem',
-                            minWidth: 0
-                          }}>
-                            {employee.photoBase64 ? (
-                              <img
-                                src={employee.photoBase64.startsWith('data:')
-                                  ? employee.photoBase64
-                                  : `data:image/jpeg;base64,${employee.photoBase64}`}
-                                alt={`${employee.firstName} ${employee.lastName}`}
-                                style={{
-                                  width: avatarSize,
-                                  height: avatarSize,
-                                  minWidth: avatarSize,
-                                  borderRadius: '50%',
-                                  objectFit: 'cover',
-                                  border: `1px solid ${theme.inputBorder}`
-                                }}
-                                onError={(e) => {
-                                  const el = e.currentTarget;
-                                  el.style.display = 'none';
-                                  const span = document.createElement('span');
-                                  span.setAttribute('style', `font-size: ${Math.round(avatarSize * 0.65)}px; min-width: ${avatarSize}px; text-align: center;`);
-                                  span.textContent = '👤';
-                                  el.parentElement?.insertBefore(span, el);
-                                }}
-                              />
-                            ) : (
-                              <span style={{ fontSize: `${Math.round(avatarSize * 0.65)}px`, minWidth: avatarSize, textAlign: 'center' }}>👤</span>
-                            )}
-                            <span style={{
-                              fontWeight: 600,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap'
-                            }}>
-                              {employee.firstName} {employee.lastName}
-                            </span>
-                          </div>
-                          <div style={{
-                            fontSize: cardDniFontSize,
-                            color: '#000',
-                            marginLeft: avatarSize + 6,
-                            fontWeight: 600,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            DNI: {employee.dni}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div style={{ marginBottom: '1rem', marginTop: 0, flexShrink: 0 }}>
-                <label className="form-labels" style={{
-                  display: 'block',
-                  marginBottom: '0.5rem',
-                  color: theme.text,
-                  fontSize: labelFontSize,
-                  fontWeight: 600
-                }}>
-                  🔒 Contraseña
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    ref={passwordInputRef}
-                    type={showPassword ? 'text' : 'password'}
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    placeholder="••••••••"
-                    required
-                    className="login-input form-inputs"
-                    style={{
-                      width: '100%',
-                      padding: isSmallDesktop ? '0.75rem 2.5rem 0.75rem 2.5rem' : '0.875rem 2.75rem 0.875rem 2.75rem',
-                      border: `2px solid ${theme.inputBorder}`,
-                      borderRadius: theme.radius,
-                      fontSize: inputFontSize,
-                      backgroundColor: theme.inputBg,
-                      transition: 'border-color 0.2s, box-shadow 0.2s, background-color 0.2s',
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      fontWeight: 500
-                    }}
-                    onFocus={(e) => {
-                      setFocusedInput('password');
-                      e.target.style.borderColor = theme.inputFocusBorder;
-                      e.target.style.backgroundColor = 'white';
-                      e.target.style.boxShadow = `0 0 0 4px ${theme.inputFocusRing}`;
-                    }}
-                    onBlur={(e) => {
-                      if (!keyboardRef.current?.contains(e.relatedTarget as Node)) setFocusedInput(null);
-                      e.target.style.borderColor = theme.inputBorder;
-                      e.target.style.backgroundColor = theme.inputBg;
-                      e.target.style.boxShadow = 'none';
-                    }}
-                  />
-                  <span style={{
-                    position: 'absolute',
-                    left: '1rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    fontSize: '1.125rem',
-                    pointerEvents: 'none',
-                    opacity: 0.7
-                  }}>🔒</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: 'absolute',
-                      right: '0.75rem',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '0.5rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '1.125rem',
-                      color: theme.textMuted,
-                      transition: 'background-color 0.2s, color 0.2s',
-                      borderRadius: 8
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = theme.inputBg;
-                      e.currentTarget.style.color = theme.text;
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = theme.textMuted;
-                    }}
-                  >
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
-                  </button>
-                </div>
-              </div>
-
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: isSmallDesktop ? '0.5rem' : '0.75rem',
-                flexShrink: 0
-              }}>
+              <div className={`password-input-group \${focusedInput === 'password' ? 'focused' : ''}`}>
+                <span className="pass-icon">🔒</span>
+                <input
+                  ref={passwordInputRef}
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="••••••••"
+                  className="pass-input"
+                  onFocus={() => {
+                     setFocusedInput('password');
+                     setTimeout(() => { if (passwordInputRef.current) passwordInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
+                  }}
+                  disabled={!formData.selectedEmployee}
+                />
                 <button
                   type="button"
-                  onClick={handleBackToCompany}
-                  style={{
-                    width: '100%',
-                    padding: isSmallDesktop ? '0.75rem' : '0.9375rem 1rem',
-                    background: `linear-gradient(145deg, ${theme.accent}, ${theme.accentHover})`,
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: theme.radius,
-                    fontSize: isSmallDesktop ? '1rem' : '1.0625rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'opacity 0.2s, transform 0.2s, box-shadow 0.2s',
-                    boxShadow: `0 8px 24px ${theme.accentMuted}`,
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = `0 12px 28px ${theme.accentMuted}`;
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = `0 8px 24px ${theme.accentMuted}`;
-                  }}
+                  className="pass-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={!formData.selectedEmployee}
                 >
-                  🔙 Volver
+                  {showPassword ? '🙈' : '👁️'}
                 </button>
+              </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  style={{
-                    width: '100%',
-                    padding: isSmallDesktop ? '0.75rem' : '0.9375rem 1rem',
-                    background: loading ? '#cbd5e1' : `linear-gradient(145deg, ${theme.accent}, ${theme.accentHover})`,
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: theme.radius,
-                    fontSize: isSmallDesktop ? '1rem' : '1.0625rem',
-                    fontWeight: 600,
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    transition: 'opacity 0.2s, transform 0.2s, box-shadow 0.2s',
-                    boxShadow: loading ? 'none' : `0 8px 24px ${theme.accentMuted}`,
-                    opacity: loading ? 0.8 : 1
-                  }}
-                  onMouseOver={(e) => {
-                    if (!loading) {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = `0 12px 28px ${theme.accentMuted}`;
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    if (!loading) {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = `0 8px 24px ${theme.accentMuted}`;
-                    }
-                  }}
-                >
-                  {loading ? '⏳ Autenticando...' : '✨ Iniciar sesión'}
+              <div className="action-buttons">
+                <button type="submit" disabled={loading || !formData.selectedEmployee} className="btn-submit">
+                  {loading ? '⏳' : '🚀 Iniciar Sesión'}
                 </button>
-
-                {isElectron && (
-                  <button
-                    type="button"
-                    onClick={handleCheckForUpdates}
-                    disabled={updateChecking}
-                    style={{
-                      gridColumn: '1 / -1',
-                      width: '100%',
-                      padding: isSmallDesktop ? '0.75rem' : '0.9375rem 1rem',
-                      background: updateChecking ? '#cbd5e1' : 'linear-gradient(145deg, #64748b, #475569)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: theme.radius,
-                      fontSize: isSmallDesktop ? '1rem' : '1.0625rem',
-                      fontWeight: 600,
-                      cursor: updateChecking ? 'not-allowed' : 'pointer',
-                      opacity: updateChecking ? 0.8 : 1,
-                      transition: 'opacity 0.2s, transform 0.2s, box-shadow 0.2s',
-                      boxShadow: updateChecking ? 'none' : '0 8px 24px rgba(100, 116, 139, 0.35)'
-                    }}
-                    onMouseOver={(e) => {
-                      if (!updateChecking) {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 12px 28px rgba(100, 116, 139, 0.4)';
-                      }
-                    }}
-                    onMouseOut={(e) => {
-                      if (!updateChecking) {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 8px 24px rgba(100, 116, 139, 0.35)';
-                      }
-                    }}
-                  >
-                    {updateChecking ? '⏳ Buscando actualizaciones...' : '🔄 Actualizar sistema'}
-                  </button>
-                )}
               </div>
             </form>
           </div>
+
         </div>
 
-        {/* Teclado virtual en la parte inferior */}
-        {focusedInput && (
-          <div
-            ref={keyboardRef}
-            className="login-keyboard-panel"
-            style={{
-              flex: '0 0 auto',
-              width: '100%',
-              minWidth: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'stretch',
-              padding: isSmallDesktop ? '0.4rem 0.75rem' : '0.5rem 1rem',
-              background: theme.cardBg,
-              borderTop: `1px solid ${theme.inputBorder}`,
-              boxSizing: 'border-box',
-              overflow: 'hidden',
-              boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
-              zIndex: 10
-            }}
-          >
-            <div style={{ textAlign: 'center', marginBottom: '0.25rem', fontSize: '0.75rem', fontWeight: 600, color: theme.text }}>
-              ⌨️ Teclado virtual
-            </div>
-            <div style={{ width: '100%', minWidth: 0 }}>
-              <VirtualKeyboard
-                onKeyPress={handleVirtualKeyPress}
-                onBackspace={handleVirtualBackspace}
-                compact={true}
-              />
-            </div>
-          </div>
-        )}
       </div>
 
+      {/* MODAL CONFIRM EXIT */}
       {showConfirmExit && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.75)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 2000
-        }}>
-          <div style={{
-            background: 'white',
-            borderRadius: 24,
-            padding: '2.5rem',
-            maxWidth: '400px',
-            width: '90%',
-            textAlign: 'center',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-          }}>
-            <div style={{ fontSize: '3.5rem', marginBottom: '1.25rem' }}>👋</div>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.75rem' }}>¿Estas seguro que quieres salir?</h3>
-            <p style={{ color: '#64748b', marginBottom: '2rem', lineHeight: 1.6 }}>Al volver se cerrará la sesión actual de la empresa.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <button
-                onClick={() => setShowConfirmExit(false)}
-                style={{
-                  padding: '0.875rem',
-                  borderRadius: 14,
-                  border: '1px solid #e2e8f0',
-                  background: 'white',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  color: '#0f172a'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f8fafc';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = 'white';
-                }}
-              >
-                No, quedar
-              </button>
-              <button
-                onClick={confirmExit}
-                style={{
-                  padding: '0.875rem',
-                  borderRadius: 14,
-                  border: 'none',
-                  background: `linear-gradient(145deg, ${theme.accent}, ${theme.accentHover})`,
-                  color: 'white',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: `0 8px 16px ${theme.accentMuted}`
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-              >
-                Sí, salir
-              </button>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <span className="modal-emoji">👋</span>
+            <h3>¿Cambiar sucursal/empresa?</h3>
+            <p>Se cerrará la conexión actual. Deberás volver a colocar el RUC para acceder.</p>
+            <div className="modal-actions">
+              <button className="btn-cancel" onClick={() => setShowConfirmExit(false)}>Mejor No</button>
+              <button className="btn-confirm" onClick={confirmExit}>Sí, Cambiar</button>
             </div>
           </div>
         </div>
       )}
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-        * { box-sizing: border-box !important; }
-        body, html {
-          margin: 0 !important;
-          padding: 0 !important;
-          overflow: hidden !important;
-          height: 100vh !important;
-          width: 100vw !important;
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
         }
-        .login-root .form-panel {
-          height: 100vh !important;
-          width: 100% !important;
-          max-width: 100% !important;
+
+        :root {
+          --primary: #FF6B6B;
+          --primary-hover: #ff5252;
+          --secondary: #FFA726;
+          --bg-card: rgba(255, 255, 255, 0.95);
+          --text-dark: #2d3748;
+          --text-muted: #718096;
+          --border-color: #e2e8f0;
+          --input-bg: rgba(247, 250, 252, 0.9);
         }
-        .login-root .login-input:focus {
-          outline: none;
+
+        .login-user-wrapper {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          width: 100vw; height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          z-index: 99999;
+          overflow: hidden;
+          background: #000;
         }
-        .login-root .login-keyboard-panel {
-          min-width: 0;
+
+        .login-bg-image {
+          position: absolute;
+          inset: -5%;
+          width: 110%; height: 110%;
+          background-image: url('https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=1920');
+          background-size: cover;
+          background-position: center;
+          z-index: 1;
+          filter: brightness(1.2);
+          animation: smoothZoom 40s infinite alternate ease-in-out;
         }
-        .login-root .login-decorations .login-deco {
-          transition: opacity 0.25s ease;
+
+        @keyframes smoothZoom {
+          0% { transform: scale(1) translate(0, 0); }
+          100% { transform: scale(1.05) translate(-1%, -1%); }
         }
-        @media (max-width: 900px) {
-          .login-root .login-decorations .login-deco { opacity: 0.3 !important; }
+
+        .login-overlay {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg, rgba(255, 107, 107, 0.65) 0%, rgba(255, 167, 38, 0.7) 50%, rgba(171, 71, 188, 0.6) 100%);
+          backdrop-filter: blur(8px);
+          z-index: 2;
         }
-        @media (max-width: 700px) {
-          .login-root .login-decorations .login-deco { opacity: 0.2 !important; }
+
+        .fullscreen-glass-card {
+          position: relative;
+          z-index: 10;
+          background: var(--bg-card);
+          backdrop-filter: blur(25px);
+          box-shadow: 0 40px 80px rgba(0,0,0,0.3);
+          width: 98vw;
+          height: 96vh;
+          border-radius: 2rem;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          animation: popUpCard 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          transition: padding-bottom 0.4s ease;
+        }
+
+        /* Espacio para el teclado - usa variable CSS que escala con viewport */
+        .fullscreen-glass-card.keyboard-active {
+           padding-bottom: var(--keyboard-padding-bottom, min(30vh, 260px));
+        }
+
+        @keyframes popUpCard {
+          0% { opacity: 0; transform: scale(0.95) translateY(40px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* HEADER & SEARCH BAR */
+        .card-header {
+          display: flex;
+          flex-direction: column;
+          padding: 1.5rem 3rem;
+          background: rgba(255, 255, 255, 0.7);
+          border-bottom: 1px solid var(--border-color);
+          flex-shrink: 0;
+          gap: 1.5rem;
+          transition: all 0.3s ease;
+        }
+        
+        /* SEARCH BOX */
+        .search-container {
+          position: relative;
+          width: 100%;
+          min-width: 300px;
+          max-width: 500px;
+        }
+
+        .search-icon {
+          position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-size: 1.25rem; opacity: 0.5;
+        }
+
+        .search-input {
+          width: 100%;
+          padding: 0.85rem 1rem 0.85rem 3rem;
+          background: var(--input-bg);
+          border: 2px solid var(--border-color); border-radius: 1rem;
+          font-size: 1rem; font-weight: 500; color: var(--text-dark); outline: none; transition: all 0.2s;
+        }
+        .search-input:focus, .search-input.focused {
+          background: white; border-color: var(--secondary); box-shadow: 0 0 0 4px rgba(255, 167, 38, 0.15);
+        }
+
+        .header-top-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .header-info {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+
+        .user-icon-ring {
+          width: 3.5rem; height: 3.5rem;
+          background: linear-gradient(135deg, var(--primary), var(--secondary));
+          border-radius: 1rem;
+          display: flex; align-items: center; justify-content: center;
+          box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        .user-icon { font-size: 1.7rem; color: white; }
+
+
+
+        .header-actions {
+           display: flex;
+           gap: 0.75rem;
+        }
+
+        .btn-back, .btn-update {
+           padding: 0.6rem 1.2rem;
+           border-radius: 0.75rem;
+           font-weight: 700;
+           font-size: 0.9rem;
+           cursor: pointer;
+           border: none;
+           display: flex;
+           align-items: center;
+           gap: 0.5rem;
+           transition: all 0.2s;
+        }
+
+        .btn-back {
+           background: white; color: var(--text-dark); border: 1px solid var(--border-color);
+           box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+        .btn-back:hover { background: #f8fafc; transform: translateY(-2px); }
+
+        .btn-update { background: #475569; color: white; }
+        .btn-update:hover { background: #334155; transform: translateY(-2px); }
+
+
+
+
+
+        /* HEADER REDUCIDO para teclado activo */
+        .keyboard-active .card-header { padding: 1rem 3rem; gap: 0.75rem; }
+        .keyboard-active .user-icon-ring { width: 2.5rem; height: 2.5rem; border-radius: 0.5rem; }
+        .keyboard-active .user-icon { font-size: 1.2rem; }
+
+        /* BODY DE DOS COLUMNAS */
+        .card-body {
+          flex: 1; display: flex; padding: 1.5rem 3rem; gap: 2.5rem; min-height: 0;
+        }
+        
+        .left-column {
+           flex: 1.8; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--border-color); padding-right: 2.5rem;
+        }
+
+        .right-column {
+           flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; max-width: 450px;
+        }
+
+        /* GRID EMPLEADOS - SMALLER CARDS */
+        .employees-scroll-area {
+          flex: 1; overflow-y: auto; min-height: 0; border-radius: 1rem; padding-right: 0.5rem;
+        }
+        .employees-scroll-area::-webkit-scrollbar { width: 6px; }
+        .employees-scroll-area::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 10px; }
+
+        .employees-grid {
+          display: grid;
+          /* Mini cards fitting naturally */
+          grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+          gap: 1rem;
+          padding-bottom: 1rem;
+        }
+
+        .employee-card {
+          background: white;
+          border: 2px solid var(--border-color);
+          border-radius: 1rem;
+          padding: 0.75rem;  /* Reducido */
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;  /* Reducido */
+          cursor: pointer;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          text-align: left;
+          position: relative;
+        }
+
+        .employee-card:hover {  border-color: var(--primary); transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.06); }
+        .employee-card.selected { border-color: var(--primary); background: #fff5f5; box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.15); }
+
+        .employee-avatar {
+          width: 2.8rem; height: 2.8rem; /* Reducido */
+          border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center;
+          overflow: hidden; flex-shrink: 0; border: 1px solid var(--border-color);
+        }
+        .employee-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .fallback-avatar { font-size: 1.4rem; }
+
+        .employee-info { display: flex; flex-direction: column; overflow: hidden; padding-right: 1.5rem; }
+        .employee-name { 
+          font-weight: 800; color: var(--text-dark); font-size: 0.95rem; /* Reducido */
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.15rem;
+        }
+        .employee-role {
+          font-weight: 600; color: var(--text-muted); font-size: 0.75rem; /* Reducido */
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+        }
+
+        .selected-badge {
+           position: absolute; right: 0.5rem; top: 0.5rem; background: var(--primary); color: white;
+           width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;
+           font-size: 0.75rem;
+           animation: popIn 0.3s ease forwards;
+        }
+        @keyframes popIn { 0%{transform: scale(0);} 100%{transform: scale(1);} }
+
+        /* LOADING & EMPTY */
+        .loading-state, .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); font-weight: 700; font-size: 1.1rem; }
+        .spinner { font-size: 3rem; margin-bottom: 1rem; animation: spin 2s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .empty-state span { font-size: 4rem; margin-bottom: 1rem; }
+
+        /* PASSWORD AREA */
+        .password-area {
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+          background: rgba(255,255,255,0.7);
+          padding: 2rem;
+          border-radius: 1.5rem;
+          border: 1px solid var(--border-color);
+        }
+
+        .password-header h2 { font-size: 1.5rem; font-weight: 800; color: var(--text-dark); margin-bottom: 0.25rem; }
+        .password-header p { font-size: 0.95rem; color: var(--text-muted); font-weight: 500; }
+
+        .password-input-group { position: relative; }
+        .pass-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-size: 1.2rem; opacity: 0.5; color: var(--text-dark); }
+        .pass-input {
+          width: 100%; padding: 1.25rem 3.5rem; background: var(--input-bg); border: 2px solid var(--border-color); border-radius: 1rem;
+          font-size: 1.1rem; color: var(--text-dark); outline: none; transition: all 0.2s; font-weight: 800; letter-spacing: 2px;
+        }
+        .pass-input:focus, .password-input-group.focused .pass-input { background: white; border-color: var(--primary); box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.15); }
+        .pass-input:disabled { background: #e2e8f0; cursor: not-allowed; opacity: 0.6; }
+        .pass-toggle { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted); }
+        .pass-toggle:hover { transform: translateY(-50%) scale(1.1); }
+
+        .btn-submit {
+          background: linear-gradient(135deg, var(--primary), var(--secondary));
+          color: white; border: none; border-radius: 1rem; padding: 1.25rem;
+          font-weight: 800; font-size: 1.1rem; cursor: pointer; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); width: 100%;
+          box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3); text-transform: uppercase;
+        }
+        .btn-submit:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(255, 107, 107, 0.4); }
+        .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.5); box-shadow: none; }
+
+        /* VIRTUAL KEYBOARD IPAD STYLE */
+        .keyboard-slider {
+          position: absolute; bottom: 0; left: 0; width: 100%; height: auto;
+          background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px);
+          border-top: 1px solid var(--border-color);
+          transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          z-index: 100;
+          padding: 1rem 1rem 1.5rem 1rem;
+          box-shadow: 0 -10px 40px rgba(0,0,0,0.1);
+        }
+        .keyboard-slider.visible { transform: translateY(0); }
+        .keyboard-container { max-width: 1200px; margin: 0 auto; height: 100%; }
+        .keyboard-topbar {
+          display: flex; justify-content: space-between; align-items: center;
+          margin-bottom: 0.75rem; color: var(--text-dark); font-weight: 800; font-size: 1rem;
+          border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem;
+        }
+        .close-kb-btn {
+          background: var(--primary); color: white; border: none; font-size: 0.95rem; cursor: pointer; 
+          padding: 0.5rem 1rem; border-radius: 0.75rem; font-weight: bold; transition: all 0.2s;
+        }
+        .close-kb-btn:hover { background: var(--primary-hover); transform: translateY(-2px); }
+
+        /* MODAL EXIT */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 999999; }
+        .modal-content { background: white; border-radius: 1.5rem; padding: 2.5rem; max-width: var(--modal-max-width, min(90vw, 28rem)); width: 100%; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.3); animation: popUpCard 0.4s ease forwards; }
+        .modal-emoji { font-size: 3.5rem; display: block; margin-bottom: 1rem; }
+        .modal-content h3 { font-size: 1.4rem; font-weight: 800; color: var(--text-dark); margin-bottom: 0.5rem; }
+        .modal-content p { color: var(--text-muted); font-size: 1rem; margin-bottom: 2rem; }
+        .modal-actions { display: flex; gap: 1rem; }
+        .btn-cancel, .btn-confirm { flex: 1; border: none; padding: 0.85rem; border-radius: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s; font-size: 1rem; }
+        .btn-cancel { background: #f1f5f9; color: var(--text-dark); }
+        .btn-cancel:hover { background: #e2e8f0; }
+        .btn-confirm { background: #ef4444; color: white; box-shadow: 0 10px 20px rgba(239, 68, 68, 0.3); }
+        .btn-confirm:hover { transform: translateY(-2px); box-shadow: 0 15px 30px rgba(239, 68, 68, 0.4); }
+
+        /* RESPONSIVIDAD: 4K, Desktop, Tablets y Teléfonos */
+        @media (max-width: 1024px) {
+          .fullscreen-glass-card { width: 100vw; height: 100vh; border-radius: 0; border: none; }
+          .card-header { padding: 1.5rem; gap: 1rem; flex-direction: column; align-items: stretch; }
+          .header-top-row { flex-wrap: wrap; gap: 1rem; }
+          .search-container { max-width: 100%; }
+          .card-body { padding: 1.5rem; gap: 1.5rem; }
+          .left-column { padding-right: 1.5rem; }
+          .fullscreen-glass-card.keyboard-active { padding-bottom: var(--keyboard-padding-bottom, min(35vh, 280px)); }
+        }
+
+        @media (max-width: 768px) {
+          .card-body { flex-direction: column; overflow-y: auto; padding-top: 1rem; }
+          .left-column { border-right: none; padding-right: 0; flex: none; }
+          .right-column { padding-top: 1.5rem; border-top: 1px solid var(--border-color); margin-top: 1.5rem; max-width: 100%; }
+          .action-text { display: none; } /* Ocultar texto en botones de retroceso para ganar espacio */
+          .header-info { gap: 0.75rem; }
+          .user-icon-ring { width: 3rem; height: 3rem; border-radius: 0.75rem; }
+          .user-icon { font-size: 1.5rem; }
+          .keyboard-active .card-header { padding: 1rem; }
+        }
+
+        @media (max-width: 480px) {
+           .employees-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+           .employee-avatar { width: 2.2rem; height: 2.2rem; }
+           .fallback-avatar { font-size: 1rem; }
+           .employee-name { font-size: 0.85rem; }
+           .employee-role { font-size: 0.7rem; }
+           .employee-card { padding: 0.5rem; gap: 0.5rem; border-radius: 0.75rem; }
+           .pass-input { padding: 1rem 3rem; font-size: 1rem; }
         }
       `}</style>
     </div>

@@ -1,0 +1,63 @@
+/**
+ * Sistema de escalado responsive para resolución de pantalla
+ * 
+ * Cuando cambias la resolución de Windows (ej: 1920x1080 → 1366x768)
+ * o el escalado DPI (100% → 125%), este archivo asegura que:
+ * - Los iconos, teclado virtual y modales escalen proporcionalmente
+ * - El diseño se mantenga coherente en cualquier resolución
+ * 
+ * Usa unidades rem para que todo escale con la base de fuente.
+ */
+
+/* Base de fuente fluida: escala entre 12px y 18px según ancho de viewport */
+html {
+  font-size: clamp(12px, 0.75rem + 0.5vw, 18px);
+}
+
+/* Variables de escala para componentes que necesitan ajuste fino */
+:root {
+  /* Factor de escala basado en viewport (1 = normal) */
+  --scale-factor: min(1.2, max(0.85, 100vw / 1400));
+  
+  /* Altura del teclado virtual en vh - se adapta a la pantalla */
+  --keyboard-height: min(40vh, 25rem);
+  
+  /* Espacio extra cuando el teclado está activo */
+  --keyboard-padding-bottom: min(30vh, 260px);
+  
+  /* Tamaño máximo de modales - proporcional al viewport */
+  --modal-max-width: min(90vw, 28rem);
+  --modal-max-width-lg: min(95vw, 32rem);
+}
+
+/* Pantallas muy pequeñas (< 768px) */
+@media (max-width: 767px) {
+  html {
+    font-size: clamp(11px, 2.5vw, 14px);
+  }
+  :root {
+    --keyboard-height: min(40vh, 220px);
+    --keyboard-padding-bottom: min(45vh, 250px);
+  }
+}
+
+/* Pantallas medianas (768px - 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  html {
+    font-size: clamp(13px, 1.2vw + 10px, 16px);
+  }
+}
+
+/* Pantallas grandes (1024px - 1920px) */
+@media (min-width: 1025px) and (max-width: 1920px) {
+  html {
+    font-size: clamp(14px, 0.8vw + 10px, 16px);
+  }
+}
+
+/* Pantallas 4K y ultra wide */
+@media (min-width: 1921px) {
+  html {
+    font-size: clamp(16px, 0.5vw + 12px, 20px);
+  }
+}
