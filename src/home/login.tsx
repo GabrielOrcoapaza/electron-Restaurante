@@ -26,26 +26,9 @@ const Login: React.FC = () => {
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [showConfirmExit, setShowConfirmExit] = useState(false);
-  const [updateChecking, setUpdateChecking] = useState(false);
 
   const [userLoginMutation, { loading }] = useMutation(USER_LOGIN);
-
-  const isElectron = typeof window !== 'undefined' && typeof (window as any).require === 'function';
-
-  const handleCheckForUpdates = async () => {
-    if (!isElectron) return;
-    setUpdateChecking(true);
-    try {
-      const { ipcRenderer } = (window as any).require('electron');
-      const result = await ipcRenderer.invoke('check-for-updates');
-      showToast(result?.message || 'Listo', result?.success ? 'success' : 'info');
-    } catch (e: any) {
-      showToast(e?.message || 'Error al verificar actualizaciones', 'error');
-    } finally {
-      setUpdateChecking(false);
-    }
-  };
-
+  
   const { data: usersData, loading: employeesLoading, refetch: refetchEmployees } = useQuery(GET_USERS_BY_BRANCH, {
     variables: { branchId: companyData?.branch?.id },
     skip: !companyData?.branch?.id,
