@@ -833,13 +833,17 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       });
 
       try {
+        // Eliminación parcial: obtener MAC del equipo para deviceId
+        const deviceIdForPartial = await getMacAddress();
+        
+        console.log('🗑️ [ELIMINACIÓN PARCIAL] deviceId enviado:', deviceIdForPartial || 'undefined', deviceIdForPartial ? '(MAC ✓)' : '(deviceId contexto)');
         // Llamar a la mutación con cancelación parcial (quantity: 1)
         const result = await cancelOperationDetailMutation({
           variables: {
             detailId: originalDetailId,
             quantity: 1,
             userId: user?.id || '',
-            deviceId: deviceId || undefined
+            deviceId: deviceIdForPartial
           }
         });
 
@@ -952,12 +956,15 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           return next;
         });
 
+        // Eliminación parcial (con copias): obtener MAC del equipo para deviceId
+        const deviceIdForPartial2 = await getMacAddress();
+        console.log('🗑️ [ELIMINACIÓN PARCIAL] deviceId enviado:', deviceIdForPartial2 || 'undefined', deviceIdForPartial2 ? '(MAC ✓)' : '(deviceId contexto)');
         const result = await cancelOperationDetailMutation({
           variables: {
             detailId: detailId,
             quantity: originalQuantityToCancel,
             userId: user?.id || '',
-            deviceId: deviceId || undefined
+            deviceId: deviceIdForPartial2
           }
         });
 
@@ -1020,11 +1027,14 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         return newAssignments;
       });
 
+      // Obtener MAC para deviceId (eliminación completa desde modal)
+      const deviceIdForCancel= await getMacAddress();
+      console.log('🗑️ [ELIMINACIÓN] deviceId enviado:', deviceIdForCancel || 'undefined', deviceIdForCancel ? '(MAC ✓)' : '(deviceId contexto)');
       const result = await cancelOperationDetailMutation({
         variables: {
           detailId: detailId,
           userId: user?.id || '',
-          deviceId: deviceId || undefined
+          deviceId: deviceIdForCancel
         }
       });
 
@@ -1143,25 +1153,27 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   // Función helper para obtener MAC address del dispositivo
   // ⚠️ IMPORTANTE: Siempre priorizar obtener la MAC, nunca usar deviceId temporal
   const getDeviceIdOrMac = async (): Promise<string> => {
+    console.log('🔍 [PAGO] Obteniendo identificador para impresión...');
     try {
       // Siempre intentar obtener la MAC primero - es el valor requerido
       const macAddress = await getMacAddress();
       if (macAddress && macAddress.trim() !== '') {
-        console.log('✅ MAC address obtenida correctamente:', macAddress);
+        console.log('✅ [PAGO] USANDO MAC ADDRESS:', macAddress);
         return macAddress;
       } else {
-        console.warn('⚠️ MAC address obtenida pero está vacía');
+        console.warn('⚠️ [PAGO] MAC address obtenida pero está vacía, pasando a deviceId');
       }
     } catch (error) {
-      console.error('❌ Error al obtener MAC address:', error);
+      console.error('❌ [PAGO] Error al obtener MAC address:', error);
+      console.log('⚠️ [PAGO] Pasando a usar deviceId como fallback');
     }
 
     // Fallback: usar deviceId del contexto para permitir el pago (impresión puede no funcionar)
     if (deviceId && String(deviceId).trim() !== '') {
-      console.warn('⚠️ Usando deviceId como fallback para permitir el pago:', deviceId);
+      console.log('⚠️ [PAGO] USANDO DEVICE ID (fallback - no es MAC):', deviceId);
       return String(deviceId);
     }
-    console.error('❌ No se pudo obtener MAC ni deviceId. Se permitirá pago sin impresión.');
+    console.error('❌ [PAGO] No se pudo obtener MAC ni deviceId. Se usará UNKNOWN (impresión puede fallar)');
     return 'UNKNOWN';
   };
   // ============================================================================
@@ -1247,14 +1259,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
     // Obtener MAC address (prioritaria para impresión) o deviceId como fallback
     const resolvedDeviceId = await getDeviceIdOrMac();
+    const isMacAddress = resolvedDeviceId.includes(':');
+    console.log('📋 [PAGO] Identificador final para backend:', resolvedDeviceId, isMacAddress ? '(es MAC ✓)' : '(NO es MAC - deviceId)');
 
     // Verificar que sea una MAC válida (formato XX:XX:XX:XX:XX:XX o similar)
-    if (!resolvedDeviceId.includes(':')) {
-      console.warn('⚠️ El deviceId no parece ser una MAC address válida:', resolvedDeviceId);
-      // Continuar de todas formas, pero advertir
+    if (!isMacAddress) {
+      console.warn('⚠️ [PAGO] El valor no parece ser una MAC address válida. La impresión puede no funcionar.');
     }
-
-    console.log('✅ MAC address que se enviará al backend:', resolvedDeviceId);
 
     try {
       const now = new Date();
@@ -2146,12 +2157,15 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         if (totalQuantity < originalQuantity) {
           const quantityToCancel = originalQuantity - totalQuantity;
 
+          // Eliminación parcial (transferir): obtener MAC del equipo para deviceId
+          const deviceIdForTransfer = await getMacAddress();
+          console.log('🗑️ [ELIMINACIÓN PARCIAL - Transferir] deviceId enviado:', deviceIdForTransfer || 'undefined', deviceIdForTransfer ? '(MAC ✓)' : '(deviceId contexto)');
           // Cancelar parcialmente el detalle original
           const cancelVariables: any = {
             detailId: originalDetailId,
             quantity: quantityToCancel,
             userId: user?.id || '',
-            deviceId: deviceId || undefined
+            deviceId: deviceIdForTransfer
           };
 
           const cancelResult = await cancelOperationDetailMutation({

@@ -219,11 +219,7 @@ const Login: React.FC = () => {
                <button type="button" className="btn-back" onClick={handleBackToCompany}>
                   🔙 <span className="action-text">Cambiar Local</span>
                </button>
-               {isElectron && (
-                  <button type="button" className="btn-update" onClick={handleCheckForUpdates} disabled={updateChecking}>
-                    {updateChecking ? '⏳' : '🔄'} <span className="action-text">Actualizar</span>
-                  </button>
-               )}
+               
             </div>
           </div>
           
