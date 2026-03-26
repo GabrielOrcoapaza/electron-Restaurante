@@ -5,6 +5,11 @@ type VirtualKeyboardProps = {
 	onBackspace: () => void;
 	disabled?: boolean;
 	compact?: boolean;
+	onClose?: () => void;
+	/** Si se define, muestra tecla Enter y la ejecuta (p. ej. confirmar búsqueda en order) */
+	onEnter?: () => void;
+	/** Con `compact`, reduce aún más teclas (p. ej. móviles &lt; 480px) */
+	tight?: boolean;
 };
 
 // Filas del teclado en español (minúsculas y con shift)
@@ -18,10 +23,14 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 	onKeyPress,
 	onBackspace,
 	disabled = false,
-	compact = false
+	compact = false,
+	onClose,
+	onEnter,
+	tight = false
 }) => {
 	const [shift, setShift] = useState(false);
 	const [showNumbers, setShowNumbers] = useState(false);
+	const isTight = Boolean(compact && tight);
 
 	const handleKey = (key: string) => {
 		if (disabled) return;
@@ -41,19 +50,22 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 			onBackspace();
 			return;
 		}
+		if (key === '↵') {
+			onEnter?.();
+			return;
+		}
 		const char = key === ' ' ? ' ' : (shift && key.length === 1 ? key.toUpperCase() : key.toLowerCase());
 		onKeyPress(char);
 		if (shift && key !== ' ') setShift(false);
 	};
 
-	// Teclas escalables con rem para que se adapten a la resolución de pantalla
-	// Modo compact: menos altura para dejar espacio a los botones Iniciar sesión / Volver.
+	// Teclas escalables con rem; compact / tight para tablets y móviles
 	const keyStyle: React.CSSProperties = {
 		flex: 1,
-		minWidth: compact ? '1.75rem' : '2rem',
-		height: compact ? '2.9rem' : '4.25rem',
-		padding: compact ? '0.25rem 0.2rem' : '0.5rem 0.35rem',
-		fontSize: compact ? '1.75rem' : '2.3rem',
+		minWidth: isTight ? '1.3rem' : compact ? '1.75rem' : '2rem',
+		height: isTight ? '2.4rem' : compact ? '2.9rem' : '4.25rem',
+		padding: isTight ? '0.12rem 0.08rem' : compact ? '0.25rem 0.2rem' : '0.5rem 0.35rem',
+		fontSize: isTight ? '1.35rem' : compact ? '1.75rem' : '2.3rem',
 		fontWeight: 700,
 		border: '1px solid #cbd5e0',
 		borderRadius: '0.5rem',
@@ -73,32 +85,43 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 		background: '#e2e8f0',
 		color: '#475569',
 		flex: '0 0 auto',
-		minWidth: compact ? '2.5rem' : '3.5rem'
+		minWidth: isTight ? '2rem' : compact ? '2.5rem' : '3.5rem'
 	};
 
 	const spaceKeyStyle: React.CSSProperties = {
 		...keyStyle,
 		flex: 1,
-		minWidth: compact ? '3.75rem' : '7.5rem',
+		minWidth: isTight ? '2.6rem' : compact ? '3.75rem' : '7.5rem',
 		background: '#e2e8f0',
 		color: '#334155',
 		border: '2px solid #94a3b8',
 		fontWeight: 700,
-		fontSize: compact ? '0.75rem' : '0.95rem'
+		fontSize: isTight ? '0.62rem' : compact ? '0.75rem' : '0.95rem'
+	};
+
+	const enterKeyStyle: React.CSSProperties = {
+		...specialKeyStyle,
+		minWidth: isTight ? '2.75rem' : compact ? '3.5rem' : '4.5rem',
+		maxWidth: isTight ? '3.5rem' : compact ? '4.5rem' : '5.5rem',
+		fontSize: isTight ? '0.58rem' : compact ? '0.68rem' : '0.85rem',
+		fontWeight: 800,
+		background: '#cbd5e1',
+		color: '#1e293b'
 	};
 
 	const rowStyle: React.CSSProperties = {
 		display: 'flex',
 		width: '100%',
-		gap: compact ? '0.25rem' : '0.375rem',
+		gap: isTight ? '0.12rem' : compact ? '0.25rem' : '0.375rem',
 		justifyContent: 'stretch',
-		marginBottom: compact ? '0.2rem' : '0.375rem'
+		marginBottom: isTight ? '0.12rem' : compact ? '0.2rem' : '0.375rem'
 	};
 
 	const containerStyle: React.CSSProperties = {
 		width: '100%',
+		maxWidth: '100%',
 		boxSizing: 'border-box',
-		padding: compact ? '0.4rem 0.6rem' : '0.9rem',
+		padding: isTight ? '0.3rem 0.35rem' : compact ? '0.4rem 0.6rem' : '0.9rem',
 		background: '#f8fafc',
 		borderRadius: '0.625rem',
 		border: '1px solid #e2e8f0'
@@ -107,6 +130,11 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 	if (showNumbers) {
 		return (
 			<div style={containerStyle}>
+				{onClose && (
+					<div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+						<button type="button" onClick={onClose} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '0.5rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>✕ Cerrar</button>
+					</div>
+				)}
 				<div style={rowStyle}>
 					{NUMBERS.map(k => (
 						<button
@@ -142,6 +170,11 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 					<button type="button" onClick={() => handleKey(' ')} style={spaceKeyStyle} onMouseDown={e => e.preventDefault()}>
 						Espacio
 					</button>
+					{onEnter && (
+						<button type="button" onClick={() => handleKey('↵')} style={enterKeyStyle} onMouseDown={e => e.preventDefault()}>
+							Enter
+						</button>
+					)}
 					<button type="button" onClick={() => handleKey('⌫')} style={specialKeyStyle} onMouseDown={e => e.preventDefault()}>
 						⌫
 					</button>
@@ -152,6 +185,11 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 
 	return (
 		<div style={containerStyle}>
+			{onClose && (
+				<div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+					<button type="button" onClick={onClose} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '0.5rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>✕ Cerrar</button>
+				</div>
+			)}
 			<div style={rowStyle}>
 				{ROW1.map(k => (
 					<button
@@ -204,6 +242,11 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 				<button type="button" onClick={() => handleKey(' ')} style={spaceKeyStyle} onMouseDown={e => e.preventDefault()}>
 					Espacio
 				</button>
+				{onEnter && (
+					<button type="button" onClick={() => handleKey('↵')} style={enterKeyStyle} onMouseDown={e => e.preventDefault()}>
+						Enter
+					</button>
+				)}
 			</div>
 		</div>
 	);

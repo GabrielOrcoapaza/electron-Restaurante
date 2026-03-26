@@ -13,22 +13,26 @@ const Login: React.FC = () => {
   const { loginUser, companyData, getMacAddress, clearCompanyData } = useAuth();
   const { isMobile, isTablet } = useResponsive();
   const { showToast } = useToast();
-  
+
   const [formData, setFormData] = useState({
     selectedEmployee: '',
     password: ''
   });
-  
+
   const [searchTerm, setSearchTerm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<'search' | 'password' | null>(null);
+  /** Teclado mostrado explícitamente con el botón (además del foco en buscar/contraseña) */
+  const [virtualKeyboardOpen, setVirtualKeyboardOpen] = useState(false);
+  const keyboardActive = focusedInput !== null || virtualKeyboardOpen;
   const keyboardRef = useRef<HTMLDivElement>(null);
+  const passwordFormRef = useRef<HTMLFormElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [showConfirmExit, setShowConfirmExit] = useState(false);
 
   const [userLoginMutation, { loading }] = useMutation(USER_LOGIN);
-  
+
   const { data: usersData, loading: employeesLoading, refetch: refetchEmployees } = useQuery(GET_USERS_BY_BRANCH, {
     variables: { branchId: companyData?.branch?.id },
     skip: !companyData?.branch?.id,
@@ -40,7 +44,7 @@ const Login: React.FC = () => {
   const filteredEmployees = allEmployees
     .filter((employee: any) => employee.isActive !== false)
     .filter((employee: any) => {
-      const fullName = `\${employee.firstName || ''} \${employee.lastName || ''}`.toLowerCase();
+      const fullName = `${employee.firstName || ''} ${employee.lastName || ''}`.toLowerCase();
       const dni = (employee.dni || '').toLowerCase();
       const search = searchTerm.toLowerCase();
       return fullName.includes(search) || dni.includes(search);
@@ -84,7 +88,7 @@ const Login: React.FC = () => {
       showToast('Por favor ingresa tu contraseña', 'warning');
       return;
     }
-    
+
     await performLogin(formData.selectedEmployee, formData.password || '');
   };
 
@@ -166,13 +170,31 @@ const Login: React.FC = () => {
     if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password.slice(0, -1) }));
   };
 
+  const closeVirtualKeyboard = () => {
+    setVirtualKeyboardOpen(false);
+    setFocusedInput(null);
+    searchInputRef.current?.blur();
+    passwordInputRef.current?.blur();
+  };
+
+  const activateVirtualKeyboard = () => {
+    setVirtualKeyboardOpen(true);
+    if (formData.selectedEmployee) {
+      setFocusedInput('password');
+      setTimeout(() => passwordInputRef.current?.focus(), 100);
+    } else {
+      setFocusedInput('search');
+      setTimeout(() => searchInputRef.current?.focus(), 100);
+    }
+  };
+
   return (
     <div className="login-user-wrapper">
       <div className="login-bg-image"></div>
       <div className="login-overlay"></div>
-      
-      <div className={`fullscreen-glass-card \${focusedInput ? 'keyboard-active' : ''}`}>
-        
+
+      <div className={`fullscreen-glass-card ${keyboardActive ? 'keyboard-active' : ''}`}>
+
         {/* CABECERA: Ahora integra el buscador de empleados */}
         <div className="card-header">
           <div className="header-top-row">
@@ -189,28 +211,29 @@ const Login: React.FC = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Buscar empleado por nombre o DNI..."
-                  className={`search-input \${focusedInput === 'search' ? 'focused' : ''}`}
+                  className={`search-input ${focusedInput === 'search' ? 'focused' : ''}`}
                   onFocus={() => {
                     setFocusedInput('search');
-                    setTimeout(() => { if (searchInputRef.current) searchInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
+                    setTimeout(() => {
+                      searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+                    }, 300);
                   }}
                 />
               </div>
             </div>
-            
+
             <div className="header-actions">
-               <button type="button" className="btn-back" onClick={handleBackToCompany}>
-                  🔙 <span className="action-text">Cambiar Local</span>
-               </button>
-               
+              <button type="button" className="btn-back" onClick={handleBackToCompany}>
+                🔙 <span className="action-text">Cambiar Local</span>
+              </button>
             </div>
           </div>
-          
+
 
         </div>
 
         <div className="card-body">
-          
+
           <div className="left-column">
             {/* EMPLOYEES GRID */}
             <div className="employees-scroll-area employees-scroll-area-content">
@@ -222,7 +245,7 @@ const Login: React.FC = () => {
               ) : filteredEmployees.length === 0 ? (
                 <div className="empty-state">
                   <span>😟</span>
-                  <p>{searchTerm ? `No se encontró a "\${searchTerm}"` : 'El local está vacío.'}</p>
+                  <p>{searchTerm ? `No se encontró a "${searchTerm}"` : 'El local está vacío.'}</p>
                 </div>
               ) : (
                 <div className="employees-grid">
@@ -232,7 +255,7 @@ const Login: React.FC = () => {
                       <button
                         key={employee.id}
                         type="button"
-                        className={`employee-card \${selected ? 'selected' : ''}`}
+                        className={`employee-card ${selected ? 'selected' : ''}`}
                         onClick={async () => {
                           const isWaiter = employee.role === 'WAITER';
 
@@ -241,7 +264,7 @@ const Login: React.FC = () => {
                             try {
                               const cachedPasswords = JSON.parse(localStorage.getItem('cached_waiter_passwords') || '{}');
                               password = cachedPasswords[employee.dni] || '';
-                            } catch (e) {}
+                            } catch (e) { }
                             const ok = await performLogin(employee.dni, password);
                             if (!ok) {
                               setFormData({ ...formData, selectedEmployee: employee.dni, password: '' });
@@ -254,7 +277,7 @@ const Login: React.FC = () => {
                           setFormData({
                             ...formData,
                             selectedEmployee: employee.dni,
-                            password: ''        
+                            password: ''
 
                           });
                           showToast(`Has seleccionado a ${employee.firstName}`, 'success');
@@ -267,7 +290,7 @@ const Login: React.FC = () => {
                             <img
                               src={employee.photoBase64.startsWith('data:')
                                 ? employee.photoBase64
-                                : `data:image/jpeg;base64,\${employee.photoBase64}`}
+                                : `data:image/jpeg;base64,${employee.photoBase64}`}
                               alt={employee.firstName}
                               onError={(e) => {
                                 const el = e.currentTarget;
@@ -276,7 +299,7 @@ const Login: React.FC = () => {
                               }}
                             />
                           ) : null}
-                          <span className={`fallback-avatar \${employee.photoBase64 ? 'hidden' : ''}`}>👤</span>
+                          <span className={`fallback-avatar ${employee.photoBase64 ? 'hidden' : ''}`}>👤</span>
                         </div>
                         <div className="employee-info">
                           <span className="employee-name">{employee.firstName} {employee.lastName}</span>
@@ -290,32 +313,38 @@ const Login: React.FC = () => {
               )}
             </div>
 
-            {/* TECLADO VIRTUAL - aparece sobre los empleados */}
-            <div 
-              ref={keyboardRef} 
-              className={`keyboard-overlay \${focusedInput ? 'visible' : ''}`}
+            {/* Teclado solo sobre la columna de mozos / empleados (no invade contraseña) */}
+            <div
+              ref={keyboardRef}
+              className={`keyboard-overlay ${keyboardActive ? 'visible' : ''}`}
               onMouseDown={(e) => e.preventDefault()}
             >
               <div className="keyboard-container">
-              
                 <VirtualKeyboard
                   onKeyPress={handleVirtualKeyPress}
                   onBackspace={handleVirtualBackspace}
-                  compact={isMobile || isTablet}
+                  compact
+                  tight={isMobile || isTablet}
+                  onClose={closeVirtualKeyboard}
+                  onEnter={() => {
+                    if (focusedInput === 'password') {
+                      passwordFormRef.current?.requestSubmit();
+                    }
+                  }}
                 />
               </div>
             </div>
           </div>
-              
+
           <div className="right-column">
-             {/* PASSWORD AREA */}
-            <form className="password-area" onSubmit={handleSubmit}>
+            {/* PASSWORD AREA */}
+            <form ref={passwordFormRef} className="password-area" onSubmit={handleSubmit}>
               <div className="password-header">
                 <h2>Contraseña</h2>
                 <p>{formData.selectedEmployee ? 'Ingresa tu llave privada' : 'Selecciona tu usuario primero'}</p>
               </div>
 
-              <div className={`password-input-group \${focusedInput === 'password' ? 'focused' : ''}`}>
+              <div className={`password-input-group ${focusedInput === 'password' ? 'focused' : ''}`}>
                 <span className="pass-icon">🔒</span>
                 <input
                   ref={passwordInputRef}
@@ -326,8 +355,10 @@ const Login: React.FC = () => {
                   placeholder="••••••••"
                   className="pass-input"
                   onFocus={() => {
-                     setFocusedInput('password');
-                     setTimeout(() => { if (passwordInputRef.current) passwordInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
+                    setFocusedInput('password');
+                    setTimeout(() => {
+                      passwordInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+                    }, 300);
                   }}
                   disabled={!formData.selectedEmployee}
                 />
@@ -350,6 +381,18 @@ const Login: React.FC = () => {
           </div>
 
         </div>
+
+        {!keyboardActive && (
+          <button
+            type="button"
+            className="btn-float-virtual-keyboard"
+            onClick={activateVirtualKeyboard}
+            title="Teclado virtual"
+            aria-label="Teclado virtual"
+          >
+            <span className="float-kb-icon" aria-hidden>⌨️</span>
+          </button>
+        )}
 
       </div>
 
@@ -440,9 +483,12 @@ const Login: React.FC = () => {
           transition: padding-bottom 0.4s ease;
         }
 
-        /* Espacio para el teclado - usa variable CSS que escala con viewport */
+        /* Aire inferior solo en la lista de mozos cuando el teclado está abierto */
         .fullscreen-glass-card.keyboard-active {
-           padding-bottom: var(--keyboard-padding-bottom, min(30vh, 260px));
+           padding-bottom: 0;
+        }
+        .keyboard-active .left-column .employees-scroll-area {
+          padding-bottom: min(34vh, 280px);
         }
 
         @keyframes popUpCard {
@@ -512,6 +558,41 @@ const Login: React.FC = () => {
         .header-actions {
            display: flex;
            gap: 0.75rem;
+           flex-wrap: wrap;
+           align-items: center;
+        }
+
+        .btn-float-virtual-keyboard {
+          position: absolute;
+          left: max(1rem, calc(1rem + env(safe-area-inset-left, 0px)));
+          bottom: max(1rem, calc(1rem + env(safe-area-inset-bottom, 0px)));
+          z-index: 45;
+          width: 3.5rem;
+          height: 3.5rem;
+          padding: 0;
+          border-radius: 50%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          cursor: pointer;
+          border: none;
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          color: white;
+          box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45), 0 2px 8px rgba(0, 0, 0, 0.12);
+          transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+        }
+        .btn-float-virtual-keyboard:hover {
+          filter: brightness(1.06);
+          transform: translateY(-2px);
+          box-shadow: 0 12px 28px rgba(99, 102, 241, 0.5), 0 4px 12px rgba(0, 0, 0, 0.14);
+        }
+        .btn-float-virtual-keyboard:active {
+          transform: translateY(0);
+        }
+        .float-kb-icon {
+          font-size: 1.45rem;
+          line-height: 1;
         }
 
         .btn-back, .btn-update {
@@ -540,10 +621,8 @@ const Login: React.FC = () => {
 
 
 
-        /* HEADER REDUCIDO para teclado activo */
-        .keyboard-active .card-header { padding: 1rem 3rem; gap: 0.75rem; }
-        .keyboard-active .user-icon-ring { width: 2.5rem; height: 2.5rem; border-radius: 0.5rem; }
-        .keyboard-active .user-icon { font-size: 1.2rem; }
+        /* Sin compactar el header al abrir teclado: evita que la columna derecha
+           (justify-content: center) recalcule y "salte" el bloque de login */
 
         /* BODY DE DOS COLUMNAS */
         .card-body {
@@ -551,9 +630,68 @@ const Login: React.FC = () => {
         }
         
         .left-column {
-           flex: 1.8; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--border-color); padding-right: 2.5rem;
+           position: relative;
+           flex: 1.85;
+           display: flex;
+           flex-direction: column;
+           min-width: 0;
+           min-height: 0;
+           border-right: 1px solid var(--border-color);
+           padding-right: 2.5rem;
         }
 
+        /* Teclado: ancho de la columna izquierda (mozos), alineado al divisor con contraseña */
+        .keyboard-overlay {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          width: auto;
+          max-width: none;
+          transform: translateY(100%);
+          max-height: min(40vh, 300px);
+          z-index: 55;
+          padding: 0.4rem 0.4rem max(0.5rem, env(safe-area-inset-bottom));
+          box-sizing: border-box;
+          overflow-x: hidden;
+          overflow-y: auto;
+          scrollbar-width: auto;
+          pointer-events: none;
+          opacity: 0;
+          visibility: hidden;
+          border: 1px solid #cbd5e1;
+          border-radius: 1rem;
+          background: rgba(248, 250, 252, 0.98);
+          backdrop-filter: blur(12px);
+          box-shadow: 0 -8px 32px rgba(0,0,0, 0.1), 0 4px 16px rgba(0,0,0, 0.06);
+          transition: transform 0.36s cubic-bezier(0.16, 1, 0.35, 1), opacity 0.26s ease, visibility 0.36s;
+        }
+        .keyboard-overlay.visible {
+          transform: translateY(0);
+          pointer-events: auto;
+          opacity: 1;
+          visibility: visible;
+        }
+        .keyboard-overlay .keyboard-container {
+          width: 100%;
+          max-width: 100%;
+          margin: 0 auto;
+        }
+        .keyboard-overlay::-webkit-scrollbar {
+          width: 22px;
+        }
+        .keyboard-overlay::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 10px;
+        }
+        .keyboard-overlay::-webkit-scrollbar-thumb {
+          background: #94a3b8;
+          border-radius: 10px;
+          border: 3px solid #f1f5f9;
+        }
+        .keyboard-overlay::-webkit-scrollbar-thumb:hover {
+          background: #64748b;
+        }
         .right-column {
            flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; max-width: 450px;
         }
@@ -561,13 +699,26 @@ const Login: React.FC = () => {
         /* GRID EMPLEADOS - SMALLER CARDS */
         .employees-scroll-area {
           flex: 1; overflow-y: auto; min-height: 0; border-radius: 1rem; padding-right: 0.5rem;
+          scrollbar-width: auto;
         }
-        .employees-scroll-area::-webkit-scrollbar { width: 6px; }
-        .employees-scroll-area::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 10px; }
+        .employees-scroll-area::-webkit-scrollbar {
+          width: 22px;
+        }
+        .employees-scroll-area::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 10px;
+        }
+        .employees-scroll-area::-webkit-scrollbar-thumb {
+          background: #94a3b8;
+          border-radius: 10px;
+          border: 3px solid #f1f5f9;
+        }
+        .employees-scroll-area::-webkit-scrollbar-thumb:hover {
+          background: #64748b;
+        }
 
         .employees-grid {
           display: grid;
-          /* Mini cards fitting naturally */
           grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
           gap: 1rem;
           padding-bottom: 1rem;
@@ -577,10 +728,10 @@ const Login: React.FC = () => {
           background: white;
           border: 2px solid var(--border-color);
           border-radius: 1rem;
-          padding: 0.75rem;  /* Reducido */
+          padding: 0.8rem 0.85rem;
           display: flex;
-          align-items: center;
-          gap: 0.75rem;  /* Reducido */
+          align-items: flex-start;
+          gap: 0.75rem;
           cursor: pointer;
           transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
           text-align: left;
@@ -591,21 +742,39 @@ const Login: React.FC = () => {
         .employee-card.selected { border-color: var(--primary); background: #fff5f5; box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.15); }
 
         .employee-avatar {
-          width: 2.8rem; height: 2.8rem; /* Reducido */
+          width: 2.95rem; height: 2.95rem;
           border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center;
           overflow: hidden; flex-shrink: 0; border: 1px solid var(--border-color);
+          margin-top: 0.08rem;
         }
         .employee-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .fallback-avatar { font-size: 1.4rem; }
 
-        .employee-info { display: flex; flex-direction: column; overflow: hidden; padding-right: 1.5rem; }
-        .employee-name { 
-          font-weight: 800; color: var(--text-dark); font-size: 0.95rem; /* Reducido */
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.15rem;
+        .employee-info {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          overflow: visible;
+          padding-right: 1.5rem;
+        }
+        .employee-name {
+          font-weight: 800;
+          color: var(--text-dark);
+          font-size: 0.95rem;
+          line-height: 1.32;
+          margin-bottom: 0.15rem;
+          white-space: normal;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
         .employee-role {
-          font-weight: 600; color: var(--text-muted); font-size: 0.75rem; /* Reducido */
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+          font-weight: 600;
+          color: var(--text-muted);
+          font-size: 0.76rem;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .selected-badge {
@@ -701,27 +870,53 @@ const Login: React.FC = () => {
           .search-container { max-width: 100%; }
           .card-body { padding: 1.5rem; gap: 1.5rem; }
           .left-column { padding-right: 1.5rem; }
-          .fullscreen-glass-card.keyboard-active { padding-bottom: var(--keyboard-padding-bottom, min(35vh, 280px)); }
+          .fullscreen-glass-card.keyboard-active { padding-bottom: 0; }
         }
 
         @media (max-width: 768px) {
-          .card-body { flex-direction: column; overflow-y: auto; padding-top: 1rem; }
+          .card-body {
+            flex-direction: column;
+            overflow-y: auto;
+            padding-top: 1rem;
+            scrollbar-width: auto;
+          }
+          .card-body::-webkit-scrollbar {
+            width: 22px;
+          }
+          .card-body::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+          }
+          .card-body::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 10px;
+            border: 3px solid #f1f5f9;
+          }
+          .card-body::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+          }
           .left-column { border-right: none; padding-right: 0; flex: none; }
           .right-column { padding-top: 1.5rem; border-top: 1px solid var(--border-color); margin-top: 1.5rem; max-width: 100%; }
           .action-text { display: none; } /* Ocultar texto en botones de retroceso para ganar espacio */
+          .btn-float-virtual-keyboard {
+            left: max(0.65rem, calc(0.65rem + env(safe-area-inset-left, 0px)));
+            bottom: max(0.65rem, calc(0.65rem + env(safe-area-inset-bottom, 0px)));
+            width: 3.1rem;
+            height: 3.1rem;
+          }
+          .float-kb-icon { font-size: 1.25rem; }
           .header-info { gap: 0.75rem; }
           .user-icon-ring { width: 3rem; height: 3rem; border-radius: 0.75rem; }
           .user-icon { font-size: 1.5rem; }
-          .keyboard-active .card-header { padding: 1rem; }
         }
 
         @media (max-width: 480px) {
-           .employees-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-           .employee-avatar { width: 2.2rem; height: 2.2rem; }
-           .fallback-avatar { font-size: 1rem; }
-           .employee-name { font-size: 0.85rem; }
+           .employees-grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
+           .employee-avatar { width: 2.35rem; height: 2.35rem; }
+           .fallback-avatar { font-size: 1.05rem; }
+           .employee-name { font-size: 0.86rem; }
            .employee-role { font-size: 0.7rem; }
-           .employee-card { padding: 0.5rem; gap: 0.5rem; border-radius: 0.75rem; }
+           .employee-card { padding: 0.55rem 0.6rem; gap: 0.55rem; border-radius: 0.8rem; }
            .pass-input { padding: 1rem 3rem; font-size: 1rem; }
         }
       `}</style>

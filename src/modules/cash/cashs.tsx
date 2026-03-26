@@ -9,7 +9,7 @@ import {
   GET_CASH_CLOSURES,
   GET_PAYMENTS_PENDING_CLOSURE
 } from '../../graphql/queries';
-import { CLOSE_CASH, REPRINT_CLOSURE, PRINT_PAYMENT } from '../../graphql/mutations';
+import { CLOSE_CASH, REPRINT_CLOSURE, PRINT_PAYMENT, CANCEL_PAYMENT } from '../../graphql/mutations';
 import ManualTransactionModal from './manualTransactionModal';
 import CashDetailModal, { type CashClosureForDetail } from './cashDetailModal';
 
@@ -168,7 +168,7 @@ const Cashs: React.FC = () => {
   );
 
   // Query para obtener preview de cierre
-  const { data: previewData, loading: previewLoading } = useQuery(
+  const { data: previewData, loading: previewLoading, refetch: refetchPreview } = useQuery(
     GET_CASH_CLOSURE_PREVIEW,
     {
       variables: {
@@ -204,7 +204,7 @@ const Cashs: React.FC = () => {
   );
 
   // Query para movimientos de caja (pagos pendientes de cierre) — solo cuando el usuario hace clic en "Visualizar"
-  const { data: movementsData, loading: movementsLoading } = useQuery(GET_PAYMENTS_PENDING_CLOSURE, {
+  const { data: movementsData, loading: movementsLoading, refetch: refetchMovements } = useQuery(GET_PAYMENTS_PENDING_CLOSURE, {
     variables: {
       cashRegisterId: selectedCashRegister,
       transactionType: null,
@@ -221,6 +221,9 @@ const Cashs: React.FC = () => {
   // Mutación para imprimir movimiento de caja individual
   const [printPaymentMutation] = useMutation(PRINT_PAYMENT);
   const [printingPaymentId, setPrintingPaymentId] = useState<string | null>(null);
+
+  const [cancelPaymentMutation] = useMutation(CANCEL_PAYMENT);
+  const [cancelingPaymentId, setCancelingPaymentId] = useState<string | null>(null);
 
   const handleReprintClosure = async (closure: CashClosure) => {
     try {
@@ -277,6 +280,47 @@ const Cashs: React.FC = () => {
       showToast(err?.message || 'Error de conexión al imprimir', 'error');
     } finally {
       setPrintingPaymentId(null);
+    }
+  };
+
+  const isCancelledCashMovement = (mov: PaymentMovement): boolean => {
+    const s = String((mov as any).status ?? '').toUpperCase().replace(/\s/g, '_');
+    return s === 'CANCELLED' || s === 'CANCELED';
+  };
+
+  /** Solo ingresos/egresos manuales (sin operación de compra/venta). El backend rechaza el resto. */
+  const canCancelManualCashMovement = (mov: PaymentMovement): boolean => {
+    if (isCancelledCashMovement(mov)) return false;
+    const opId = mov.operation?.id ?? (mov as any).operation?.id;
+    if (opId != null && opId !== '') return false;
+    return true;
+  };
+
+  const handleCancelManualPayment = async (paymentId: string) => {
+    if (
+      !window.confirm(
+        '¿Anular este movimiento manual? Se marcará como cancelado y se revertirá el saldo de la caja. No aplica a ventas ni compras.'
+      )
+    ) {
+      return;
+    }
+    try {
+      setCancelingPaymentId(paymentId);
+      const result = await cancelPaymentMutation({ variables: { paymentId } });
+      const data = result.data?.cancelPayment ?? (result.data as any)?.cancel_payment;
+      if (data?.success) {
+        showToast(data.message || 'Movimiento anulado', 'success');
+        await refetchMovements();
+        refetchPreview();
+        refetchCashRegisters();
+      } else {
+        showToast(data?.message || 'No se pudo anular el movimiento', 'error');
+      }
+    } catch (err: any) {
+      const gqlMsg = err?.graphQLErrors?.[0]?.message;
+      showToast(gqlMsg || err?.message || 'Error al anular el movimiento', 'error');
+    } finally {
+      setCancelingPaymentId(null);
     }
   };
 
@@ -978,6 +1022,7 @@ const Cashs: React.FC = () => {
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Referencia / Notas</th>
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Documento</th>
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Imprimir</th>
+                              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Anular</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -988,8 +1033,20 @@ const Cashs: React.FC = () => {
                               const method = (mov as any).paymentMethod ?? (mov as any).payment_method ?? mov.paymentMethod ?? '';
                               const doc = mov.issuedDocument ?? (mov as any).issued_document;
                               const docLabel = doc ? `${doc.serial ?? ''}-${doc.number ?? ''}`.replace(/^-|-$/g, '') || '—' : '—';
+                              const isCancelled = isCancelledCashMovement(mov);
+                              const canCancel = canCancelManualCashMovement(mov);
                               return (
-                                <tr key={mov.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <tr
+                                  key={mov.id}
+                                  style={{
+                                    borderBottom: '1px solid #f1f5f9',
+                                    opacity: isCancelled ? 0.48 : 1,
+                                    backgroundColor: isCancelled ? 'rgba(241, 245, 249, 0.65)' : undefined,
+                                    filter: isCancelled ? 'grayscale(0.35)' : undefined,
+                                    transition: 'opacity 0.15s ease'
+                                  }}
+                                  title={isCancelled ? 'Movimiento anulado (no cuenta en caja)' : undefined}
+                                >
                                   <td style={{ padding: '0.75rem', color: '#334155' }}>
                                     {dateStr ? formatDate(dateStr) : '—'}
                                   </td>
@@ -999,35 +1056,44 @@ const Cashs: React.FC = () => {
                                       borderRadius: '6px',
                                       fontSize: '0.75rem',
                                       fontWeight: 600,
-                                      backgroundColor: type === 'INCOME' ? '#dcfce7' : '#fee2e2',
-                                      color: type === 'INCOME' ? '#166534' : '#991b1b'
+                                      backgroundColor: isCancelled
+                                        ? '#e2e8f0'
+                                        : type === 'INCOME'
+                                          ? '#dcfce7'
+                                          : '#fee2e2',
+                                      color: isCancelled
+                                        ? '#64748b'
+                                        : type === 'INCOME'
+                                          ? '#166534'
+                                          : '#991b1b'
                                     }}>
                                       {getTransactionTypeLabel(type)}
                                     </span>
                                   </td>
-                                  <td style={{ padding: '0.75rem', color: '#475569' }}>
+                                  <td style={{ padding: '0.75rem', color: isCancelled ? '#94a3b8' : '#475569' }}>
                                     {getPaymentMethodLabel(method)}
                                   </td>
                                   <td style={{
                                     padding: '0.75rem',
                                     textAlign: 'center',
                                     fontWeight: 600,
-                                    color: type === 'INCOME' ? '#16a34a' : '#dc2626'
+                                    color: isCancelled ? '#94a3b8' : type === 'INCOME' ? '#16a34a' : '#dc2626',
+                                    textDecoration: isCancelled ? 'line-through' : undefined
                                   }}>
                                     {type === 'EXPENSE' ? '-' : ''}{currencyFormatter.format(amount)}
                                   </td>
-                                  <td style={{ padding: '0.75rem', color: '#64748b' }}>
+                                  <td style={{ padding: '0.75rem', color: isCancelled ? '#94a3b8' : '#64748b' }}>
                                     {mov.user?.fullName ?? (mov as any).user?.full_name ?? '—'}
                                   </td>
-                                  <td style={{ padding: '0.75rem', color: '#64748b', fontSize: '0.75rem' }}>
-                                    <div style={{ fontWeight: 600, color: '#475569' }}>
+                                  <td style={{ padding: '0.75rem', color: isCancelled ? '#94a3b8' : '#64748b', fontSize: '0.75rem' }}>
+                                    <div style={{ fontWeight: 600, color: isCancelled ? '#94a3b8' : '#475569' }}>
                                       {mov.operation?.order ? `Op: ${mov.operation.order}` : '—'}
                                     </div>
                                     <div style={{ fontStyle: 'italic', marginTop: '0.1rem' }}>
                                       {mov.notes || '—'}
                                     </div>
                                   </td>
-                                  <td style={{ padding: '0.75rem', color: '#64748b', fontSize: '0.75rem' }}>
+                                  <td style={{ padding: '0.75rem', color: isCancelled ? '#94a3b8' : '#64748b', fontSize: '0.75rem' }}>
                                     {docLabel}
                                   </td>
                                   <td style={{ padding: '0.75rem', textAlign: 'center', verticalAlign: 'middle' }}>
@@ -1038,7 +1104,7 @@ const Cashs: React.FC = () => {
                                         handlePrintPayment(mov.id);
                                       }}
                                       disabled={printingPaymentId === mov.id}
-                                      title="Imprimir este movimiento"
+                                      title="Imprimir este movimiento (incluye anulados)"
                                       style={{
                                         padding: '0.35rem 0.6rem',
                                         borderRadius: '8px',
@@ -1052,6 +1118,52 @@ const Cashs: React.FC = () => {
                                     >
                                       {printingPaymentId === mov.id ? 'Imprimiendo...' : '🖨️'}
                                     </button>
+                                  </td>
+                                  <td style={{ padding: '0.75rem', textAlign: 'center', verticalAlign: 'middle' }}>
+                                    {isCancelled ? (
+                                      <span
+                                        style={{
+                                          display: 'inline-block',
+                                          padding: '0.25rem 0.5rem',
+                                          borderRadius: '6px',
+                                          fontSize: '0.7rem',
+                                          fontWeight: 700,
+                                          backgroundColor: '#f1f5f9',
+                                          color: '#64748b',
+                                          border: '1px dashed #cbd5e1'
+                                        }}
+                                        title="Este movimiento fue anulado"
+                                      >
+                                        Anulado
+                                      </span>
+                                    ) : canCancel ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCancelManualPayment(mov.id);
+                                        }}
+                                        disabled={cancelingPaymentId === mov.id}
+                                        title="Anular solo ingreso/egreso manual"
+                                        style={{
+                                          padding: '0.35rem 0.55rem',
+                                          borderRadius: '8px',
+                                          border: 'none',
+                                          backgroundColor: cancelingPaymentId === mov.id ? '#94a3b8' : '#b91c1c',
+                                          color: 'white',
+                                          fontSize: '0.75rem',
+                                          fontWeight: 600,
+                                          cursor: cancelingPaymentId === mov.id ? 'not-allowed' : 'pointer',
+                                          opacity: cancelingPaymentId === mov.id ? 0.85 : 1
+                                        }}
+                                      >
+                                        {cancelingPaymentId === mov.id ? '…' : 'Anular'}
+                                      </button>
+                                    ) : (
+                                      <span style={{ color: '#94a3b8', fontSize: '0.7rem' }} title="Ventas, compras u operaciones con orden no se anulan aquí">
+                                        —
+                                      </span>
+                                    )}
                                   </td>
                                 </tr>
                               );

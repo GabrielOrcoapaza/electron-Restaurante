@@ -680,6 +680,49 @@ export const CREATE_USER = gql`
   }
 `;
 
+// Mutación para actualizar usuario
+export const UPDATE_USER = gql`
+  mutation UpdateUser(
+    $id: ID!
+    $email: String
+    $password: String
+    $firstName: String
+    $lastName: String
+    $branchId: ID
+    $role: String
+    $phone: String
+    $isActive: Boolean
+    $photoBase64: String
+  ) {
+    updateUser(
+      id: $id
+      email: $email
+      password: $password
+      firstName: $firstName
+      lastName: $lastName
+      branchId: $branchId
+      role: $role
+      phone: $phone
+      isActive: $isActive
+      photoBase64: $photoBase64
+    ) {
+      success
+      message
+      user {
+        id
+        dni
+        email
+        firstName
+        lastName
+        fullName
+        role
+        phone
+        isActive
+      }
+    }
+  }
+`;
+
 // Solo ADMIN: asignar permisos personalizados a un usuario
 export const SET_USER_PERMISSIONS = gql`
   mutation SetUserPermissions($userId: ID!, $permissionCodes: [String]!) {
@@ -1401,6 +1444,16 @@ export const REPRINT_CLOSURE = gql`
 export const PRINT_PAYMENT = gql`
   mutation PrintPayment($paymentId: ID!, $deviceId: String!) {
     printPayment(paymentId: $paymentId, deviceId: $deviceId) {
+      success
+      message
+    }
+  }
+`;
+
+// Anula solo ingresos/egresos manuales (sin operación asociada). No compras ni ventas.
+export const CANCEL_PAYMENT = gql`
+  mutation CancelPayment($paymentId: ID!) {
+    cancelPayment(paymentId: $paymentId) {
       success
       message
     }

@@ -10,6 +10,7 @@ import { CREATE_OPERATION, ADD_ITEMS_TO_OPERATION, UPDATE_TABLE_STATUS, PRINT_PR
 import { GET_CATEGORIES_BY_BRANCH, GET_PRODUCTS_BY_CATEGORY, GET_PRODUCTS_BY_BRANCH, GET_OPERATION_BY_TABLE, GET_OPERATION_BY_ID, SEARCH_PRODUCTS, GET_PRODUCT_BY_CODE, GET_MODIFIERS_BY_SUBCATEGORY } from '../../graphql/queries';
 import ModalObservation from './modalObservation';
 import CategoryIcon from '../../components/CategoryIcon';
+import VirtualKeyboard from '../../components/VirtualKeyboard';
 
 type OrderProps = {
 	table: Table;
@@ -35,7 +36,7 @@ type OrderItem = {
 const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const { companyData, user, deviceId, getDeviceId, getMacAddress, updateTableInContext } = useAuth();
 	const { hasPermission } = useUserPermissions();
-	const { breakpoint } = useResponsive();
+	const { breakpoint, width: viewportWidth } = useResponsive();
 	const { sendMessage } = useWebSocket();
 	const { showToast } = useToast();
 	const isExistingOrder = Boolean(table?.currentOperationId) || table?.status === 'OCCUPIED' || table?.status === 'TO_PAY';
@@ -43,9 +44,13 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	// IGV de la sucursal (float). Por defecto 10.5% para sedes.
 	const igvPercentageFromBranch = Number(companyData?.branch?.igvPercentage) || 10.5;
 
-	// Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+	// Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil en grid)
+	const isXs = breakpoint === 'xs';
 	const isSmall = breakpoint === 'sm'; // 640px - 767px
 	const isMedium = breakpoint === 'md'; // 768px - 1023px
+	/** Teclado virtual: compacto en móvil/tablet (&lt; 1024); más denso en pantallas muy estrechas */
+	const keyboardCompact = viewportWidth < 1024;
+	const keyboardTight = viewportWidth < 480;
 
 	// Valores para grid y breadcrumb (como en delivery.tsx)
 	const gridMinCol = isSmall ? '110px' : isMedium ? '125px' : '150px';
@@ -112,9 +117,19 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const [lastAddedItemId, setLastAddedItemId] = useState<string | null>(null);
 	const [isPrintingPrecuenta, setIsPrintingPrecuenta] = useState(false);
 	const [showObservationModal, setShowObservationModal] = useState<string | null>(null);
+	const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+	const handleVirtualKeyPress = (key: string) => {
+		setSearchTerm(prev => prev + key);
+	};
+
+	const handleVirtualBackspace = () => {
+		setSearchTerm(prev => prev.slice(0, -1));
+	};
 	const orderListContainerRef = useRef<HTMLDivElement>(null);
 	const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 	const lastTableIdRef = useRef<string | null>(null);
+	const searchInputRef = useRef<HTMLInputElement>(null);
 
 	// Mutación para crear la operación
 	const [createOperationMutation] = useMutation(CREATE_OPERATION);
@@ -1078,13 +1093,34 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			margin: 0,
 			padding: 0
 		}}>
+			<style>{`
+				.order-categories-grid-scroll {
+					scrollbar-width: auto;
+				}
+				.order-categories-grid-scroll::-webkit-scrollbar {
+					width: 22px;
+				}
+				.order-categories-grid-scroll::-webkit-scrollbar-track {
+					background: #f1f5f9;
+					border-radius: 10px;
+				}
+				.order-categories-grid-scroll::-webkit-scrollbar-thumb {
+					background: #94a3b8;
+					border-radius: 10px;
+					border: 3px solid #f1f5f9;
+				}
+				.order-categories-grid-scroll::-webkit-scrollbar-thumb:hover {
+					background: #64748b;
+				}
+			`}</style>
 			<div style={{
 				background: 'white',
 				width: '100vw',
 				height: '100vh',
 				overflow: 'hidden',
 				display: 'flex',
-				flexDirection: 'column'
+				flexDirection: 'column',
+				position: 'relative'
 			}}>
 				{/* Header */}
 				<div style={{
@@ -1143,18 +1179,45 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							</>
 						)}
 					</div>
-					<button onClick={onClose} style={{
-						background: 'rgba(255,255,255,0.15)',
-						border: '1px solid rgba(255,255,255,0.35)',
-						color: 'white',
-						padding: isSmall ? '0.45rem 1rem' : isMedium ? '0.55rem 1.25rem' : '0.65rem 1.5rem',
-						borderRadius: isSmall ? '8px' : '10px',
-						cursor: 'pointer',
-						fontWeight: 700,
-						fontSize: isSmall ? '0.875rem' : isMedium ? '1rem' : '1.125rem'
-					}}>
-						Cerrar
-					</button>
+					<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.5rem' : '0.65rem', flexWrap: 'wrap' }}>
+						<button
+							type="button"
+							onClick={() => {
+								setIsKeyboardVisible(true);
+								setTimeout(() => searchInputRef.current?.focus(), 50);
+							}}
+							style={{
+								background: 'rgba(255,255,255,0.95)',
+								border: '1px solid rgba(255,255,255,0.5)',
+								color: '#4c1d95',
+								padding: isSmall ? '0.4rem 0.75rem' : isMedium ? '0.5rem 1rem' : '0.55rem 1.1rem',
+								borderRadius: isSmall ? '8px' : '10px',
+								cursor: 'pointer',
+								fontWeight: 700,
+								fontSize: isSmall ? '0.78rem' : isMedium ? '0.875rem' : '0.95rem',
+								display: 'flex',
+								alignItems: 'center',
+								gap: '0.35rem',
+								boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+							}}
+							title="Mostrar teclado en pantalla"
+						>
+							<span aria-hidden>⌨️</span>
+							Teclado virtual
+						</button>
+						<button onClick={onClose} style={{
+							background: 'rgba(255,255,255,0.15)',
+							border: '1px solid rgba(255,255,255,0.35)',
+							color: 'white',
+							padding: isSmall ? '0.45rem 1rem' : isMedium ? '0.55rem 1.25rem' : '0.65rem 1.5rem',
+							borderRadius: isSmall ? '8px' : '10px',
+							cursor: 'pointer',
+							fontWeight: 700,
+							fontSize: isSmall ? '0.875rem' : isMedium ? '1rem' : '1.125rem'
+						}}>
+							Cerrar
+						</button>
+					</div>
 				</div>
 
 				{/* Body */}
@@ -1209,6 +1272,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							<div style={{ position: 'relative' }}>
 								<span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', opacity: 0.6, fontSize: '1.2rem' }}>🔎</span>
 								<input
+									ref={searchInputRef}
 									type="text"
 									placeholder={searchByCodeOnly ? 'Código del producto...' : 'Buscar producto o escanear código'}
 									value={searchTerm}
@@ -1341,13 +1405,14 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							</div>
 
 							{/* Grid: categorías, subcategorías o productos */}
-							<div style={{
+							<div
+								className="order-categories-grid-scroll"
+								style={{
 								flex: 1,
 								minHeight: 0,
 								padding: gridPadding,
 								overflowY: 'auto',
-								overflowX: 'hidden',
-								scrollbarWidth: 'thin'
+								overflowX: 'hidden'
 							}}>
 								{productsLoading && showProductsInGrid ? (
 									<div style={{ textAlign: 'center', padding: '2rem', color: '#718096', fontSize: isSmall ? '0.8125rem' : '0.875rem' }}>
@@ -1988,6 +2053,58 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 					/>
 				);
 			})()}
+
+			{/* Teclado virtual: como login — solo mitad inferior; en escritorio ancho ~50% alineado a la izquierda (columna catálogo) */}
+			{isKeyboardVisible && (
+				<div
+					onMouseDown={(e) => e.preventDefault()}
+					style={{
+						position: 'absolute',
+						bottom: 0,
+						left: 0,
+						zIndex: 1200,
+						width: keyboardCompact ? '100%' : '50%',
+						maxWidth: keyboardCompact ? '100%' : 'min(50vw, 720px)',
+						maxHeight: 'min(50vh, 50dvh)',
+						display: 'flex',
+						flexDirection: 'column',
+						backgroundColor: '#f8fafc',
+						borderTop: '1px solid #e2e8f0',
+						borderRight: keyboardCompact ? 'none' : '1px solid #e2e8f0',
+						borderTopRightRadius: keyboardCompact ? 0 : isMedium ? 10 : 12,
+						boxShadow: '4px -8px 32px rgba(0,0,0,0.08)',
+						padding: keyboardTight ? '0.35rem 0.3rem' : isXs || isSmall ? '0.5rem 0.5rem' : isMedium ? '0.65rem 0.85rem' : '0.75rem 1rem',
+						paddingBottom: `max(${keyboardTight ? '0.35rem' : '0.5rem'}, env(safe-area-inset-bottom))`,
+						animation: 'slideUp 0.3s ease-out',
+						boxSizing: 'border-box',
+						overflow: 'hidden',
+						touchAction: 'manipulation'
+					}}
+				>
+					<div style={{
+						width: '100%',
+						flex: 1,
+						minHeight: 0,
+						overflowX: 'hidden',
+						overflowY: 'auto',
+						WebkitOverflowScrolling: 'touch',
+						boxSizing: 'border-box'
+					}}>
+						<VirtualKeyboard
+							onKeyPress={handleVirtualKeyPress}
+							onBackspace={handleVirtualBackspace}
+							compact
+							tight={keyboardTight}
+							onClose={() => setIsKeyboardVisible(false)}
+							onEnter={() => {
+								if (productsList.length > 0) {
+									handleAddProduct(productsList[0].id, 1);
+								}
+							}}
+						/>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 };

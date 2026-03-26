@@ -4,6 +4,7 @@ import { GET_USERS_BY_BRANCH } from '../../graphql/queries';
 import { SET_USER_PERMISSIONS } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
+import EditUser from './editUser';
 import { getPermissionOptions } from '../../constants/permissionLabels';
 
 interface User {
@@ -51,6 +52,7 @@ const ListUser: React.FC = () => {
   });
 
   const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<User | null>(null);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
   const [selectedPermissionCodes, setSelectedPermissionCodes] = useState<Set<string>>(new Set());
   const [permissionsMessage, setPermissionsMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const permissionOptions = getPermissionOptions();
@@ -256,30 +258,56 @@ const ListUser: React.FC = () => {
                     </td>
                     {isAdmin && (
                       <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          onClick={() => openPermissionsModal(user)}
-                          style={{
-                            padding: isSmall ? '0.25rem 0.5rem' : '0.375rem 0.75rem',
-                            borderRadius: '8px',
-                            border: '1px solid #e2e8f0',
-                            backgroundColor: '#f1f5f9',
-                            color: '#475569',
-                            fontWeight: 600,
-                            fontSize: badgeFontSize,
-                            cursor: 'pointer'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#e2e8f0';
-                            e.currentTarget.style.color = '#334155';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#f1f5f9';
-                            e.currentTarget.style.color = '#475569';
-                          }}
-                        >
-                          🔐 Permisos
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedUserForEdit(user)}
+                            style={{
+                              padding: isSmall ? '0.25rem 0.5rem' : '0.375rem 0.75rem',
+                              borderRadius: '8px',
+                              border: '1px solid #e2e8f0',
+                              backgroundColor: '#f1f5f9',
+                              color: '#475569',
+                              fontWeight: 600,
+                              fontSize: badgeFontSize,
+                              cursor: 'pointer'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#e2e8f0';
+                              e.currentTarget.style.color = '#334155';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = '#f1f5f9';
+                              e.currentTarget.style.color = '#475569';
+                            }}
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openPermissionsModal(user)}
+                            style={{
+                              padding: isSmall ? '0.25rem 0.5rem' : '0.375rem 0.75rem',
+                              borderRadius: '8px',
+                              border: '1px solid #e2e8f0',
+                              backgroundColor: '#f1f5f9',
+                              color: '#475569',
+                              fontWeight: 600,
+                              fontSize: badgeFontSize,
+                              cursor: 'pointer'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#e2e8f0';
+                              e.currentTarget.style.color = '#334155';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = '#f1f5f9';
+                              e.currentTarget.style.color = '#475569';
+                            }}
+                          >
+                            🔐 Permisos
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -288,6 +316,18 @@ const ListUser: React.FC = () => {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Modal Editar Usuario (solo ADMIN) */}
+      {selectedUserForEdit && (
+        <EditUser
+          user={selectedUserForEdit}
+          onSuccess={() => {
+            refetch();
+            setSelectedUserForEdit(null);
+          }}
+          onClose={() => setSelectedUserForEdit(null)}
+        />
       )}
 
       {/* Modal Permisos (solo ADMIN) */}

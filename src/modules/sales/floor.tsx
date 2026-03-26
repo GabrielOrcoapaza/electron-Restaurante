@@ -19,14 +19,30 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   const { showToast } = useToast();
   const { breakpoint } = useResponsive();
   
-  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  // Adaptar según tamaño de pantalla
+  const isXs = breakpoint === 'xs'; // < 640px
   const isSmall = breakpoint === 'sm'; // 640px - 767px
   const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
-  
-  // Tamaños adaptativos - reducidos para que quepan al menos 10 por fila
-  const titleFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : '1.5rem';
-  
+  /** Pantallas estrechas: mesas más legibles (menos columnas + fuente mayor) */
+  const isNarrowScreen = isXs || isSmall;
+
+  // Columnas del grid: pocas columnas = mesas más grandes (hay espacio bajo la fila)
+  const tablesGridColumns =
+    isNarrowScreen ? 'repeat(4, 1fr)' : isMedium ? 'repeat(6, 1fr)' : isSmallDesktop ? 'repeat(7, 1fr)' : 'repeat(8, 1fr)';
+  const floorsGridColumns = isNarrowScreen ? 'repeat(5, 1fr)' : 'repeat(10, 1fr)';
+
+  const titleFontSize = isNarrowScreen ? '1.35rem' : isMedium ? '1.3rem' : isSmallDesktop ? '1.375rem' : '1.5rem';
+
+  // Tipografía y tamaño táctil dentro de cada mesa
+  const tableNameFont = isNarrowScreen ? '1.155rem' : isMedium ? '1.0925rem' : isSmallDesktop ? '1.0925rem' : '1.4rem';
+  const tableBadgeFont = isNarrowScreen ? '0.985rem' : isMedium ? '0.9125rem' : isSmallDesktop ? '0.9125rem' : '1.2rem';
+  const tableWaiterFont = isNarrowScreen ? '0.985rem' : isMedium ? '0.9125rem' : isSmallDesktop ? '0.9125rem' : '1.2rem';
+  const tableCellPadding = isNarrowScreen ? '0.55rem' : isMedium ? '0.55rem' : isSmallDesktop ? '0.65rem' : '0.75rem';
+  const tablesGridGap = isNarrowScreen ? '0.5rem' : isMedium ? '0.55rem' : isSmallDesktop ? '0.6rem' : '0.7rem';
+  /** Altura mínima mesas rectangulares (las redondas usan aspect-ratio 1:1) */
+  const tableRectMinHeight = isNarrowScreen ? '5.5rem' : isMedium ? '6rem' : isSmallDesktop ? '6.25rem' : '6.75rem';
+
   // CSS para animación de pulso (adaptable a diferentes colores)
   const pulseKeyframes = `
     @keyframes pulse {
@@ -348,7 +364,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
           flexShrink: 0,
           backgroundColor: 'white',
           borderRadius: '12px',
-          padding: isSmall ? '0.75rem' : isMedium ? '1rem' : '1.25rem',
+          padding: isNarrowScreen ? '0.75rem' : isMedium ? '1rem' : '1.25rem',
           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
           border: '1px solid #e2e8f0',
           overflow: 'hidden',
@@ -358,17 +374,17 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
           {floorsData?.floorsByBranch?.length === 0 ? (
             <div style={{
               textAlign: 'center',
-              padding: isSmall ? '1.5rem' : isMedium ? '2rem' : '2.5rem',
+              padding: isNarrowScreen ? '1.5rem' : isMedium ? '2rem' : '2.5rem',
               color: '#718096'
             }}>
-              <div style={{ fontSize: isSmall ? '2rem' : '2.5rem', marginBottom: '0.5rem' }}>🏢</div>
-              <p style={{ fontSize: isSmall ? '0.9375rem' : '1rem', margin: 0 }}>
+              <div style={{ fontSize: isNarrowScreen ? '2rem' : '2.5rem', marginBottom: '0.5rem' }}>🏢</div>
+              <p style={{ fontSize: isNarrowScreen ? '0.9375rem' : '1rem', margin: 0 }}>
                 No hay pisos disponibles para esta sucursal
               </p>
             </div>
           ) : (
             <div style={{
-              maxHeight: isSmall ? '140px' : isMedium ? '160px' : '180px',
+              maxHeight: isNarrowScreen ? '160px' : isMedium ? '170px' : '180px',
               overflowY: 'auto',
               overflowX: 'hidden',
               paddingRight: '0.25rem',
@@ -376,8 +392,8 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             }}>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(10, 1fr)',
-                gap: isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.75rem' : '0.875rem',
+                gridTemplateColumns: floorsGridColumns,
+                gap: isNarrowScreen ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.75rem' : '0.875rem',
                 width: '100%',
                 boxSizing: 'border-box'
               }}>
@@ -390,7 +406,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                       backgroundColor: selectedFloorId === floor.id ? '#eef2ff' : '#f7fafc',
                       border: selectedFloorId === floor.id ? '1.5px solid #667eea' : '1.5px solid #e2e8f0',
                       borderRadius: '8px',
-                      padding: isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.75rem' : '0.875rem',
+                      padding: isNarrowScreen ? '0.55rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.75rem' : '0.875rem',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       textAlign: 'center',
@@ -417,14 +433,14 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                     }}
                   >
                     <div style={{
-                      fontSize: isSmall ? '1rem' : isMedium ? '1.125rem' : isSmallDesktop ? '1.25rem' : '1.375rem',
+                      fontSize: isNarrowScreen ? '1.125rem' : isMedium ? '1.125rem' : isSmallDesktop ? '1.25rem' : '1.375rem',
                       marginBottom: '0.25rem',
                       lineHeight: 1
                     }}>
                       🏢
                     </div>
                     <h3 style={{
-                      fontSize: isSmall ? '0.56rem' : isMedium ? '0.6rem' : isSmallDesktop ? '0.68rem' : '0.75rem',
+                      fontSize: isNarrowScreen ? '0.75rem' : isMedium ? '0.68rem' : isSmallDesktop ? '0.72rem' : '0.8rem',
                       fontWeight: '600',
                       color: '#2d3748',
                       margin: '0 0 0.125rem 0',
@@ -445,7 +461,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      fontSize: isSmall ? '0.5rem' : isMedium ? '0.5625rem' : isSmallDesktop ? '0.5625rem' : '0.625rem',
+                      fontSize: isNarrowScreen ? '0.65rem' : isMedium ? '0.6rem' : isSmallDesktop ? '0.6rem' : '0.65rem',
                       color: '#718096',
                       marginTop: '0.25rem',
                       lineHeight: 1.2
@@ -461,7 +477,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                       color: 'white',
                       padding: '0.1rem 0.375rem',
                       borderRadius: '12px',
-                      fontSize: isSmall ? '0.5rem' : isMedium ? '0.5625rem' : isSmallDesktop ? '0.5625rem' : '0.625rem',
+                      fontSize: isNarrowScreen ? '0.62rem' : isMedium ? '0.56rem' : isSmallDesktop ? '0.56rem' : '0.625rem',
                       fontWeight: '600',
                       lineHeight: 1.2
                     }}>
@@ -487,7 +503,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             <div style={{
               backgroundColor: 'white',
               borderRadius: '12px',
-              padding: isSmall ? '0.75rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '1.25rem',
+              padding: isNarrowScreen ? '0.75rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : '1.25rem',
               boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
               border: '1px solid #e2e8f0',
               overflow: 'hidden',
@@ -503,7 +519,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem',
+                marginBottom: isNarrowScreen ? '1rem' : isMedium ? '1.25rem' : '1.5rem',
                 paddingBottom: '0.75rem',
                 borderBottom: '1px solid #e2e8f0',
                 flexWrap: 'wrap',
@@ -524,13 +540,13 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    padding: isSmall ? '0.5rem 1rem' : isMedium ? '0.625rem 1.25rem' : '0.75rem 1.5rem',
+                    padding: isNarrowScreen ? '0.55rem 1rem' : isMedium ? '0.625rem 1.25rem' : '0.75rem 1.5rem',
                     backgroundColor: '#f7fafc',
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
                     color: '#4a5568',
                     cursor: 'pointer',
-                    fontSize: isSmall ? '0.75rem' : '0.8125rem',
+                    fontSize: isNarrowScreen ? '0.875rem' : '0.8125rem',
                     fontWeight: '500',
                     transition: 'all 0.2s ease'
                   }}
@@ -585,8 +601,8 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         ) : (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(10, 1fr)',
-            gap: isSmall ? '0.25rem' : isMedium ? '0.375rem' : isSmallDesktop ? '0.5rem' : '0.625rem',
+            gridTemplateColumns: tablesGridColumns,
+            gap: tablesGridGap,
             width: '100%',
             overflow: 'hidden',
             boxSizing: 'border-box'
@@ -604,7 +620,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                     backgroundColor: colors.backgroundColor,
                     border: isRoundTable ? `3px solid ${colors.borderColor}` : `1.5px solid ${colors.borderColor}`,
                     borderRadius: isRoundTable ? '50%' : '8px',
-                    padding: isSmall ? '0.25rem' : isMedium ? '0.375rem' : isSmallDesktop ? '0.5rem' : '0.625rem',
+                    padding: tableCellPadding,
                     textAlign: 'center',
                     transition: 'all 0.2s ease',
                     cursor: canAccessTable(table).canAccess ? 'pointer' : 'not-allowed',
@@ -627,6 +643,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                         ? `0 0 0 0 ${colors.borderColor}` 
                         : '0 2px 8px rgba(0, 0, 0, 0.1)',
                     minWidth: 0,
+                    ...(isRoundTable ? {} : { minHeight: tableRectMinHeight }),
                     overflow: 'hidden',
                     boxSizing: 'border-box'
                   }}
@@ -642,7 +659,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                   }}
                 >
                 <h4 style={{
-                  fontSize: isSmall ? '0.5625rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.6875rem' : '0.75rem',
+                  fontSize: tableNameFont,
                   fontWeight: '700',
                   color: colors.textColor,
                   margin: '0 0 0.125rem 0',
@@ -657,21 +674,10 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 </h4>
                 
                 <div style={{
-                  fontSize: isSmall ? '0.5rem' : isMedium ? '0.6rem' : isSmallDesktop ? '0.65rem' : '0.7rem',
-                  color: '#1e293b',
-                  marginBottom: '0.25rem',
-                  fontWeight: '700',
-                  lineHeight: 1.2,
-                  textShadow: '0 1px 1px rgba(0,0,0,0.1)'
-                }}>
-                  {table.capacity}
-                </div>
-                
-                <div style={{
                   display: 'inline-block',
-                  padding: isSmall ? '0.125rem 0.375rem' : isMedium ? '0.15rem 0.5rem' : isSmallDesktop ? '0.15rem 0.5rem' : '0.2rem 0.625rem',
+                  padding: isNarrowScreen ? '0.18rem 0.45rem' : isMedium ? '0.16rem 0.5rem' : isSmallDesktop ? '0.16rem 0.5rem' : '0.2rem 0.625rem',
                   borderRadius: '12px',
-                  fontSize: isSmall ? '0.5rem' : isMedium ? '0.5625rem' : isSmallDesktop ? '0.5625rem' : '0.625rem',
+                  fontSize: tableBadgeFont,
                   fontWeight: '700',
                   backgroundColor: colors.badgeColor,
                   color: colors.badgeTextColor,
@@ -691,11 +697,11 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 {/* Solo mostrar el nombre del mozo si la mesa NO está disponible */}
                 {table.userName && table.status !== 'AVAILABLE' && (
                   <div style={{
-                    fontSize: isSmall ? '0.5rem' : isMedium ? '0.5625rem' : isSmallDesktop ? '0.5625rem' : '0.625rem',
+                    fontSize: tableWaiterFont,
                     color: colors.badgeTextColor,
                     marginTop: '0.125rem',
                     backgroundColor: colors.badgeColor,
-                    padding: isSmall ? '0.125rem 0.25rem' : isMedium ? '0.15rem 0.375rem' : isSmallDesktop ? '0.15rem 0.375rem' : '0.2rem 0.5rem',
+                    padding: isNarrowScreen ? '0.16rem 0.3rem' : isMedium ? '0.15rem 0.375rem' : isSmallDesktop ? '0.15rem 0.375rem' : '0.2rem 0.5rem',
                     borderRadius: '8px',
                     fontWeight: '700',
                     overflow: 'hidden',
