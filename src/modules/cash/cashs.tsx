@@ -397,16 +397,6 @@ const Cashs: React.FC = () => {
 
   const cashRegisters: CashRegister[] = cashRegistersData?.cashRegistersByBranch || [];
   const preview: CashClosurePreview | null = previewData?.cashClosurePreview || null;
-  // En gestión por usuarios solo mostrar cajeros (no administradores)
-  // Aceptar CASHIER (código) o CAJERO (por si el backend devuelve "Cajero")
-  const usersSummarySoloCajeros: UserSummary[] = React.useMemo(() => {
-    if (!preview?.usersSummary?.length) return [];
-    const roleUpper = (r: string) => (r || '').toUpperCase();
-    return preview.usersSummary.filter((u) => {
-      const r = roleUpper(u.userRole);
-      return r === 'CASHIER' || r === 'CAJERO';
-    });
-  }, [preview?.usersSummary]);
   // Intentar ambos nombres por si hay diferencia entre snake_case y camelCase
   const closures: CashClosure[] = closuresData?.cashClosures || closuresData?.cash_closures || [];
   const movements: PaymentMovement[] = movementsData?.paymentsPendingClosure || movementsData?.payments_pending_closure || [];
@@ -504,6 +494,20 @@ const Cashs: React.FC = () => {
       OTROS: 'Otros'
     };
     return labels[method] || method;
+  };
+
+  /** Mismos colores que el reporte de ventas (`reportSale.tsx` → Totales por Método de Pago). */
+  const getPaymentMethodCardTheme = (methodCode: string) => {
+    const code = (methodCode || '').toUpperCase();
+    const themes: Record<string, { color: string; bg: string; border: string }> = {
+      CASH: { color: '#0369a1', bg: '#f0f9ff', border: '#0ea5e9' },
+      YAPE: { color: '#047857', bg: '#f0fdf4', border: '#10b981' },
+      PLIN: { color: '#b45309', bg: '#fef3c7', border: '#f59e0b' },
+      CARD: { color: '#b91c1c', bg: '#fef2f2', border: '#ef4444' },
+      TRANSFER: { color: '#7e22ce', bg: '#f3e8ff', border: '#a855f7' },
+      OTROS: { color: '#334155', bg: '#f1f5f9', border: '#64748b' }
+    };
+    return themes[code] ?? { color: '#334155', bg: '#f1f5f9', border: '#64748b' };
   };
 
   const getTransactionTypeLabel = (type: string) => {
@@ -1176,133 +1180,61 @@ const Cashs: React.FC = () => {
                 )}
               </div>
 
-
-
-
-
-              {/* Resumen por Usuario (solo cajeros) */}
-              {usersSummarySoloCajeros.length > 0 && (
+              {/* Resumen por método de pago (total caja, del preview) */}
+              {preview.generalPaymentMethods && preview.generalPaymentMethods.length > 0 && (
                 <div style={{ marginBottom: gridGap }}>
                   <h4 style={{ margin: '0 0 1rem', fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : isSmallDesktop ? '0.9375rem' : '1rem', fontWeight: 600, color: '#475569' }}>
-                    Resumen por Usuario
+                    Resumen por método de pago
                   </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: gridGap }}>
-                    {usersSummarySoloCajeros.map((userSummary, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          padding: cardPadding,
-                          borderRadius: '12px',
-                          border: `2px solid ${userSummary.canClose ? '#86efac' : '#fecaca'}`,
-                          backgroundColor: userSummary.canClose ? '#f0fdf4' : '#fef2f2'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                          <div>
-                            <h5 style={{ margin: '0 0 0.5rem', fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>
-                              {userSummary.userName}
-                            </h5>
-                            <span style={{
-                              padding: '0.25rem 0.75rem',
-                              borderRadius: '9999px',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              backgroundColor: 'white',
-                              color: '#64748b',
-                              display: 'inline-block',
-                              marginRight: '0.5rem'
-                            }}>
-                              {userSummary.userRole}
-                            </span>
-                            {userSummary.hasOccupiedTables && (
-                              <span style={{
-                                padding: '0.25rem 0.75rem',
-                                borderRadius: '9999px',
-                                fontSize: '0.75rem',
-                                fontWeight: 600,
-                                backgroundColor: '#fee2e2',
-                                color: '#991b1b',
-                                display: 'inline-block'
-                              }}>
-                                ⚠️ {userSummary.occupiedTablesCount} mesa(s) ocupada(s)
-                              </span>
-                            )}
+                  <div
+                    style={{
+                      padding: cardPadding,
+                      borderRadius: '12px',
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #e2e8f0'
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      {preview.generalPaymentMethods.map((method, methodIdx) => {
+                        const pmTheme = getPaymentMethodCardTheme(method.methodCode);
+                        return (
+                        <div
+                          key={`${method.methodCode}-${methodIdx}`}
+                          style={{
+                            flex: '1 1 160px',
+                            minWidth: '140px',
+                            padding: '0.75rem 1rem',
+                            borderRadius: '8px',
+                            backgroundColor: pmTheme.bg,
+                            border: `1px solid ${pmTheme.border}`
+                          }}
+                        >
+                          <div style={{
+                            fontWeight: 700,
+                            color: pmTheme.color,
+                            marginBottom: '0.5rem',
+                            fontSize: '0.9rem',
+                            opacity: 0.95
+                          }}>
+                            {method.methodName}
                           </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.25rem' }}>Neto</div>
-                            <div style={{
-                              fontSize: '1.25rem',
-                              fontWeight: 700,
-                              color: userSummary.netTotal >= 0 ? '#16a34a' : '#dc2626'
-                            }}>
-                              {currencyFormatter.format(userSummary.netTotal)}
-                            </div>
+                          <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.2rem' }}>
+                            Ingresos: <span style={{ color: '#16a34a', fontWeight: 600 }}>{currencyFormatter.format(method.income)}</span>
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.35rem' }}>
+                            Egresos: <span style={{ color: '#dc2626', fontWeight: 600 }}>{currencyFormatter.format(method.expense)}</span>
+                          </div>
+                          <div style={{
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            color: method.net >= 0 ? pmTheme.color : '#dc2626'
+                          }}>
+                            Neto: {currencyFormatter.format(method.net)}
                           </div>
                         </div>
-
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                          gap: '1rem',
-                          marginBottom: '1rem'
-                        }}>
-                          <div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Ingresos</div>
-                            <div style={{ fontSize: '1rem', fontWeight: 600, color: '#16a34a' }}>
-                              {currencyFormatter.format(userSummary.totalIncome)}
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Egresos</div>
-                            <div style={{ fontSize: '1rem', fontWeight: 600, color: '#dc2626' }}>
-                              {currencyFormatter.format(userSummary.totalExpense)}
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Pagos</div>
-                            <div style={{ fontSize: '1rem', fontWeight: 600, color: '#334155' }}>
-                              {userSummary.paymentsCount}
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Operaciones</div>
-                            <div style={{ fontSize: '1rem', fontWeight: 600, color: '#334155' }}>
-                              {userSummary.operationsCount}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Métodos de Pago del Usuario */}
-                        {userSummary.paymentMethods && userSummary.paymentMethods.length > 0 && (
-                          <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>
-                              Métodos de Pago:
-                            </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                              {userSummary.paymentMethods.map((method, methodIdx) => (
-                                <div
-                                  key={methodIdx}
-                                  style={{
-                                    padding: '0.5rem 0.75rem',
-                                    borderRadius: '6px',
-                                    backgroundColor: 'white',
-                                    border: '1px solid #e2e8f0',
-                                    fontSize: '0.75rem'
-                                  }}
-                                >
-                                  <div style={{ fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
-                                    {method.methodName}
-                                  </div>
-                                  <div style={{ color: method.net >= 0 ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
-                                    {currencyFormatter.format(method.net)}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}

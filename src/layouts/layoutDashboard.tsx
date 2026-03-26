@@ -377,7 +377,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
 
   const headerSubtitle =
     currentView === 'dashboard'
-      ? `Bienvenido de vuelta, ${user?.firstName}`
+      ? 'Bienvenido de vuelta'
       : currentView === 'floors'
         ? 'Gestiona la ocupación y las órdenes de tus mesas.'
         : currentView === 'messages'
@@ -1153,17 +1153,18 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
         transition: 'margin-left 0.3s ease, width 0.3s ease, max-width 0.3s ease',
         boxSizing: 'border-box'
       }}>
-        {/* Header Principal */}
+        {/* Header Principal: título | sucursal centrada | empleado + notificaciones */}
         <header style={{
           backgroundColor: 'white',
           padding: headerPadding,
           borderBottom: '1px solid #e2e8f0',
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-          display: 'flex',
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          gap: '1rem'
         }}>
-          <div>
+          <div style={{ justifySelf: 'start', minWidth: 0 }}>
             <h1 style={{
               fontSize: headerFontSize,
               fontWeight: '700',
@@ -1182,11 +1183,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
           </div>
 
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem'
-          }}>
-          <div style={{
+            justifySelf: 'center',
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
@@ -1194,7 +1191,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
             backgroundColor: '#f7fafc',
             borderRadius: '8px',
             fontSize: '0.875rem',
-            color: '#4a5568'
+            color: '#4a5568',
+            maxWidth: '100%',
+            boxSizing: 'border-box'
           }}>
               <span>🏢</span>
               {(companyData?.availableBranches?.length ?? 0) > 1 ? (
@@ -1225,12 +1224,42 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
                   ))}
                 </select>
               ) : (
-                <span>{companyData?.branch.name}</span>
+                <span style={{ fontWeight: 600, color: '#2d3748' }}>{companyData?.branch.name}</span>
               )}
+            </div>
+
+          <div style={{
+            justifySelf: 'end',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            minWidth: 0
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.5rem 1rem',
+              backgroundColor: '#f7fafc',
+              borderRadius: '8px',
+              fontSize: '0.875rem',
+              color: '#4a5568',
+              maxWidth: 'min(240px, 100%)'
+            }}>
+              <span>👤</span>
+              <span style={{
+                fontWeight: 600,
+                color: '#2d3748',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }} title={user?.fullName ?? user?.firstName ?? ''}>
+                {user?.fullName ?? user?.firstName}
+              </span>
             </div>
             <div
               ref={notificationsRef}
-              style={{ position: 'relative' }}
+              style={{ position: 'relative', flexShrink: 0 }}
             >
               <button
                 type="button"

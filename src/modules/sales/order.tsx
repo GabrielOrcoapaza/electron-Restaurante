@@ -1144,16 +1144,6 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							{isExistingOrder ? '🍽️ Orden Actual' : '🍽️ Nueva Orden'}
 						</div>
 						<h3 style={{ margin: 0, fontSize: isSmall ? '1rem' : isMedium ? '1.15rem' : '1.35rem', fontWeight: 800 }}>Mesa {table.name.replace('MESA ', '')}</h3>
-						<span style={{ opacity: 0.9, fontSize: isSmall ? '0.75rem' : '1.15rem' }}>•</span>
-						<div style={{
-							backgroundColor: 'rgba(255,255,255,0.15)',
-							borderRadius: isSmall ? '8px' : '12px',
-							padding: isSmall ? '0.25rem 0.5rem' : '0.35rem 0.75rem',
-							fontWeight: 600,
-							fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1.05rem'
-						}}>
-							Capacidad {table.capacity}
-						</div>
 						{isExistingOrder && (
 							<>
 								<span style={{ opacity: 0.9, fontSize: isSmall ? '0.75rem' : '1.15rem' }}>•</span>
