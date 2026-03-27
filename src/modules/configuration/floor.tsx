@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { GET_FLOORS_BY_BRANCH } from '../../graphql/queries';
 import { CREATE_FLOOR } from '../../graphql/mutations';
 import FloorList, { type Floor } from './floorList';
+import FloorUpdateModal from './floorUpdate';
 
 const FloorModule: React.FC = () => {
   const { companyData } = useAuth();
@@ -15,6 +16,7 @@ const FloorModule: React.FC = () => {
     order: 0,
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [editingFloor, setEditingFloor] = useState<Floor | null>(null);
 
   const { data, loading, error, refetch } = useQuery(GET_FLOORS_BY_BRANCH, {
     variables: { branchId: branchId! },
@@ -151,7 +153,14 @@ const FloorModule: React.FC = () => {
         </form>
       </div>
 
-      <FloorList floors={floors} />
+      <FloorList floors={floors} onEdit={(f) => setEditingFloor(f)} />
+      {editingFloor && (
+        <FloorUpdateModal
+          floor={editingFloor}
+          onClose={() => setEditingFloor(null)}
+          onUpdated={() => refetch()}
+        />
+      )}
     </div>
   );
 };

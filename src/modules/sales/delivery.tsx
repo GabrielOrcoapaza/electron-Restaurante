@@ -20,6 +20,7 @@ import { CREATE_PERSON } from '../../graphql/mutations';
 import ModalObservation from './modalObservation';
 import PayDeliveryModal from './payDelivery';
 import CategoryIcon from '../../components/CategoryIcon';
+import { formatLocalDateYYYYMMDD, formatLocalTimeHHMMSS, formatInstantISO } from '../../utils/localDateTime';
 
 // Tipo para los ítems del carrito
 type CartItem = {
@@ -171,9 +172,13 @@ const Delivery: React.FC = () => {
     });
     const [createPersonMutation] = useMutation(CREATE_PERSON);
 
-    // Factura (código 01) exige cliente con RUC
+    // Factura (código 01) exige cliente con RUC; 01 y 03 se envían a SUNAT (misma regla que cashPay)
     const selectedDoc = documents.find((d: any) => d.id === selectedDocument);
     const isFactura = selectedDoc?.code === '01';
+    const isSunatBillableDocument = selectedDoc?.code === '01' || selectedDoc?.code === '03';
+
+    const getCartLineTotal = (item: CartItem) =>
+        Number(item.total) || (Number(item.price) || 0) * (Number(item.quantity) || 0);
 
     const filteredClients = useMemo(() => {
         let clients = (clientsData?.personsByBranch || []).filter((c: any) =>
@@ -408,12 +413,25 @@ const Delivery: React.FC = () => {
             return;
         }
 
+        const itemsSource =
+            isSunatBillableDocument
+                ? cartItems.filter((item) => getCartLineTotal(item) > 0)
+                : cartItems;
+
+        if (isSunatBillableDocument && itemsSource.length === 0) {
+            showToast(
+                'No se puede emitir factura o boleta solo con productos de precio cero. SUNAT exige líneas con importe mayor a cero, o use otro tipo de comprobante.',
+                'error'
+            );
+            return;
+        }
+
         setIsSaving(true);
 
         try {
             const igvRate = igvPercentageFromBranch / 100;
 
-            const items = cartItems.map(item => {
+            const items = itemsSource.map(item => {
                 const unitPrice = parseFloat((Math.round(item.price * 100) / 100).toFixed(2));
                 const quantity = Math.max(1, Number(item.quantity) || 1);
                 const unitValue = parseFloat((Math.round((unitPrice / (1 + igvRate)) * 100) / 100).toFixed(2));
@@ -430,12 +448,8 @@ const Delivery: React.FC = () => {
             });
 
             const now = new Date();
-            const emissionDate = now.toISOString().split('T')[0]; // YYYY-MM-DD (10 chars)
-            // CORRECCIÓN: emission_time debe ser solo HH:MM:SS (8 caracteres)
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            const seconds = String(now.getSeconds()).padStart(2, '0');
-            const emissionTime = `${hours}:${minutes}:${seconds}`; // Formato HH:MM:SS (8 chars)
+            const emissionDate = formatLocalDateYYYYMMDD(now);
+            const emissionTime = formatLocalTimeHHMMSS(now);
             // Obtener deviceId o MAC address
             let resolvedDeviceId: string;
             if (deviceId) {
@@ -484,7 +498,7 @@ const Delivery: React.FC = () => {
                         paymentType: 'CASH',
                         paymentMethod,
                         transactionType: 'INCOME',
-                        paymentDate: now.toISOString(),
+                        paymentDate: formatInstantISO(now),
                         totalAmount: cleanCartTotal,
                         paidAmount: cleanPaidAmount,
                         notes: ''

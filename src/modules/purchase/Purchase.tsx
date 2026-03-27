@@ -12,6 +12,7 @@ import {
 import { CREATE_PURCHASE_OPERATION } from '../../graphql/mutations';
 import CreateSupplierModal from './createSupplier';
 import PurchaseList from './purchaseList';
+import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
   style: 'currency',
@@ -71,7 +72,7 @@ const Purchase: React.FC = () => {
 
   const [view, setView] = useState<'list' | 'create'>('list');
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
-  const [operationDate, setOperationDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [operationDate, setOperationDate] = useState<string>(formatLocalDateYYYYMMDD());
   const [notes, setNotes] = useState<string>('');
   const [purchaseDetails, setPurchaseDetails] = useState<PurchaseDetail[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>('');
@@ -196,7 +197,7 @@ const Purchase: React.FC = () => {
 
   const resetForm = () => {
     setSelectedSupplierId('');
-    setOperationDate(new Date().toISOString().split('T')[0]);
+    setOperationDate(formatLocalDateYYYYMMDD());
     setNotes('');
     setPurchaseDetails([]);
     setSelectedProductId('');

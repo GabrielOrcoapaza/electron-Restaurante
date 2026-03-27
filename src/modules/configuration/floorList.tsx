@@ -5,6 +5,7 @@ export interface Floor {
   name: string;
   capacity?: number;
   order?: number;
+  isActive?: boolean;
 }
 
 interface FloorListProps {

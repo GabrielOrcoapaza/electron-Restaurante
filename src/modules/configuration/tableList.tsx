@@ -7,12 +7,14 @@ export interface Table {
   positionX?: number;
   positionY?: number;
   capacity?: number;
+  isActive?: boolean;
   status?: string;
 }
 
 interface TableListProps {
   tables: Table[];
   floorName?: string;
+  onEdit?: (table: Table) => void;
 }
 
 const shapeLabel = (shape: string | undefined): string => {
@@ -24,7 +26,7 @@ const shapeLabel = (shape: string | undefined): string => {
   return shape;
 };
 
-const TableList: React.FC<TableListProps> = ({ tables, floorName }) => {
+const TableList: React.FC<TableListProps> = ({ tables, floorName, onEdit }) => {
   return (
     <div
       style={{
@@ -51,6 +53,7 @@ const TableList: React.FC<TableListProps> = ({ tables, floorName }) => {
                 <th style={{ textAlign: 'center', padding: '0.65rem' }}>Forma</th>
                 <th style={{ textAlign: 'center', padding: '0.65rem' }}>Capacidad</th>
                 <th style={{ textAlign: 'center', padding: '0.65rem' }}>Estado</th>
+                {onEdit && <th style={{ textAlign: 'center', padding: '0.65rem', width: '88px' }}>Acción</th>}
               </tr>
             </thead>
             <tbody>
@@ -87,6 +90,26 @@ const TableList: React.FC<TableListProps> = ({ tables, floorName }) => {
                        table.status === 'MAINTENANCE' ? 'Mantenimiento' : table.status || '-'}
                     </span>
                   </td>
+                  {onEdit && (
+                    <td style={{ padding: '0.65rem', textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => onEdit(table)}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: '#6366f1',
+                          background: '#eef2ff',
+                          border: '1px solid #c7d2fe',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Editar
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

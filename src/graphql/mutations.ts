@@ -164,6 +164,70 @@ export const CREATE_TABLE = gql`
   }
 `;
 
+// Mutación para actualizar piso
+export const UPDATE_FLOOR = gql`
+  mutation UpdateFloor(
+    $floorId: ID!
+    $name: String
+    $capacity: Int
+    $order: Int
+    $isActive: Boolean
+  ) {
+    updateFloor(
+      floorId: $floorId
+      name: $name
+      capacity: $capacity
+      order: $order
+      isActive: $isActive
+    ) {
+      success
+      message
+      floor {
+        id
+        name
+        capacity
+        order
+        isActive
+      }
+    }
+  }
+`;
+
+// Mutación para actualizar mesa (no incluye status; usar updateTableStatus)
+export const UPDATE_TABLE = gql`
+  mutation UpdateTable(
+    $tableId: ID!
+    $name: String
+    $shape: String
+    $positionX: Float
+    $positionY: Float
+    $capacity: Int
+    $isActive: Boolean
+  ) {
+    updateTable(
+      tableId: $tableId
+      name: $name
+      shape: $shape
+      positionX: $positionX
+      positionY: $positionY
+      capacity: $capacity
+      isActive: $isActive
+    ) {
+      success
+      message
+      table {
+        id
+        name
+        shape
+        positionX
+        positionY
+        capacity
+        isActive
+      }
+    }
+  }
+`;
+
 // Mutación para actualizar el estado de una mesa
 export const UPDATE_TABLE_STATUS = gql`
   mutation UpdateTableStatus($tableId: ID!, $status: String!, $userId: ID) {

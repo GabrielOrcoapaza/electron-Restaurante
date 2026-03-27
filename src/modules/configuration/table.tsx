@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries';
 import { CREATE_TABLE } from '../../graphql/mutations';
 import TableList, { type Table } from './tableList';
+import TableUpdateModal from './tableUpdate';
 
 const SHAPE_OPTIONS = [
   { value: 'SQUARE', label: 'Cuadrada' },
@@ -24,6 +25,7 @@ const TableModule: React.FC = () => {
     positionY: 0,
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [editingTable, setEditingTable] = useState<Table | null>(null);
 
   const { data: floorsData, loading: floorsLoading, error: floorsError } = useQuery(GET_FLOORS_BY_BRANCH, {
     variables: { branchId: branchId! },
@@ -218,7 +220,18 @@ const TableModule: React.FC = () => {
       {tablesLoading ? (
         <div style={{ padding: '1rem', textAlign: 'center', color: '#64748b' }}>Cargando mesas...</div>
       ) : (
-        <TableList tables={tables} floorName={selectedFloor?.name} />
+        <TableList
+          tables={tables}
+          floorName={selectedFloor?.name}
+          onEdit={(t) => setEditingTable(t)}
+        />
+      )}
+      {editingTable && (
+        <TableUpdateModal
+          table={editingTable}
+          onClose={() => setEditingTable(null)}
+          onUpdated={() => refetchTables()}
+        />
       )}
     </div>
   );

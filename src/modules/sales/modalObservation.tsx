@@ -183,32 +183,17 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 				</button>
 
 				<h2 style={{ 
-					margin: '0 0 1rem', 
+					margin: '0 0 1rem',
+					paddingRight: '2.25rem',
 					fontSize: titleFontSize, 
 					fontWeight: 700, 
-					color: '#1e293b' 
+					color: '#1e293b',
+					lineHeight: 1.3
 				}}>
-					📋 Observaciones del Producto
+					📋 {productName?.trim()
+						? `Observaciones de ${productName.trim()}`
+						: 'Observaciones'}
 				</h2>
-
-				{productName && (
-					<div style={{
-						marginBottom: '1.5rem',
-						padding: '0.75rem',
-						background: '#f0f9ff',
-						border: '1px solid #bae6fd',
-						borderRadius: '8px'
-					}}>
-						<p style={{ 
-							margin: 0, 
-							fontSize: isSmall ? '0.875rem' : '0.9375rem', 
-							color: '#0369a1',
-							fontWeight: 600
-						}}>
-							Producto: <span style={{ color: '#0c4a6e' }}>{productName}</span>
-						</p>
-					</div>
-				)}
 
 				{/* Lista de observaciones guardadas (solo si existen) */}
 				{observations.length > 0 && (

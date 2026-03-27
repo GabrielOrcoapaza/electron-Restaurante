@@ -161,6 +161,7 @@ export const GET_FLOORS_BY_BRANCH = gql`
       name
       capacity
       order
+      isActive
       floorImageBase64
     }
   }
@@ -176,6 +177,7 @@ export const GET_TABLES_BY_FLOOR = gql`
       positionX
       positionY
       capacity
+      isActive
       status
       statusColors
       currentOperationId

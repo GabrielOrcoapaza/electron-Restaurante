@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import { GET_CANCELLATION_REPORT } from '../../graphql/queries';
 import ReportCancelList from './reportCancelList';
+import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
 
 export interface CancellationItem {
   id: string;
@@ -41,8 +42,8 @@ const ReportCancel: React.FC = () => {
   const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
 
   // Estado para los filtros: por defecto fecha actual (hoy); el usuario puede cambiar si desea otro rango
-  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
+  const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [type, setType] = useState<string>('BOTH'); // OPERATIONS, ITEMS, BOTH
 
   // Query para obtener reporte de anulaciones

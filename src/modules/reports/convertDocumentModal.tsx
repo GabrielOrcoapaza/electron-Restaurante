@@ -6,6 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../context/ToastContext';
 import CreateClient from '../user/createClient';
 import EditClient from '../user/editClient';
+import { formatLocalDateYYYYMMDD, formatLocalTimeHHMMSS } from '../../utils/localDateTime';
 
 interface ConvertDocumentModalProps {
     isOpen: boolean;
@@ -275,8 +276,8 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                     serial: targetSerial,
                     personId: selectedClientId || null,
                     userId: user?.id,
-                    emissionDate: new Date().toISOString().split('T')[0],
-                    emissionTime: new Date().toLocaleTimeString('en-US', { hour12: false }), // HH:mm:ss
+                    emissionDate: formatLocalDateYYYYMMDD(),
+                    emissionTime: formatLocalTimeHHMMSS(),
                     currency: 'PEN', // Default
                     exchangeRate: 1.0,
                     itemsTotalDiscount: totals.totalDiscount,

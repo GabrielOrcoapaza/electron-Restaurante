@@ -369,9 +369,10 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 		const product = productsList.find((p: any) => p.id === productId);
 		if (!product) return;
 
-		// Validar que el precio sea un número válido
-		const productPrice = parseFloat(product.salePrice) || 0;
-		if (productPrice <= 0) {
+		// Precio: permite 0 (cortesía/promo); rechaza negativos y no numéricos
+		const rawPrice = parseFloat(String(product.salePrice));
+		const productPrice = Number.isFinite(rawPrice) ? rawPrice : 0;
+		if (productPrice < 0 || (String(product.salePrice ?? '').trim() !== '' && !Number.isFinite(rawPrice))) {
 			showToast(`El producto "${product.name}" no tiene un precio válido`, 'error');
 			return;
 		}
@@ -664,10 +665,11 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 		setIsSaving(true);
 
 		try {
-			const invalidItems = itemsToProcess.filter(item =>
-				!item.price || isNaN(item.price) || item.price <= 0 ||
-				!item.quantity || isNaN(item.quantity) || item.quantity <= 0
-			);
+			const invalidItems = itemsToProcess.filter(item => {
+				const p = Number(item.price);
+				const q = Number(item.quantity);
+				return !Number.isFinite(p) || p < 0 || !Number.isFinite(q) || q <= 0;
+			});
 
 			if (invalidItems.length > 0) {
 				showToast('Algunos productos tienen valores inválidos. Por favor, verifique los precios y cantidades.', 'error');
@@ -752,7 +754,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 			// Preparar los detalles de la operación para una nueva orden
 			const details = itemsToProcess.map(item => {
 				const rawPrice = typeof item.price === 'number' ? item.price : parseFloat(String(item.price));
-				if (isNaN(rawPrice) || rawPrice <= 0) {
+				if (isNaN(rawPrice) || rawPrice < 0) {
 					throw new Error(`Precio inválido para el producto: ${item.name}`);
 				}
 				const unitPrice = parseFloat((Math.round(rawPrice * 100) / 100).toFixed(2));
@@ -763,7 +765,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 				const rawQuantity = typeof item.quantity === 'number' ? item.quantity : parseInt(String(item.quantity), 10);
 				const quantity = (isNaN(rawQuantity) || rawQuantity <= 0) ? 1 : parseInt(String(rawQuantity), 10);
 
-				if (isNaN(unitPrice) || unitPrice <= 0 || isNaN(unitValue) || unitValue <= 0 || isNaN(quantity) || quantity <= 0) {
+				if (isNaN(unitPrice) || unitPrice < 0 || isNaN(unitValue) || unitValue < 0 || isNaN(quantity) || quantity <= 0) {
 					throw new Error(`Valores inválidos para el producto: ${item.name}`);
 				}
 
@@ -799,7 +801,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 
 			if (isNaN(calculatedSubtotal) || calculatedSubtotal < 0 ||
 				isNaN(calculatedIgvAmount) || calculatedIgvAmount < 0 ||
-				isNaN(validTotal) || validTotal <= 0) {
+				isNaN(validTotal) || validTotal < 0) {
 				showToast('Error al calcular los totales. Por favor, intente nuevamente.', 'error');
 				return;
 			}

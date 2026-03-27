@@ -4,6 +4,7 @@ import { CANCEL_ISSUED_DOCUMENT, REPRINT_DOCUMENT } from '../../graphql/mutation
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import ConvertDocumentModal from './convertDocumentModal';
+import { parseLocalEmissionDateTime } from '../../utils/localDateTime';
 interface IssuedDocument {
   id: string;
   serial: string;
@@ -533,7 +534,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                     )}
                   </div>
                   <div style={{ fontSize: tableFontSize, color: '#64748b' }}>
-                    {dateFormatter.format(new Date(`${doc.emissionDate}T${doc.emissionTime}`))}
+                    {dateFormatter.format(parseLocalEmissionDateTime(doc.emissionDate, doc.emissionTime))}
                   </div>
                   {doc.person && (
                     <div style={{ fontSize: tableFontSize, color: '#64748b', marginTop: '0.25rem' }}>

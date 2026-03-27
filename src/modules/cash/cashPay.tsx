@@ -9,6 +9,7 @@ import { CREATE_ISSUED_DOCUMENT, CHANGE_OPERATION_TABLE, CHANGE_OPERATION_USER, 
 import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATION_BY_ID, GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR, GET_PERSONS_BY_BRANCH, GET_USERS_BY_BRANCH, SEARCH_PERSON_BY_DOCUMENT } from '../../graphql/queries';
 import CreateClient from '../user/createClient';
 import EditClient from '../user/editClient';
+import { formatLocalDateYYYYMMDD, formatLocalTimeHHMMSS, formatInstantISO } from '../../utils/localDateTime';
 
 type CashPayProps = {
   table: Table | null;
@@ -22,6 +23,9 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
   currency: 'PEN',
   minimumFractionDigits: 2
 });
+
+/** Evita artefactos de punto flotante (ej. 9.560000000000002) en montos de pago. */
+const roundMoney2 = (n: number): number => Math.round((Number(n) || 0) * 100) / 100;
 
 const getStatusLabel = (status: string): string => {
   const labels: Record<string, string> = {
@@ -476,7 +480,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     const newId = String(Date.now());
     // Calcular el monto restante para el nuevo pago
     const currentTotalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    const remainingAmount = Math.max(0, totalToPay - currentTotalPaid);
+    const remainingAmount = roundMoney2(Math.max(0, totalToPay - currentTotalPaid));
     setPayments([...payments, { id: newId, method: 'CASH', amount: remainingAmount, referenceNumber: '' }]);
   };
 
@@ -501,10 +505,10 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
   // Inicializar el primer pago con el total a pagar cuando cambie la operación o el total
   React.useEffect(() => {
-    if (totalToPay > 0 && payments.length > 0) {
-      // Si solo hay un pago y está en 0, inicializarlo con el total a pagar
+    if (payments.length > 0) {
+      // Si solo hay un pago y está en 0, inicializarlo con el total a pagar (incluye total S/ 0.00)
       if (payments.length === 1 && payments[0].amount === 0) {
-        setPayments([{ ...payments[0], amount: totalToPay }]);
+        setPayments([{ ...payments[0], amount: roundMoney2(totalToPay) }]);
       }
     }
   }, [totalToPay, operation?.id]);
@@ -514,7 +518,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     if (payments.length === 0) return;
     setPayments(prev =>
       prev.map((p, i) =>
-        i === 0 ? { ...p, amount: totalToPay } : { ...p, amount: 0 }
+        i === 0 ? { ...p, amount: roundMoney2(totalToPay) } : { ...p, amount: 0 }
       )
     );
   }, [totalToPay]);
@@ -1269,8 +1273,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
     try {
       const now = new Date();
-      const emissionDate = now.toISOString().split('T')[0];
-      const emissionTime = now.toTimeString().split(' ')[0].substring(0, 5);
+      const emissionDate = formatLocalDateYYYYMMDD(now);
+      const emissionTime = formatLocalTimeHHMMSS(now);
 
       // Preparar items del documento usando los detalles modificados (evitar doble resta si ya están en modifiedDetails)
       const availableDetails = modifiedDetails.length > 0 ? modifiedDetails : filterCanceledDetails(operation.details || [], operation?.id);
@@ -1377,9 +1381,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       const paymentSubtotal = parseFloat((Math.round((paymentTotal / (1 + igvDecimal)) * 100) / 100).toFixed(2));
       const paymentIgvAmount = parseFloat((Math.round((paymentTotal - paymentSubtotal) * 100) / 100).toFixed(2));
 
-      // Validar que la suma de pagos sea al menos el total a pagar (permite pagar de más y dar vuelto)
+      // Validar que la suma de pagos sea al menos el total a pagar (permite pagar de más y dar vuelto; total 0 no exige montos > 0)
       const totalPaymentsAmount = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-      if (totalPaymentsAmount < paymentTotal - 0.01) {
+      if (paymentTotal > 0.01 && totalPaymentsAmount < paymentTotal - 0.01) {
         showToast(`La suma de los pagos (${currencyFormatter.format(totalPaymentsAmount)}) debe ser al menos el total a pagar (${currencyFormatter.format(paymentTotal)})`, 'error');
         isProcessingRef.current = false;
         setIsProcessing(false);
@@ -1400,7 +1404,20 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         referenceNumber: string | null;
         notes: null;
       }>;
-      if (Math.abs(totalPaymentsAmount - paymentTotal) <= 0.01) {
+      if (paymentTotal <= 0.01) {
+        paymentsToSend = [{
+          cashRegisterId: cashRegisterIdToUse,
+          paymentType: 'CASH',
+          paymentMethod: payments[0]?.method || 'CASH',
+          transactionType: 'INCOME',
+          totalAmount: 0,
+          paidAmount: 0,
+          paymentDate: formatInstantISO(now),
+          dueDate: null,
+          referenceNumber: null,
+          notes: null
+        }];
+      } else if (Math.abs(totalPaymentsAmount - paymentTotal) <= 0.01) {
         // Monto exacto: usar los pagos tal cual
         paymentsToSend = payments
           .filter(p => Number(p.amount) > 0)
@@ -1411,7 +1428,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             transactionType: 'INCOME',
             totalAmount: Number(p.amount),
             paidAmount: Number(p.amount),
-            paymentDate: now.toISOString(),
+            paymentDate: formatInstantISO(now),
             dueDate: null,
             referenceNumber: (p.method === 'YAPE' || p.method === 'PLIN' || p.method === 'TRANSFER') ? (p.referenceNumber || null) : null,
             notes: null
@@ -1426,7 +1443,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           transactionType: 'INCOME',
           totalAmount: paymentTotal,
           paidAmount: paymentTotal,
-          paymentDate: now.toISOString(),
+          paymentDate: formatInstantISO(now),
           dueDate: null,
           referenceNumber: null,
           notes: null
@@ -1660,7 +1677,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           setPayments([{
             id: String(Date.now()),
             method: 'CASH',
-            amount: newTotal,
+            amount: roundMoney2(newTotal),
             referenceNumber: ''
           }]);
 
@@ -3766,12 +3783,22 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                                 updatePayment(payment.id, 'amount', 0);
                               } else {
                                 const numValue = parseFloat(value);
-                                updatePayment(payment.id, 'amount', isNaN(numValue) ? 0 : numValue);
+                                if (isNaN(numValue)) {
+                                  updatePayment(payment.id, 'amount', 0);
+                                } else {
+                                  updatePayment(payment.id, 'amount', roundMoney2(numValue));
+                                }
                               }
                             }}
                             onBlur={(e) => {
-                              if (e.target.value === '' || e.target.value === null || e.target.value === undefined) {
+                              const v = e.target.value;
+                              if (v === '' || v === null || v === undefined) {
                                 updatePayment(payment.id, 'amount', 0);
+                              } else {
+                                const numValue = parseFloat(v);
+                                if (!isNaN(numValue)) {
+                                  updatePayment(payment.id, 'amount', roundMoney2(numValue));
+                                }
                               }
                             }}
                             disabled={isProcessing}

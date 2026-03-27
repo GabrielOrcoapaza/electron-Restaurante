@@ -3,6 +3,7 @@ import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import { GET_STOCK_MOVEMENTS_REPORT, GET_STOCKS_BY_BRANCH, SEARCH_PRODUCTS, GET_PRODUCTS_BY_BRANCH } from '../../graphql/queries';
+import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
 
 interface StockMovement {
   id: string;
@@ -74,13 +75,10 @@ const Kardex: React.FC = () => {
   // Estado para los filtros
   const [startDate, setStartDate] = useState<string>(() => {
     const date = new Date();
-    date.setDate(date.getDate() - 30); // Últimos 30 días por defecto
-    return date.toISOString().split('T')[0];
+    date.setDate(date.getDate() - 30); // Últimos 30 días por defecto (calendario local)
+    return formatLocalDateYYYYMMDD(date);
   });
-  const [endDate, setEndDate] = useState<string>(() => {
-    const date = new Date();
-    return date.toISOString().split('T')[0];
-  });
+  const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [productSearchTerm, setProductSearchTerm] = useState<string>('');
   const [searchFocused, setSearchFocused] = useState(false);

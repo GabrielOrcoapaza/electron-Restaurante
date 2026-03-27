@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import { GET_SOLD_PRODUCTS_REPORT, GET_PRODUCTS_BY_BRANCH } from '../../graphql/queries';
 import ReportsProductsSoldList from './reportsProductsSoldList';
+import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
 
 export interface SoldProductItem {
   code: string;
@@ -37,8 +38,8 @@ const ReportsProductsSold: React.FC = () => {
   const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
 
   // Por defecto fecha actual (hoy); el usuario puede cambiar si desea otro rango
-  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
+  const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [productId, setProductId] = useState<string>('');
 
   const { data: productsData } = useQuery(GET_PRODUCTS_BY_BRANCH, {

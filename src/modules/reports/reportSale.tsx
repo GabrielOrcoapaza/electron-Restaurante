@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import { GET_SALES_REPORT, GET_DOCUMENTS } from '../../graphql/queries';
 import ReportSaleList from './reportSaleList';
+import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
 
 interface SalesReportSummary {
   totalDocuments: number;
@@ -112,8 +113,8 @@ const ReportSale: React.FC = () => {
   const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
 
   // Estado para los filtros: por defecto fecha actual (hoy); el usuario puede cambiar si desea otro rango
-  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
+  const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
   const [showDetails, setShowDetails] = useState(true);
 

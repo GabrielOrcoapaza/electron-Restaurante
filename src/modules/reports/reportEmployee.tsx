@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import { GET_USER_SALES_REPORT, SEARCH_USERS } from '../../graphql/queries';
 import ReportEmployeeList from './reportEmployeeList';
+import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -43,8 +44,8 @@ const ReportEmployee: React.FC = () => {
   const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
 
   // Por defecto fecha actual (hoy); el usuario puede cambiar si desea otro rango
-  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
+  const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [userId, setUserId] = useState<string>('');
   const [selectedUserLabel, setSelectedUserLabel] = useState<string>('');
   const [searchInput, setSearchInput] = useState<string>('');
