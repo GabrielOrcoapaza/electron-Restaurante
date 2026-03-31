@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useUserPermissions } from '../../hooks/useUserPermissions';
 import { useWebSocket } from '../../context/WebSocketContext';
 import { useToast } from '../../context/ToastContext';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -40,6 +41,8 @@ const getStatusLabel = (status: string): string => {
 
 const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTableChange }) => {
   const { companyData, user, deviceId, getMacAddress, updateTableInContext } = useAuth();
+  const { hasPermission } = useUserPermissions();
+  const canVoidInCashPay = hasPermission('cash.view') || hasPermission('cash.void');
   const { sendMessage, subscribe } = useWebSocket();
   const { showToast } = useToast();
   const { breakpoint } = useResponsive();
@@ -47,12 +50,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   // Solo para diferentes tamaños de pantalla de PC (desktop)
   // lg: 1024px-1279px, xl: 1280px-1535px, 2xl: >=1536px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
-  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
-
-  // En Caja se puede entrar a cualquier mesa (cobrar cualquier orden). La restricción por mozo aplica solo en pedidos/mesas (floor, order).
-  const canAccessTable = (_tableItem: any): { canAccess: boolean; reason?: string } => {
-    return { canAccess: true };
-  };
+  
   const hasSelection = Boolean(table?.id && companyData?.branch.id);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
   const [selectedSerialId, setSelectedSerialId] = useState<string>('');
@@ -74,10 +72,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   ]);
 
   const [isProcessing, setIsProcessing] = useState(false);
-  // Descuento: monto fijo (S/) y/o porcentaje (%)
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [discountPercent, setDiscountPercent] = useState<number>(0);
-  // ⚠️ Ref para prevenir dobles clics (más confiable que solo el estado)
   const isProcessingRef = useRef(false);
   const [itemAssignments, setItemAssignments] = useState<Record<string, boolean>>({});
   const [modifiedDetails, setModifiedDetails] = useState<any[]>([]);
@@ -98,7 +94,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const {
     data,
     loading,
-    error,
     refetch
   } = useQuery(GET_OPERATION_BY_ID, {
     variables: {
@@ -108,84 +103,64 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     fetchPolicy: 'network-only'
   });
 
-  // Obtener documentos disponibles
   const { data: documentsData, loading: documentsLoading, error: documentsError } = useQuery(GET_DOCUMENTS, {
     variables: { branchId: companyData?.branch.id || '' },
     skip: !companyData?.branch.id,
-    fetchPolicy: 'no-cache', // Cambiar a no-cache para evitar problemas de caché
-    notifyOnNetworkStatusChange: true,
-    onError: (error) => {
-      console.error('❌ Error al cargar documentos:', error);
-      console.error('❌ Detalles del error:', JSON.stringify(error, null, 2));
-    },
-    onCompleted: (data) => {
-      console.log('✅ Documentos cargados:', data);
-      console.log('✅ Documentos por sucursal:', data?.documentsByBranch);
-    }
+    fetchPolicy: 'no-cache'
   });
 
-  // Obtener series del documento seleccionado (siempre del servidor)
-  const { data: serialsData, loading: serialsLoading } = useQuery(GET_SERIALS_BY_DOCUMENT, {
+  const { data: serialsData } = useQuery(GET_SERIALS_BY_DOCUMENT, {
     variables: { documentId: selectedDocumentId },
     skip: !selectedDocumentId,
     fetchPolicy: 'network-only'
   });
 
-  // Obtener cajas registradoras (siempre del servidor)
   const { data: cashRegistersData } = useQuery(GET_CASH_REGISTERS, {
     variables: { branchId: companyData?.branch.id || '' },
     skip: !companyData?.branch.id,
     fetchPolicy: 'network-only'
   });
 
-  // Obtener pisos para el modal de cambio de mesa (siempre desde red)
-  const { data: floorsData, loading: floorsLoading } = useQuery(GET_FLOORS_BY_BRANCH, {
+  const { data: floorsData } = useQuery(GET_FLOORS_BY_BRANCH, {
     variables: { branchId: companyData?.branch.id || '' },
     skip: !companyData?.branch.id || !showChangeTableModal,
     fetchPolicy: 'network-only'
   });
 
-  // Obtener mesas del piso seleccionado (siempre desde red)
-  const { data: tablesData, loading: tablesLoading } = useQuery(GET_TABLES_BY_FLOOR, {
+  const { data: tablesData } = useQuery(GET_TABLES_BY_FLOOR, {
     variables: { floorId: selectedFloorId },
     skip: !selectedFloorId,
     fetchPolicy: 'network-only'
   });
 
-  // Obtener pisos para el modal de transferir platos (siempre desde red)
-  const { data: transferFloorsData, loading: transferFloorsLoading } = useQuery(GET_FLOORS_BY_BRANCH, {
+  const { data: transferFloorsData } = useQuery(GET_FLOORS_BY_BRANCH, {
     variables: { branchId: companyData?.branch.id || '' },
     skip: !companyData?.branch.id || !showTransferPlatesModal,
     fetchPolicy: 'network-only'
   });
 
-  // Obtener mesas del piso seleccionado para transferir (siempre desde red)
-  const { data: transferTablesData, loading: transferTablesLoading } = useQuery(GET_TABLES_BY_FLOOR, {
+  const { data: transferTablesData } = useQuery(GET_TABLES_BY_FLOOR, {
     variables: { floorId: selectedTransferFloorId },
     skip: !selectedTransferFloorId,
     fetchPolicy: 'network-only'
   });
 
-  // Obtener clientes (personas con isCustomer=true) - siempre del servidor para ver clientes nuevos
-  const { data: clientsData, loading: clientsLoading, refetch: refetchClients } = useQuery(GET_PERSONS_BY_BRANCH, {
+  const { data: clientsData, refetch: refetchClients } = useQuery(GET_PERSONS_BY_BRANCH, {
     variables: { branchId: companyData?.branch.id || '' },
     skip: !companyData?.branch.id,
     fetchPolicy: 'network-only'
   });
 
-  // Obtener empleados (mozos) del servidor cuando se abre el modal de cambio de usuario
   const { data: usersData } = useQuery(GET_USERS_BY_BRANCH, {
     variables: { branchId: companyData?.branch.id || '' },
     skip: !companyData?.branch.id || !showChangeUserModal,
     fetchPolicy: 'network-only'
   });
 
-  // Búsqueda por documento en SUNAT / local
   const [searchPersonByDocument, { loading: sunatSearchLoading }] = useLazyQuery(SEARCH_PERSON_BY_DOCUMENT, {
     fetchPolicy: 'network-only'
   });
   const [createPersonMutation] = useMutation(CREATE_PERSON);
-
   const [createIssuedDocumentMutation] = useMutation(CREATE_ISSUED_DOCUMENT);
   const [changeOperationTableMutation] = useMutation(CHANGE_OPERATION_TABLE);
   const [changeOperationUserMutation] = useMutation(CHANGE_OPERATION_USER);
@@ -195,11 +170,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [cancelOperationMutation] = useMutation(CANCEL_OPERATION);
   const [printPartialPrecuentaMutation] = useMutation(PRINT_PARTIAL_PRECUENTA);
 
-  // Función auxiliar para enviar notificación WebSocket de actualización de mesa
   const notifyTableUpdate = (tableId: string, status: string, currentOperationId?: string | number | null, occupiedById?: string | number | null, waiterName?: string | null) => {
-    // Pequeño delay para asegurar que la base de datos se haya actualizado primero
     setTimeout(() => {
-      // Enviar actualización específica de la mesa
       sendMessage({
         type: 'table_status_update',
         table_id: tableId,
@@ -208,152 +180,48 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         occupied_by_user_id: occupiedById || null,
         waiter_name: waiterName || null
       });
-      console.log(`📡 Notificación WebSocket enviada para mesa ${tableId}: ${status}`);
-
-      // También solicitar un snapshot completo de todas las mesas para asegurar sincronización
       setTimeout(() => {
-        sendMessage({
-          type: 'table_update_request'
-        });
-        console.log('📡 Solicitud de snapshot de mesas enviada');
+        sendMessage({ type: 'table_update_request' });
       }, 500);
     }, 300);
   };
 
   const operation = data?.operationById;
 
-  // Suscribirse a eventos WebSocket
   useEffect(() => {
     const unsubscribeOperationCancelled = subscribe('operation_cancelled', (message: any) => {
-      console.log('🚫 Operación cancelada recibida:', message);
-      // Si la operación cancelada es la actual, refetch
-      if (message.operation_id === operation?.id) {
-        refetch();
-      }
+      if (message.operation_id === operation?.id) refetch();
     });
-
     const unsubscribeOperationStatusUpdate = subscribe('operation_status_update', (message: any) => {
-      console.log('🔄 Actualización de estado de operación:', message);
-      // Si la operación actualizada es la actual, refetch
-      if (message.operation_id === operation?.id) {
-        refetch();
-      }
+      if (message.operation_id === operation?.id) refetch();
     });
-
     return () => {
       unsubscribeOperationCancelled();
       unsubscribeOperationStatusUpdate();
     };
   }, [subscribe, operation?.id, refetch]);
-  // Filtrar solo documentos y series activos (aunque el backend ya debería filtrarlos)
+
   const documents = (documentsData?.documentsByBranch || []).filter((doc: any) => doc.isActive !== false);
   const serials = (serialsData?.serialsByDocument || []).filter((ser: any) => ser.isActive !== false);
+  const allClients = (clientsData?.personsByBranch || []).filter((person: any) => !person.isSupplier && person.isActive !== false);
 
-  // Filtrar clientes (personas con isCustomer=true, no proveedores) y activos
-  const allClients = (clientsData?.personsByBranch || []).filter((person: any) =>
-    !person.isSupplier && person.isActive !== false
-  );
-
-  // Determinar si el documento seleccionado es Factura (01) o Boleta (03)
   const selectedDocument = documents.find((doc: any) => String(doc.id) === String(selectedDocumentId));
   const isFactura = selectedDocument?.code === '01';
   const selectedClient = allClients.find((c: any) => c.id === selectedClientId);
 
-  // Filtrar clientes por término de búsqueda y tipo de documento (Factura = solo RUC)
   const filteredClients = allClients.filter((client: any) => {
     if (isFactura && (client.documentType || '').toUpperCase() !== 'RUC') return false;
-
     if (!clientSearchTerm) return true;
     const search = clientSearchTerm.toLowerCase();
     const name = (client.name || '').toLowerCase();
     const documentNumber = (client.documentNumber || '').toLowerCase();
     return name.includes(search) || documentNumber.includes(search);
   }).slice(0, 50);
+
   const cashRegisters = cashRegistersData?.cashRegistersByBranch || [];
 
-  // Debug: Log para verificar datos
-  React.useEffect(() => {
-    console.log('📄 Datos de Documentos:', documentsData);
-    console.log('📄 Documentos:', documents);
-    console.log('📄 Cargando Documentos:', documentsLoading);
-    console.log('📄 Error de Documentos:', documentsError);
-    console.log('📄 ID de Sucursal:', companyData?.branch.id);
-  }, [documentsData, documents, documentsLoading, documentsError, companyData?.branch.id]);
-
-  if (!table) {
-    return (
-      <div
-        style={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        <div
-          style={{
-            backgroundColor: 'white',
-            padding: '2rem',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)',
-            textAlign: 'center',
-            maxWidth: '400px'
-          }}
-        >
-          <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>💳</div>
-          <h2
-            style={{
-              fontSize: '1.25rem',
-              fontWeight: 600,
-              color: '#1a202c',
-              marginBottom: '0.75rem'
-            }}
-          >
-            Selecciona una mesa
-          </h2>
-          <p
-            style={{
-              fontSize: '0.95rem',
-              color: '#4a5568',
-              marginBottom: '1.5rem'
-            }}
-          >
-            Elige una mesa desde la vista de mesas para revisar y cobrar su
-            orden.
-          </p>
-          <button
-            onClick={onBack}
-            style={{
-              padding: '0.75rem 1.5rem',
-              borderRadius: '8px',
-              border: 'none',
-              backgroundColor: '#667eea',
-              color: 'white',
-              cursor: 'pointer',
-              fontWeight: 600
-            }}
-          >
-            Ir a mesas
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Usar el IGV de la sucursal obtenido en el login de empresa (float, por defecto 10.5% para sedes)
   const igvPercentage = Number(companyData?.branch?.igvPercentage) || 10.5;
 
-  // Log para verificar que se está usando el IGV de la sucursal
-  React.useEffect(() => {
-    if (companyData?.branch?.igvPercentage != null) {
-      console.log('✅ IGV de la sucursal:', companyData.branch.igvPercentage, '%');
-    } else {
-      console.warn('⚠️ IGV de la sucursal no encontrado, usando valor por defecto: 10.5%');
-    }
-  }, [companyData?.branch?.igvPercentage]);
-
-  // Función helper para obtener información de facturación desde sessionStorage
   const getFacturedItemsFromStorage = (operationId: string): Map<string, number> => {
     try {
       const storageKey = `factured_items_${operationId}`;
@@ -366,155 +234,82 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         });
         return map;
       }
-    } catch (error) {
-      console.warn('⚠️ Error leyendo facturación de sessionStorage:', error);
-    }
+    } catch (error) { console.warn(error); }
     return new Map<string, number>();
   };
 
-  // Función helper para guardar información de facturación en sessionStorage
   const saveFacturedItemsToStorage = (operationId: string, facturedItemsMap: Map<string, number>) => {
     try {
       const storageKey = `factured_items_${operationId}`;
       const existingData = getFacturedItemsFromStorage(operationId);
-
-      // Combinar con datos existentes (sumar cantidades si el mismo detalle se facturó múltiples veces)
       facturedItemsMap.forEach((quantity, detailId) => {
         const existingQty = existingData.get(detailId) || 0;
         existingData.set(detailId, existingQty + quantity);
       });
-
-      // Convertir Map a objeto para guardar en sessionStorage
       const dataToStore: Record<string, number> = {};
-      existingData.forEach((value, key) => {
-        dataToStore[key] = value;
-      });
-
+      existingData.forEach((value, key) => { dataToStore[key] = value; });
       sessionStorage.setItem(storageKey, JSON.stringify(dataToStore));
-      console.log('💾 Facturación guardada en sessionStorage:', dataToStore);
-    } catch (error) {
-      console.warn('⚠️ Error guardando facturación en sessionStorage:', error);
-    }
+    } catch (error) { console.warn(error); }
   };
 
-  // Función helper para filtrar productos cancelados y completamente facturados
   const filterCanceledDetails = (details: any[], operationId?: string) => {
     if (!details || !Array.isArray(details)) return [];
-
-    // Obtener información de facturación desde sessionStorage si tenemos operationId
     const facturedItemsMap = operationId ? getFacturedItemsFromStorage(operationId) : new Map<string, number>();
-
     const adjustedDetails: any[] = [];
     details.forEach((detail: any) => {
-      const isCanceled = detail.isCanceled === true || detail.isCanceled === 1 ||
-        detail.isCanceled === "true" || detail.isCanceled === "True" ||
-        String(detail.isCanceled).toLowerCase() === "true";
+      const isCanceled = detail.isCanceled === true || detail.isCanceled === 1 || String(detail.isCanceled).toLowerCase() === "true";
       if (isCanceled) return;
-
       const detailId = String(detail.id);
       const originalQuantity = Number(detail.quantity) || 0;
-      const paidFromStorage = facturedItemsMap.has(detailId) ? (facturedItemsMap.get(detailId) || 0) : undefined;
-
-      // PRIORIDAD DE FUENTE:
-      // 1) Si es un item dividido (split), usar su propia cantidad (ignorar backend ya que es nuevo en UI)
-      // 2) Si tenemos registro local (sessionStorage), usarlo para calcular lo que falta
-      // 3) Calcular usando issuedItems del backend: quantity - sum(issuedItems.quantity)
-      // 4) En último caso, usar la cantidad original
+      const paidFromStorage = facturedItemsMap.get(detailId);
+      const quantityFacturedBackend = (detail.issuedItems || []).reduce((sum: number, item: any) => sum + (Number(item.quantity) || 0), 0);
       let remainingQty: number;
-
-      // Calcular cuánto se ha facturado ya según el backend (issuedItems)
-      const quantityFacturedBackend = (detail.issuedItems || []).reduce((sum: number, item: any) => {
-        return sum + (Number(item.quantity) || 0);
-      }, 0);
-
       if (detailId.includes('-split-')) {
-        remainingQty = originalQuantity; // Para splits, la cantidad ya es la correcta (usualmente 1)
+        remainingQty = originalQuantity;
       } else if (paidFromStorage !== undefined) {
         remainingQty = originalQuantity - paidFromStorage;
       } else {
         remainingQty = originalQuantity - quantityFacturedBackend;
       }
-
-      if (remainingQty <= 0) {
-        console.log(`   ❌ Detalle ${detail.productName || detailId} excluido: facturado completamente (restante=${remainingQty})`);
-        return;
-      }
-
-      adjustedDetails.push({
-        ...detail,
-        quantity: remainingQty,
-        remainingQuantity: remainingQty // Propiedad interna para gestión de splits en UI
-      });
+      if (remainingQty <= 0) return;
+      adjustedDetails.push({ ...detail, quantity: remainingQty, remainingQuantity: remainingQty });
     });
     return adjustedDetails;
   };
 
-  // Calcular totales basados en los detalles modificados (filtrar cancelados)
-  // ⚠️ IMPORTANTE: Si hay productos seleccionados (checkboxes), calcular solo los seleccionados
-  // NOTA: Los precios unitarios ya incluyen IGV, por lo que:
-  // Total = suma de (cantidad * precio_unitario) [con IGV incluido]
-  // Subtotal = Total / (1 + IGV%)
-  // IGV = Total - Subtotal
   const detailsToUse = modifiedDetails.length > 0 ? modifiedDetails : filterCanceledDetails(operation?.details || [], operation?.id);
-
-  // Obtener productos seleccionados (si hay checkboxes marcados, usar solo esos)
   const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
-  const detailsForTotal = selectedDetailIds.length > 0
-    ? detailsToUse.filter((detail: any) => selectedDetailIds.includes(String(detail.id)))
-    : detailsToUse;
+  const detailsForTotal = selectedDetailIds.length > 0 ? detailsToUse.filter((detail: any) => selectedDetailIds.includes(String(detail.id))) : detailsToUse;
 
   const total = detailsForTotal.reduce((sum: number, detail: any) => {
     const quantity = Number(detail.quantity) || 0;
     const unitPrice = Number(detail.unitPrice) || 0;
     return sum + (quantity * unitPrice);
   }, 0);
-  const igvDecimal = igvPercentage / 100;
-  // Descuento total (monto fijo + porcentaje sobre el total)
   const totalDiscount = Math.max(0, (Number(discountAmount) || 0) + (total * (Number(discountPercent) || 0) / 100));
   const totalToPay = Math.max(0, total - totalDiscount);
+  const igvDecimal = igvPercentage / 100;
   const subtotal = parseFloat((Math.round((totalToPay / (1 + igvDecimal)) * 100) / 100).toFixed(2));
   const igvAmount = parseFloat((Math.round((totalToPay - subtotal) * 100) / 100).toFixed(2));
 
-  // Funciones para manejar múltiples pagos
   const addPayment = () => {
-    const newId = String(Date.now());
-    // Calcular el monto restante para el nuevo pago
     const currentTotalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const remainingAmount = roundMoney2(Math.max(0, totalToPay - currentTotalPaid));
-    setPayments([...payments, { id: newId, method: 'CASH', amount: remainingAmount, referenceNumber: '' }]);
+    setPayments([...payments, { id: String(Date.now()), method: 'CASH', amount: remainingAmount, referenceNumber: '' }]);
   };
-
-  const removePayment = (id: string) => {
-    if (payments.length > 1) {
-      setPayments(payments.filter(p => p.id !== id));
-    }
-  };
-
+  const removePayment = (id: string) => { if (payments.length > 1) setPayments(payments.filter(p => p.id !== id)); };
   const updatePayment = (id: string, field: keyof Payment, value: string | number) => {
-    setPayments(payments.map(p =>
-      p.id === id ? { ...p, [field]: value } : p
-    ));
+    setPayments(payments.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
-
-  // Calcular total pagado y diferencia (respecto al total a pagar con descuento)
   const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const remaining = totalToPay - totalPaid;
-  // Pago completo cuando lo pagado >= total a pagar (permite dar vuelto si paga de más)
-  const isPaymentComplete = totalPaid >= totalToPay - 0.01;
   const vuelto = remaining < 0 ? Math.abs(remaining) : 0;
 
-  // Inicializar el primer pago con el total a pagar cuando cambie la operación o el total
-  React.useEffect(() => {
-    if (payments.length > 0) {
-      // Si solo hay un pago y está en 0, inicializarlo con el total a pagar (incluye total S/ 0.00)
-      if (payments.length === 1 && payments[0].amount === 0) {
-        setPayments([{ ...payments[0], amount: roundMoney2(totalToPay) }]);
-      }
-    }
+  useEffect(() => {
+    if (payments.length === 1 && payments[0].amount === 0) setPayments([{ ...payments[0], amount: roundMoney2(totalToPay) }]);
   }, [totalToPay, operation?.id]);
 
-  // Al seleccionar/deseleccionar ítems o cambiar descuento, actualizar montos de pago
-  React.useEffect(() => {
+  useEffect(() => {
     if (payments.length === 0) return;
     setPayments(prev =>
       prev.map((p, i) =>
@@ -523,639 +318,122 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     );
   }, [totalToPay]);
 
-  // Resetear descuento al cambiar de operación/mesa
-  React.useEffect(() => {
-    setDiscountAmount(0);
-    setDiscountPercent(0);
+  useEffect(() => {
+    setDiscountAmount(0); setDiscountPercent(0);
   }, [operation?.id]);
 
-  // Inicializar valores por defecto cuando se cargan los datos
-  React.useEffect(() => {
-    if (documents.length > 0 && !selectedDocumentId) {
-      console.log('📄 Inicializando documento por defecto:', documents[0]);
-      setSelectedDocumentId(documents[0].id);
-    }
-    if (cashRegisters.length > 0 && !selectedCashRegisterId) {
-      setSelectedCashRegisterId(cashRegisters[0].id);
-    }
+  useEffect(() => {
+    if (documents.length > 0 && !selectedDocumentId) setSelectedDocumentId(documents[0].id);
+    if (cashRegisters.length > 0 && !selectedCashRegisterId) setSelectedCashRegisterId(cashRegisters[0].id);
   }, [documents, cashRegisters, selectedDocumentId, selectedCashRegisterId]);
 
-
-  // Inicializar serie cuando se carga un documento o cambia el documento seleccionado
-  React.useEffect(() => {
-    if (serials.length > 0 && !selectedSerialId) {
-      setSelectedSerialId(serials[0].id);
-    } else if (serials.length === 0) {
-      setSelectedSerialId('');
-    }
+  useEffect(() => {
+    if (serials.length > 0 && !selectedSerialId) setSelectedSerialId(serials[0].id);
+    else if (serials.length === 0) setSelectedSerialId('');
   }, [serials, selectedSerialId]);
 
-  // Resetear serie cuando cambia el documento
-  React.useEffect(() => {
-    setSelectedSerialId('');
-  }, [selectedDocumentId]);
+  useEffect(() => { setSelectedSerialId(''); }, [selectedDocumentId]);
 
-  // Limpiar cliente seleccionado si no es un RUC y se cambia a FACTURA
-  React.useEffect(() => {
-    if (isFactura && selectedClientId && selectedClient) {
-      if ((selectedClient.documentType || '').toUpperCase() !== 'RUC') {
-        console.log('🔄 Cliente no es RUC, limpiando selección para Factura');
-        setSelectedClientId('');
-      }
-    }
-  }, [isFactura, selectedClientId, selectedClient]);
-
-  // Buscar cliente por documento en SUNAT o local
   const handleSearchSunat = async () => {
     const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
     if (!/^\d+$/.test(term) || !companyData?.branch?.id) return;
-    const isRuc = term.length === 11;
-    const isDni = term.length === 8;
-    if (isFactura && !isRuc) return;
-    if (!isRuc && !isDni) return;
-    const documentType = isRuc ? 'RUC' : 'DNI';
+    const documentType = term.length === 11 ? 'RUC' : 'DNI';
     try {
-      const { data } = await searchPersonByDocument({
-        variables: { documentType, documentNumber: term, branchId: companyData.branch.id }
-      });
+      const { data } = await searchPersonByDocument({ variables: { documentType, documentNumber: term, branchId: companyData.branch.id } });
       const result = data?.searchPersonByDocument;
-      if (!result?.person) {
-        showToast('No se encontró el documento en SUNAT ni en el sistema.', 'error');
-        return;
-      }
+      if (!result?.person) { showToast('No se encontró el documento.', 'error'); return; }
       const person = result.person;
       if (person.id && result.foundLocally) {
-        setSelectedClientId(person.id);
-        setClientSearchTerm(person.name || '');
-        const { data: refetched } = await refetchClients();
-        const updated = (refetched?.personsByBranch || []).find((p: any) => p.id === person.id);
-        if (updated?.name) setClientSearchTerm(updated.name);
+        setSelectedClientId(person.id); setClientSearchTerm(person.name || '');
         return;
       }
-      // Encontrado en SUNAT (o datos para crear): crear cliente y seleccionar
       const { data: createData } = await createPersonMutation({
         variables: {
-          branchId: companyData.branch.id,
-          documentType: person.documentType || documentType,
-          documentNumber: person.documentNumber || term,
-          name: person.name || (documentType === 'RUC' ? 'Empresa' : 'Cliente'),
-          address: person.address || undefined,
-          phone: person.phone || undefined,
-          email: person.email || undefined,
-          isCustomer: true,
-          isSupplier: false
+          branchId: companyData.branch.id, documentType: person.documentType || documentType, documentNumber: person.documentNumber || term,
+          name: person.name || 'Cliente', isCustomer: true, isSupplier: false
         }
       });
-      if (createData?.createPerson?.success && createData?.createPerson?.person) {
+      if (createData?.createPerson?.success) {
         const newPerson = createData.createPerson.person;
-        setSelectedClientId(newPerson.id);
-        setClientSearchTerm(newPerson.name || '');
-        // Refrescar la lista de clientes para que selectedClient esté disponible al pagar
+        setSelectedClientId(newPerson.id); setClientSearchTerm(newPerson.name || '');
         await refetchClients();
-      } else {
-        showToast(createData?.createPerson?.message || 'Error al registrar el cliente.', 'error');
       }
-    } catch (err: any) {
-      showToast(err?.message || 'Error al buscar en SUNAT.', 'error');
-    }
+    } catch (err: any) { showToast(err?.message, 'error'); }
   };
 
-  // Inicializar detalles modificados cuando se carga la operación (filtrar cancelados)
-  React.useEffect(() => {
+  useEffect(() => {
     if (operation?.details && operation?.id) {
-      console.log('🔄 Inicializando detalles para operación:', operation.id);
       const nonCanceledDetails = filterCanceledDetails(operation.details, operation.id);
       setModifiedDetails([...nonCanceledDetails]);
-
-      // Solo marcar automáticamente si no hay selecciones previas
-      const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
-      if (selectedDetailIds.length === 0) {
+      if (Object.keys(itemAssignments).length === 0) {
         const initialAssignments: Record<string, boolean> = {};
-        nonCanceledDetails.forEach((detail: any) => {
-          if (detail.id) {
-            initialAssignments[String(detail.id)] = true;
-          }
-        });
+        nonCanceledDetails.forEach((detail: any) => { if (detail.id) initialAssignments[String(detail.id)] = true; });
         setItemAssignments(initialAssignments);
       }
     }
   }, [operation?.details, operation?.id]);
 
-  // Refetch automático cuando cambia la mesa
-  React.useEffect(() => {
-    if (table?.id && companyData?.branch.id) {
-      console.log('🔄 Mesa cambiada, refetching operación para mesa:', table.id);
-
-      // Pequeño delay para asegurar que el backend haya procesado el cambio
-      const timer = setTimeout(() => {
-        refetch({
-          operationId: table.currentOperationId
-        }).then((result) => {
-          console.log('✅ Operación refetched exitosamente para mesa:', table.id);
-          // Reinicializar detalles después del refetch (filtrar cancelados)
-          if (result.data?.operationById?.details && result.data?.operationById?.id) {
-            const nonCanceledDetails = filterCanceledDetails(result.data.operationById.details, result.data.operationById.id);
-            setModifiedDetails([...nonCanceledDetails]);
-            // Marcar todos los productos como seleccionados automáticamente
-            const initialAssignments: Record<string, boolean> = {};
-            nonCanceledDetails.forEach((detail: any) => {
-              if (detail.id) {
-                initialAssignments[detail.id] = true;
-              }
-            });
-            setItemAssignments(initialAssignments);
-          }
-        }).catch((error) => {
-          console.error('❌ Error al refetch operación:', error);
-        });
-      }, 500);
-
-      // Limpiar selecciones y detalles modificados cuando cambia la mesa para evitar residuos
-      setItemAssignments({});
-      setModifiedDetails([]);
-
-      return () => clearTimeout(timer);
+  useEffect(() => {
+    if (table?.id) {
+      setTimeout(() => { refetch(); }, 500);
+      setItemAssignments({}); setModifiedDetails([]);
     }
-  }, [table?.id, companyData?.branch.id, refetch]);
+  }, [table?.id]);
 
   const handleSplitItem = (detailId: string) => {
-    const splitTimestamp = Date.now();
-    const splitDetailId = `${detailId}-split-${splitTimestamp}`;
-
-    setModifiedDetails(prevDetails => {
-      const detailIndex = prevDetails.findIndex((d: any) => String(d.id) === String(detailId));
-      if (detailIndex === -1) return prevDetails;
-
-      const detail = prevDetails[detailIndex];
-      const quantity = Number(detail.quantity) || 0;
-
-      // Solo dividir si la cantidad es mayor a 1
-      if (quantity <= 1) {
-        return prevDetails;
-      }
-
-      // Dividir: reducir cantidad del original y crear copia con cantidad 1
-      const newDetails = [...prevDetails];
-      const originalDetail = { ...detail };
-
-      // Reducir cantidad del original en 1
-      newDetails[detailIndex] = {
-        ...originalDetail,
-        quantity: quantity - 1,
-        remainingQuantity: quantity - 1, // ✅ Actualizar también la cantidad restante
-        total: (quantity - 1) * Number(originalDetail.unitPrice)
-      };
-
-      // Crear copia con cantidad 1
-      // Guardar el ID original para poder transferir correctamente
-      const splitDetail = {
-        ...originalDetail,
-        id: splitDetailId, // ID único para la copia (solo para UI)
-        originalDetailId: detailId, // ID original del detalle en la BD
-        quantity: 1,
-        remainingQuantity: 1, // ✅ Resetear cantidad restante para la copia
-        total: Number(originalDetail.unitPrice)
-      };
-
-      // Insertar la copia después del original
-      newDetails.splice(detailIndex + 1, 0, splitDetail);
-
-      // Marcar tanto el original como la copia recién creada como seleccionados
-      setItemAssignments(prev => {
-        return {
-          ...prev,
-          [detailId]: true,
-          [splitDetailId]: true
-        };
-      });
-
-      return newDetails;
+    const splitDetailId = `${detailId}-split-${Date.now()}`;
+    setModifiedDetails(prev => {
+      const idx = prev.findIndex((d: any) => String(d.id) === String(detailId));
+      if (idx === -1) return prev;
+      const d = prev[idx];
+      const q = Number(d.quantity) || 0;
+      if (q <= 1) return prev;
+      const next = [...prev];
+      next[idx] = { ...d, quantity: q - 1, remainingQuantity: q - 1 };
+      next.splice(idx + 1, 0, { ...d, id: splitDetailId, originalDetailId: detailId, quantity: 1, remainingQuantity: 1 });
+      setItemAssignments(p => ({ ...p, [detailId]: true, [splitDetailId]: true }));
+      return next;
     });
   };
 
   const handleMergeItem = (splitDetailId: string) => {
-    // Extraer el ID original del producto dividido
     const originalId = splitDetailId.split('-split')[0];
-
-    setModifiedDetails(prevDetails => {
-      const newDetails = [...prevDetails];
-
-      // Encontrar el índice de la copia
-      const splitIndex = newDetails.findIndex((d: any) => String(d.id) === String(splitDetailId));
-      if (splitIndex === -1) return prevDetails;
-
-      // Encontrar el producto original
-      const originalIndex = newDetails.findIndex((d: any) => String(d.id) === String(originalId));
-      if (originalIndex === -1) return prevDetails;
-
-      const splitDetail = newDetails[splitIndex];
-      const originalDetail = newDetails[originalIndex];
-
-      // Sumar la cantidad de la copia al original
-      const splitQuantity = Number(splitDetail.quantity) || 0;
-      const originalQuantity = Number(originalDetail.quantity) || 0;
-
-      newDetails[originalIndex] = {
-        ...originalDetail,
-        quantity: originalQuantity + splitQuantity,
-        remainingQuantity: originalQuantity + splitQuantity, // ✅ Actualizar también la cantidad restante
-        total: (originalQuantity + splitQuantity) * Number(originalDetail.unitPrice)
-      };
-
-      // Eliminar la copia
-      newDetails.splice(splitIndex, 1);
-
-      return newDetails;
-    });
-
-    // Verificar si quedan más copias del mismo producto original
-    setItemAssignments(prev => {
-      const remainingSplits = modifiedDetails.filter((d: any) =>
-        String(d.id).includes(`${originalId}-split`) && String(d.id) !== String(splitDetailId)
-      );
-
-      // Si no quedan más copias, remover la marca de dividido y marcar el original como seleccionado
-      if (remainingSplits.length === 0) {
-        const newAssignments = { ...prev };
-        delete newAssignments[originalId];
-        // Marcar el producto original como seleccionado
-        newAssignments[originalId] = true;
-        return newAssignments;
-      }
-      return prev;
+    setModifiedDetails(prev => {
+      const sIdx = prev.findIndex((d: any) => String(d.id) === String(splitDetailId));
+      const oIdx = prev.findIndex((d: any) => String(d.id) === String(originalId));
+      if (sIdx === -1 || oIdx === -1) return prev;
+      const next = [...prev];
+      const sD = next[sIdx];
+      const oD = next[oIdx];
+      next[oIdx] = { ...oD, quantity: (Number(oD.quantity) || 0) + (Number(sD.quantity) || 0) };
+      next.splice(sIdx, 1);
+      return next;
     });
   };
 
-  const handleToggleItemSelection = (detailId: string) => {
-    setItemAssignments(prev => {
-      const newAssignments = { ...prev };
-      if (newAssignments[detailId]) {
-        delete newAssignments[detailId];
-      } else {
-        newAssignments[detailId] = true;
-      }
-      return newAssignments;
-    });
-  };
-
-  const handleSelectAll = () => {
-    const allIds = (detailsToUse || []).reduce<Record<string, boolean>>((acc, detail: any) => {
-      acc[String(detail.id || '')] = true;
-      return acc;
-    }, {});
-    setItemAssignments(allIds);
-  };
-
-  const handleDeselectAll = () => {
-    setItemAssignments({});
+  const handleToggleItemSelection = (id: string) => {
+    setItemAssignments(p => { const n = { ...p }; if (n[id]) delete n[id]; else n[id] = true; return n; });
   };
 
   const handleDeleteItem = async (detailId: string) => {
-    // Si es un item dividido (split), cancelar parcialmente el producto original
-    if (detailId?.includes('-split')) {
-      // Extraer el ID original del producto (todo antes de '-split')
-      const originalDetailId = detailId.split('-split')[0];
-
-      // Guardar splits restantes antes de eliminar (para preservarlos después del refetch)
-      let remainingSplits: any[] = [];
-      setModifiedDetails(prevDetails => {
-        // Guardar splits restantes del mismo producto original
-        remainingSplits = prevDetails.filter((d: any) =>
-          String(d.id).includes('-split') &&
-          String(d.id) !== String(detailId) &&
-          String(d.id).startsWith(`${originalDetailId}-split`)
-        );
-        // Eliminar el split seleccionado
-        return prevDetails.filter((d: any) => String(d.id) !== String(detailId));
-      });
-
-      // Limpiar las asignaciones del split eliminado
-      setItemAssignments(prev => {
-        const newAssignments = { ...prev };
-        delete newAssignments[detailId];
-        return newAssignments;
-      });
-
-      try {
-        // Eliminación parcial: obtener MAC del equipo para deviceId
-        const deviceIdForPartial = await getMacAddress();
-        
-        console.log('🗑️ [ELIMINACIÓN PARCIAL] deviceId enviado:', deviceIdForPartial || 'undefined', deviceIdForPartial ? '(MAC ✓)' : '(deviceId contexto)');
-        // Llamar a la mutación con cancelación parcial (quantity: 1)
-        const result = await cancelOperationDetailMutation({
-          variables: {
-            detailId: originalDetailId,
-            quantity: 1,
-            userId: user?.id || '',
-            deviceId: deviceIdForPartial
-          }
-        });
-
-        if (result.data?.cancelOperationDetail?.success) {
-          // ✅ Verificar si la operación cambió de estado automáticamente
-          const operationCancelled = result.data?.cancelOperationDetail?.operationCancelled;
-
-          if (operationCancelled) {
-            console.log('✅ Operación cambió de estado automáticamente después de cancelar item');
-          }
-
-          // Refetch la operación para obtener los datos actualizados
-          const refetchResult = await refetch();
-          // Actualizar modifiedDetails filtrando cancelados y preservando splits restantes sin duplicar cantidades
-          if (refetchResult.data?.operationById?.details && refetchResult.data?.operationById?.id) {
-            const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationById.details, refetchResult.data.operationById.id);
-            const totalRemainingSplitQty = remainingSplits.reduce((sum: number, d: any) => sum + (Number(d.quantity) || 0), 0);
-            const originalFromBackend = nonCanceledDetails.find((d: any) => String(d.id) === String(originalDetailId));
-            let detailsToSet: any[];
-            if (originalFromBackend && totalRemainingSplitQty > 0) {
-              const backendQty = Number(originalFromBackend.quantity) || 0;
-              const originalQtyToShow = Math.max(0, backendQty - totalRemainingSplitQty);
-              const adjustedOriginal = {
-                ...originalFromBackend,
-                quantity: originalQtyToShow,
-                remainingQuantity: originalQtyToShow,
-                total: originalQtyToShow * Number(originalFromBackend.unitPrice || 0)
-              };
-              detailsToSet = nonCanceledDetails.flatMap((d: any) =>
-                String(d.id) === String(originalDetailId)
-                  ? [adjustedOriginal, ...remainingSplits]
-                  : [d]
-              );
-            } else {
-              detailsToSet = [...nonCanceledDetails, ...remainingSplits];
-            }
-            setModifiedDetails(detailsToSet);
-
-            // Si no hay detalles (ni del backend ni splits), la mesa queda libre
-            if (detailsToSet.length === 0 && table?.id && updateTableInContext) {
-              updateTableInContext({
-                id: table.id,
-                status: 'AVAILABLE',
-                statusColors: null, // Limpiar colores para usar los por defecto (verde)
-                currentOperationId: null,
-                occupiedById: null,
-                userName: null
-              });
-              // Notificar al componente padre para que actualice las mesas
-              if (onPaymentSuccess) {
-                onPaymentSuccess();
-              }
-              // Volver atrás después de un breve delay
-              setTimeout(() => {
-                onBack();
-              }, 500);
-            }
-          } else if (!refetchResult.data?.operationById && table?.id && updateTableInContext) {
-            // Si la operación ya no existe, la mesa queda libre
-            updateTableInContext({
-              id: table.id,
-              status: 'AVAILABLE',
-              statusColors: null, // Limpiar colores para usar los por defecto (verde)
-              currentOperationId: null,
-              occupiedById: null,
-              userName: null
-            });
-            setModifiedDetails([]);
-            // Notificar al componente padre para que actualice las mesas
-            if (onPaymentSuccess) {
-              onPaymentSuccess();
-            }
-            // Volver atrás después de un breve delay
-            setTimeout(() => {
-              onBack();
-            }, 500);
-          }
-        } else {
-          const errorMessage = result.data?.cancelOperationDetail?.message || 'Error al cancelar el item';
-          console.log(errorMessage);
-          // Si falla, hacer refetch para restaurar el estado
-          await refetch();
-        }
-      } catch (error: any) {
-        console.error('Error cancelando item:', error);
-        // Si falla, hacer refetch para restaurar el estado
-        await refetch();
-      }
+    if (!canVoidInCashPay) {
+      showToast('No tienes permiso para quitar ítems de la orden en caja.', 'error');
       return;
     }
-
-    // Para items reales (no splits): si tiene copias (splits), cancelar solo la cantidad del original y conservar las copias
+    const isSplit = detailId?.includes('-split');
+    const originalId = isSplit ? detailId.split('-split')[0] : detailId;
     try {
-      let remainingSplits: any[] = [];
-      let originalQuantityToCancel = 1;
-
-      const currentDetails = modifiedDetails.length > 0 ? modifiedDetails : filterCanceledDetails(operation?.details || [], operation?.id);
-      const relatedSplits = currentDetails.filter((d: any) => String(d.id).startsWith(`${detailId}-split`));
-      const originalRow = currentDetails.find((d: any) => String(d.id) === String(detailId) && !String(d.id).includes('-split'));
-
-      if (relatedSplits.length > 0 && originalRow) {
-        // Hay copias: cancelar solo la cantidad del original y conservar las copias
-        originalQuantityToCancel = Number(originalRow.quantity) || 1;
-        remainingSplits = [...relatedSplits];
-
-        setModifiedDetails(prevDetails => prevDetails.filter((d: any) => !(String(d.id) === String(detailId) && !String(d.id).includes('-split'))));
-        setItemAssignments(prev => {
-          const next = { ...prev };
-          delete next[detailId];
-          return next;
-        });
-
-        // Eliminación parcial (con copias): obtener MAC del equipo para deviceId
-        const deviceIdForPartial2 = await getMacAddress();
-        console.log('🗑️ [ELIMINACIÓN PARCIAL] deviceId enviado:', deviceIdForPartial2 || 'undefined', deviceIdForPartial2 ? '(MAC ✓)' : '(deviceId contexto)');
-        const result = await cancelOperationDetailMutation({
-          variables: {
-            detailId: detailId,
-            quantity: originalQuantityToCancel,
-            userId: user?.id || '',
-            deviceId: deviceIdForPartial2
-          }
-        });
-
-        if (result.data?.cancelOperationDetail?.success) {
-          const refetchResult = await refetch();
-          if (refetchResult.data?.operationById?.details && refetchResult.data?.operationById?.id) {
-            const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationById.details, refetchResult.data.operationById.id);
-            const totalRemainingSplitQty = remainingSplits.reduce((sum: number, d: any) => sum + (Number(d.quantity) || 0), 0);
-            const originalFromBackend = nonCanceledDetails.find((d: any) => String(d.id) === String(detailId));
-            let detailsToSet: any[];
-            if (originalFromBackend && totalRemainingSplitQty > 0) {
-              const backendQty = Number(originalFromBackend.quantity) || 0;
-              const originalQtyToShow = Math.max(0, backendQty - totalRemainingSplitQty);
-              if (originalQtyToShow > 0) {
-                const adjustedOriginal = {
-                  ...originalFromBackend,
-                  quantity: originalQtyToShow,
-                  remainingQuantity: originalQtyToShow,
-                  total: originalQtyToShow * Number(originalFromBackend.unitPrice || 0)
-                };
-                detailsToSet = nonCanceledDetails.flatMap((d: any) =>
-                  String(d.id) === String(detailId) ? [adjustedOriginal, ...remainingSplits] : [d]
-                );
-              } else {
-                detailsToSet = nonCanceledDetails.flatMap((d: any) =>
-                  String(d.id) === String(detailId) ? remainingSplits : [d]
-                );
-              }
-            } else {
-              detailsToSet = [...nonCanceledDetails, ...remainingSplits];
-            }
-            setModifiedDetails(detailsToSet);
-            if (detailsToSet.length === 0 && table?.id && updateTableInContext) {
-              updateTableInContext({ id: table.id, status: 'AVAILABLE', statusColors: null, currentOperationId: null, occupiedById: null, userName: null });
-              if (onPaymentSuccess) onPaymentSuccess();
-              setTimeout(() => onBack(), 500);
-            }
-          } else if (!refetchResult.data?.operationById && table?.id && updateTableInContext) {
-            updateTableInContext({ id: table.id, status: 'AVAILABLE', statusColors: null, currentOperationId: null, occupiedById: null, userName: null });
-            setModifiedDetails(remainingSplits.length > 0 ? remainingSplits : []);
-            if (onPaymentSuccess) onPaymentSuccess();
-            setTimeout(() => onBack(), 500);
-          }
-          setItemAssignments(prev => { const n = { ...prev }; delete n[detailId]; return n; });
-        } else {
-          const errorMessage = result.data?.cancelOperationDetail?.message || 'Error al cancelar el item';
-          console.log(errorMessage);
-          await refetch();
-        }
-        return;
-      }
-
-      // Sin copias: cancelación completa del detalle (comportamiento anterior)
-      setModifiedDetails(prevDetails => prevDetails.filter((d: any) => !String(d.id).includes(`${detailId}-split`)));
-      setItemAssignments(prev => {
-        const newAssignments = { ...prev };
-        Object.keys(newAssignments).forEach(key => {
-          if (key.includes(`${detailId}-split`)) delete newAssignments[key];
-        });
-        return newAssignments;
+      const mac = await getMacAddress();
+      const res = await cancelOperationDetailMutation({
+        variables: { detailId: originalId, quantity: isSplit ? 1 : undefined, userId: user?.id, deviceId: mac }
       });
-
-      // Obtener MAC para deviceId (eliminación completa desde modal)
-      const deviceIdForCancel= await getMacAddress();
-      console.log('🗑️ [ELIMINACIÓN] deviceId enviado:', deviceIdForCancel || 'undefined', deviceIdForCancel ? '(MAC ✓)' : '(deviceId contexto)');
-      const result = await cancelOperationDetailMutation({
-        variables: {
-          detailId: detailId,
-          userId: user?.id || '',
-          deviceId: deviceIdForCancel
-        }
-      });
-
-      if (result.data?.cancelOperationDetail?.success) {
-        const operationCancelled = result.data?.cancelOperationDetail?.operationCancelled;
-        if (operationCancelled) {
-          console.log('✅ Operación cambió de estado automáticamente después de cancelar item');
-          // El backend ya liberó la mesa: actualizar contexto de inmediato para que el color se ponga verde
-          if (table?.id && updateTableInContext) {
-            updateTableInContext({
-              id: table.id,
-              status: 'AVAILABLE',
-              statusColors: null,
-              currentOperationId: null,
-              occupiedById: null,
-              userName: null
-            });
-            if (onPaymentSuccess) onPaymentSuccess();
-            setTimeout(() => onBack(), 500);
-          }
-        }
-        const refetchResult = await refetch();
-        const detailsFromRefetch = refetchResult.data?.operationById?.details;
-        if (Array.isArray(detailsFromRefetch)) {
-          const nonCanceledDetails = filterCanceledDetails(detailsFromRefetch, refetchResult.data?.operationById?.id);
-          setModifiedDetails([...nonCanceledDetails]);
-          // Si no quedan ítems activos y no habíamos actualizado por operationCancelled, liberar mesa
-          if (nonCanceledDetails.length === 0 && table?.id && updateTableInContext && !operationCancelled) {
-            updateTableInContext({
-              id: table.id,
-              status: 'AVAILABLE',
-              statusColors: null,
-              currentOperationId: null,
-              occupiedById: null,
-              userName: null
-            });
-            if (onPaymentSuccess) onPaymentSuccess();
-            setTimeout(() => onBack(), 500);
-          }
-        } else if (!refetchResult.data?.operationById && table?.id && updateTableInContext && !operationCancelled) {
-          updateTableInContext({
-            id: table.id,
-            status: 'AVAILABLE',
-            statusColors: null,
-            currentOperationId: null,
-            occupiedById: null,
-            userName: null
-          });
-          setModifiedDetails([]);
-          if (onPaymentSuccess) onPaymentSuccess();
-          setTimeout(() => onBack(), 500);
-        } else if (operationCancelled) {
-          setModifiedDetails([]);
-        }
-        setItemAssignments(prev => {
-          const newAssignments = { ...prev };
-          delete newAssignments[detailId];
-          return newAssignments;
-        });
-      } else {
-        const errorMessage = result.data?.cancelOperationDetail?.message || 'Error al cancelar el item';
-        console.log(errorMessage);
+      if (res.data?.cancelOperationDetail?.success) {
+        await refetch();
+        if (onPaymentSuccess) onPaymentSuccess();
       }
-    } catch (error: any) {
-      console.error('Error cancelando item:', error);
-    }
+    } catch (e) { console.error(e); }
   };
 
-  const handleMergeAll = (originalDetailId: string) => {
-    setModifiedDetails(prevDetails => {
-      const newDetails = [...prevDetails];
-
-      // Encontrar el producto original
-      const originalIndex = newDetails.findIndex((d: any) => String(d.id) === String(originalDetailId));
-      if (originalIndex === -1) return prevDetails;
-
-      const originalDetail = newDetails[originalIndex];
-      let totalQuantityToAdd = 0;
-
-      // Encontrar todas las copias y sumar sus cantidades
-      const indicesToRemove: number[] = [];
-      newDetails.forEach((d: any, index: number) => {
-        if (String(d.id).includes(`${originalDetailId}-split`)) {
-          totalQuantityToAdd += Number(d.quantity) || 0;
-          indicesToRemove.push(index);
-        }
-      });
-
-      // Actualizar la cantidad del original
-      const originalQuantity = Number(originalDetail.quantity) || 0;
-      newDetails[originalIndex] = {
-        ...originalDetail,
-        quantity: originalQuantity + totalQuantityToAdd,
-        remainingQuantity: originalQuantity + totalQuantityToAdd, // ✅ Actualizar también la cantidad restante
-        total: (originalQuantity + totalQuantityToAdd) * Number(originalDetail.unitPrice)
-      };
-
-      // Eliminar las copias (de mayor a menor índice para no alterar los índices)
-      indicesToRemove.sort((a, b) => b - a).forEach(index => {
-        newDetails.splice(index, 1);
-      });
-
-      return newDetails;
-    });
-
-    // Remover la marca de dividido y marcar el producto original como seleccionado
-    setItemAssignments(prev => {
-      const newAssignments = { ...prev };
-      delete newAssignments[originalDetailId];
-      // Marcar el producto original como seleccionado
-      newAssignments[originalDetailId] = true;
-      return newAssignments;
-    });
-  };
-
-  // Función helper para obtener MAC address del dispositivo
-  // ⚠️ IMPORTANTE: Siempre priorizar obtener la MAC, nunca usar deviceId temporal
   const getDeviceIdOrMac = async (): Promise<string> => {
     console.log('🔍 [PAGO] Obteniendo identificador para impresión...');
     try {
@@ -1755,276 +1033,79 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   };
 
   const handlePrecuenta = async () => {
-    if (!operation || !table?.id || !companyData?.branch.id || !user?.id) {
-      showToast('No hay una orden disponible para imprimir precuenta', 'error');
-      return;
-    }
-
-    if (operation.status === 'COMPLETED') {
-      showToast('Esta orden ya ha sido completada', 'error');
-      return;
-    }
-
+    if (!operation || !table?.id || !companyData?.branch.id || !user?.id) { showToast('No hay orden', 'error'); return; }
+    if (operation.status === 'COMPLETED') { showToast('Orden completada', 'error'); return; }
     setIsProcessing(true);
-
     try {
       const mac = await getMacAddress();
-      if (!mac) {
-        showToast('No se pudo obtener la MAC de la PC. Intenta de nuevo.', 'error');
-        setIsProcessing(false);
-        return;
-      }
-
-      // Solo imprimir precuenta con los ítems seleccionados
+      if (!mac) { showToast('Error MAC', 'error'); return; }
       const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
-
-      if (selectedDetailIds.length === 0) {
-        showToast('Selecciona al menos un ítem para imprimir la precuenta', 'error');
-        setIsProcessing(false);
-        return;
-      }
-
-      const result = await printPartialPrecuentaMutation({
-        variables: {
-          operationId: operation.id,
-          detailIds: selectedDetailIds,
-          tableId: table.id,
-          branchId: companyData.branch.id,
-          userId: user.id,
-          deviceId: mac,
-          printerId: null
-        }
+      if (selectedDetailIds.length === 0) { showToast('Selecciona ítems para precuenta', 'error'); return; }
+      const res = await printPartialPrecuentaMutation({
+        variables: { operationId: operation.id, detailIds: selectedDetailIds, tableId: table.id, branchId: companyData.branch.id, userId: user.id, deviceId: mac, printerId: null }
       });
-
-      if (result.data?.printPartialPrecuenta?.success) {
-        const resultTable = result.data.printPartialPrecuenta.table;
-        const updatedTableId = resultTable?.id || table.id;
-        const updatedStatus = 'TO_PAY';
-
-        try {
-          await updateTableStatusMutation({
-            variables: {
-              tableId: table.id,
-              status: 'TO_PAY',
-              userId: user.id
-            }
-          });
-          console.log('✅ Estado de mesa actualizado a TO_PAY mediante mutación');
-        } catch (updateError) {
-          console.warn('⚠️ No se pudo actualizar el estado mediante mutación, actualizando en contexto:', updateError);
-        }
-
-        if (updateTableInContext) {
-          updateTableInContext({
-            id: updatedTableId,
-            status: updatedStatus,
-            currentOperationId: resultTable?.currentOperationId ?? table?.currentOperationId,
-            occupiedById: resultTable?.occupiedById ?? table?.occupiedById,
-            userName: resultTable?.userName ?? table?.userName
-          });
-          console.log(`✅ Mesa ${updatedTableId} actualizada en contexto a estado: ${updatedStatus}`);
-        }
-
-        notifyTableUpdate(
-          updatedTableId,
-          updatedStatus,
-          resultTable?.currentOperationId ?? table?.currentOperationId,
-          resultTable?.occupiedById ?? table?.occupiedById,
-          resultTable?.userName ?? table?.userName
-        );
-
-        if (onTableChange && table) {
-          onTableChange({
-            ...table,
-            status: updatedStatus
-          });
-        }
-
+      if (res.data?.printPartialPrecuenta?.success) {
+        const t = res.data.printPartialPrecuenta.table || table;
+        try { await updateTableStatusMutation({ variables: { tableId: table.id, status: 'TO_PAY', userId: user.id } }); } catch (e) {}
+        updateTableInContext?.({ id: t.id, status: 'TO_PAY', currentOperationId: t.currentOperationId, occupiedById: t.occupiedById, userName: t.userName });
+        notifyTableUpdate(t.id, 'TO_PAY', t.currentOperationId, t.occupiedById, t.userName);
+        if (onTableChange) onTableChange({ ...table, status: 'TO_PAY' });
         await refetch();
-        if (onPaymentSuccess) {
-          onPaymentSuccess();
-        }
+        if (onPaymentSuccess) onPaymentSuccess();
+        showToast('Precuenta enviada exitosamente', 'success');
+      } else showToast(res.data?.printPartialPrecuenta?.message || 'Error al enviar precuenta', 'error');
+    } catch (e: any) { showToast(e.message, 'error'); }
+    finally { setIsProcessing(false); }
+  };
 
-        console.log(result.data.printPartialPrecuenta.message || `Precuenta enviada a imprimir exitosamente (${selectedDetailIds.length} plato(s) seleccionado(s)). Estado de mesa actualizado a TO_PAY`);
-      } else {
-        showToast(result.data?.printPartialPrecuenta?.message || 'Error al imprimir la precuenta', 'error');
-      }
-    } catch (err: any) {
-      console.error('Error al imprimir precuenta:', err);
-      showToast(err.message || 'Error al imprimir la precuenta', 'error');
-    } finally {
-      setIsProcessing(false);
+  const handleCancelOperation = async () => {
+    if (!canVoidInCashPay) {
+      showToast('No tienes permiso para anular la orden en caja.', 'error');
+      return;
     }
+    if (!cancellationReason.trim()) { showToast('Ingresa una razón', 'error'); return; }
+    setIsProcessing(true);
+    try {
+      const mac = await getMacAddress();
+      const res = await cancelOperationMutation({
+        variables: { operationId: operation?.id, branchId: companyData?.branch.id, userId: user?.id, cancellationReason, deviceId: mac }
+      });
+      if (res.data?.cancelOperation?.success) {
+        updateTableInContext?.({ id: table?.id || '', status: 'AVAILABLE', currentOperationId: null, occupiedById: null, userName: null });
+        onBack();
+      }
+    } catch (e: any) { showToast(e.message, 'error'); }
+    finally { setIsProcessing(false); }
+  };
+
+  const handleTransferPlates = async () => {
+    if (!selectedTransferTableId) { showToast('Selecciona mesa destino', 'error'); return; }
+    setIsProcessing(true);
+    try {
+      const res = await transferItemsMutation({
+        variables: { fromOperationId: operation?.id, toTableId: selectedTransferTableId, detailIds: selectedDetailIds, branchId: companyData?.branch.id }
+      });
+      if (res.data?.transferItems?.success) { await refetch(); setShowTransferPlatesModal(false); }
+    } catch (e: any) { showToast(e.message, 'error'); }
+    finally { setIsProcessing(false); }
   };
 
   const handleChangeTable = async () => {
-    if (!operation || !selectedTableId || !companyData?.branch.id) {
-      showToast('Por favor selecciona una mesa', 'error');
-      return;
-    }
-
-    if (selectedTableId === table?.id) {
-      showToast('La mesa seleccionada es la misma que la actual', 'error');
-      return;
-    }
-
     setIsProcessing(true);
-
     try {
-      const result = await changeOperationTableMutation({
-        variables: {
-          operationId: operation.id,
-          newTableId: selectedTableId,
-          branchId: companyData.branch.id
-        }
-      });
-
-      if (result.data?.changeOperationTable?.success) {
-        // Obtener datos de la mesa antigua y nueva
-        const oldTableData = result.data.changeOperationTable.oldTable;
-        const resultNewTable = result.data.changeOperationTable.newTable;
-
-        // IMPORTANTE: Actualizar la mesa antigua - limpiar el nombre del mozo
-        // Usamos el ID de la mesa actual (table.id) que es la mesa antigua
-        if (table?.id && updateTableInContext) {
-          updateTableInContext({
-            id: table.id,
-            status: oldTableData?.status || 'AVAILABLE',
-            currentOperationId: null,
-            occupiedById: null,
-            userName: null  // ← ESTO LIMPIA EL NOMBRE DEL MOZO
-          });
-          // Enviar notificación WebSocket para actualizar en tiempo real
-          notifyTableUpdate(table.id, oldTableData?.status || 'AVAILABLE', null, null, null);
-          console.log('✅ Mesa antigua actualizada - nombre del mozo limpiado para mesa:', table.id);
-        }
-
-        // Buscar la mesa completa en los datos de las mesas del piso
-        const newTableData = tablesData?.tablesByFloor?.find((t: any) => String(t.id) === String(selectedTableId));
-
-        // Obtener el userName del resultado de la mutación, mesa original, o usuario actual
-        const currentUserName = resultNewTable?.userName || table?.userName || user?.fullName || '';
-        const currentOccupiedById = resultNewTable?.occupiedById || table?.occupiedById || (user?.id ? parseInt(user.id) : undefined);
-        const currentOperationId = resultNewTable?.currentOperationId || operation.id;
-
-        // Actualizar también la nueva mesa en el contexto
-        if (resultNewTable?.id && updateTableInContext) {
-          updateTableInContext({
-            id: resultNewTable.id,
-            status: resultNewTable.status || 'OCCUPIED',
-            currentOperationId: currentOperationId,
-            occupiedById: currentOccupiedById,
-            userName: currentUserName
-          });
-          // Enviar notificación WebSocket para actualizar en tiempo real
-          notifyTableUpdate(
-            resultNewTable.id,
-            resultNewTable.status || 'OCCUPIED',
-            currentOperationId,
-            currentOccupiedById,
-            currentUserName
-          );
-          console.log('✅ Mesa nueva actualizada en contexto para mesa:', resultNewTable.id);
-        }
-
-        if (newTableData && onTableChange) {
-          // Crear objeto mesa completo con los datos disponibles
-          const newTable: Table = {
-            id: newTableData.id,
-            name: newTableData.name || resultNewTable?.name || '',
-            capacity: newTableData.capacity || 0,
-            shape: newTableData.shape || 'RECTANGLE',
-            positionX: newTableData.positionX || 0,
-            positionY: newTableData.positionY || 0,
-            status: resultNewTable?.status || 'OCCUPIED',
-            statusColors: newTableData.statusColors || {},
-            currentOperationId: currentOperationId,
-            occupiedById: currentOccupiedById,
-            userName: currentUserName
-          };
-
-          // Notificar al componente padre sobre el cambio de mesa
-          onTableChange(newTable);
-        }
-
-        // Cerrar modal
-        setShowChangeTableModal(false);
-        setSelectedFloorId('');
-        setSelectedTableId('');
-
-        // El useEffect detectará el cambio de mesa y hará el refetch automáticamente
-        // Llamar callback de éxito si existe (para que el padre pueda refetch las mesas)
-        if (onPaymentSuccess) {
-          onPaymentSuccess();
-        }
-      } else {
-        showToast(result.data?.changeOperationTable?.message || 'Error al cambiar la mesa', 'error');
-      }
-    } catch (err: any) {
-      console.error('Error cambiando mesa:', err);
-      showToast(err.message || 'Error al cambiar la mesa', 'error');
-    } finally {
-      setIsProcessing(false);
-    }
+      const res = await changeOperationTableMutation({ variables: { operationId: operation?.id, newTableId: selectedTableId, branchId: companyData?.branch.id } });
+      if (res.data?.changeOperationTable?.success) onBack();
+    } catch (e: any) { showToast(e.message, 'error'); }
+    finally { setIsProcessing(false); }
   };
 
   const handleChangeUser = async () => {
-    if (!operation || !selectedUserId || !companyData?.branch.id) {
-      showToast('Por favor selecciona un mozo', 'error');
-      return;
-    }
-
-    if (selectedUserId === operation.user?.id) {
-      showToast('El mozo seleccionado es el mismo que el actual', 'error');
-      return;
-    }
-
     setIsProcessing(true);
-
     try {
-      const result = await changeOperationUserMutation({
-        variables: {
-          operationId: operation.id,
-          newUserId: selectedUserId,
-          branchId: companyData.branch.id
-        }
-      });
-
-      if (result.data?.changeOperationUser?.success) {
-        const resultTable = result.data.changeOperationUser.table;
-
-        // Actualizar la mesa en el contexto con el nuevo mozo
-        if (resultTable && updateTableInContext) {
-          updateTableInContext({
-            id: resultTable.id,
-            status: resultTable.status || table?.status || 'OCCUPIED',
-            currentOperationId: resultTable.currentOperationId ?? table?.currentOperationId,
-            occupiedById: resultTable.occupiedById ?? table?.occupiedById,
-            userName: resultTable.userName ?? table?.userName
-          });
-          console.log('✅ Mesa actualizada con nuevo mozo:', resultTable.userName);
-        }
-
-        // Cerrar modal
-        setShowChangeUserModal(false);
-        setSelectedUserId('');
-
-        // Refetch la operación para obtener los datos actualizados
-        await refetch();
-
-        // Llamar callback de éxito si existe (para que el padre pueda refetch las mesas)
-        if (onPaymentSuccess) {
-          onPaymentSuccess();
-        }
-      } else {
-        showToast(result.data?.changeOperationUser?.message || 'Error al cambiar el mozo', 'error');
-      }
-    } catch (err: any) {
-      console.error('Error cambiando mozo:', err);
-      showToast(err.message || 'Error al cambiar el mozo', 'error');
-    } finally {
-      setIsProcessing(false);
-    }
+      const res = await changeOperationUserMutation({ variables: { operationId: operation?.id, newUserId: selectedUserId, branchId: companyData?.branch.id } });
+      if (res.data?.changeOperationUser?.success) { await refetch(); setShowChangeUserModal(false); }
+    } catch (e: any) { showToast(e.message, 'error'); }
+    finally { setIsProcessing(false); }
   };
 
   // Obtener lista de mozos disponibles: del servidor cuando el modal está abierto (evita caché al agregar empleados)
@@ -2032,3299 +1113,218 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const contextUsers = (companyData?.branch?.users || []).filter((u: any) => u.isActive !== false);
   const availableUsers = showChangeUserModal ? (serverUsers.length > 0 ? serverUsers : contextUsers) : contextUsers;
 
-  const handleCancelOperation = async () => {
-    if (!operation || !companyData?.branch.id || !user?.id) {
-      showToast('No se puede cancelar la operación: faltan datos necesarios', 'error');
-      return;
-    }
-
-    if (!cancellationReason.trim()) {
-      showToast('Por favor ingresa una razón para la cancelación', 'error');
-      return;
-    }
-
-    setIsProcessing(true);
-
-    try {
-      const resolvedDeviceId = deviceId || await getMacAddress();
-
-      const result = await cancelOperationMutation({
-        variables: {
-          operationId: operation.id,
-          branchId: companyData.branch.id,
-          userId: user.id,
-          cancellationReason: cancellationReason.trim(),
-          deviceId: resolvedDeviceId
-        }
-      });
-
-      if (result.data?.cancelOperation?.success) {
-        const resultTable = result.data.cancelOperation.table;
-
-        // Actualizar la mesa en el contexto - liberarla
-        if (resultTable && updateTableInContext) {
-          updateTableInContext({
-            id: resultTable.id,
-            status: resultTable.status || 'AVAILABLE',
-            currentOperationId: null,
-            occupiedById: null,
-            userName: null
-          });
-          // Enviar notificación WebSocket
-          notifyTableUpdate(resultTable.id, resultTable.status || 'AVAILABLE', null, null, null);
-        }
-
-        // Cerrar modal
-        setShowCancelOperationModal(false);
-        setCancellationReason('');
-
-        // Refetch la operación (aunque ya no debería existir)
-        await refetch();
-
-        // Llamar callback de éxito para que el padre pueda refetch las mesas
-        if (onPaymentSuccess) {
-          onPaymentSuccess();
-        }
-
-        // Volver atrás ya que la operación fue cancelada
-        if (onBack) {
-          onBack();
-        }
-
-      } else {
-        showToast(result.data?.cancelOperation?.message || 'Error al cancelar la operación', 'error');
-      }
-    } catch (err: any) {
-      console.error('Error cancelando operación:', err);
-      showToast(err.message || 'Error al cancelar la operación', 'error');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleTransferPlates = async () => {
-    if (!operation || !selectedTransferTableId || !companyData?.branch.id) {
-      showToast('Por favor selecciona una mesa de destino', 'error');
-      return;
-    }
-
-    // Obtener los IDs de los productos seleccionados (los que tienen checkbox marcado)
-    const selectedDetailIds = Object.keys(itemAssignments).filter(id => itemAssignments[id]);
-
-    if (selectedDetailIds.length === 0) {
-      showToast('Por favor selecciona al menos un plato para transferir', 'error');
-      return;
-    }
-
-    if (selectedTransferTableId === table?.id) {
-      showToast('No puedes transferir platos a la misma mesa', 'error');
-      return;
-    }
-
-    setIsProcessing(true);
-
-    try {
-      // Procesar los items seleccionados: agrupar por ID original y calcular cantidades
-      // Esto maneja correctamente los productos divididos
-      const itemsByOriginalId: Record<string, { totalQuantity: number; originalQuantity: number }> = {};
-
-      // Primero, agrupar todos los items seleccionados por su ID original
-      for (const selectedId of selectedDetailIds) {
-        // Buscar el detalle en modifiedDetails
-        const detail = modifiedDetails.find((d: any) => String(d.id) === String(selectedId));
-        if (!detail) continue;
-
-        // Si es una copia dividida, usar el originalDetailId o extraer del ID
-        let originalDetailId: string;
-        if (detail.originalDetailId) {
-          originalDetailId = detail.originalDetailId;
-        } else if (selectedId.includes('-split-')) {
-          originalDetailId = selectedId.split('-split-')[0];
-        } else {
-          originalDetailId = selectedId;
-        }
-
-        // Validar que sea un ID numérico válido
-        if (!/^\d+$/.test(originalDetailId)) continue;
-
-        const selectedQuantity = Number(detail.quantity) || 0;
-
-        // Inicializar o actualizar el registro para este ID original
-        if (!itemsByOriginalId[originalDetailId]) {
-          // Buscar el detalle original para obtener su cantidad total
-          const originalDetail = modifiedDetails.find((d: any) => String(d.id) === String(originalDetailId) && !String(d.id).includes('-split-'));
-          itemsByOriginalId[originalDetailId] = {
-            totalQuantity: selectedQuantity,
-            originalQuantity: originalDetail ? Number(originalDetail.quantity) || 0 : selectedQuantity
-          };
-        } else {
-          itemsByOriginalId[originalDetailId].totalQuantity += selectedQuantity;
-        }
-      }
-
-      // Procesar cada item: cancelar parcialmente si es necesario, luego transferir
-      const detailIdsToTransfer: string[] = [];
-      let needsRefetch = false;
-
-      for (const [originalDetailId, itemData] of Object.entries(itemsByOriginalId)) {
-        const { totalQuantity, originalQuantity } = itemData;
-
-        // Si la cantidad total seleccionada es menor que la cantidad original,
-        // necesitamos cancelar la diferencia primero
-        if (totalQuantity < originalQuantity) {
-          const quantityToCancel = originalQuantity - totalQuantity;
-
-          // Eliminación parcial (transferir): obtener MAC del equipo para deviceId
-          const deviceIdForTransfer = await getMacAddress();
-          console.log('🗑️ [ELIMINACIÓN PARCIAL - Transferir] deviceId enviado:', deviceIdForTransfer || 'undefined', deviceIdForTransfer ? '(MAC ✓)' : '(deviceId contexto)');
-          // Cancelar parcialmente el detalle original
-          const cancelVariables: any = {
-            detailId: originalDetailId,
-            quantity: quantityToCancel,
-            userId: user?.id || '',
-            deviceId: deviceIdForTransfer
-          };
-
-          const cancelResult = await cancelOperationDetailMutation({
-            variables: cancelVariables
-          });
-
-          if (!cancelResult.data?.cancelOperationDetail?.success) {
-            throw new Error(cancelResult.data?.cancelOperationDetail?.message || 'Error al cancelar parcialmente el item');
-          }
-
-          needsRefetch = true;
-        }
-
-        // Agregar el ID original para transferir (el backend transferirá el detalle completo)
-        detailIdsToTransfer.push(originalDetailId);
-      }
-
-      // Si se hicieron cancelaciones parciales, hacer refetch para obtener los datos actualizados
-      if (needsRefetch) {
-        await refetch();
-      }
-
-      if (detailIdsToTransfer.length === 0) {
-        showToast('No se encontraron IDs válidos para transferir', 'error');
-        setIsProcessing(false);
-        return;
-      }
-
-      const result = await transferItemsMutation({
-        variables: {
-          fromOperationId: operation.id,
-          toTableId: selectedTransferTableId,
-          detailIds: detailIdsToTransfer,
-          branchId: companyData.branch.id,
-          createNewOperation: false // Por defecto usa la operación existente o crea una nueva si no existe
-        }
-      });
-
-      if (result.data?.transferItems?.success) {
-        const resultOldTable = result.data.transferItems.oldTable;
-        const resultNewTable = result.data.transferItems.newTable;
-
-        // Actualizar las mesas en el contexto
-        if (resultOldTable && updateTableInContext) {
-          updateTableInContext({
-            id: resultOldTable.id,
-            status: resultOldTable.status || 'AVAILABLE',
-            currentOperationId: resultOldTable.currentOperationId ?? null,
-            occupiedById: resultOldTable.occupiedById ?? null,
-            userName: resultOldTable.userName ?? null
-          });
-          // Enviar notificación WebSocket para actualizar en tiempo real
-          notifyTableUpdate(
-            resultOldTable.id,
-            resultOldTable.status || 'AVAILABLE',
-            resultOldTable.currentOperationId ?? null,
-            resultOldTable.occupiedById ?? null,
-            resultOldTable.userName ?? null
-          );
-          console.log('✅ Mesa origen actualizada después de transferir');
-        }
-
-        if (resultNewTable && updateTableInContext) {
-          updateTableInContext({
-            id: resultNewTable.id,
-            status: resultNewTable.status || 'OCCUPIED',
-            currentOperationId: resultNewTable.currentOperationId ?? null,
-            occupiedById: resultNewTable.occupiedById ?? null,
-            userName: resultNewTable.userName ?? null
-          });
-          // Enviar notificación WebSocket para actualizar en tiempo real
-          notifyTableUpdate(
-            resultNewTable.id,
-            resultNewTable.status || 'OCCUPIED',
-            resultNewTable.currentOperationId ?? null,
-            resultNewTable.occupiedById ?? null,
-            resultNewTable.userName ?? null
-          );
-          console.log('✅ Mesa destino actualizada después de transferir');
-        }
-
-        // Cerrar modal
-        setShowTransferPlatesModal(false);
-        setSelectedTransferFloorId('');
-        setSelectedTransferTableId('');
-
-        // Limpiar selecciones
-        setItemAssignments({});
-
-        // Refetch la operación para obtener los datos actualizados
-        const refetchResult = await refetch();
-
-        // Actualizar explícitamente los detalles modificados con los datos actualizados
-        // Esto asegura que los platos trasladados desaparezcan de la mesa original (filtrar cancelados)
-        if (refetchResult.data?.operationById?.details) {
-          if (refetchResult.data?.operationById?.details && refetchResult.data?.operationById?.id) {
-            const nonCanceledDetails = filterCanceledDetails(refetchResult.data.operationById.details, refetchResult.data.operationById.id);
-            setModifiedDetails([...nonCanceledDetails]);
-            console.log('✅ Detalles actualizados después del traslado:', nonCanceledDetails);
-          }
-        } else if (refetchResult.data?.operationById === null) {
-          // Si la operación ya no existe (todos los platos fueron trasladados), limpiar los detalles
-          setModifiedDetails([]);
-          console.log('✅ Todos los platos fueron trasladados, limpiando detalles');
-        }
-
-        // Llamar callback de éxito si existe
-        if (onPaymentSuccess) {
-          onPaymentSuccess();
-        }
-      } else {
-        showToast(result.data?.transferItems?.message || 'Error al transferir los platos', 'error');
-      }
-    } catch (err: any) {
-      console.error('Error transfiriendo platos:', err);
-      showToast(err.message || 'Error al transferir los platos', 'error');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  if (!table) return null;
 
   return (
-    <div
-      style={{
-        minHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2rem',
-        background: 'linear-gradient(160deg, #f0f4ff 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: '1.5rem',
-        borderRadius: '18px',
-        boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
-        position: 'relative',
-        overflow: 'hidden'
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          top: '-120px',
-          right: '-120px',
-          width: '260px',
-          height: '260px',
-          background: 'radial-gradient(circle at center, rgba(102,126,234,0.25), transparent 70%)',
-          filter: 'blur(2px)',
-          zIndex: 0
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '-80px',
-          left: '-80px',
-          width: '220px',
-          height: '220px',
-          background: 'radial-gradient(circle at center, rgba(72,219,251,0.18), transparent 70%)',
-          filter: 'blur(2px)',
-          zIndex: 0
-        }}
-      />
-
-      <div
-        style={{
-          background: 'linear-gradient(135deg, rgba(102,126,234,0.95), rgba(118,75,162,0.92))',
-          borderRadius: '20px',
-          padding: '2rem 2.5rem',
-          color: 'white',
-          boxShadow: '0 20px 35px rgba(102,126,234,0.3)',
-          position: 'relative',
-          zIndex: 1,
-          overflow: 'hidden'
-        }}
-      >
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(120deg, rgba(255,255,255,0.09), rgba(255,255,255,0))',
-            pointerEvents: 'none'
-          }}
-        />
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '1.25rem',
-            flexWrap: 'wrap',
-            position: 'relative',
-            zIndex: 1
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'row', gap: '0.75rem', alignItems: 'center', flexWrap: 'nowrap' }}>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                color: 'rgba(255,255,255,0.85)',
-                padding: '0.35rem 0.9rem',
-                borderRadius: '999px',
-                fontSize: '0.8rem',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                fontWeight: 600,
-                flexShrink: 0
-              }}
-            >
-              💳 Caja Activa
-            </span>
-            <h2
-              style={{
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                margin: 0,
-                textShadow: '0 6px 18px rgba(0,0,0,0.20)',
-                flexShrink: 0
-              }}
-            >
-              {table.name}
-            </h2>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, fontSize: '0.9rem', color: 'rgba(255,255,255,0.85)' }}>
-              🪑 <strong>{table.capacity} plazas</strong>
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, fontSize: '0.9rem', color: 'rgba(255,255,255,0.85)' }}>
-              🕒 {operation?.operationDate ? new Date(operation.operationDate).toLocaleString() : 'Sin horario'}
-            </span>
-            {operation?.order && (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  color: '#fefcbf',
-                  flexShrink: 0
-                }}
-              >
-                🔖 Orden #{operation.order}
-              </span>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'nowrap', alignItems: 'center' }}>
-            <span
-              style={{
-                padding: '0.6rem 1.1rem',
-                borderRadius: '999px',
-                backgroundColor: 'rgba(255,255,255,0.18)',
-                backdropFilter: 'blur(6px)',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem'
-              }}
-            >
-              Estado:
-              <span
-                style={{
-                  padding: '0.3rem 0.75rem',
-                  borderRadius: '999px',
-                  backgroundColor: 'rgba(255,255,255,0.25)',
-                  color: 'white',
-                  fontWeight: 700
-                }}
-              >
-                {getStatusLabel(table.status)}
-              </span>
-            </span>
-            <button
-              onClick={refetch}
-              disabled={!hasSelection || loading}
-              style={{
-                padding: '0.5rem 0.9rem',
-                borderRadius: '999px',
-                border: 'none',
-                background: 'linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.75))',
-                color: '#4c51bf',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontWeight: 700,
-                fontSize: '0.75rem',
-                boxShadow: '0 8px 16px rgba(15,23,42,0.18)',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                opacity: loading ? 0.7 : 1,
-                flexShrink: 0
-              }}
-              onMouseOver={(e) => {
-                if (!loading) {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 16px 28px rgba(15,23,42,0.22)';
-                }
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 12px 24px rgba(15,23,42,0.18)';
-              }}
-            >
-              {loading ? 'Actualizando...' : 'Actualizar'}
-            </button>
-            <button
-              onClick={handlePrecuenta}
-              disabled={!operation || operation.status === 'COMPLETED' || loading || isProcessing}
-              style={{
-                padding: '0.5rem 0.9rem',
-                borderRadius: '999px',
-                border: 'none',
-                background: !operation || operation.status === 'COMPLETED' || loading || isProcessing
-                  ? 'rgba(255,255,255,0.08)'
-                  : 'linear-gradient(135deg, rgba(245,158,11,0.9), rgba(217,119,6,0.9))',
-                color: 'white',
-                cursor: !operation || operation.status === 'COMPLETED' || loading || isProcessing ? 'not-allowed' : 'pointer',
-                fontWeight: 700,
-                fontSize: '0.75rem',
-                boxShadow: !operation || operation.status === 'COMPLETED' || loading || isProcessing
-                  ? '0 6px 12px rgba(0,0,0,0.1)'
-                  : '0 8px 16px rgba(245,158,11,0.3)',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                opacity: !operation || operation.status === 'COMPLETED' || loading || isProcessing ? 0.6 : 1,
-                flexShrink: 0
-              }}
-              onMouseOver={(e) => {
-                if (operation && operation.status !== 'COMPLETED' && !loading && !isProcessing) {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 16px 28px rgba(245,158,11,0.4)';
-                }
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = !operation || operation.status === 'COMPLETED' || loading || isProcessing
-                  ? '0 8px 16px rgba(0,0,0,0.1)'
-                  : '0 12px 24px rgba(245,158,11,0.3)';
-              }}
-            >
-              {isProcessing ? '🖨️ Imprimiendo...' : '🧾 Precuenta'}
-            </button>
-            {/* Botones de acción rápida */}
-            <div style={{
-              display: 'flex',
-              gap: '0.4rem',
-              flexShrink: 0
-            }}>
-              <button
-                onClick={() => setShowChangeTableModal(true)}
-                disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
-                style={{
-                  padding: '0.4rem 0.65rem',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: operation?.status === 'COMPLETED'
-                    ? '#cbd5e0'
-                    : 'linear-gradient(130deg, #10b981, #059669)',
-                  color: 'white',
-                  fontWeight: 600,
-                  fontSize: '0.7rem',
-                  cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 3px 8px rgba(16,185,129,0.3)',
-                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                  opacity: operation?.status === 'COMPLETED' ? 0.6 : 1,
-                  flexShrink: 0
-                }}
-                onMouseOver={(e) => {
-                  if (operation?.status !== 'COMPLETED' && !isProcessing) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(16,185,129,0.4)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(16,185,129,0.3)';
-                }}
-              >
-                {isProcessing ? '...' : operation?.status === 'COMPLETED' ? 'Mesa' : 'Cambiar Mesa'}
-              </button>
-              <button
-                onClick={() => setShowTransferPlatesModal(true)}
-                disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
-                style={{
-                  padding: '0.4rem 0.65rem',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: operation?.status === 'COMPLETED'
-                    ? '#cbd5e0'
-                    : 'linear-gradient(130deg, #3b82f6, #2563eb)',
-                  color: 'white',
-                  fontWeight: 600,
-                  fontSize: '0.7rem',
-                  cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 3px 8px rgba(59,130,246,0.3)',
-                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                  opacity: operation?.status === 'COMPLETED' ? 0.6 : 1,
-                  flexShrink: 0
-                }}
-                onMouseOver={(e) => {
-                  if (operation?.status !== 'COMPLETED' && !isProcessing) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(59,130,246,0.4)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(59,130,246,0.3)';
-                }}
-              >
-                Transferir
-              </button>
-              <button
-                onClick={() => setShowChangeUserModal(true)}
-                disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
-                style={{
-                  padding: '0.4rem 0.65rem',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: operation?.status === 'COMPLETED'
-                    ? '#cbd5e0'
-                    : 'linear-gradient(130deg, #8b5cf6, #7c3aed)',
-                  color: 'white',
-                  fontWeight: 600,
-                  fontSize: '0.7rem',
-                  cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 3px 8px rgba(139,92,246,0.3)',
-                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                  opacity: operation?.status === 'COMPLETED' ? 0.6 : 1,
-                  flexShrink: 0
-                }}
-                onMouseOver={(e) => {
-                  if (operation?.status !== 'COMPLETED' && !isProcessing) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(139,92,246,0.4)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(139,92,246,0.3)';
-                }}
-              >
-                {isProcessing ? '...' : operation?.status === 'COMPLETED' ? 'Mozo' : 'Cambiar Mozo'}
-              </button>
-            </div>
-            <button
-              onClick={onBack}
-              style={{
-                padding: '0.5rem 0.9rem',
-                borderRadius: '999px',
-                border: 'none',
-                background: 'rgba(255,255,255,0.12)',
-                color: 'white',
-                cursor: 'pointer',
-                fontWeight: 700,
-                fontSize: '0.75rem',
-                boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                flexShrink: 0
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 16px 28px rgba(0,0,0,0.18)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.15)';
-              }}
-            >
-              ← Volver
-            </button>
+    <div style={{ height: '100%', maxHeight: '100%', display: 'flex', flexDirection: 'column', background: '#f8fafc', overflow: 'hidden', fontFamily: "'Inter', sans-serif" }}>
+      <header style={{ flexShrink: 0, background: '#1e293b', color: 'white', padding: '0.5rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer' }}>←</button>
+          <div>
+            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Mesa: {table.name}</div>
+            <div style={{ fontWeight: 800 }}>Orden #{operation?.orderNumber || '...'}</div>
           </div>
         </div>
-      </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button onClick={() => setShowChangeTableModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#334155', color: 'white', border: 'none', borderRadius: '4px' }}>Mesa</button>
+          <button onClick={() => setShowTransferPlatesModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Transferir</button>
+          <button onClick={() => setShowChangeUserModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Mozo</button>
+          <button onClick={handlePrecuenta} disabled={!operation || operation.status === 'COMPLETED' || isProcessing} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: (!operation || operation.status === 'COMPLETED' || isProcessing) ? 0.6 : 1 }}>Precuenta</button>
+          <button onClick={() => refetch()} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Refrescar</button>
+        </div>
+      </header>
 
-      <div
-        style={{
-          background: 'rgba(255,255,255,0.85)',
-          backdropFilter: 'blur(12px)',
-          borderRadius: '20px',
-          padding: '2rem',
-          border: '1px solid rgba(226,232,240,0.8)',
-          boxShadow: '0 24px 40px -12px rgba(15,23,42,0.15)',
-          position: 'relative',
-          zIndex: 1
-        }}
-      >
-        {/* Sección de Documento, Serie, Cliente y Estado */}
-        <div
-          style={{
-            background: 'rgba(255,255,255,0.95)',
-            borderRadius: '12px',
-            padding: '1rem 1.25rem',
-            marginBottom: '1.5rem',
-            border: '1px solid rgba(226,232,240,0.8)',
-            boxShadow: '0 4px 12px rgba(15,23,42,0.08)'
-          }}
-        >
-          {/* Estado en la parte superior */}
-          {operation?.status && (
-            <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <label
-                style={{
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  color: '#2d3748',
-                  margin: 0
-                }}
-              >
-                Estado:
-              </label>
-              <span
-                style={{
-                  display: 'inline-block',
-                  padding: '0.55rem 1rem',
-                  borderRadius: '8px',
-                  backgroundColor: 'rgba(102,126,234,0.12)',
-                  border: '1px solid rgba(102,126,234,0.35)',
-                  color: '#434190',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  boxShadow: '0 2px 4px rgba(102,126,234,0.1)'
-                }}
-              >
-                {getStatusLabel(operation.status)}
-              </span>
+      <section style={{ flexShrink: 0, background: 'white', padding: '0.5rem 1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>DOC:</label>
+          <select value={selectedDocumentId} onChange={e => setSelectedDocumentId(e.target.value)} style={{ padding: '0.3rem', fontSize: '0.8rem' }}>
+            <option value="">Documento...</option>
+            {documents.map((d: any) => <option key={d.id} value={d.id}>{d.description}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>SERIE:</label>
+          <select value={selectedSerialId} onChange={e => setSelectedSerialId(e.target.value)} style={{ padding: '0.3rem', fontSize: '0.8rem' }}>
+            <option value="">Serie...</option>
+            {serials.map((s: any) => <option key={s.id} value={s.id}>{s.serial}</option>)}
+          </select>
+        </div>
+        <div style={{ flex: 1, display: 'flex', gap: '0.4rem', position: 'relative' }}>
+          <div style={{ flex: 1, display: 'flex', border: '1px solid #cbd5e0', borderRadius: '4px', overflow: 'hidden', backgroundColor: 'white' }}>
+            <input 
+              type="text" 
+              placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'} 
+              value={clientSearchTerm} 
+              onChange={e => { setClientSearchTerm(e.target.value); setSelectedClientId(''); }} 
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchSunat(); } }}
+              style={{ flex: 1, padding: '0.3rem 0.5rem', border: 'none', fontSize: '0.75rem', outline: 'none' }} 
+            />
+            <button onClick={handleSearchSunat} disabled={sunatSearchLoading} title="Buscar en SUNAT" style={{ padding: '0 0.6rem', background: '#0ea5e9', color: 'white', border: 'none', cursor: sunatSearchLoading ? 'not-allowed' : 'pointer' }}>
+              🔍
+            </button>
+          </div>
+          <button type="button" onClick={() => setShowEditClientModal(true)} disabled={!selectedClientId} title="Editar Cliente" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: !selectedClientId ? '#94a3b8' : '#6366f1', color: 'white', border: 'none', borderRadius: '4px', cursor: !selectedClientId ? 'not-allowed' : 'pointer', opacity: !selectedClientId ? 0.6 : 1 }}>
+            ✏️
+          </button>
+          <button type="button" onClick={() => setShowCreateClientModal(true)} title="Nuevo Cliente" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            ➕
+          </button>
+          
+          {clientSearchTerm && !selectedClientId && filteredClients.length > 0 && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '0.2rem', width: '250px', maxHeight: '200px', overflowY: 'auto', background: 'white', border: '1px solid #e2e8f0', borderRadius: '4px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 100 }}>
+              {!isFactura && (
+                <div onClick={() => { setSelectedClientId(''); setClientSearchTerm(''); }} style={{ padding: '0.5rem', fontSize: '0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', color: '#64748b' }}>
+                  Sin cliente (Consumidor final)
+                </div>
+              )}
+              {filteredClients.map((client: any) => (
+                <div key={client.id} onClick={() => { setSelectedClientId(client.id); setClientSearchTerm(client.name || ''); }} style={{ padding: '0.5rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>{client.name}</div>
+                  <div style={{ fontSize: '0.65rem', color: '#64748b' }}>{client.documentType || 'DNI'}: {client.documentNumber}</div>
+                </div>
+              ))}
             </div>
           )}
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: isSmallDesktop
-                ? '1fr 1.5fr'
-                : isMediumDesktop
-                  ? '1fr 1.8fr'
-                  : '1fr 2fr',
-              gap: '1rem',
-              alignItems: 'start'
-            }}
-          >
-            {/* Contenedor para Serie y Documento apilados verticalmente */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {/* Serie */}
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    color: '#2d3748',
-                    marginBottom: '0.4rem'
-                  }}
-                >
-                  Serie {selectedDocumentId ? '*' : ''}
-                </label>
-                <select
-                  value={selectedSerialId}
-                  onChange={(e) => setSelectedSerialId(e.target.value)}
-                  disabled={serialsLoading || !selectedDocumentId}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e0',
-                    fontSize: '0.85rem',
-                    backgroundColor: 'white',
-                    cursor: serialsLoading || !selectedDocumentId ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {!selectedDocumentId ? (
-                    <option value="">Seleccione un documento primero</option>
-                  ) : serialsLoading ? (
-                    <option value="">Cargando series...</option>
-                  ) : serials.length === 0 ? (
-                    <option value="">No hay series disponibles</option>
-                  ) : (
-                    <>
-                      <option value="">Seleccione una serie</option>
-                      {serials.map((ser: any) => (
-                        <option key={ser.id} value={ser.id}>
-                          {ser.serial || 'Sin serie'}
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
-              </div>
-
-              {/* Documento */}
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    color: '#2d3748',
-                    marginBottom: '0.4rem'
-                  }}
-                >
-                  Documento *
-                </label>
-                {documentsError && (
-                  <div
-                    style={{
-                      backgroundColor: '#fed7d7',
-                      border: '1px solid #feb2b2',
-                      color: '#742a2a',
-                      padding: '0.5rem',
-                      borderRadius: '8px',
-                      marginBottom: '0.4rem',
-                      fontSize: '0.8rem'
-                    }}
-                  >
-                    Error al cargar documentos: {documentsError.message}
-                  </div>
-                )}
-                <select
-                  value={selectedDocumentId}
-                  onChange={(e) => setSelectedDocumentId(e.target.value)}
-                  disabled={documentsLoading}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e0',
-                    fontSize: '0.85rem',
-                    backgroundColor: 'white',
-                    cursor: documentsLoading ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {documentsLoading ? (
-                    <option value="">Cargando documentos...</option>
-                  ) : documentsError ? (
-                    <option value="">Error al cargar documentos</option>
-                  ) : documents.length === 0 ? (
-                    <option value="">No hay documentos disponibles</option>
-                  ) : (
-                    <>
-                      <option value="">Seleccione un documento</option>
-                      {documents.map((doc: any) => (
-                        <option key={doc.id} value={doc.id}>
-                          {doc.code || 'Sin código'} - {doc.description || 'Sin descripción'}
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
-              </div>
-            </div>
-
-            {/* Cliente */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    color: '#2d3748',
-                    margin: 0
-                  }}
-                >
-                  Cliente
-                </label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowEditClientModal(true)}
-                    disabled={isProcessing || !selectedClientId}
-                    style={{
-                      padding: '0.4rem 0.75rem',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: !selectedClientId || isProcessing ? '#9ca3af' : '#667eea',
-                      color: 'white',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      cursor: !selectedClientId || isProcessing ? 'not-allowed' : 'pointer',
-                      opacity: !selectedClientId || isProcessing ? 0.6 : 1
-                    }}
-                  >
-                    ✏️ Editar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateClientModal(true)}
-                    disabled={isProcessing}
-                    style={{
-                      padding: '0.4rem 0.75rem',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: '#10b981',
-                      color: 'white',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      cursor: isProcessing ? 'not-allowed' : 'pointer',
-                      opacity: isProcessing ? 0.6 : 1
-                    }}
-                  >
-                    + Nuevo Cliente
-                  </button>
-                </div>
-              </div>
-              <div style={{ marginBottom: '0.5rem', position: 'relative' }}>
-                <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.35rem', border: '1px solid #cbd5e0', borderRadius: '8px', backgroundColor: 'white', overflow: 'hidden' }}>
-                  <input
-                    type="text"
-                    value={clientSearchTerm}
-                    onChange={(e) => {
-                      setClientSearchTerm(e.target.value);
-                      setSelectedClientId('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
-                        const validDoc = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
-                        if (validDoc) {
-                          handleSearchSunat();
-                        } else {
-                          showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.', 'warning');
-                        }
-                      }
-                    }}
-                    placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'}
-                    disabled={clientsLoading || isProcessing}
-                    style={{
-                      flex: 1,
-                      padding: '0.55rem 0.75rem',
-                      border: 'none',
-                      fontSize: '0.85rem',
-                      backgroundColor: 'transparent',
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      cursor: clientsLoading || isProcessing ? 'not-allowed' : 'text'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
-                      const validDoc = /^\d{8}$/.test(term) && !isFactura || /^\d{11}$/.test(term);
-                      if (validDoc) {
-                        handleSearchSunat();
-                      } else {
-                        showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.', 'warning');
-                      }
-                    }}
-                    disabled={clientsLoading || sunatSearchLoading || isProcessing}
-                    title="Buscar en SUNAT"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '0 0.75rem',
-                      border: 'none',
-                      background: sunatSearchLoading ? '#e2e8f0' : '#0d9488',
-                      color: 'white',
-                      cursor: clientsLoading || sunatSearchLoading || isProcessing ? 'not-allowed' : 'pointer',
-                      opacity: clientsLoading || sunatSearchLoading || isProcessing ? 0.7 : 1
-                    }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="11" cy="11" r="8" />
-                      <path d="m21 21-4.35-4.35" />
-                    </svg>
-                  </button>
-                </div>
-                {clientSearchTerm && !selectedClientId && filteredClients.length > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    marginTop: '0.25rem',
-                    maxHeight: '150px',
-                    overflowY: 'auto',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    backgroundColor: 'white',
-                    boxShadow: '0 4px 6px rgba(0,0,0,0.07)',
-                    zIndex: 10
-                  }}>
-                    {!isFactura && (
-                      <div
-                        onClick={() => {
-                          setSelectedClientId('');
-                          setClientSearchTerm('');
-                        }}
-                        style={{
-                          padding: '0.5rem 0.75rem',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid #f1f5f9',
-                          fontSize: '0.85rem',
-                          color: '#64748b'
-                        }}
-                      >
-                        Sin cliente (Consumidor final)
-                      </div>
-                    )}
-                    {filteredClients.map((client: any) => (
-                      <div
-                        key={client.id}
-                        onClick={() => {
-                          setSelectedClientId(client.id);
-                          setClientSearchTerm(client.name);
-                        }}
-                        style={{
-                          padding: '0.5rem 0.75rem',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid #f1f5f9',
-                          fontSize: '0.85rem'
-                        }}
-                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#f7fafc'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
-                      >
-                        <div style={{ fontWeight: 600 }}>{client.name}</div>
-                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{client.documentType}: {client.documentNumber}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {clientSearchTerm && !selectedClientId && !clientsLoading && filteredClients.length === 0 && (
-                  <div style={{ marginTop: '0.25rem' }}>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.35rem' }}>
-                      {isFactura ? 'No hay clientes con RUC' : 'No se encontraron clientes'}
-                    </div>
-                    {(() => {
-                      const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
-                      const canSearchSunat = /^\d{8}$/.test(term) && !isFactura
-                        || /^\d{11}$/.test(term);
-                      return (
-                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                          {canSearchSunat ? (
-                            <button
-                              type="button"
-                              onClick={handleSearchSunat}
-                              disabled={sunatSearchLoading || isProcessing}
-                              style={{
-                                padding: '0.4rem 0.75rem',
-                                fontSize: '0.8rem',
-                                fontWeight: 600,
-                                color: '#0f766e',
-                                backgroundColor: '#ccfbf1',
-                                border: '1px solid #99f6e4',
-                                borderRadius: '6px',
-                                cursor: sunatSearchLoading || isProcessing ? 'not-allowed' : 'pointer',
-                                opacity: sunatSearchLoading || isProcessing ? 0.7 : 1
-                              }}
-                            >
-                              {sunatSearchLoading ? 'Buscando en SUNAT...' : '🔍 Buscar en SUNAT'}
-                            </button>
-                          ) : (
-                            <span>Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse el botón de lupa para traer el cliente desde SUNAT.</span>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
+      </section>
 
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '1rem',
-            gap: '1rem',
-            flexWrap: 'wrap'
-          }}
-        >
-          <h3
-            style={{
-              margin: 0,
-              fontSize: '1.15rem',
-              fontWeight: 600,
-              color: '#1a202c'
-            }}
-          >
-            Detalle de la orden
-          </h3>
-        </div>
-
-        {error && (
-          <div
-            style={{
-              backgroundColor: '#fed7d7',
-              border: '1px solid #feb2b2',
-              color: '#742a2a',
-              padding: '1rem',
-              borderRadius: '8px',
-              marginBottom: '1rem',
-              fontSize: '0.95rem'
-            }}
-          >
-            Error al cargar la orden: {error.message}
+      <main style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden', padding: '0.5rem', gap: '0.5rem' }}>
+        <section style={{ flex: isSmallDesktop ? '65%' : '70%', background: 'white', display: 'flex', flexDirection: 'column', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '40px 40px 1fr 80px 80px 100px', background: '#f1f5f9', padding: '0.5rem', fontWeight: 800, fontSize: '0.7rem' }}>
+            <div>SEL</div><div>CANT</div><div>PRODUCTO</div><div style={{ textAlign: 'right' }}>UNIT</div><div style={{ textAlign: 'right' }}>TOTAL</div><div style={{ textAlign: 'center' }}>OPC</div>
           </div>
-        )}
-
-        {loading && (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '2rem',
-              color: '#4a5568'
-            }}
-          >
-            Cargando orden...
-          </div>
-        )}
-
-        {!loading && !error && !operation && (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '2rem',
-              color: '#4a5568'
-            }}
-          >
-            No se encontró una orden activa para esta mesa.
-          </div>
-        )}
-
-        {operation && (
-          <>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'row',
-                gap: isSmallDesktop ? '1.5rem' : '2rem',
-                alignItems: 'flex-start'
-              }}
-            >
-              {/* Tabla de productos */}
-              <div
-                style={{
-                  flex: isSmallDesktop ? '1 1 68%' : isMediumDesktop ? '1 1 72%' : '1 1 75%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  border: '1px solid rgba(226,232,240,0.9)',
-                  borderRadius: '18px',
-                  overflow: 'hidden',
-                  background: 'linear-gradient(145deg, rgba(255,255,255,0.95), rgba(248,250,252,0.95))',
-                  boxShadow: '0 18px 28px -14px rgba(15,23,42,0.22)'
-                }}
-              >
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: isSmallDesktop
-                      ? '0.4fr 0.5fr 1.5fr 0.7fr 0.7fr 1.2fr'
-                      : isMediumDesktop
-                        ? '0.35fr 0.45fr 1.3fr 0.65fr 0.65fr 1.1fr'
-                        : '0.3fr 0.4fr 1.2fr 0.6fr 0.6fr 1fr',
-                    background: 'linear-gradient(135deg, rgba(102,126,234,0.12), rgba(129,140,248,0.12))',
-                    padding: isSmallDesktop ? '0.6rem 0.9rem' : '0.7rem 1rem',
-                    fontWeight: 700,
-                    color: '#2d3748',
-                    fontSize: isSmallDesktop ? '0.75rem' : '0.8rem',
-                    letterSpacing: '0.01em',
-                    flexShrink: 0
-                  }}
-                >
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '0.35rem'
-                  }}>
-                    <span>Sel.</span>
-                    <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={handleSelectAll}
-                        style={{
-                          padding: '0.2rem 0.4rem',
-                          fontSize: '0.65rem',
-                          fontWeight: 600,
-                          color: '#5b21b6',
-                          background: 'rgba(139, 92, 246, 0.2)',
-                          border: '1px solid rgba(139, 92, 246, 0.5)',
-                          borderRadius: '6px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Marcar todo
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleDeselectAll}
-                        style={{
-                          padding: '0.2rem 0.4rem',
-                          fontSize: '0.65rem',
-                          fontWeight: 600,
-                          color: '#6b7280',
-                          background: 'rgba(226, 232, 240, 0.8)',
-                          border: '1px solid rgba(203, 213, 224, 0.8)',
-                          borderRadius: '6px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Desmarcar
-                      </button>
-                    </div>
-                  </div>
-                  <span style={{ textAlign: 'center' }}>Cant.</span>
-                  <span>Producto</span>
-                  <span style={{ textAlign: 'right' }}>P. Unit.</span>
-                  <span style={{ textAlign: 'right' }}>Total</span>
-                  <span style={{ textAlign: 'center' }}>Dividir</span>
-                </div>
-
-                <div
-                  style={{
-                    height: '300px',
-                    overflowY: 'auto',
-                    overflowX: 'hidden',
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: '#cbd5e0 #f7fafc'
-                  }}
-                >
-                  {(detailsToUse || []).map((detail: any, index: number) => {
-                    const quantity = Number(detail.quantity) || 0;
-                    const unitPrice = Number(detail.unitPrice) || 0;
-                    // ✅ Calcular el total siempre basado en la cantidad actual (evita mostrar el total original de la BD)
-                    const lineTotal = unitPrice * quantity;
-
-                    const isEvenRow = index % 2 === 0;
-                    const isSelected = itemAssignments[String(detail.id || '')];
-
-                    return (
-                      <div
-                        key={detail.id || `${detail.productId}-${detail.productCode}`}
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: isSmallDesktop
-                            ? '0.4fr 0.5fr 1.5fr 0.7fr 0.7fr 1.2fr'
-                            : isMediumDesktop
-                              ? '0.35fr 0.45fr 1.3fr 0.65fr 0.65fr 1.1fr'
-                              : '0.3fr 0.4fr 1.2fr 0.6fr 0.6fr 1fr',
-                          padding: isSmallDesktop ? '0.6rem 0.9rem' : '0.7rem 1rem',
-                          fontSize: isSmallDesktop ? '0.75rem' : '0.8rem',
-                          alignItems: 'center',
-                          color: '#1a202c',
-                          backgroundColor: isSelected
-                            ? 'rgba(139, 92, 246, 0.1)'
-                            : isEvenRow
-                              ? 'rgba(247,250,252,0.85)'
-                              : 'rgba(255,255,255,0.92)',
-                          borderTop: '1px solid rgba(226,232,240,0.7)',
-                          borderLeft: isSelected ? '3px solid #8b5cf6' : 'none',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <div style={{
-                          display: 'flex',
-                          justifyContent: 'center',
-                          alignItems: 'center'
-                        }}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected || false}
-                            onChange={() => handleToggleItemSelection(String(detail.id || ''))}
-                            style={{
-                              width: isSmallDesktop ? '1rem' : '1.1rem',
-                              height: isSmallDesktop ? '1rem' : '1.1rem',
-                              cursor: 'pointer',
-                              accentColor: '#8b5cf6'
-                            }}
-                          />
-                        </div>
-                        <span
-                          style={{
-                            textAlign: 'center',
-                            fontWeight: 700,
-                            color: '#4c51bf',
-                            fontSize: isSmallDesktop ? '0.85rem' : '0.9rem'
-                          }}
-                        >
-                          {quantity}
-                        </span>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.25rem'
-                        }}>
-                          <div style={{ fontWeight: 700, fontSize: isSmallDesktop ? '0.8rem' : '0.85rem' }}>
-                            {detail.productName || 'Producto'}
-                          </div>
-                          {detail.notes && (
-                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.7rem' }}>
-                              <span
-                                style={{
-                                  backgroundColor: 'rgba(255,255,255,0.85)',
-                                  border: '1px dashed rgba(102,126,234,0.5)',
-                                  color: '#434190',
-                                  padding: '0.2rem 0.45rem',
-                                  borderRadius: '8px'
-                                }}
-                              >
-                                Nota: {detail.notes}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <span
-                          style={{
-                            textAlign: 'right',
-                            color: '#2d3748',
-                            fontSize: isSmallDesktop ? '0.8rem' : '0.85rem'
-                          }}
-                        >
-                          {currencyFormatter.format(unitPrice)}
-                        </span>
-                        <span
-                          style={{
-                            textAlign: 'right',
-                            fontWeight: 700,
-                            fontSize: isSmallDesktop ? '0.85rem' : '0.9rem',
-                            color: '#1a202c'
-                          }}
-                        >
-                          {currencyFormatter.format(lineTotal)}
-                        </span>
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            flexWrap: 'wrap'
-                          }}
-                        >
-                          {!detail.id?.includes('-split') && quantity > 1 && (
-                            <button
-                              onClick={() => handleSplitItem(String(detail.id))}
-                              style={{
-                                padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
-                                borderRadius: '6px',
-                                border: 'none',
-                                background: 'rgba(139, 92, 246, 0.15)',
-                                color: '#8b5cf6',
-                                fontWeight: 600,
-                                fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.25rem'
-                              }}
-                              onMouseOver={(e) => {
-                                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.25)';
-                              }}
-                              onMouseOut={(e) => {
-                                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)';
-                              }}
-                            >
-                              ✂️
-                            </button>
-                          )}
-                          {detail.id?.includes('-split') && (
-                            <button
-                              onClick={() => handleMergeItem(detail.id)}
-                              style={{
-                                padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
-                                borderRadius: '6px',
-                                border: 'none',
-                                background: 'linear-gradient(130deg, #10b981, #059669)',
-                                color: 'white',
-                                fontWeight: 600,
-                                fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.25rem'
-                              }}
-                              onMouseOver={(e) => {
-                                e.currentTarget.style.background = 'linear-gradient(130deg, #059669, #047857)';
-                              }}
-                              onMouseOut={(e) => {
-                                e.currentTarget.style.background = 'linear-gradient(130deg, #10b981, #059669)';
-                              }}
-                            >
-                              🔗
-                            </button>
-                          )}
-                          {!detail.id?.includes('-split') && quantity <= 1 && modifiedDetails.some((d: any) => d.id?.includes(`${detail.id}-split`)) && (
-                            <button
-                              onClick={() => handleMergeAll(detail.id)}
-                              style={{
-                                padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
-                                borderRadius: '6px',
-                                border: 'none',
-                                background: 'linear-gradient(130deg, #f59e0b, #d97706)',
-                                color: 'white',
-                                fontWeight: 600,
-                                fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.25rem'
-                              }}
-                              onMouseOver={(e) => {
-                                e.currentTarget.style.background = 'linear-gradient(130deg, #d97706, #b45309)';
-                              }}
-                              onMouseOut={(e) => {
-                                e.currentTarget.style.background = 'linear-gradient(130deg, #f59e0b, #d97706)';
-                              }}
-                            >
-                              🔗
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              setDeleteItemDetailId(String(detail.id));
-                              setDeleteItemReason('');
-                              setShowDeleteItemModal(true);
-                            }}
-                            style={{
-                              padding: isSmallDesktop ? '0.3rem 0.6rem' : '0.35rem 0.7rem',
-                              borderRadius: '6px',
-                              border: 'none',
-                              background: 'linear-gradient(130deg, #ef4444, #dc2626)',
-                              color: 'white',
-                              fontWeight: 600,
-                              fontSize: isSmallDesktop ? '0.7rem' : '0.75rem',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.25rem'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.background = 'linear-gradient(130deg, #dc2626, #b91c1c)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.background = 'linear-gradient(130deg, #ef4444, #dc2626)';
-                            }}
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {detailsToUse?.length === 0 && (
-                    <div
-                      style={{
-                        padding: '1.75rem',
-                        textAlign: 'center',
-                        color: '#4a5568'
-                      }}
-                    >
-                      No hay ítems registrados en esta orden.
-                    </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {detailsToUse.map((d: any) => (
+              <div key={d.id} style={{ display: 'grid', gridTemplateColumns: '40px 40px 1fr 80px 80px 100px', padding: '0.5rem', fontSize: '0.8rem', borderBottom: '1px solid #f1f5f9', background: itemAssignments[d.id] ? '#f0f9ff' : 'none' }}>
+                <input type="checkbox" checked={!!itemAssignments[d.id]} onChange={() => handleToggleItemSelection(d.id)} />
+                <div style={{ fontWeight: 800 }}>{d.quantity}</div>
+                <div>{d.productName}</div>
+                <div style={{ textAlign: 'right' }}>{currencyFormatter.format(d.unitPrice)}</div>
+                <div style={{ textAlign: 'right', fontWeight: 700 }}>{currencyFormatter.format(d.quantity * d.unitPrice)}</div>
+                <div style={{ textAlign: 'center' }}>
+                  {d.quantity > 1 && !String(d.id).includes('-split') && <button onClick={() => handleSplitItem(d.id)} style={{ fontSize: '0.6rem' }}>✂️</button>}
+                  {String(d.id).includes('-split') && <button onClick={() => handleMergeItem(d.id)} style={{ fontSize: '0.6rem' }}>🔗</button>}
+                  {canVoidInCashPay && (
+                    <button type="button" onClick={() => handleDeleteItem(d.id)} style={{ fontSize: '0.6rem' }} title="Quitar ítem">🗑️</button>
                   )}
                 </div>
-
-                {/* Resumen de Totales - Movido debajo de la tabla */}
-                <div
-                  style={{
-                    marginTop: '1rem',
-                    marginBottom: '1rem',
-                    marginLeft: '1rem',
-                    marginRight: '1rem',
-                    borderRadius: '18px',
-                    padding: '1.5rem',
-                    background: 'linear-gradient(145deg, rgba(102,126,234,0.16), rgba(79,209,197,0.16))',
-                    border: '1px solid rgba(102,126,234,0.28)',
-                    boxShadow: '0 22px 35px -15px rgba(79,209,197,0.35)',
-                    backdropFilter: 'blur(14px)',
-                    position: 'relative',
-                    flexShrink: 0
-                  }}
-                >
-                  {/* Descuento: monto (S/) y/o porcentaje (%) */}
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: '80px' }}>
-                      <label style={{ fontSize: '0.7rem', color: '#4a5568', display: 'block', marginBottom: '0.2rem' }}>Descuento (S/)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={discountAmount || ''}
-                        onChange={(e) => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                        placeholder="0"
-                        style={{
-                          width: '100%',
-                          padding: '0.4rem 0.5rem',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '6px',
-                          fontSize: '0.8rem',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    </div>
-                    <div style={{ flex: 1, minWidth: '80px' }}>
-                      <label style={{ fontSize: '0.7rem', color: '#4a5568', display: 'block', marginBottom: '0.2rem' }}>Descuento (%)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={0.5}
-                        value={discountPercent || ''}
-                        onChange={(e) => setDiscountPercent(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                        placeholder="0"
-                        style={{
-                          width: '100%',
-                          padding: '0.4rem 0.5rem',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '6px',
-                          fontSize: '0.8rem',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: '0.75rem',
-                      color: '#2d3748',
-                      fontSize: '0.92rem',
-                      letterSpacing: '0.01em'
-                    }}
-                  >
-                    <span>Subtotal</span>
-                    <span>{currencyFormatter.format(subtotal)}</span>
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: '0.75rem',
-                      color: '#2d3748',
-                      fontSize: '0.92rem',
-                      letterSpacing: '0.01em'
-                    }}
-                  >
-                    <span>
-                      IGV ({igvPercentage ? `${igvPercentage}%` : '—'})
-                    </span>
-                    <span>{currencyFormatter.format(igvAmount)}</span>
-                  </div>
-                  {totalDiscount > 0 && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginBottom: '0.75rem',
-                        color: '#059669',
-                        fontSize: '0.92rem',
-                        letterSpacing: '0.01em'
-                      }}
-                    >
-                      <span>Descuento</span>
-                      <span>-{currencyFormatter.format(totalDiscount)}</span>
-                    </div>
-                  )}
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      color: '#1a202c',
-                      fontWeight: 700,
-                      fontSize: '1.35rem',
-                      marginTop: '1rem',
-                      alignItems: 'center'
-                    }}
-                  >
-                    <span>Total</span>
-                    <span>{currencyFormatter.format(totalToPay)}</span>
-                  </div>
-                  <button
-                    onClick={handleProcessPayment}
-                    disabled={!operation || operation.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing || !isPaymentComplete}
-                    style={{
-                      width: '100%',
-                      marginTop: '0.75rem',
-                      padding: '0.625rem 1rem',
-                      borderRadius: '10px',
-                      border: 'none',
-                      background: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || !isPaymentComplete
-                        ? '#cbd5e0'
-                        : 'linear-gradient(130deg, #4fd1c5, #63b3ed)',
-                      color: 'white',
-                      fontWeight: 700,
-                      fontSize: '0.8125rem',
-                      cursor: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || isProcessing || !isPaymentComplete ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 8px 16px rgba(79,209,197,0.4)',
-                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                      opacity: operation?.status === 'COMPLETED' || !selectedDocumentId || !selectedSerialId || !isPaymentComplete ? 0.6 : 1
-                    }}
-                    onMouseOver={(e) => {
-                      if (operation?.status !== 'COMPLETED' && selectedDocumentId && selectedSerialId && !isProcessing && isPaymentComplete) {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 12px 20px rgba(79,209,197,0.5)';
-                      }
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 8px 16px rgba(79,209,197,0.4)';
-                    }}
-                  >
-                    {isProcessing ? 'Procesando...' : operation?.status === 'COMPLETED' ? 'Orden ya pagada' : !isPaymentComplete ? 'Completa los pagos' : 'Procesar pago'}
-                  </button>
-                  <button
-                    onClick={() => setShowCancelOperationModal(true)}
-                    disabled={!operation || operation.status === 'COMPLETED' || isProcessing}
-                    style={{
-                      width: '100%',
-                      marginTop: '0.75rem',
-                      padding: '0.625rem 1rem',
-                      borderRadius: '10px',
-                      border: 'none',
-                      background: operation?.status === 'COMPLETED'
-                        ? '#cbd5e0'
-                        : 'linear-gradient(130deg, #ef4444, #dc2626)',
-                      color: 'white',
-                      fontWeight: 700,
-                      fontSize: '0.8125rem',
-                      cursor: operation?.status === 'COMPLETED' || isProcessing ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 8px 16px rgba(239,68,68,0.4)',
-                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                      opacity: operation?.status === 'COMPLETED' ? 0.6 : 1
-                    }}
-                    onMouseOver={(e) => {
-                      if (operation?.status !== 'COMPLETED' && !isProcessing) {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 12px 20px rgba(239,68,68,0.5)';
-                      }
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 8px 16px rgba(239,68,68,0.4)';
-                    }}
-                  >
-                    Cancelar Orden
-                  </button>
-                </div>
               </div>
-
-              {/* Columna derecha: Pagos */}
-              <div
-                style={{
-                  flex: isSmallDesktop ? '1 1 32%' : isMediumDesktop ? '1 1 28%' : '1 1 25%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: isSmallDesktop ? '1.25rem' : '1.5rem',
-                  border: '1px solid rgba(226,232,240,0.9)',
-                  borderRadius: '18px',
-                  padding: '1rem',
-                  background: 'linear-gradient(145deg, rgba(255,255,255,0.95), rgba(248,250,252,0.95))',
-                  boxShadow: '0 18px 28px -14px rgba(15,23,42,0.22)',
-                  overflow: 'hidden'
-                }}
-              >
-                {/* Pagos Múltiples */}
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  <div style={{ flexShrink: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                      <label
-                        style={{
-                          display: 'block',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          color: '#2d3748',
-                          margin: 0
-                        }}
-                      >
-                        Pagos *
-                      </label>
-                      <button
-                        type="button"
-                        onClick={addPayment}
-                        disabled={isProcessing}
-                        style={{
-                          padding: '0.4rem 0.75rem',
-                          borderRadius: '6px',
-                          border: 'none',
-                          backgroundColor: '#667eea',
-                          color: 'white',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          cursor: isProcessing ? 'not-allowed' : 'pointer',
-                          opacity: isProcessing ? 0.6 : 1
-                        }}
-                      >
-                        + Agregar Pago
-                      </button>
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      flex: 1,
-                      overflowY: payments.length > 1 ? 'auto' : 'visible',
-                      overflowX: 'hidden',
-                      maxHeight: payments.length > 1 ? '400px' : 'none',
-                      minHeight: payments.length > 1 ? '200px' : 'auto'
-                    }}
-                  >
-                    {payments.map((payment, index) => (
-                      <div
-                        key={payment.id}
-                        style={{
-                          marginBottom: '1rem',
-                          padding: '1rem',
-                          borderRadius: '8px',
-                          border: '1px solid #e2e8f0',
-                          backgroundColor: '#f7fafc'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d3748' }}>
-                            Pago {index + 1}
-                          </span>
-                          {payments.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removePayment(payment.id)}
-                              disabled={isProcessing}
-                              style={{
-                                padding: '0.25rem 0.5rem',
-                                borderRadius: '4px',
-                                border: 'none',
-                                backgroundColor: '#ef4444',
-                                color: 'white',
-                                fontSize: '0.7rem',
-                                cursor: isProcessing ? 'not-allowed' : 'pointer',
-                                opacity: isProcessing ? 0.6 : 1
-                              }}
-                            >
-                              🗑️
-                            </button>
-                          )}
-                        </div>
-
-                        <div style={{ marginBottom: '0.75rem' }}>
-                          <label
-                            style={{
-                              display: 'block',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              color: '#4a5568',
-                              marginBottom: '0.3rem'
-                            }}
-                          >
-                            Método de Pago
-                          </label>
-                          <select
-                            value={payment.method}
-                            onChange={(e) => updatePayment(payment.id, 'method', e.target.value)}
-                            disabled={isProcessing}
-                            style={{
-                              width: '100%',
-                              padding: '0.5rem 0.65rem',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e0',
-                              fontSize: '0.8rem',
-                              backgroundColor: 'white',
-                              cursor: isProcessing ? 'not-allowed' : 'pointer'
-                            }}
-                          >
-                            <option value="CASH">Efectivo</option>
-                            <option value="YAPE">Yape</option>
-                            <option value="PLIN">Plin</option>
-                            <option value="CARD">Tarjeta</option>
-                            <option value="TRANSFER">Transferencia Bancaria</option>
-                          </select>
-                        </div>
-
-                        <div style={{ marginBottom: '0.75rem' }}>
-                          <label
-                            style={{
-                              display: 'block',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              color: '#4a5568',
-                              marginBottom: '0.3rem'
-                            }}
-                          >
-                            Monto
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={payment.amount === 0 ? '' : payment.amount}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (value === '' || value === null || value === undefined) {
-                                updatePayment(payment.id, 'amount', 0);
-                              } else {
-                                const numValue = parseFloat(value);
-                                if (isNaN(numValue)) {
-                                  updatePayment(payment.id, 'amount', 0);
-                                } else {
-                                  updatePayment(payment.id, 'amount', roundMoney2(numValue));
-                                }
-                              }
-                            }}
-                            onBlur={(e) => {
-                              const v = e.target.value;
-                              if (v === '' || v === null || v === undefined) {
-                                updatePayment(payment.id, 'amount', 0);
-                              } else {
-                                const numValue = parseFloat(v);
-                                if (!isNaN(numValue)) {
-                                  updatePayment(payment.id, 'amount', roundMoney2(numValue));
-                                }
-                              }
-                            }}
-                            disabled={isProcessing}
-                            placeholder="0.00"
-                            style={{
-                              width: '100%',
-                              padding: '0.5rem 0.65rem',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e0',
-                              fontSize: '0.8rem'
-                            }}
-                          />
-                        </div>
-
-                        {(payment.method === 'YAPE' || payment.method === 'PLIN' || payment.method === 'TRANSFER') && (
-                          <div>
-                            <label
-                              style={{
-                                display: 'block',
-                                fontSize: '0.75rem',
-                                fontWeight: 600,
-                                color: '#4a5568',
-                                marginBottom: '0.3rem'
-                              }}
-                            >
-                              Número de Operación
-                            </label>
-                            <input
-                              type="text"
-                              value={payment.referenceNumber}
-                              onChange={(e) => updatePayment(payment.id, 'referenceNumber', e.target.value)}
-                              disabled={isProcessing}
-                              placeholder="Ingrese el número de operación"
-                              style={{
-                                width: '100%',
-                                padding: '0.5rem 0.65rem',
-                                borderRadius: '6px',
-                                border: '1px solid #cbd5e0',
-                                fontSize: '0.8rem'
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Resumen de Pagos - Movido fuera de la tarjeta */}
-                  <div
-                    style={{
-                      marginTop: '1rem',
-                      padding: '0.75rem',
-                      borderRadius: '6px',
-                      backgroundColor: isPaymentComplete ? '#d1fae5' : '#fef3c7',
-                      border: `1px solid ${isPaymentComplete ? '#a7f3d0' : '#fde68a'}`,
-                      flexShrink: 0
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#2d3748' }}>
-                        Total Pagado:
-                      </span>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#2d3748' }}>
-                        {currencyFormatter.format(totalPaid)}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#2d3748' }}>
-                        {remaining > 0.01 ? 'Falta pagar:' : vuelto > 0 ? 'Vuelto:' : 'Total:'}
-                      </span>
-                      <span style={{
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        color: isPaymentComplete ? '#059669' : (remaining > 0.01 ? '#d97706' : '#059669')
-                      }}>
-                        {remaining > 0.01 ? currencyFormatter.format(remaining) : vuelto > 0 ? currencyFormatter.format(vuelto) : '—'}
-                      </span>
-                    </div>
-                    {!isPaymentComplete && (
-                      <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#92400e' }}>
-                        ⚠️ La suma de los pagos debe ser al menos el total a pagar
-                      </div>
-                    )}
-                    {isPaymentComplete && vuelto > 0 && (
-                      <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>
-                        ✓ Entregar vuelto: {currencyFormatter.format(vuelto)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+            ))}
+          </div>
+          <div style={{ padding: '0.5rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input type="number" placeholder="Desc S/" value={discountAmount || ''} onChange={e => setDiscountAmount(Number(e.target.value))} style={{ width: '80px' }} />
+              <input type="number" placeholder="Desc %" value={discountPercent || ''} onChange={e => setDiscountPercent(Number(e.target.value))} style={{ width: '80px' }} />
             </div>
-          </>
-        )}
-      </div>
+            <div style={{ fontWeight: 900 }}>TOTAL: {currencyFormatter.format(totalToPay)}</div>
+          </div>
+        </section>
 
-      {/* Modal para cambiar mesa */}
+        <section style={{ flex: isSmallDesktop ? '35%' : '30%', background: 'white', padding: '0.5rem', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: '#0ea5e9', color: 'white', padding: '0.5rem', textAlign: 'center', borderRadius: '4px', marginBottom: '0.5rem' }}>
+            <div style={{ fontSize: '0.7rem' }}>DEUDA</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 900 }}>{currencyFormatter.format(totalToPay)}</div>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}><span style={{ fontSize: '0.8rem', fontWeight: 800 }}>PAGOS</span><button onClick={addPayment} style={{ fontSize: '0.7rem' }}>+ Pago</button></div>
+            {payments.map(p => (
+              <div key={p.id} style={{ border: '1px solid #e2e8f0', padding: '0.4rem', marginBottom: '0.4rem', borderRadius: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                  <select value={p.method} onChange={e => updatePayment(p.id, 'method', e.target.value)} style={{ flex: 1, marginRight: '0.4rem', padding: '0.2rem' }}>
+                    <option value="CASH">Efectivo</option><option value="YAPE">Yape</option><option value="CARD">Tarjeta</option>
+                  </select>
+                  {payments.length > 1 && (
+                    <button onClick={() => removePayment(p.id)} style={{ padding: '0 0.4rem', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
+                  )}
+                </div>
+                <input type="number" step="0.01" value={p.amount === 0 ? '' : p.amount} onChange={e => updatePayment(p.id, 'amount', Number(e.target.value))} style={{ width: '100%', fontWeight: 800, padding: '0.3rem' }} />
+              </div>
+            ))}
+          </div>
+          <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>
+              <span>RESTA: {currencyFormatter.format(remaining)}</span>
+              {vuelto > 0 && <span style={{ color: 'green' }}>Vuelto: {currencyFormatter.format(vuelto)}</span>}
+            </div>
+            <button onClick={handleProcessPayment} disabled={isProcessing || remaining > 0.05} style={{ width: '100%', padding: '0.8rem', background: remaining > 0.05 ? '#cbd5e0' : '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 900, cursor: remaining > 0.05 ? 'not-allowed' : 'pointer' }}>COBRAR</button>
+            {canVoidInCashPay && (
+              <button type="button" onClick={() => setShowCancelOperationModal(true)} style={{ width: '100%', marginTop: '0.8rem', background: 'transparent', color: '#ef4444', border: 'none', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer' }}>Anular Orden</button>
+            )}
+          </div>
+        </section>
+      </main>
+
       {showChangeTableModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem'
-          }}
-          onClick={() => {
-            if (!isProcessing) {
-              setShowChangeTableModal(false);
-              setSelectedFloorId('');
-              setSelectedTableId('');
-            }
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '20px',
-              padding: '2rem',
-              maxWidth: '600px',
-              width: '100%',
-              maxHeight: '80vh',
-              overflow: 'auto',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              position: 'relative'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '1.5rem'
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: '1.5rem',
-                  fontWeight: 700,
-                  color: '#1a202c',
-                  margin: 0
-                }}
-              >
-                Cambiar Mesa
-              </h2>
-              <button
-                onClick={() => {
-                  if (!isProcessing) {
-                    setShowChangeTableModal(false);
-                    setSelectedFloorId('');
-                    setSelectedTableId('');
-                  }
-                }}
-                disabled={isProcessing}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '1.5rem',
-                  cursor: isProcessing ? 'not-allowed' : 'pointer',
-                  color: '#4a5568',
-                  padding: '0.5rem',
-                  lineHeight: 1
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Selección de piso */}
-            <div style={{ marginBottom: '2rem' }}>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  color: '#2d3748',
-                  marginBottom: '0.75rem'
-                }}
-              >
-                Seleccionar Piso
-              </label>
-              {floorsLoading ? (
-                <div style={{ padding: '1rem', textAlign: 'center', color: '#4a5568' }}>
-                  Cargando pisos...
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-                    gap: '0.75rem'
-                  }}
-                >
-                  {floorsData?.floorsByBranch?.map((floor: any) => (
-                    <button
-                      key={floor.id}
-                      onClick={() => {
-                        setSelectedFloorId(floor.id);
-                        setSelectedTableId('');
-                      }}
-                      style={{
-                        padding: '1rem',
-                        borderRadius: '12px',
-                        border: selectedFloorId === floor.id ? '2px solid #10b981' : '2px solid #e2e8f0',
-                        background: selectedFloorId === floor.id
-                          ? 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(5,150,105,0.1))'
-                          : 'white',
-                        color: selectedFloorId === floor.id ? '#10b981' : '#2d3748',
-                        fontWeight: selectedFloorId === floor.id ? 700 : 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        fontSize: '0.95rem'
-                      }}
-                      onMouseOver={(e) => {
-                        if (selectedFloorId !== floor.id) {
-                          e.currentTarget.style.borderColor = '#10b981';
-                          e.currentTarget.style.backgroundColor = 'rgba(16,185,129,0.05)';
-                        }
-                      }}
-                      onMouseOut={(e) => {
-                        if (selectedFloorId !== floor.id) {
-                          e.currentTarget.style.borderColor = '#e2e8f0';
-                          e.currentTarget.style.backgroundColor = 'white';
-                        }
-                      }}
-                    >
-                      {floor.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Selección de mesa */}
-            {selectedFloorId && (
-              <div style={{ marginBottom: '2rem' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '0.95rem',
-                    fontWeight: 600,
-                    color: '#2d3748',
-                    marginBottom: '0.75rem'
-                  }}
-                >
-                  Seleccionar Mesa
-                </label>
-                {tablesLoading ? (
-                  <div style={{ padding: '1rem', textAlign: 'center', color: '#4a5568' }}>
-                    Cargando mesas...
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-                      gap: '0.75rem',
-                      maxHeight: '300px',
-                      overflowY: 'auto',
-                      padding: '0.5rem'
-                    }}
-                  >
-                    {tablesData?.tablesByFloor?.map((tableItem: any) => {
-                      const isSelected = String(selectedTableId) === String(tableItem.id);
-                      const isCurrentTable = String(tableItem.id) === String(table?.id);
-                      const isOccupied = tableItem.status === 'OCCUPIED' && !isCurrentTable;
-                      const accessCheck = canAccessTable(tableItem);
-                      const canAccess = accessCheck.canAccess;
-
-                      return (
-                        <button
-                          key={tableItem.id}
-                          onClick={() => {
-                            if (!canAccess) {
-                              showToast(accessCheck.reason || 'No tiene permiso para acceder a esta mesa.', 'error');
-                              return;
-                            }
-                            if (!isOccupied && !isCurrentTable) {
-                              setSelectedTableId(tableItem.id);
-                            }
-                          }}
-                          disabled={isOccupied || isCurrentTable || !canAccess}
-                          style={{
-                            padding: '1rem',
-                            borderRadius: '12px',
-                            border: isSelected
-                              ? '2px solid #10b981'
-                              : isCurrentTable
-                                ? '2px solid #f59e0b'
-                                : isOccupied
-                                  ? '2px solid #e2e8f0'
-                                  : '2px solid #e2e8f0',
-                            background: isSelected
-                              ? 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(5,150,105,0.1))'
-                              : isCurrentTable
-                                ? 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.1))'
-                                : isOccupied
-                                  ? '#f7fafc'
-                                  : 'white',
-                            color: isSelected
-                              ? '#10b981'
-                              : isCurrentTable
-                                ? '#f59e0b'
-                                : isOccupied
-                                  ? '#a0aec0'
-                                  : '#2d3748',
-                            fontWeight: isSelected ? 700 : 600,
-                            cursor: (isOccupied || isCurrentTable || !canAccess) ? 'not-allowed' : 'pointer',
-                            transition: 'all 0.2s',
-                            fontSize: '0.9rem',
-                            opacity: (isOccupied || isCurrentTable || !canAccess) ? 0.6 : 1,
-                            position: 'relative'
-                          }}
-                          onMouseOver={(e) => {
-                            if (!isOccupied && !isCurrentTable && !isSelected) {
-                              e.currentTarget.style.borderColor = '#10b981';
-                              e.currentTarget.style.backgroundColor = 'rgba(16,185,129,0.05)';
-                            }
-                          }}
-                          onMouseOut={(e) => {
-                            if (!isOccupied && !isCurrentTable && !isSelected) {
-                              e.currentTarget.style.borderColor = '#e2e8f0';
-                              e.currentTarget.style.backgroundColor = 'white';
-                            }
-                          }}
-                        >
-                          {isCurrentTable && (
-                            <span
-                              style={{
-                                position: 'absolute',
-                                top: '0.25rem',
-                                right: '0.25rem',
-                                fontSize: '0.75rem',
-                                background: '#f59e0b',
-                                color: 'white',
-                                padding: '0.15rem 0.4rem',
-                                borderRadius: '4px',
-                                fontWeight: 700
-                              }}
-                            >
-                              Actual
-                            </span>
-                          )}
-                          {isOccupied && (
-                            <span
-                              style={{
-                                position: 'absolute',
-                                top: '0.25rem',
-                                right: '0.25rem',
-                                fontSize: '0.75rem',
-                                background: '#e2e8f0',
-                                color: '#4a5568',
-                                padding: '0.15rem 0.4rem',
-                                borderRadius: '4px',
-                                fontWeight: 700
-                              }}
-                            >
-                              Ocupada
-                            </span>
-                          )}
-                          <div style={{ marginTop: isCurrentTable || isOccupied ? '1rem' : '0' }}>
-                            {tableItem.name}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: '0.75rem',
-                              color: isOccupied || isCurrentTable ? '#a0aec0' : '#718096',
-                              marginTop: '0.25rem'
-                            }}
-                          >
-                            {tableItem.capacity} plazas
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Botones de acción */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '1rem',
-                justifyContent: 'flex-end',
-                marginTop: '2rem'
-              }}
-            >
-              <button
-                onClick={() => {
-                  if (!isProcessing) {
-                    setShowChangeTableModal(false);
-                    setSelectedFloorId('');
-                    setSelectedTableId('');
-                  }
-                }}
-                disabled={isProcessing}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '12px',
-                  border: '2px solid #e2e8f0',
-                  background: 'white',
-                  color: '#4a5568',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: isProcessing ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => {
-                  if (!isProcessing) {
-                    e.currentTarget.style.borderColor = '#cbd5e0';
-                    e.currentTarget.style.backgroundColor = '#f7fafc';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = '#e2e8f0';
-                  e.currentTarget.style.backgroundColor = 'white';
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleChangeTable}
-                disabled={!selectedTableId || isProcessing || selectedTableId === table?.id}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '12px',
-                  border: 'none',
-                  background: !selectedTableId || isProcessing || selectedTableId === table?.id
-                    ? '#cbd5e0'
-                    : 'linear-gradient(130deg, #10b981, #059669)',
-                  color: 'white',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: !selectedTableId || isProcessing || selectedTableId === table?.id
-                    ? 'not-allowed'
-                    : 'pointer',
-                  boxShadow: !selectedTableId || isProcessing || selectedTableId === table?.id
-                    ? 'none'
-                    : '0 12px 24px -8px rgba(16,185,129,0.4)',
-                  transition: 'all 0.2s',
-                  opacity: !selectedTableId || isProcessing || selectedTableId === table?.id ? 0.6 : 1
-                }}
-                onMouseOver={(e) => {
-                  if (selectedTableId && !isProcessing && selectedTableId !== table?.id) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 16px 28px -10px rgba(16,185,129,0.5)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = !selectedTableId || isProcessing || selectedTableId === table?.id
-                    ? 'none'
-                    : '0 12px 24px -8px rgba(16,185,129,0.4)';
-                }}
-              >
-                {isProcessing ? 'Cambiando...' : 'Cambiar'}
-              </button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', width: '300px' }}>
+            <h3>Cambiar Mesa</h3>
+            <select value={selectedFloorId} onChange={e => setSelectedFloorId(e.target.value)} style={{ width: '100%', marginBottom: '0.5rem' }}>
+              <option value="">Piso...</option>
+              {floorsData?.floorsByBranch.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+            <select value={selectedTableId} onChange={e => setSelectedTableId(e.target.value)} style={{ width: '100%', marginBottom: '1rem' }}>
+              <option value="">Mesa...</option>
+              {tablesData?.tablesByFloor.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button onClick={() => setShowChangeTableModal(false)} style={{ flex: 1 }}>Volver</button>
+              <button onClick={handleChangeTable} style={{ flex: 1 }}>Cambiar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal para cambiar mozo */}
-      {showChangeUserModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem'
-          }}
-          onClick={() => {
-            if (!isProcessing) {
-              setShowChangeUserModal(false);
-              setSelectedUserId('');
-            }
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '20px',
-              padding: '2rem',
-              maxWidth: '600px',
-              width: '100%',
-              maxHeight: '80vh',
-              overflow: 'auto',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              position: 'relative'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '1.5rem'
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: '1.5rem',
-                  fontWeight: 700,
-                  color: '#1a202c',
-                  margin: 0
-                }}
-              >
-                Cambiar Mozo
-              </h2>
-              <button
-                onClick={() => {
-                  if (!isProcessing) {
-                    setShowChangeUserModal(false);
-                    setSelectedUserId('');
-                  }
-                }}
-                disabled={isProcessing}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '1.5rem',
-                  cursor: isProcessing ? 'not-allowed' : 'pointer',
-                  color: '#4a5568',
-                  padding: '0.5rem',
-                  lineHeight: 1
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Lista de mozos */}
-            <div style={{ marginBottom: '2rem' }}>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  color: '#2d3748',
-                  marginBottom: '0.75rem'
-                }}
-              >
-                Seleccionar Mozo
-              </label>
-              {availableUsers.length === 0 ? (
-                <div style={{ padding: '1rem', textAlign: 'center', color: '#4a5568' }}>
-                  No hay mozos disponibles
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                    gap: '0.75rem',
-                    maxHeight: '400px',
-                    overflowY: 'auto',
-                    padding: '0.5rem'
-                  }}
-                >
-                  {availableUsers.map((userItem: any) => {
-                    const isSelected = String(selectedUserId) === String(userItem.id);
-                    const isCurrentUser = String(userItem.id) === String(operation?.user?.id);
-
-                    return (
-                      <button
-                        key={userItem.id}
-                        onClick={() => {
-                          if (!isCurrentUser && !isProcessing) {
-                            setSelectedUserId(userItem.id);
-                          }
-                        }}
-                        disabled={isCurrentUser || isProcessing}
-                        style={{
-                          padding: '1rem',
-                          borderRadius: '12px',
-                          border: isSelected
-                            ? '2px solid #8b5cf6'
-                            : isCurrentUser
-                              ? '2px solid #f59e0b'
-                              : '2px solid #e2e8f0',
-                          background: isSelected
-                            ? 'linear-gradient(135deg, rgba(139,92,246,0.1), rgba(124,58,237,0.1))'
-                            : isCurrentUser
-                              ? 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.1))'
-                              : 'white',
-                          color: isSelected
-                            ? '#8b5cf6'
-                            : isCurrentUser
-                              ? '#f59e0b'
-                              : '#2d3748',
-                          fontWeight: isSelected ? 700 : 600,
-                          cursor: isCurrentUser || isProcessing ? 'not-allowed' : 'pointer',
-                          transition: 'all 0.2s',
-                          fontSize: '0.9rem',
-                          opacity: isCurrentUser || isProcessing ? 0.6 : 1,
-                          position: 'relative',
-                          textAlign: 'left'
-                        }}
-                        onMouseOver={(e) => {
-                          if (!isCurrentUser && !isProcessing && !isSelected) {
-                            e.currentTarget.style.borderColor = '#8b5cf6';
-                            e.currentTarget.style.backgroundColor = 'rgba(139,92,246,0.05)';
-                          }
-                        }}
-                        onMouseOut={(e) => {
-                          if (!isCurrentUser && !isProcessing && !isSelected) {
-                            e.currentTarget.style.borderColor = '#e2e8f0';
-                            e.currentTarget.style.backgroundColor = 'white';
-                          }
-                        }}
-                      >
-                        {isCurrentUser && (
-                          <span
-                            style={{
-                              position: 'absolute',
-                              top: '0.25rem',
-                              right: '0.25rem',
-                              fontSize: '0.75rem',
-                              background: '#f59e0b',
-                              color: 'white',
-                              padding: '0.15rem 0.4rem',
-                              borderRadius: '4px',
-                              fontWeight: 700
-                            }}
-                          >
-                            Actual
-                          </span>
-                        )}
-                        <div style={{ marginTop: isCurrentUser ? '1rem' : '0' }}>
-                          <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>
-                            {userItem.firstName} {userItem.lastName}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: '0.75rem',
-                              color: isCurrentUser ? '#a0aec0' : '#718096',
-                              marginTop: '0.25rem'
-                            }}
-                          >
-                            DNI: {userItem.dni}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Botones de acción */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '1rem',
-                justifyContent: 'flex-end',
-                marginTop: '2rem'
-              }}
-            >
-              <button
-                onClick={() => {
-                  if (!isProcessing) {
-                    setShowChangeUserModal(false);
-                    setSelectedUserId('');
-                  }
-                }}
-                disabled={isProcessing}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '12px',
-                  border: '2px solid #e2e8f0',
-                  background: 'white',
-                  color: '#4a5568',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: isProcessing ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => {
-                  if (!isProcessing) {
-                    e.currentTarget.style.borderColor = '#cbd5e0';
-                    e.currentTarget.style.backgroundColor = '#f7fafc';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = '#e2e8f0';
-                  e.currentTarget.style.backgroundColor = 'white';
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleChangeUser}
-                disabled={!selectedUserId || isProcessing || selectedUserId === operation?.user?.id}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '12px',
-                  border: 'none',
-                  background: !selectedUserId || isProcessing || selectedUserId === operation?.user?.id
-                    ? '#cbd5e0'
-                    : 'linear-gradient(130deg, #8b5cf6, #7c3aed)',
-                  color: 'white',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: !selectedUserId || isProcessing || selectedUserId === operation?.user?.id
-                    ? 'not-allowed'
-                    : 'pointer',
-                  boxShadow: !selectedUserId || isProcessing || selectedUserId === operation?.user?.id
-                    ? 'none'
-                    : '0 12px 24px -8px rgba(139,92,246,0.4)',
-                  transition: 'all 0.2s',
-                  opacity: !selectedUserId || isProcessing || selectedUserId === operation?.user?.id ? 0.6 : 1
-                }}
-                onMouseOver={(e) => {
-                  if (selectedUserId && !isProcessing && selectedUserId !== operation?.user?.id) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 16px 28px -10px rgba(139,92,246,0.5)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = !selectedUserId || isProcessing || selectedUserId === operation?.user?.id
-                    ? 'none'
-                    : '0 12px 24px -8px rgba(139,92,246,0.4)';
-                }}
-              >
-                {isProcessing ? 'Cambiando...' : 'Cambiar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal para transferir platos */}
       {showTransferPlatesModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem'
-          }}
-          onClick={() => {
-            if (!isProcessing) {
-              setShowTransferPlatesModal(false);
-              setSelectedTransferFloorId('');
-              setSelectedTransferTableId('');
-            }
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '20px',
-              padding: '2rem',
-              maxWidth: '600px',
-              width: '100%',
-              maxHeight: '80vh',
-              overflow: 'auto',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              position: 'relative'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '1.5rem'
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: '1.5rem',
-                  fontWeight: 700,
-                  color: '#1a202c',
-                  margin: 0
-                }}
-              >
-                Transferir Platos
-              </h2>
-              <button
-                onClick={() => {
-                  if (!isProcessing) {
-                    setShowTransferPlatesModal(false);
-                    setSelectedTransferFloorId('');
-                    setSelectedTransferTableId('');
-                  }
-                }}
-                disabled={isProcessing}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '1.5rem',
-                  cursor: isProcessing ? 'not-allowed' : 'pointer',
-                  color: '#4a5568',
-                  padding: '0.5rem',
-                  lineHeight: 1
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Mostrar productos seleccionados */}
-            <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: '#f7fafc', borderRadius: '12px' }}>
-              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#2d3748', marginBottom: '0.5rem' }}>
-                Platos seleccionados para transferir:
-              </div>
-              <div style={{ fontSize: '0.85rem', color: '#4a5568' }}>
-                {Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0 ? (
-                  <span style={{ color: '#a0aec0' }}>No hay platos seleccionados</span>
-                ) : (
-                  <span style={{ fontWeight: 700, color: '#3b82f6' }}>
-                    {Object.keys(itemAssignments).filter(id => itemAssignments[id]).length} plato(s) seleccionado(s)
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Selección de piso */}
-            <div style={{ marginBottom: '2rem' }}>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  color: '#2d3748',
-                  marginBottom: '0.75rem'
-                }}
-              >
-                Seleccionar Piso
-              </label>
-              {transferFloorsLoading ? (
-                <div style={{ padding: '1rem', textAlign: 'center', color: '#4a5568' }}>
-                  Cargando pisos...
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-                    gap: '0.75rem'
-                  }}
-                >
-                  {transferFloorsData?.floorsByBranch?.map((floor: any) => (
-                    <button
-                      key={floor.id}
-                      onClick={() => {
-                        setSelectedTransferFloorId(floor.id);
-                        setSelectedTransferTableId('');
-                      }}
-                      style={{
-                        padding: '1rem',
-                        borderRadius: '12px',
-                        border: selectedTransferFloorId === floor.id ? '2px solid #3b82f6' : '2px solid #e2e8f0',
-                        background: selectedTransferFloorId === floor.id
-                          ? 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(37,99,235,0.1))'
-                          : 'white',
-                        color: selectedTransferFloorId === floor.id ? '#3b82f6' : '#2d3748',
-                        fontWeight: selectedTransferFloorId === floor.id ? 700 : 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        fontSize: '0.95rem'
-                      }}
-                      onMouseOver={(e) => {
-                        if (selectedTransferFloorId !== floor.id) {
-                          e.currentTarget.style.borderColor = '#3b82f6';
-                          e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.05)';
-                        }
-                      }}
-                      onMouseOut={(e) => {
-                        if (selectedTransferFloorId !== floor.id) {
-                          e.currentTarget.style.borderColor = '#e2e8f0';
-                          e.currentTarget.style.backgroundColor = 'white';
-                        }
-                      }}
-                    >
-                      {floor.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Selección de mesa */}
-            {selectedTransferFloorId && (
-              <div style={{ marginBottom: '2rem' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '0.95rem',
-                    fontWeight: 600,
-                    color: '#2d3748',
-                    marginBottom: '0.75rem'
-                  }}
-                >
-                  Seleccionar Mesa
-                </label>
-                {transferTablesLoading ? (
-                  <div style={{ padding: '1rem', textAlign: 'center', color: '#4a5568' }}>
-                    Cargando mesas...
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-                      gap: '0.75rem',
-                      maxHeight: '300px',
-                      overflowY: 'auto',
-                      padding: '0.5rem'
-                    }}
-                  >
-                    {transferTablesData?.tablesByFloor?.map((tableItem: any) => {
-                      const isSelected = String(selectedTransferTableId) === String(tableItem.id);
-                      const isCurrentTable = String(tableItem.id) === String(table?.id);
-
-                      return (
-                        <button
-                          key={tableItem.id}
-                          onClick={() => {
-                            if (!isCurrentTable && !isProcessing) {
-                              setSelectedTransferTableId(tableItem.id);
-                            }
-                          }}
-                          disabled={isCurrentTable || isProcessing}
-                          style={{
-                            padding: '1rem',
-                            borderRadius: '12px',
-                            border: isSelected
-                              ? '2px solid #3b82f6'
-                              : isCurrentTable
-                                ? '2px solid #f59e0b'
-                                : '2px solid #e2e8f0',
-                            background: isSelected
-                              ? 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(37,99,235,0.1))'
-                              : isCurrentTable
-                                ? 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.1))'
-                                : 'white',
-                            color: isSelected
-                              ? '#3b82f6'
-                              : isCurrentTable
-                                ? '#f59e0b'
-                                : '#2d3748',
-                            fontWeight: isSelected ? 700 : 600,
-                            cursor: isCurrentTable || isProcessing ? 'not-allowed' : 'pointer',
-                            transition: 'all 0.2s',
-                            fontSize: '0.9rem',
-                            opacity: isCurrentTable || isProcessing ? 0.6 : 1,
-                            position: 'relative'
-                          }}
-                          onMouseOver={(e) => {
-                            if (!isCurrentTable && !isProcessing && !isSelected) {
-                              e.currentTarget.style.borderColor = '#3b82f6';
-                              e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.05)';
-                            }
-                          }}
-                          onMouseOut={(e) => {
-                            if (!isCurrentTable && !isProcessing && !isSelected) {
-                              e.currentTarget.style.borderColor = '#e2e8f0';
-                              e.currentTarget.style.backgroundColor = 'white';
-                            }
-                          }}
-                        >
-                          {isCurrentTable && (
-                            <span
-                              style={{
-                                position: 'absolute',
-                                top: '0.25rem',
-                                right: '0.25rem',
-                                fontSize: '0.75rem',
-                                background: '#f59e0b',
-                                color: 'white',
-                                padding: '0.15rem 0.4rem',
-                                borderRadius: '4px',
-                                fontWeight: 700
-                              }}
-                            >
-                              Actual
-                            </span>
-                          )}
-                          <div style={{ marginTop: isCurrentTable ? '1rem' : '0' }}>
-                            {tableItem.name}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: '0.75rem',
-                              color: isCurrentTable ? '#a0aec0' : '#718096',
-                              marginTop: '0.25rem'
-                            }}
-                          >
-                            {tableItem.capacity} plazas
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Botones de acción */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '1rem',
-                justifyContent: 'flex-end',
-                marginTop: '2rem'
-              }}
-            >
-              <button
-                onClick={() => {
-                  if (!isProcessing) {
-                    setShowTransferPlatesModal(false);
-                    setSelectedTransferFloorId('');
-                    setSelectedTransferTableId('');
-                  }
-                }}
-                disabled={isProcessing}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '12px',
-                  border: '2px solid #e2e8f0',
-                  background: 'white',
-                  color: '#4a5568',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: isProcessing ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => {
-                  if (!isProcessing) {
-                    e.currentTarget.style.borderColor = '#cbd5e0';
-                    e.currentTarget.style.backgroundColor = '#f7fafc';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = '#e2e8f0';
-                  e.currentTarget.style.backgroundColor = 'white';
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleTransferPlates}
-                disabled={!selectedTransferTableId || isProcessing || selectedTransferTableId === table?.id || Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '12px',
-                  border: 'none',
-                  background: !selectedTransferTableId || isProcessing || selectedTransferTableId === table?.id || Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0
-                    ? '#cbd5e0'
-                    : 'linear-gradient(130deg, #3b82f6, #2563eb)',
-                  color: 'white',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: !selectedTransferTableId || isProcessing || selectedTransferTableId === table?.id || Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0
-                    ? 'not-allowed'
-                    : 'pointer',
-                  boxShadow: !selectedTransferTableId || isProcessing || selectedTransferTableId === table?.id || Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0
-                    ? 'none'
-                    : '0 12px 24px -8px rgba(59,130,246,0.4)',
-                  transition: 'all 0.2s',
-                  opacity: !selectedTransferTableId || isProcessing || selectedTransferTableId === table?.id || Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0 ? 0.6 : 1
-                }}
-                onMouseOver={(e) => {
-                  if (selectedTransferTableId && !isProcessing && selectedTransferTableId !== table?.id && Object.keys(itemAssignments).filter(id => itemAssignments[id]).length > 0) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 16px 28px -10px rgba(59,130,246,0.5)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = !selectedTransferTableId || isProcessing || selectedTransferTableId === table?.id || Object.keys(itemAssignments).filter(id => itemAssignments[id]).length === 0
-                    ? 'none'
-                    : '0 12px 24px -8px rgba(59,130,246,0.4)';
-                }}
-              >
-                {isProcessing ? 'Transfiriendo...' : 'Transferir'}
-              </button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', width: '300px' }}>
+            <h3>Transferir Platos</h3>
+            <select value={selectedTransferFloorId} onChange={e => setSelectedTransferFloorId(e.target.value)} style={{ width: '100%', marginBottom: '0.5rem' }}>
+              <option value="">Piso...</option>
+              {transferFloorsData?.floorsByBranch.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+            <select value={selectedTransferTableId} onChange={e => setSelectedTransferTableId(e.target.value)} style={{ width: '100%', marginBottom: '1rem' }}>
+              <option value="">Mesa destino...</option>
+              {transferTablesData?.tablesByFloor.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button onClick={() => setShowTransferPlatesModal(false)} style={{ flex: 1 }}>Cerrar</button>
+              <button onClick={handleTransferPlates} style={{ flex: 1 }}>Transferir</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal para cancelar operación */}
-      {showCancelOperationModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem'
-          }}
-          onClick={() => {
-            if (!isProcessing) {
-              setShowCancelOperationModal(false);
-              setCancellationReason('');
-            }
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '20px',
-              padding: '2rem',
-              maxWidth: '500px',
-              width: '100%',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              position: 'relative'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '1.5rem'
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: '1.5rem',
-                  fontWeight: 700,
-                  color: '#1a202c',
-                  margin: 0
-                }}
-              >
-                Anular Orden
-              </h2>
-              <button
-                onClick={() => {
-                  if (!isProcessing) {
-                    setShowCancelOperationModal(false);
-                    setCancellationReason('');
-                  }
-                }}
-                disabled={isProcessing}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '1.5rem',
-                  cursor: isProcessing ? 'not-allowed' : 'pointer',
-                  color: '#4a5568',
-                  padding: '0.5rem',
-                  lineHeight: 1
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            <div style={{ marginBottom: '1.5rem' }}>
-              <p style={{ color: '#4a5568', marginBottom: '1rem', fontSize: '0.95rem' }}>
-                ¿Estás seguro de que deseas anular esta orden? Esta acción:
-              </p>
-              <ul style={{ color: '#4a5568', marginLeft: '1.5rem', marginBottom: '1rem', fontSize: '0.9rem' }}>
-                <li>Cancelará todos los items de la orden</li>
-                <li>Devolverá el stock de los productos</li>
-                <li>Liberará la mesa automáticamente</li>
-                <li>No se puede deshacer</li>
-              </ul>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  color: '#2d3748',
-                  marginBottom: '0.75rem'
-                }}
-              >
-                Razón de cancelación *
-              </label>
-              <textarea
-                value={cancellationReason}
-                onChange={(e) => setCancellationReason(e.target.value)}
-                disabled={isProcessing}
-                placeholder="Ingresa la razón de la cancelación..."
-                style={{
-                  width: '100%',
-                  minHeight: '100px',
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e0',
-                  fontSize: '0.9rem',
-                  fontFamily: 'inherit',
-                  resize: 'vertical'
-                }}
-              />
-            </div>
-
-            {/* Botones de acción */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '1rem',
-                justifyContent: 'flex-end',
-                marginTop: '2rem'
-              }}
-            >
-              <button
-                onClick={() => {
-                  if (!isProcessing) {
-                    setShowCancelOperationModal(false);
-                    setCancellationReason('');
-                  }
-                }}
-                disabled={isProcessing}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '12px',
-                  border: '2px solid #e2e8f0',
-                  background: 'white',
-                  color: '#4a5568',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: isProcessing ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => {
-                  if (!isProcessing) {
-                    e.currentTarget.style.borderColor = '#cbd5e0';
-                    e.currentTarget.style.backgroundColor = '#f7fafc';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = '#e2e8f0';
-                  e.currentTarget.style.backgroundColor = 'white';
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleCancelOperation}
-                disabled={!cancellationReason.trim() || isProcessing}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '12px',
-                  border: 'none',
-                  background: !cancellationReason.trim() || isProcessing
-                    ? '#cbd5e0'
-                    : 'linear-gradient(130deg, #ef4444, #dc2626)',
-                  color: 'white',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: !cancellationReason.trim() || isProcessing
-                    ? 'not-allowed'
-                    : 'pointer',
-                  boxShadow: !cancellationReason.trim() || isProcessing
-                    ? 'none'
-                    : '0 12px 24px -8px rgba(239,68,68,0.4)',
-                  transition: 'all 0.2s',
-                  opacity: !cancellationReason.trim() || isProcessing ? 0.6 : 1
-                }}
-                onMouseOver={(e) => {
-                  if (cancellationReason.trim() && !isProcessing) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 16px 28px -10px rgba(239,68,68,0.5)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = !cancellationReason.trim() || isProcessing
-                    ? 'none'
-                    : '0 12px 24px -8px rgba(239,68,68,0.4)';
-                }}
-              >
-                {isProcessing ? 'Anulando...' : 'Confirmar Anulación'}
-              </button>
+      {showChangeUserModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', width: '300px' }}>
+            <h3>Cambiar Mozo</h3>
+            <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)} style={{ width: '100%', marginBottom: '1rem' }}>
+              <option value="">Mozo...</option>
+              {availableUsers.map((u: any) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+            </select>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button onClick={() => setShowChangeUserModal(false)} style={{ flex: 1 }}>Cerrar</button>
+              <button onClick={handleChangeUser} style={{ flex: 1 }}>Cambiar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal para confirmar eliminar producto de la caja */}
-      {showDeleteItemModal && deleteItemDetailId && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem'
-          }}
-          onClick={() => {
-            setShowDeleteItemModal(false);
-            setDeleteItemDetailId(null);
-            setDeleteItemReason('');
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '20px',
-              padding: '2rem',
-              maxWidth: '500px',
-              width: '100%',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              position: 'relative'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '1.5rem'
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: '1.5rem',
-                  fontWeight: 700,
-                  color: '#1a202c',
-                  margin: 0
-                }}
-              >
-                Eliminar producto
-              </h2>
-              <button
-                onClick={() => {
-                  setShowDeleteItemModal(false);
-                  setDeleteItemDetailId(null);
-                  setDeleteItemReason('');
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '1.5rem',
-                  cursor: 'pointer',
-                  color: '#4a5568',
-                  padding: '0.5rem',
-                  lineHeight: 1
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            <div style={{ marginBottom: '1.5rem' }}>
-              <p style={{ color: '#4a5568', marginBottom: '1rem', fontSize: '0.95rem' }}>
-                ¿Está seguro que desea eliminar el producto de la caja? Esta acción no se puede deshacer.
-              </p>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  color: '#2d3748',
-                  marginBottom: '0.75rem'
-                }}
-              >
-                Razón de eliminación *
-              </label>
-              <textarea
-                value={deleteItemReason}
-                onChange={(e) => setDeleteItemReason(e.target.value)}
-                placeholder="Ingrese la razón por la que elimina el producto..."
-                style={{
-                  width: '100%',
-                  minHeight: '100px',
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e0',
-                  fontSize: '0.9rem',
-                  fontFamily: 'inherit',
-                  resize: 'vertical'
-                }}
-              />
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                gap: '1rem',
-                justifyContent: 'flex-end',
-                marginTop: '2rem'
-              }}
-            >
-              <button
-                onClick={() => {
-                  setShowDeleteItemModal(false);
-                  setDeleteItemDetailId(null);
-                  setDeleteItemReason('');
-                }}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '12px',
-                  border: '2px solid #e2e8f0',
-                  background: 'white',
-                  color: '#4a5568',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.borderColor = '#cbd5e0';
-                  e.currentTarget.style.backgroundColor = '#f7fafc';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = '#e2e8f0';
-                  e.currentTarget.style.backgroundColor = 'white';
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={async () => {
-                  if (!deleteItemDetailId || !deleteItemReason.trim()) return;
-                  const detailIdToDelete = deleteItemDetailId;
-                  const reason = deleteItemReason.trim();
-                  setShowDeleteItemModal(false);
-                  setDeleteItemDetailId(null);
-                  setDeleteItemReason('');
-                  if (reason) console.log('Razón de eliminación:', reason);
-                  await handleDeleteItem(detailIdToDelete);
-                }}
-                disabled={!deleteItemReason.trim()}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '12px',
-                  border: 'none',
-                  background: !deleteItemReason.trim()
-                    ? '#cbd5e0'
-                    : 'linear-gradient(130deg, #ef4444, #dc2626)',
-                  color: 'white',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: !deleteItemReason.trim() ? 'not-allowed' : 'pointer',
-                  boxShadow: !deleteItemReason.trim()
-                    ? 'none'
-                    : '0 12px 24px -8px rgba(239,68,68,0.4)',
-                  transition: 'all 0.2s',
-                  opacity: !deleteItemReason.trim() ? 0.6 : 1
-                }}
-                onMouseOver={(e) => {
-                  if (deleteItemReason.trim()) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 16px 28px -10px rgba(239,68,68,0.5)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = !deleteItemReason.trim()
-                    ? 'none'
-                    : '0 12px 24px -8px rgba(239,68,68,0.4)';
-                }}
-              >
-                Eliminar producto
-              </button>
+     {showCancelOperationModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', width: '300px' }}>
+            <h3>Anular Orden</h3>
+            <textarea placeholder="Motivo..." value={cancellationReason} onChange={e => setCancellationReason(e.target.value)} style={{ width: '100%', height: '80px', marginBottom: '1rem' }} />
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button onClick={() => setShowCancelOperationModal(false)} style={{ flex: 1 }}>Cerrar</button>
+              <button onClick={handleCancelOperation} style={{ flex: 1, background: 'red', color: 'white', border: 'none' }}>Anular</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal para crear nuevo cliente */}
-      {showCreateClientModal && (
-        <CreateClient
-          onSuccess={async (clientId) => {
-            setSelectedClientId(clientId);
-            setShowCreateClientModal(false);
-            const result = await refetchClients();
-            const persons = result.data?.personsByBranch || [];
-            const newClient = persons.find((p: any) => p.id === clientId);
-            if (newClient?.name) setClientSearchTerm(newClient.name);
-          }}
-          onClose={() => setShowCreateClientModal(false)}
-        />
-      )}
-
-      {/* Modal para editar cliente */}
-      {showEditClientModal && selectedClientId && (() => {
-        const selectedClient = filteredClients.find((c: any) => c.id === selectedClientId);
-        return selectedClient ? (
-          <EditClient
-            client={selectedClient}
-            onSuccess={() => {
-              refetchClients();
-              setShowEditClientModal(false);
-            }}
-            onClose={() => setShowEditClientModal(false)}
-          />
-        ) : null;
-      })()}
-
+      {showCreateClientModal && <CreateClient onSuccess={() => setShowCreateClientModal(false)} onClose={() => setShowCreateClientModal(false)} />}
+      {showEditClientModal && <EditClient client={selectedClient} onSuccess={() => setShowEditClientModal(false)} onClose={() => setShowEditClientModal(false)} />}
     </div>
   );
 };

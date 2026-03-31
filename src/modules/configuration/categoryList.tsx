@@ -49,8 +49,8 @@ const CategoryList: React.FC<CategoryListProps> = ({ categories, onEdit }) => {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ textAlign: 'left', padding: '0.65rem' }}>Nombre</th>
-                  <th style={{ textAlign: 'left', padding: '0.65rem' }}>Descripción</th>
+                  <th style={{ textAlign: 'center', padding: '0.65rem' }}>Nombre</th>
+                  <th style={{ textAlign: 'center', padding: '0.65rem' }}>Descripción</th>
                   <th style={{ textAlign: 'center', padding: '0.65rem' }}>Orden</th>
                   <th style={{ textAlign: 'center', padding: '0.65rem' }}>Estado</th>
                   {onEdit && <th style={{ textAlign: 'center', padding: '0.65rem', width: '80px' }}>Acción</th>}

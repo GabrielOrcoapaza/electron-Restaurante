@@ -558,7 +558,6 @@ const Kardex: React.FC = () => {
           padding: cardPadding,
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
           border: '1px solid #e2e8f0',
-          overflowX: 'auto'
         }}>
           {loading ? (
             <div style={{
@@ -605,10 +604,15 @@ const Kardex: React.FC = () => {
                 </p>
               </div>
               <div style={{
-                overflowX: 'auto',
+                overflow: 'auto',
                 width: '100%',
                 maxWidth: '100%',
-                boxSizing: 'border-box'
+                maxHeight: 'min(55vh, 620px)',
+                minHeight: '200px',
+                boxSizing: 'border-box',
+                WebkitOverflowScrolling: 'touch',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
               }}>
                 <table style={{
                   width: '100%',
@@ -627,7 +631,12 @@ const Kardex: React.FC = () => {
                         fontWeight: 600,
                         color: '#374151',
                         fontSize: tableFontSize,
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        backgroundColor: '#f8fafc',
+                        boxShadow: '0 1px 0 #e2e8f0',
                       }}>
                         Fecha
                       </th>
@@ -637,7 +646,12 @@ const Kardex: React.FC = () => {
                         fontWeight: 600,
                         color: '#374151',
                         fontSize: tableFontSize,
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        backgroundColor: '#f8fafc',
+                        boxShadow: '0 1px 0 #e2e8f0',
                       }}>
                         Producto
                       </th>
@@ -647,7 +661,12 @@ const Kardex: React.FC = () => {
                         fontWeight: 600,
                         color: '#374151',
                         fontSize: tableFontSize,
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        backgroundColor: '#f8fafc',
+                        boxShadow: '0 1px 0 #e2e8f0',
                       }}>
                         Tipo
                       </th>
@@ -657,7 +676,12 @@ const Kardex: React.FC = () => {
                         fontWeight: 600,
                         color: '#374151',
                         fontSize: tableFontSize,
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        backgroundColor: '#f8fafc',
+                        boxShadow: '0 1px 0 #e2e8f0',
                       }}>
                         Movimiento
                       </th>
@@ -667,7 +691,12 @@ const Kardex: React.FC = () => {
                         fontWeight: 600,
                         color: '#374151',
                         fontSize: tableFontSize,
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        backgroundColor: '#f8fafc',
+                        boxShadow: '0 1px 0 #e2e8f0',
                       }}>
                         Costo Unit.
                       </th>
@@ -677,7 +706,12 @@ const Kardex: React.FC = () => {
                         fontWeight: 600,
                         color: '#374151',
                         fontSize: tableFontSize,
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        backgroundColor: '#f8fafc',
+                        boxShadow: '0 1px 0 #e2e8f0',
                       }}>
                         Costo Total
                       </th>
@@ -687,7 +721,12 @@ const Kardex: React.FC = () => {
                         fontWeight: 600,
                         color: '#374151',
                         fontSize: tableFontSize,
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        backgroundColor: '#f8fafc',
+                        boxShadow: '0 1px 0 #e2e8f0',
                       }}>
                         Stock Actual
                       </th>
@@ -697,7 +736,12 @@ const Kardex: React.FC = () => {
                         fontWeight: 600,
                         color: '#374151',
                         fontSize: tableFontSize,
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        backgroundColor: '#f8fafc',
+                        boxShadow: '0 1px 0 #e2e8f0',
                       }}>
                         Usuario
                       </th>
@@ -707,7 +751,12 @@ const Kardex: React.FC = () => {
                         fontWeight: 600,
                         color: '#374151',
                         fontSize: tableFontSize,
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        backgroundColor: '#f8fafc',
+                        boxShadow: '0 1px 0 #e2e8f0',
                       }}>
                         Motivo
                       </th>

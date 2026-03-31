@@ -183,6 +183,7 @@ export const GET_TABLES_BY_FLOOR = gql`
       currentOperationId
       occupiedById
       userName
+      isActive
     }
   }
 `;
@@ -258,6 +259,14 @@ export const GET_PRODUCTS_BY_BRANCH = gql`
       productType
       isActive
       subcategoryId
+      subcategory {
+        id
+        name
+        category {
+          id
+          name
+        }
+      }
       purchasePrice
       unitMeasure
       currentStock
@@ -281,6 +290,15 @@ export const GET_PRODUCTS = gql`
       preparationTime
       productType
       isActive
+      subcategoryId
+      subcategory {
+        id
+        name
+        category {
+          id
+          name
+        }
+      }
       purchasePrice
       unitMeasure
       currentStock

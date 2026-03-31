@@ -5,6 +5,12 @@ import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
 import RecipeModal from './recipe';
 
+interface ProductSubcategoryNested {
+  id: string;
+  name: string;
+  category?: { id: string; name: string } | null;
+}
+
 interface Product {
   id: string;
   code: string;
@@ -20,6 +26,18 @@ interface Product {
   stockMin?: number;
   stockMax?: number;
   isActive: boolean;
+  subcategoryId?: string | null;
+  subcategory?: ProductSubcategoryNested | null;
+}
+
+interface Subcategory {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  order: number;
+  isActive: boolean;
 }
 
 interface Category {
@@ -30,6 +48,7 @@ interface Category {
   color?: string;
   order: number;
   isActive: boolean;
+  subcategories?: Subcategory[];
 }
 
 interface ListProductProps {
@@ -107,6 +126,11 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
     fetchPolicy: 'network-only'
   });
 
+  const categories: Category[] = categoriesData?.categoriesByBranch || [];
+
+  const getProductCategoryName = (p: Product) => p.subcategory?.category?.name ?? '—';
+  const getProductSubcategoryName = (p: Product) => p.subcategory?.name ?? '—';
+
   // Obtener productos según la query usada (sin búsqueda al servidor - filtrado local como order.tsx)
   let products: Product[] = [];
   if (hasFilters) {
@@ -118,14 +142,19 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
   // Filtrado local por término de búsqueda (sin llamadas al servidor, sin "Cargando productos...")
   if (searchTerm.trim()) {
     const searchLower = searchTerm.toLowerCase().trim();
-    products = products.filter((p: Product) =>
-      p.name?.toLowerCase().includes(searchLower) ||
-      p.code?.toLowerCase().includes(searchLower) ||
-      (p.description && p.description.toLowerCase().includes(searchLower))
-    );
+    products = products.filter((p: Product) => {
+      const catName = getProductCategoryName(p);
+      const subName = getProductSubcategoryName(p);
+      return (
+        p.name?.toLowerCase().includes(searchLower) ||
+        p.code?.toLowerCase().includes(searchLower) ||
+        (p.description && p.description.toLowerCase().includes(searchLower)) ||
+        (catName !== '—' && catName.toLowerCase().includes(searchLower)) ||
+        (subName !== '—' && subName.toLowerCase().includes(searchLower))
+      );
+    });
   }
 
-  const categories: Category[] = categoriesData?.categoriesByBranch || [];
   const loading = hasFilters ? filteredProductsLoading : productsLoading;
   const error = hasFilters ? filteredProductsError : productsError;
 
@@ -358,11 +387,15 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
           </div>
         ) : (
           <div style={{
-            overflowX: 'auto',
+            overflow: 'auto',
             width: '100%',
             maxWidth: '100%',
+            maxHeight: 'min(55vh, 620px)',
+            minHeight: '200px',
             boxSizing: 'border-box',
-            WebkitOverflowScrolling: 'touch'
+            WebkitOverflowScrolling: 'touch',
+            borderRadius: '8px',
+            border: '1px solid #e2e8f0',
           }}>
             <table style={{
               width: '100%',
@@ -372,25 +405,29 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
               minWidth: 0
             }}>
               <colgroup>
-                <col style={{ width: '7%' }} /> {/* Imagen */}
-                <col style={{ width: '9%' }} /> {/* Código */}
-                <col style={{ width: '16%' }} /> {/* Nombre */}
-                <col style={{ width: '18%' }} /> {/* Descripción */}
-                <col style={{ width: '10%' }} /> {/* Precio */}
-                <col style={{ width: '7%' }} /> {/* Tiempo */}
-                <col style={{ width: '10%' }} /> {/* Estado */}
-                <col style={{ width: '23%' }} /> {/* Acciones */}
+                <col style={{ width: '6%' }} /> {/* Imagen */}
+                <col style={{ width: '7%' }} /> {/* Código */}
+                <col style={{ width: '12%' }} /> {/* Nombre */}
+                <col style={{ width: '10%' }} /> {/* Categoría */}
+                <col style={{ width: '10%' }} /> {/* Subcategoría */}
+                <col style={{ width: '14%' }} /> {/* Descripción */}
+                <col style={{ width: '8%' }} /> {/* Precio */}
+                <col style={{ width: '6%' }} /> {/* Tiempo */}
+                <col style={{ width: '8%' }} /> {/* Estado */}
+                <col style={{ width: '19%' }} /> {/* Acciones */}
               </colgroup>
               <thead>
-                <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Imagen</th>
-                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Código</th>
-                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Nombre</th>
-                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Descripción</th>
-                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Precio</th>
-                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Tiempo</th>
-                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Estado</th>
-                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Acciones</th>
+                <tr style={{ borderBottom: '2px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize, position: 'sticky', top: 0, zIndex: 2, backgroundColor: '#f8fafc', boxShadow: '0 1px 0 #e2e8f0' }}>Imagen</th>
+                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize, position: 'sticky', top: 0, zIndex: 2, backgroundColor: '#f8fafc', boxShadow: '0 1px 0 #e2e8f0' }}>Código</th>
+                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize, position: 'sticky', top: 0, zIndex: 2, backgroundColor: '#f8fafc', boxShadow: '0 1px 0 #e2e8f0' }}>Nombre</th>
+                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize, position: 'sticky', top: 0, zIndex: 2, backgroundColor: '#f8fafc', boxShadow: '0 1px 0 #e2e8f0' }}>Categoría</th>
+                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize, position: 'sticky', top: 0, zIndex: 2, backgroundColor: '#f8fafc', boxShadow: '0 1px 0 #e2e8f0' }}>Subcategoría</th>
+                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize, position: 'sticky', top: 0, zIndex: 2, backgroundColor: '#f8fafc', boxShadow: '0 1px 0 #e2e8f0' }}>Descripción</th>
+                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize, position: 'sticky', top: 0, zIndex: 2, backgroundColor: '#f8fafc', boxShadow: '0 1px 0 #e2e8f0' }}>Precio</th>
+                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize, position: 'sticky', top: 0, zIndex: 2, backgroundColor: '#f8fafc', boxShadow: '0 1px 0 #e2e8f0' }}>Tiempo</th>
+                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize, position: 'sticky', top: 0, zIndex: 2, backgroundColor: '#f8fafc', boxShadow: '0 1px 0 #e2e8f0' }}>Estado</th>
+                  <th style={{ padding: isSmall ? '0.5rem' : '0.625rem', textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize, position: 'sticky', top: 0, zIndex: 2, backgroundColor: '#f8fafc', boxShadow: '0 1px 0 #e2e8f0' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -450,6 +487,38 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                         lineHeight: 1.4
                       }}>
                         {product.name}
+                      </div>
+                    </td>
+                    <td style={{ padding: isSmall ? '0.375rem' : '0.5rem', verticalAlign: 'top' }}>
+                      <div style={{
+                        fontSize: tableFontSize,
+                        color: '#475569',
+                        overflow: 'hidden',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical' as 'vertical',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: 1.35,
+                        textAlign: 'center'
+                      }}>
+                        {getProductCategoryName(product)}
+                      </div>
+                    </td>
+                    <td style={{ padding: isSmall ? '0.375rem' : '0.5rem', verticalAlign: 'top' }}>
+                      <div style={{
+                        fontSize: tableFontSize,
+                        color: '#475569',
+                        overflow: 'hidden',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical' as 'vertical',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: 1.35,
+                        textAlign: 'center'
+                      }}>
+                        {getProductSubcategoryName(product)}
                       </div>
                     </td>
                     <td style={{ padding: isSmall ? '0.375rem' : '0.5rem', verticalAlign: 'top' }}>

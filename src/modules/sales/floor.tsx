@@ -858,6 +858,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
       {showOrder && selectedTable && (
         <Order
           table={selectedTable}
+          onOpenCash={onOpenCash}
           onClose={() => {
             setShowOrder(false);
             setSelectedTable(null);

@@ -9,6 +9,8 @@ interface ManualTransactionModalProps {
   cashRegisters: any[];
   userId: string;
   branchId: string;
+  /** Si es false, el método de pago queda fijo en efectivo (permiso cash.change_payment_method). Por defecto true. */
+  allowChangePaymentMethod?: boolean;
 }
 
 const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
@@ -17,7 +19,8 @@ const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
   onSuccess,
   cashRegisters,
   userId,
-  branchId
+  branchId,
+  allowChangePaymentMethod = true
 }) => {
   const [cashRegisterId, setCashRegisterId] = useState('');
   const [transactionType, setTransactionType] = useState('INCOME');
@@ -34,6 +37,12 @@ const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
       setCashRegisterId(cashRegisters[0].id);
     }
   }, [isOpen, cashRegisters, cashRegisterId]);
+
+  useEffect(() => {
+    if (!allowChangePaymentMethod) {
+      setPaymentMethod('CASH');
+    }
+  }, [allowChangePaymentMethod, isOpen]);
 
   /* ... inside handleSubmit ... */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -254,17 +263,25 @@ const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
             <div>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: '#475569' }}>
                 Método de Pago
+                {!allowChangePaymentMethod && (
+                  <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 400, color: '#64748b', marginTop: '0.25rem' }}>
+                    Solo efectivo (sin permiso para cambiar método)
+                  </span>
+                )}
               </label>
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
+                disabled={!allowChangePaymentMethod}
                 style={{
                   width: '100%',
                   padding: '0.75rem',
                   borderRadius: '6px',
                   border: '1px solid #cbd5e1',
                   fontSize: '0.875rem',
-                  backgroundColor: 'white'
+                  backgroundColor: allowChangePaymentMethod ? 'white' : '#f1f5f9',
+                  cursor: allowChangePaymentMethod ? 'pointer' : 'not-allowed',
+                  opacity: allowChangePaymentMethod ? 1 : 0.85
                 }}
               >
                 <option value="CASH">Efectivo</option>

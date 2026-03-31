@@ -23,6 +23,10 @@ export const ALL_PERMISSION_CODES: string[] = [
   'kardex.view',
   'messages.view',
   'branch.view',
+  // cash.void: alias en algunos backends; mismo uso que cash.view en cobro
+  'cash.void',
+  'cash.register_movements',
+  'cash.change_payment_method'
 ];
 
 const LABELS_ES: Record<string, string> = {
@@ -44,6 +48,9 @@ const LABELS_ES: Record<string, string> = {
   'kardex.view': 'Ver kardex',
   'messages.view': 'Ver mensajes',
   'branch.view': 'Ver sede',
+  'cash.void': 'Anular en caja (operación o ítems)',
+  'cash.register_movements': 'Registrar ingresos y egresos en cierre',
+  'cash.change_payment_method': 'Cambiar método de pago (mov. manual)'
 };
 
 const DESCRIPTIONS_ES: Record<string, string> = {
@@ -65,6 +72,9 @@ const DESCRIPTIONS_ES: Record<string, string> = {
   'kardex.view': 'Ver movimientos de inventario',
   'messages.view': 'Ver mensajes broadcast',
   'branch.view': 'Ver datos de la sede',
+  'cash.void': 'Anular la orden completa o quitar ítems desde la pantalla de cobro',
+  'cash.register_movements': 'Registrar ingresos o egresos manuales al cerrar caja',
+  'cash.change_payment_method': 'Elegir método de pago en ingresos/egresos manuales (cierre de caja)'
 };
 
 /**

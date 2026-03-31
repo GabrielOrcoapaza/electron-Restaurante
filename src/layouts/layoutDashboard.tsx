@@ -419,7 +419,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
   const canSeeEmployees = isAdmin || hasPermission('users.manage');
   const canSeePermissions = isAdmin || hasPermission('users.manage');
   const canSeePurchase = isAdmin || hasPermission('purchases.manage');
-  const canSeeCashs = isAdmin || hasPermission('sales.close');
+  const canSeeCashs = isAdmin || hasPermission('sales.close') || hasPermission('cash.register_movements');
   const canSeeInventory = isAdmin || hasPermission('products.view');
   const canSeeKardex = isAdmin || hasPermission('kardex.view');
   const canSeeReports = isAdmin || hasPermission('reports.sales') || hasPermission('reports.cancellations') || hasPermission('reports.sold_products') || hasPermission('reports.user_sales');
@@ -1148,7 +1148,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        overflowY: 'auto',
+        overflowY: (currentView === 'cash' || currentView === 'delivery') ? 'hidden' : 'auto',
         overflowX: 'hidden',
         transition: 'margin-left 0.3s ease, width 0.3s ease, max-width 0.3s ease',
         boxSizing: 'border-box'
@@ -1531,17 +1531,17 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({ children }) =>
         {/* Contenido */}
         <main style={{
           flex: 1,
-          padding: currentView === 'dashboard'
-            ? (isSmall ? '1rem' : isMedium ? '1.5rem' : '2rem')
-            : (isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem'),
+          padding: (currentView === 'cash' || currentView === 'delivery') ? '0.25rem' : (currentView === 'dashboard' ? (isSmall ? '1rem' : isMedium ? '1.5rem' : '2rem') : (isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem')),
           backgroundColor: '#f8fafc',
-          overflowY: 'auto',
+          overflowY: (currentView === 'cash' || currentView === 'delivery') ? 'hidden' : 'auto',
           overflowX: 'hidden',
           width: '100%',
           maxWidth: '100%',
           boxSizing: 'border-box',
+          display: 'flex',
+          flexDirection: 'column',
           minHeight: 0,
-          minWidth: 0, // Permite que el contenido se comprima si es necesario
+          minWidth: 0,
           position: 'relative'
         }}>
           {currentView === 'dashboard' && children}

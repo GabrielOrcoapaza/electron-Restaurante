@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -41,6 +41,9 @@ const ReportsProductsSold: React.FC = () => {
   const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [productId, setProductId] = useState<string>('');
+  const [productSearchTerm, setProductSearchTerm] = useState<string>('');
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
+  const productPickerRef = useRef<HTMLDivElement>(null);
 
   const { data: productsData } = useQuery(GET_PRODUCTS_BY_BRANCH, {
     variables: { branchId: branchId! },
@@ -49,9 +52,51 @@ const ReportsProductsSold: React.FC = () => {
   });
 
   const products = productsData?.productsByBranch ?? [];
-  const activeProducts = products.filter((p: { productType: string; isActive: boolean }) =>
+  type BranchProduct = {
+    id: string;
+    code: string;
+    name: string;
+    description?: string | null;
+    productType: string;
+    isActive: boolean;
+  };
+  const activeProducts: BranchProduct[] = products.filter((p: BranchProduct) =>
     ['DISH', 'BEVERAGE'].includes(p.productType) && p.isActive
   );
+
+  const selectedReportProduct = useMemo(
+    () => activeProducts.find((p) => p.id === productId) ?? null,
+    [activeProducts, productId]
+  );
+
+  const filteredReportProducts = useMemo(() => {
+    const q = productSearchTerm.toLowerCase().trim();
+    if (!q) return [];
+    return activeProducts
+      .filter(
+        (p) =>
+          p.name?.toLowerCase().includes(q) ||
+          p.code?.toLowerCase().includes(q) ||
+          Boolean(p.description && p.description.toLowerCase().includes(q))
+      )
+      .slice(0, 80);
+  }, [activeProducts, productSearchTerm]);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (productPickerRef.current && !productPickerRef.current.contains(e.target as Node)) {
+        setProductPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  const clearProductFilter = () => {
+    setProductId('');
+    setProductSearchTerm('');
+    setProductPickerOpen(false);
+  };
 
   const { data, loading, error, refetch } = useQuery(GET_SOLD_PRODUCTS_REPORT, {
     variables: {
@@ -211,7 +256,7 @@ const ReportsProductsSold: React.FC = () => {
               />
             </div>
 
-            <div>
+            <div ref={productPickerRef} style={{ position: 'relative' }}>
               <label style={{
                 display: 'block',
                 fontSize: inputFontSize,
@@ -221,25 +266,188 @@ const ReportsProductsSold: React.FC = () => {
               }}>
                 Producto (opcional)
               </label>
-              <select
-                value={productId}
-                onChange={(e) => setProductId(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem',
-                  fontSize: inputFontSize,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                  backgroundColor: 'white'
-                }}
-              >
-                <option value="">Todos los productos</option>
-                {activeProducts.map((p: { id: string; code: string; name: string }) => (
-                  <option key={p.id} value={p.id}>{p.code} - {p.name}</option>
-                ))}
-              </select>
+              {selectedReportProduct ? (
+                <div
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.625rem',
+                    fontSize: inputFontSize,
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                    backgroundColor: 'white',
+                    color: '#111827',
+                  }}
+                >
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontWeight: 500,
+                    }}
+                    title={`${selectedReportProduct.code} — ${selectedReportProduct.name}`}
+                  >
+                    {selectedReportProduct.code} — {selectedReportProduct.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearProductFilter}
+                    style={{
+                      flexShrink: 0,
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      opacity: 0.55,
+                      fontSize: '1rem',
+                      padding: '0 0.25rem',
+                      lineHeight: 1,
+                    }}
+                    title="Quitar filtro de producto"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.625rem',
+                    fontSize: inputFontSize,
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                    backgroundColor: 'white',
+                  }}
+                >
+                  <span style={{ opacity: 0.6, flexShrink: 0, lineHeight: 1 }} aria-hidden>🔎</span>
+                  <input
+                    type="text"
+                    placeholder="Buscar producto o escanear código"
+                    value={productSearchTerm}
+                    onChange={(e) => {
+                      setProductSearchTerm(e.target.value);
+                      setProductPickerOpen(true);
+                    }}
+                    onFocus={() => setProductPickerOpen(true)}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      border: 'none',
+                      outline: 'none',
+                      padding: 0,
+                      margin: 0,
+                      fontSize: inputFontSize,
+                      backgroundColor: 'transparent',
+                      color: '#111827',
+                    }}
+                  />
+                  {productSearchTerm ? (
+                    <button
+                      type="button"
+                      onClick={() => setProductSearchTerm('')}
+                      style={{
+                        flexShrink: 0,
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        opacity: 0.5,
+                        fontSize: '1rem',
+                        padding: '0 0.25rem',
+                        lineHeight: 1,
+                      }}
+                      title="Limpiar búsqueda"
+                    >
+                      ✕
+                    </button>
+                  ) : null}
+                </div>
+              )}
+              {productPickerOpen && !selectedReportProduct && (
+                  <div style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    zIndex: 40,
+                    marginTop: '0.35rem',
+                    maxHeight: 'min(240px, 40vh)',
+                    overflowY: 'auto',
+                    background: 'white',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    boxShadow: '0 12px 28px rgba(15,23,42,0.12)'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearProductFilter();
+                      }}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '0.55rem 0.75rem',
+                        border: 'none',
+                        borderBottom: '1px solid #f1f5f9',
+                        background: '#f8fafc',
+                        cursor: 'pointer',
+                        fontSize: inputFontSize,
+                        fontWeight: 600,
+                        color: '#475569'
+                      }}
+                    >
+                      Todos los productos
+                    </button>
+                    {!productSearchTerm.trim() ? (
+                      <div style={{ padding: '0.75rem', fontSize: inputFontSize, color: '#94a3b8' }}>
+                        Escribe nombre, código o descripción (como en Productos)
+                      </div>
+                    ) : filteredReportProducts.length === 0 ? (
+                      <div style={{ padding: '0.75rem', fontSize: inputFontSize, color: '#94a3b8' }}>
+                        No hay coincidencias
+                      </div>
+                    ) : (
+                      filteredReportProducts.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            setProductId(p.id);
+                            setProductSearchTerm('');
+                            setProductPickerOpen(false);
+                          }}
+                          style={{
+                            width: '100%',
+                            textAlign: 'left',
+                            padding: '0.5rem 0.75rem',
+                            border: 'none',
+                            borderBottom: '1px solid #f1f5f9',
+                            background: 'white',
+                            cursor: 'pointer',
+                            fontSize: inputFontSize,
+                            color: '#334155'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; }}
+                        >
+                          <span style={{ fontWeight: 600, color: '#0f172a' }}>{p.code}</span>
+                          <span style={{ marginLeft: '0.35rem' }}>{p.name}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
             </div>
 
             <button

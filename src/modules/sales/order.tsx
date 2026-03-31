@@ -16,6 +16,7 @@ type OrderProps = {
 	table: Table;
 	onClose: () => void;
 	onSuccess?: () => void; // Callback opcional para cuando se guarde exitosamente
+	onOpenCash?: (table: Table) => void;
 };
 
 // Tipo para los ítems de la orden
@@ -33,13 +34,19 @@ type OrderItem = {
 	printedAt?: string;
 };
 
-const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
+const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) => {
 	const { companyData, user, deviceId, getDeviceId, getMacAddress, updateTableInContext } = useAuth();
 	const { hasPermission } = useUserPermissions();
 	const { breakpoint, width: viewportWidth } = useResponsive();
 	const { sendMessage } = useWebSocket();
 	const { showToast } = useToast();
 	const isExistingOrder = Boolean(table?.currentOperationId) || table?.status === 'OCCUPIED' || table?.status === 'TO_PAY';
+
+	const userRoleUpper = user?.role?.toUpperCase() ?? '';
+	const canNavigateToCashPay =
+		userRoleUpper === 'ADMIN' ||
+		userRoleUpper === 'CASHIER' ||
+		userRoleUpper === 'CAJA';
 
 	// IGV de la sucursal (float). Por defecto 10.5% para sedes.
 	const igvPercentageFromBranch = Number(companyData?.branch?.igvPercentage) || 10.5;
@@ -57,6 +64,12 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 	const gridGap = isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem';
 	const gridPadding = isSmall ? '0.6rem' : isMedium ? '0.8rem' : '1.25rem';
 	const breadcrumbFontSize = isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem';
+	/** Encabezado de navegación categorías: botones grandes para uso táctil en salón */
+	const breadcrumbBtnMinH = isSmall ? 48 : 52;
+	const breadcrumbBtnFont = isSmall ? '0.9375rem' : isMedium ? '1.0625rem' : '1.125rem';
+	const breadcrumbBtnPadX = isSmall ? '1rem' : '1.25rem';
+	const breadcrumbBtnPadY = isSmall ? '0.625rem' : '0.75rem';
+	const breadcrumbBtnRadius = isSmall ? '10px' : '12px';
 
 	// Función para verificar si el usuario puede acceder a esta mesa (por permisos)
 	const canAccessTable = (): { canAccess: boolean; reason?: string } => {
@@ -1080,6 +1093,21 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 		}
 	};
 
+	const handleOpenCashFromOrder = () => {
+		const operationId = existingOperation?.id ?? table.currentOperationId;
+		if (operationId == null || operationId === '') {
+			showToast('Esta mesa no tiene una orden activa para cobrar.', 'error');
+			return;
+		}
+		if (!onOpenCash) return;
+		const coercedId = typeof operationId === 'string' ? Number(operationId) : operationId;
+		onOpenCash({
+			...table,
+			currentOperationId: Number.isFinite(coercedId as number) ? (coercedId as number) : table.currentOperationId
+		});
+		onClose();
+	};
+
 	return (
 		<div style={{
 			position: 'fixed',
@@ -1143,7 +1171,6 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							fontWeight: 700,
 							fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem'
 						}}>
-							{isExistingOrder ? '🍽️ Orden Actual' : '🍽️ Nueva Orden'}
 						</div>
 						<h3 style={{ margin: 0, fontSize: isSmall ? '1rem' : isMedium ? '1.15rem' : '1.35rem', fontWeight: 800 }}>Mesa {table.name.replace('MESA ', '')}</h3>
 						{isExistingOrder && (
@@ -1172,6 +1199,30 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 						)}
 					</div>
 					<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.5rem' : '0.65rem', flexWrap: 'wrap' }}>
+						{onOpenCash && canNavigateToCashPay && (
+							<button
+								type="button"
+								onClick={handleOpenCashFromOrder}
+								style={{
+									background: 'rgba(255,255,255,0.95)',
+									border: '1px solid rgba(255,255,255,0.5)',
+									color: '#047857',
+									padding: isSmall ? '0.4rem 0.75rem' : isMedium ? '0.5rem 1rem' : '0.55rem 1.1rem',
+									borderRadius: isSmall ? '8px' : '10px',
+									cursor: 'pointer',
+									fontWeight: 700,
+									fontSize: isSmall ? '0.78rem' : isMedium ? '0.875rem' : '0.95rem',
+									display: 'flex',
+									alignItems: 'center',
+									gap: '0.35rem',
+									boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+								}}
+								title="Ir a cobrar en Caja"
+							>
+								<span aria-hidden>💵</span>
+								Caja
+							</button>
+						)}
 						<button
 							type="button"
 							onClick={() => {
@@ -1296,15 +1347,17 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 							overflow: 'hidden',
 							boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
 						}}>
-							{/* Header: breadcrumb + Volver */}
+							{/* Header: ruta como botones grandes (fácil de pulsar en salón) + Volver */}
 							<div style={{
-								padding: isSmall ? '0.6rem 0.75rem' : '1rem',
+								padding: isSmall ? '0.75rem' : '1rem',
 								borderBottom: '1px solid #f1f5f9',
 								display: 'flex',
 								alignItems: 'center',
-								justifyContent: 'space-between'
+								justifyContent: 'space-between',
+								gap: '0.75rem',
+								flexWrap: 'wrap'
 							}}>
-								<div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', minWidth: 0, flex: 1 }}>
+								<div role="navigation" aria-label="Ubicación en el menú" style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.5rem' : '0.65rem', flexWrap: 'wrap', minWidth: 0, flex: 1 }}>
 									{isSearching ? (
 										<h3 style={{ fontSize: breadcrumbFontSize, fontWeight: '600', color: '#2d3748', margin: 0 }}>
 											Resultados de búsqueda
@@ -1315,35 +1368,44 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 												type="button"
 												onClick={() => { setSelectedCategory(null); setSelectedSubcategory(null); }}
 												style={{
-													padding: isSmall ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
-													background: !selectedCategory ? '#f1f5f9' : 'transparent',
-													border: 'none',
-													borderRadius: '6px',
-													fontSize: breadcrumbFontSize,
-													fontWeight: !selectedCategory ? '700' : '500',
-													color: !selectedCategory ? '#1e293b' : '#64748b',
+													minHeight: breadcrumbBtnMinH,
+													padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
+													background: !selectedCategory ? '#e0e7ff' : '#ffffff',
+													border: `2px solid ${!selectedCategory ? '#6366f1' : '#cbd5e1'}`,
+													borderRadius: breadcrumbBtnRadius,
+													fontSize: breadcrumbBtnFont,
+													fontWeight: !selectedCategory ? 700 : 600,
+													color: !selectedCategory ? '#312e81' : '#475569',
 													cursor: 'pointer',
-													whiteSpace: 'nowrap'
+													whiteSpace: 'nowrap',
+													touchAction: 'manipulation',
+													boxShadow: !selectedCategory ? '0 2px 0 #4f46e5' : '0 1px 2px rgba(0,0,0,.06)',
+													lineHeight: 1.2
 												}}
 											>
 												Categorías
 											</button>
 											{selectedCategory && (
 												<>
-													<span style={{ color: '#94a3b8' }}>/</span>
+													<span style={{ color: '#94a3b8', fontSize: breadcrumbBtnFont, fontWeight: 700, userSelect: 'none' }} aria-hidden>›</span>
 													<button
 														type="button"
 														onClick={() => setSelectedSubcategory(null)}
 														style={{
-															padding: isSmall ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
-															background: !selectedSubcategory ? '#f1f5f9' : 'transparent',
-															border: 'none',
-															borderRadius: '6px',
-															fontSize: breadcrumbFontSize,
-															fontWeight: !selectedSubcategory ? '700' : '500',
-															color: !selectedSubcategory ? '#1e293b' : '#64748b',
+															minHeight: breadcrumbBtnMinH,
+															padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
+															background: !selectedSubcategory ? '#e0e7ff' : '#ffffff',
+															border: `2px solid ${!selectedSubcategory ? '#6366f1' : '#cbd5e1'}`,
+															borderRadius: breadcrumbBtnRadius,
+															fontSize: breadcrumbBtnFont,
+															fontWeight: !selectedSubcategory ? 700 : 600,
+															color: !selectedSubcategory ? '#312e81' : '#475569',
 															cursor: 'pointer',
-															whiteSpace: 'nowrap'
+															whiteSpace: 'nowrap',
+															maxWidth: '100%',
+															touchAction: 'manipulation',
+															boxShadow: !selectedSubcategory ? '0 2px 0 #4f46e5' : '0 1px 2px rgba(0,0,0,.06)',
+															lineHeight: 1.2
 														}}
 													>
 														{categories.find((c: any) => c.id === selectedCategory)?.name || 'Categoría'}
@@ -1352,16 +1414,25 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 											)}
 											{selectedSubcategory && (
 												<>
-													<span style={{ color: '#94a3b8' }}>/</span>
-													<span style={{
-														padding: isSmall ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
-														background: '#f1f5f9',
-														borderRadius: '6px',
-														fontSize: breadcrumbFontSize,
-														fontWeight: '700',
-														color: '#1e293b',
-														whiteSpace: 'nowrap'
-													}}>
+													<span style={{ color: '#94a3b8', fontSize: breadcrumbBtnFont, fontWeight: 700, userSelect: 'none' }} aria-hidden>›</span>
+													<span
+														style={{
+															minHeight: breadcrumbBtnMinH,
+															padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
+															display: 'inline-flex',
+															alignItems: 'center',
+															background: '#f1f5f9',
+															border: '2px solid #94a3b8',
+															borderRadius: breadcrumbBtnRadius,
+															fontSize: breadcrumbBtnFont,
+															fontWeight: 700,
+															color: '#0f172a',
+															whiteSpace: 'nowrap',
+															maxWidth: '100%',
+															boxSizing: 'border-box',
+															lineHeight: 1.2
+														}}
+													>
 														{subcategoriesOfCategory.find((s: any) => s.id === selectedSubcategory)?.name || 'Subcategoría'}
 													</span>
 												</>
@@ -1369,31 +1440,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 										</>
 									)}
 								</div>
-								{(selectedCategory || isSearching) && (
-									<button
-										type="button"
-										onClick={() => {
-											if (isSearching) setSearchTerm('');
-											else if (selectedSubcategory) setSelectedSubcategory(null);
-											else setSelectedCategory(null);
-										}}
-										style={{
-											padding: isSmall ? '0.3rem 0.5rem' : '0.375rem 0.75rem',
-											backgroundColor: '#f8fafc',
-											border: '1px solid #e2e8f0',
-											borderRadius: '8px',
-											fontSize: isSmall ? '0.7rem' : '0.75rem',
-											fontWeight: '600',
-											color: '#475569',
-											cursor: 'pointer',
-											display: 'flex',
-											alignItems: 'center',
-											gap: '0.25rem'
-										}}
-									>
-										⬅ Volver
-									</button>
-								)}
+								
 							</div>
 
 							{/* Grid: categorías, subcategorías o productos */}
@@ -1425,7 +1472,16 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 											categories.map((category: any) => (
 												<div
 													key={category.id}
-													onClick={() => setSelectedCategory(category.id)}
+													onClick={() => {
+														setSelectedCategory(category.id);
+														const activeSubcategories = category.subcategories?.filter((s: any) => s.isActive) || [];
+														const matchingSub = activeSubcategories.find((s: any) => s.name?.toLowerCase() === category.name?.toLowerCase());
+														if (matchingSub) {
+															setSelectedSubcategory(matchingSub.id);
+														} else {
+															setSelectedSubcategory(null);
+														}
+													}}
 													style={{
 														backgroundColor: '#ffffff',
 														border: '1px solid #e2e8f0',
@@ -1899,7 +1955,13 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 
 						<div style={{
 							display: 'grid',
-							gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : isExistingOrder ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr',
+							gridTemplateColumns: (() => {
+								const cashCol = onOpenCash && canNavigateToCashPay ? 1 : 0;
+								const n = 2 + (isExistingOrder ? 1 : 0) + cashCol;
+								if (isSmall) return '1fr';
+								if (isMedium) return n <= 2 ? '1fr 1fr' : 'repeat(2, 1fr)';
+								return `repeat(${n}, 1fr)`;
+							})(),
 							gap: isSmall ? '0.5rem' : isMedium ? '0.625rem' : '0.75rem',
 							flexShrink: 0
 						}}>
@@ -1962,6 +2024,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 								{isSaving ? 'Guardando...' : 'Enviar a cocina (sin imprimir)'}
 							</button>
 
+							
 							{/* Botón de Precuenta - solo visible cuando hay una orden existente */}
 							{isExistingOrder && (
 								<button
@@ -2102,5 +2165,14 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess }) => {
 };
 
 export default Order;
+
+
+
+
+
+
+
+
+
 
 

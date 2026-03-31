@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useApolloClient } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useUserPermissions } from '../../hooks/useUserPermissions';
 import { useToast } from '../../context/ToastContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import {
@@ -114,6 +115,7 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 const Cashs: React.FC = () => {
   const apolloClient = useApolloClient();
   const { companyData, user, getMacAddress } = useAuth();
+  const { hasPermission } = useUserPermissions();
   const { showToast } = useToast();
   const { breakpoint, isMobile, isTablet } = useResponsive();
   const branchId = companyData?.branch?.id;
@@ -156,6 +158,20 @@ const Cashs: React.FC = () => {
   const [showTotalesGenerales, setShowTotalesGenerales] = useState(true);
   // Modal de detalle de cierre (al hacer clic en una fila del historial)
   const [selectedClosureForDetail, setSelectedClosureForDetail] = useState<CashClosureForDetail | null>(null);
+
+  const roleUpper = (user?.role || '').toUpperCase();
+  const isAdminUser = roleUpper === 'ADMIN';
+  const canCloseCashRegister = isAdminUser || hasPermission('sales.close');
+  const canRegisterManualMovements =
+    isAdminUser || hasPermission('cash.register_movements') || canCloseCashRegister;
+  const canChangeManualPaymentMethod =
+    isAdminUser || hasPermission('cash.change_payment_method') || canCloseCashRegister;
+  const canVoidManualMovementInList =
+    isAdminUser ||
+    hasPermission('cash.view') ||
+    hasPermission('cash.void') ||
+    canCloseCashRegister;
+  const canOpenClosePreview = canCloseCashRegister || canRegisterManualMovements;
 
   // Query para obtener cajas
   const { data: cashRegistersData, loading: cashRegistersLoading, refetch: refetchCashRegisters } = useQuery(
@@ -203,14 +219,14 @@ const Cashs: React.FC = () => {
     }
   );
 
-  // Query para movimientos de caja (pagos pendientes de cierre) — solo cuando el usuario hace clic en "Visualizar"
+  // Pagos pendientes: al abrir preview (total ventas sin manual) y para la tabla de movimientos
   const { data: movementsData, loading: movementsLoading, refetch: refetchMovements } = useQuery(GET_PAYMENTS_PENDING_CLOSURE, {
     variables: {
       cashRegisterId: selectedCashRegister,
       transactionType: null,
       paymentMethod: null
     },
-    skip: !selectedCashRegister || !showPreview || !showMovements,
+    skip: !selectedCashRegister || !showPreview,
     fetchPolicy: 'network-only'
   });
 
@@ -401,6 +417,21 @@ const Cashs: React.FC = () => {
   const closures: CashClosure[] = closuresData?.cashClosures || closuresData?.cash_closures || [];
   const movements: PaymentMovement[] = movementsData?.paymentsPendingClosure || movementsData?.payments_pending_closure || [];
 
+  /** Suma cobros ligados a ventas (tienen operación); excluye ingresos/egresos manuales y anulados. */
+  const totalVentasSinManual = useMemo(() => {
+    let total = 0;
+    for (const mov of movements) {
+      if (isCancelledCashMovement(mov)) continue;
+      const opId = mov.operation?.id ?? (mov as any).operation?.id;
+      if (opId == null || opId === '') continue;
+      const amount = Number((mov as any).paidAmount ?? (mov as any).paid_amount ?? mov.paidAmount ?? 0);
+      const type = String((mov as any).transactionType ?? (mov as any).transaction_type ?? mov.transactionType ?? '').toUpperCase();
+      if (type === 'INCOME') total += amount;
+      else if (type === 'EXPENSE') total -= amount;
+    }
+    return Math.round(total * 100) / 100;
+  }, [movements]);
+
   // Obtiene el total vendido acumulado por cada caja usando el preview de cierre.
   useEffect(() => {
     let cancelled = false;
@@ -515,12 +546,20 @@ const Cashs: React.FC = () => {
   };
 
   const handleShowPreview = (cashRegisterId: string) => {
+    if (!canOpenClosePreview) {
+      showToast('No tienes permiso para abrir el detalle de caja.', 'error');
+      return;
+    }
     setSelectedCashRegister(cashRegisterId);
     setShowPreview(true);
     setShowHistory(false);
   };
 
   const handleCloseCashClick = () => {
+    if (!canCloseCashRegister) {
+      showToast('No tienes permiso para cerrar caja.', 'error');
+      return;
+    }
     if (!selectedCashRegister || !branchId || !user?.id) {
       alert('❌ Por favor selecciona una caja y verifica que estés autenticado');
       return;
@@ -537,6 +576,11 @@ const Cashs: React.FC = () => {
 
   const handleConfirmCloseCash = async () => {
     setShowConfirmModal(false);
+
+    if (!canCloseCashRegister) {
+      showToast('No tienes permiso para cerrar caja.', 'error');
+      return;
+    }
 
     if (!selectedCashRegister || !branchId || !user?.id) {
       return;
@@ -643,46 +687,60 @@ const Cashs: React.FC = () => {
           >
             Cajas
           </button>
+          {canCloseCashRegister && (
+            <button
+              onClick={() => {
+                setShowHistory(true);
+                setShowPreview(false);
+              }}
+              style={{
+                padding: buttonPadding,
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                backgroundColor: showHistory ? '#3b82f6' : 'white',
+                color: showHistory ? 'white' : '#64748b',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: buttonFontSize,
+                transition: 'all 0.2s'
+              }}
+            >
+              Historial de Cierres
+            </button>
+          )}
           <button
+            type="button"
             onClick={() => {
-              setShowHistory(true);
-              setShowPreview(false);
+              if (!canRegisterManualMovements) {
+                showToast('No tienes permiso para registrar ingresos o egresos manuales.', 'error');
+                return;
+              }
+              setShowManualTransactionModal(true);
             }}
+            disabled={!canRegisterManualMovements}
             style={{
               padding: buttonPadding,
               borderRadius: '8px',
               border: '1px solid #e2e8f0',
-              backgroundColor: showHistory ? '#3b82f6' : 'white',
-              color: showHistory ? 'white' : '#64748b',
-              cursor: 'pointer',
+              backgroundColor: canRegisterManualMovements ? 'white' : '#f1f5f9',
+              color: canRegisterManualMovements ? '#64748b' : '#94a3b8',
+              cursor: canRegisterManualMovements ? 'pointer' : 'not-allowed',
               fontWeight: 600,
               fontSize: buttonFontSize,
-              transition: 'all 0.2s'
-            }}
-          >
-            Historial de Cierres
-          </button>
-          <button
-            onClick={() => setShowManualTransactionModal(true)}
-            style={{
-              padding: buttonPadding,
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0',
-              backgroundColor: 'white',
-              color: '#64748b',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: buttonFontSize,
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              opacity: canRegisterManualMovements ? 1 : 0.85
             }}
             onMouseEnter={(e) => {
+              if (!canRegisterManualMovements) return;
               e.currentTarget.style.backgroundColor = '#f1f5f9';
               e.currentTarget.style.color = '#1e293b';
             }}
             onMouseLeave={(e) => {
+              if (!canRegisterManualMovements) return;
               e.currentTarget.style.backgroundColor = 'white';
               e.currentTarget.style.color = '#64748b';
             }}
+            title={!canRegisterManualMovements ? 'Requiere permiso: registrar movimientos en caja o cierre de caja' : undefined}
           >
             ➕ Ingreso/Egreso
           </button>
@@ -792,27 +850,30 @@ const Cashs: React.FC = () => {
                                 {currencyFormatter.format(salesTotalsByRegister[cashRegister.id] ?? cashRegister.currentBalance)}
                               </div>
                             </div>
-                            <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                              <button
-                                style={{
-                                  padding: buttonPadding,
-                                  borderRadius: '8px',
-                                  border: 'none',
-                                  backgroundColor: typeColors.color,
-                                  color: 'white',
-                                  cursor: 'pointer',
-                                  fontWeight: 600,
-                                  fontSize: buttonFontSize,
-                                  width: '100%'
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleShowPreview(cashRegister.id);
-                                }}
-                              >
-                                Ver Detalles / Cerrar Caja
-                              </button>
-                            </div>
+                            {canOpenClosePreview && (
+                              <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                                <button
+                                  type="button"
+                                  style={{
+                                    padding: buttonPadding,
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    backgroundColor: typeColors.color,
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                    fontSize: buttonFontSize,
+                                    width: '100%'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleShowPreview(cashRegister.id);
+                                  }}
+                                >
+                                  {canCloseCashRegister ? 'Ver Detalles / Cerrar Caja' : 'Ver detalles y movimientos'}
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -952,6 +1013,24 @@ const Cashs: React.FC = () => {
                 </div>
                 {showTotalesGenerales && (
                   <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${statCardMinWidth}, 1fr))`, gap: gridGap }}>
+                    <div style={{
+                      gridColumn: '1 / -1',
+                      padding: '1rem',
+                      borderRadius: '12px',
+                      backgroundColor: '#ecfdf5',
+                      border: '1px solid #6ee7b7',
+                      marginBottom: '0.25rem'
+                    }}>
+                      <div style={{ fontSize: '0.875rem', color: '#047857', marginBottom: '0.35rem', fontWeight: 600 }}>
+                        Total ventas (solo cobros de pedidos)
+                      </div>
+                      <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#065f46' }}>
+                        {movementsLoading ? '…' : currencyFormatter.format(totalVentasSinManual)}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#059669', marginTop: '0.35rem', lineHeight: 1.4 }}>
+                        Sin ingresos ni egresos manuales de caja
+                      </div>
+                    </div>
                     <div>
                       <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>Total Ingresos</div>
                       <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#16a34a' }}>
@@ -1140,7 +1219,7 @@ const Cashs: React.FC = () => {
                                       >
                                         Anulado
                                       </span>
-                                    ) : canCancel ? (
+                                    ) : canCancel && canVoidManualMovementInList ? (
                                       <button
                                         type="button"
                                         onClick={(e) => {
@@ -1163,6 +1242,10 @@ const Cashs: React.FC = () => {
                                       >
                                         {cancelingPaymentId === mov.id ? '…' : 'Anular'}
                                       </button>
+                                    ) : canCancel && !canVoidManualMovementInList ? (
+                                      <span style={{ color: '#94a3b8', fontSize: '0.7rem' }} title="Sin permiso para anular movimientos en caja">
+                                        —
+                                      </span>
                                     ) : (
                                       <span style={{ color: '#94a3b8', fontSize: '0.7rem' }} title="Ventas, compras u operaciones con orden no se anulan aquí">
                                         —
@@ -1239,9 +1322,10 @@ const Cashs: React.FC = () => {
                 </div>
               )}
 
-              {/* Botón de Cerrar Caja */}
+              {/* Botón de Cerrar Caja (solo con permiso sales.close / admin) */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: gridGap, flexWrap: 'wrap' }}>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowPreview(false);
                     setSelectedCashRegister('');
@@ -1258,25 +1342,28 @@ const Cashs: React.FC = () => {
                     fontSize: buttonFontSize
                   }}
                 >
-                  Cancelar
+                  {canCloseCashRegister ? 'Cancelar' : 'Volver'}
                 </button>
-                <button
-                  onClick={handleCloseCashClick}
-                  disabled={!preview.canClose || closingCash}
-                  style={{
-                    padding: buttonPadding,
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: preview.canClose ? '#16a34a' : '#94a3b8',
-                    color: 'white',
-                    cursor: preview.canClose && !closingCash ? 'pointer' : 'not-allowed',
-                    fontWeight: 600,
-                    fontSize: buttonFontSize,
-                    opacity: preview.canClose && !closingCash ? 1 : 0.6
-                  }}
-                >
-                  {closingCash ? 'Cerrando...' : '✅ Cerrar Caja'}
-                </button>
+                {canCloseCashRegister && (
+                  <button
+                    type="button"
+                    onClick={handleCloseCashClick}
+                    disabled={!preview.canClose || closingCash}
+                    style={{
+                      padding: buttonPadding,
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: preview.canClose ? '#16a34a' : '#94a3b8',
+                      color: 'white',
+                      cursor: preview.canClose && !closingCash ? 'pointer' : 'not-allowed',
+                      fontWeight: 600,
+                      fontSize: buttonFontSize,
+                      opacity: preview.canClose && !closingCash ? 1 : 0.6
+                    }}
+                  >
+                    {closingCash ? 'Cerrando...' : '✅ Cerrar Caja'}
+                  </button>
+                )}
               </div>
             </>
           ) : (
@@ -1589,7 +1676,7 @@ const Cashs: React.FC = () => {
       )}
 
       {/* Modal de Confirmación para Cerrar Caja */}
-      {showConfirmModal && (
+      {showConfirmModal && canCloseCashRegister && (
         <div
           style={{
             position: 'fixed',
@@ -1765,6 +1852,7 @@ const Cashs: React.FC = () => {
         cashRegisters={cashRegisters}
         userId={user?.id || ''}
         branchId={branchId || ''}
+        allowChangePaymentMethod={canChangeManualPaymentMethod}
       />
     </div>
   );

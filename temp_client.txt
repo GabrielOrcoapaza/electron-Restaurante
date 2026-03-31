@@ -1,0 +1,88 @@
+{/* Cliente */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    color: '#2d3748',
+                    margin: 0
+                  }}
+                >
+                  Cliente
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowEditClientModal(true)}
+                    disabled={isProcessing || !selectedClientId}
+                    style={{
+                      padding: '0.4rem 0.75rem',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: !selectedClientId || isProcessing ? '#9ca3af' : '#667eea',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: !selectedClientId || isProcessing ? 'not-allowed' : 'pointer',
+                      opacity: !selectedClientId || isProcessing ? 0.6 : 1
+                    }}
+                  >
+                    ✏️ Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateClientModal(true)}
+                    disabled={isProcessing}
+                    style={{
+                      padding: '0.4rem 0.75rem',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: isProcessing ? 'not-allowed' : 'pointer',
+                      opacity: isProcessing ? 0.6 : 1
+                    }}
+                  >
+                    + Nuevo Cliente
+                  </button>
+                </div>
+              </div>
+              <div style={{ marginBottom: '0.5rem', position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.35rem', border: '1px solid #cbd5e0', borderRadius: '8px', backgroundColor: 'white', overflow: 'hidden' }}>
+                  <input
+                    type="text"
+                    value={clientSearchTerm}
+                    onChange={(e) => {
+                      setClientSearchTerm(e.target.value);
+                      setSelectedClientId('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
+                        const validDoc = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
+                        if (validDoc) {
+                          handleSearchSunat();
+                        } else {
+                          showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.', 'warning');
+                        }
+                      }
+                    }}
+                    placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'}
+                    disabled={clientsLoading || isProcessing}
+                    style={{
+                      flex: 1,
+                      padding: '0.55rem 0.75rem',
+                      border: 'none',
+                      fontSize: '0.85rem',
+                      backgroundColor: 'transparent',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      cursor: clientsLoading || isProcessing ? 'not-allowed' : 'text'
+                    }}
+                  />
+                  <butto
