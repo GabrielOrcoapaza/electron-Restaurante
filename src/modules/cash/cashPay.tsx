@@ -28,17 +28,6 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 /** Evita artefactos de punto flotante (ej. 9.560000000000002) en montos de pago. */
 const roundMoney2 = (n: number): number => Math.round((Number(n) || 0) * 100) / 100;
 
-const getStatusLabel = (status: string): string => {
-  const labels: Record<string, string> = {
-    TO_PAY: 'Por pagar',
-    OCCUPIED: 'Ocupada',
-    AVAILABLE: 'Disponible',
-    IN_PROCESS: 'En proceso',
-    COMPLETED: 'Completada'
-  };
-  return labels[status] || status;
-};
-
 const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTableChange }) => {
   const { companyData, user, deviceId, getMacAddress, updateTableInContext } = useAuth();
   const { hasPermission } = useUserPermissions();
@@ -50,8 +39,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   // Solo para diferentes tamaños de pantalla de PC (desktop)
   // lg: 1024px-1279px, xl: 1280px-1535px, 2xl: >=1536px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
-  
-  const hasSelection = Boolean(table?.id && companyData?.branch.id);
+
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
   const [selectedSerialId, setSelectedSerialId] = useState<string>('');
   const [selectedCashRegisterId, setSelectedCashRegisterId] = useState<string>('');
@@ -87,13 +75,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [selectedTransferTableId, setSelectedTransferTableId] = useState<string>('');
   const [showCancelOperationModal, setShowCancelOperationModal] = useState(false);
   const [cancellationReason, setCancellationReason] = useState<string>('');
-  const [showDeleteItemModal, setShowDeleteItemModal] = useState(false);
-  const [deleteItemDetailId, setDeleteItemDetailId] = useState<string | null>(null);
-  const [deleteItemReason, setDeleteItemReason] = useState<string>('');
 
   const {
     data,
-    loading,
     refetch
   } = useQuery(GET_OPERATION_BY_ID, {
     variables: {
@@ -103,7 +87,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     fetchPolicy: 'network-only'
   });
 
-  const { data: documentsData, loading: documentsLoading, error: documentsError } = useQuery(GET_DOCUMENTS, {
+  const { data: documentsData } = useQuery(GET_DOCUMENTS, {
     variables: { branchId: companyData?.branch.id || '' },
     skip: !companyData?.branch.id,
     fetchPolicy: 'no-cache'
@@ -1211,12 +1195,20 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               </div>
             ))}
           </div>
-          <div style={{ padding: '0.5rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input type="number" placeholder="Desc S/" value={discountAmount || ''} onChange={e => setDiscountAmount(Number(e.target.value))} style={{ width: '80px' }} />
-              <input type="number" placeholder="Desc %" value={discountPercent || ''} onChange={e => setDiscountPercent(Number(e.target.value))} style={{ width: '80px' }} />
+          <div style={{ padding: '0.5rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>Descuentos:</div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input type="number" placeholder="Desc S/" value={discountAmount || ''} onChange={e => setDiscountAmount(Number(e.target.value))} style={{ width: '80px', padding: '0.3rem', fontSize: '0.8rem', border: '1px solid #cbd5e0', borderRadius: '4px' }} title="Descuento Fijo (S/)" />
+                <input type="number" placeholder="Desc %" value={discountPercent || ''} onChange={e => setDiscountPercent(Number(e.target.value))} style={{ width: '80px', padding: '0.3rem', fontSize: '0.8rem', border: '1px solid #cbd5e0', borderRadius: '4px' }} title="Descuento Porcentual (%)" />
+              </div>
             </div>
-            <div style={{ fontWeight: 900 }}>TOTAL: {currencyFormatter.format(totalToPay)}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
+              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Subtotal: {currencyFormatter.format(subtotal)}</div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>IGV ({igvPercentage}%): {currencyFormatter.format(igvAmount)}</div>
+              {totalDiscount > 0 && <div style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 600 }}>Descuento: -{currencyFormatter.format(totalDiscount)}</div>}
+              <div style={{ fontWeight: 900, fontSize: '1.1rem', marginTop: '0.2rem', color: '#0f172a' }}>TOTAL: {currencyFormatter.format(totalToPay)}</div>
+            </div>
           </div>
         </section>
 
