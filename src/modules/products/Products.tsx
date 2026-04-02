@@ -75,6 +75,7 @@ const Products: React.FC = () => {
   return (
     <div
       style={{
+        flexShrink: 0,
         minHeight: '100%',
         width: '100%',
         maxWidth: '100%',

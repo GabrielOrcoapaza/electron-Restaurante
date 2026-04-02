@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useUserPermissions } from '../../hooks/useUserPermissions';
@@ -40,8 +40,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   // lg: 1024px-1279px, xl: 1280px-1535px, 2xl: >=1536px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
 
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
-  const [selectedSerialId, setSelectedSerialId] = useState<string>('');
   const [selectedCashRegisterId, setSelectedCashRegisterId] = useState<string>('');
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [showCreateClientModal, setShowCreateClientModal] = useState(false);
@@ -93,12 +91,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     fetchPolicy: 'no-cache'
   });
 
-  const { data: serialsData } = useQuery(GET_SERIALS_BY_DOCUMENT, {
-    variables: { documentId: selectedDocumentId },
-    skip: !selectedDocumentId,
-    fetchPolicy: 'network-only'
-  });
-
   const { data: cashRegistersData } = useQuery(GET_CASH_REGISTERS, {
     variables: { branchId: companyData?.branch.id || '' },
     skip: !companyData?.branch.id,
@@ -144,6 +136,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [searchPersonByDocument, { loading: sunatSearchLoading }] = useLazyQuery(SEARCH_PERSON_BY_DOCUMENT, {
     fetchPolicy: 'network-only'
   });
+  const [fetchSerialsForDocument] = useLazyQuery(GET_SERIALS_BY_DOCUMENT, { fetchPolicy: 'network-only' });
   const [createPersonMutation] = useMutation(CREATE_PERSON);
   const [createIssuedDocumentMutation] = useMutation(CREATE_ISSUED_DOCUMENT);
   const [changeOperationTableMutation] = useMutation(CHANGE_OPERATION_TABLE);
@@ -186,15 +179,24 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   }, [subscribe, operation?.id, refetch]);
 
   const documents = (documentsData?.documentsByBranch || []).filter((doc: any) => doc.isActive !== false);
-  const serials = (serialsData?.serialsByDocument || []).filter((ser: any) => ser.isActive !== false);
   const allClients = (clientsData?.personsByBranch || []).filter((person: any) => !person.isSupplier && person.isActive !== false);
 
-  const selectedDocument = documents.find((doc: any) => String(doc.id) === String(selectedDocumentId));
-  const isFactura = selectedDocument?.code === '01';
   const selectedClient = allClients.find((c: any) => c.id === selectedClientId);
 
+  /** Orden: nota / otros, boleta (03), factura (01) — coincide con el flujo típico de caja. */
+  const payDocumentsOrdered = useMemo(() => {
+    const weight = (d: any) => (String(d.code) === '01' ? 3 : String(d.code) === '03' ? 2 : 1);
+    return [...documents].sort((a, b) => weight(a) - weight(b));
+  }, [documents]);
+
+  const payDocumentButtonLabel = (doc: any) => {
+    const c = String(doc.code || '').trim();
+    if (c === '01') return 'Factura';
+    if (c === '03') return 'Boleta';
+    return doc.description || 'Documento';
+  };
+
   const filteredClients = allClients.filter((client: any) => {
-    if (isFactura && (client.documentType || '').toUpperCase() !== 'RUC') return false;
     if (!clientSearchTerm) return true;
     const search = clientSearchTerm.toLowerCase();
     const name = (client.name || '').toLowerCase();
@@ -307,16 +309,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   }, [operation?.id]);
 
   useEffect(() => {
-    if (documents.length > 0 && !selectedDocumentId) setSelectedDocumentId(documents[0].id);
     if (cashRegisters.length > 0 && !selectedCashRegisterId) setSelectedCashRegisterId(cashRegisters[0].id);
-  }, [documents, cashRegisters, selectedDocumentId, selectedCashRegisterId]);
-
-  useEffect(() => {
-    if (serials.length > 0 && !selectedSerialId) setSelectedSerialId(serials[0].id);
-    else if (serials.length === 0) setSelectedSerialId('');
-  }, [serials, selectedSerialId]);
-
-  useEffect(() => { setSelectedSerialId(''); }, [selectedDocumentId]);
+  }, [cashRegisters, selectedCashRegisterId]);
 
   const handleSearchSunat = async () => {
     const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
@@ -475,7 +469,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     return realId;
   };
 
-  const handleProcessPayment = async () => {
+  const handleProcessPayment = async (documentId: string) => {
     // ⚠️ PROTECCIÓN CONTRA DOBLE CLIC - Verificar ref primero (más confiable que estado)
     if (isProcessingRef.current) {
       console.warn('⚠️ Pago ya en proceso (ref check), ignorando solicitud duplicada');
@@ -488,19 +482,21 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       return;
     }
 
-    if (!operation || !selectedDocumentId || !selectedSerialId || !user?.id) {
-      showToast('Por favor completa todos los campos requeridos', 'error');
+    if (!operation || !documentId || !user?.id) {
+      showToast('No se puede procesar el pago', 'error');
       return;
     }
 
-    // Validar que se haya seleccionado un documento (boleta o factura)
-    if (!selectedDocumentId) {
-      showToast('Por favor selecciona un documento (Boleta o Factura)', 'error');
+    const docForPay = documents.find((doc: any) => String(doc.id) === String(documentId));
+    if (!docForPay) {
+      showToast('Tipo de documento no válido', 'error');
       return;
     }
 
-    // ✅ VALIDACIONES SUNAT: Boleta vs Factura
-    if (isFactura) {
+    const isFacturaDoc = String(docForPay.code) === '01';
+
+    // ✅ VALIDACIONES SUNAT: Factura requiere cliente con RUC
+    if (isFacturaDoc) {
       if (!selectedClientId) {
         showToast('Para emitir una FACTURA debe seleccionar un cliente con RUC', 'error');
         return;
@@ -516,6 +512,20 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
     if (!cashRegisterIdToUse) {
       showToast('No hay cajas registradoras disponibles', 'error');
+      return;
+    }
+
+    let serial: string;
+    try {
+      const { data: serialsFetched } = await fetchSerialsForDocument({ variables: { documentId } });
+      const serialList = (serialsFetched?.serialsByDocument || []).filter((ser: any) => ser.isActive !== false);
+      if (serialList.length === 0) {
+        showToast('No hay serie activa para este documento', 'error');
+        return;
+      }
+      serial = serialList[0].serial || '';
+    } catch {
+      showToast('No se pudieron cargar las series del documento', 'error');
       return;
     }
 
@@ -719,9 +729,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         return;
       }
 
-      const selectedSerial = serials.find((ser: any) => String(ser.id) === String(selectedSerialId));
-      const serial = selectedSerial?.serial || '';
-
       // Para pagos parciales: NO pasar table_id si hay productos restantes
       // Esto evita que el backend libere la mesa cuando todavía hay productos por pagar
       // Solo pasamos tableId si se está pagando toda la operación (no hay productos restantes)
@@ -731,7 +738,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       const variables = {
         operationId: operationToPay.id,
         branchId: companyData?.branch.id,
-        documentId: selectedDocumentId,
+        documentId: documentId,
         serial: serial,
         personId: selectedClientId || null,
         userId: user.id,
@@ -771,11 +778,11 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       console.log('');
       console.log('📄 INFORMACIÓN DEL DOCUMENTO:');
       // ✅ Obtener información completa del documento seleccionado
-      const selectedDocument = documents.find((doc: any) => String(doc.id) === String(selectedDocumentId));
+      const selectedDocument = documents.find((doc: any) => String(doc.id) === String(documentId));
       const documentCode = selectedDocument?.code || 'N/A';
       const documentDescription = selectedDocument?.description || 'N/A';
       const isBillableDocument = documentCode === '01' || documentCode === '03'; // FACTURA o BOLETA
-      console.log(`   - ID de Documento: ${selectedDocumentId}`);
+      console.log(`   - ID de Documento: ${documentId}`);
       console.log(`   - Código de Documento: ${documentCode} (${documentDescription})`);
       console.log(`   - Es documento facturable (01/FACTURA o 03/BOLETA): ${isBillableDocument ? 'SÍ ✅' : 'NO ⚠️'}`);
       console.log(`   - Facturación habilitada en sucursal: ${companyData?.branch?.isBilling ? 'SÍ ✅' : 'NO ⚠️'}`);
@@ -874,9 +881,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         // El backend debería haber impreso el documento si deviceId estaba disponible
 
         // ✅ VERIFICAR SI EL DOCUMENTO SERÁ ENVIADO A SUNAT
-        const selectedDocument = documents.find((doc: any) => String(doc.id) === String(selectedDocumentId));
-        const documentCode = selectedDocument?.code || '';
-        const documentDescription = selectedDocument?.description || '';
+        const selectedDocumentOk = documents.find((doc: any) => String(doc.id) === String(documentId));
+        const documentCode = selectedDocumentOk?.code || '';
+        const documentDescription = selectedDocumentOk?.description || '';
         const isBillableDocument = documentCode === '01' || documentCode === '03'; // FACTURA o BOLETA
         const isBranchBillingEnabled = companyData?.branch?.isBilling || false;
 
@@ -1110,34 +1117,20 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button onClick={() => setShowChangeTableModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#334155', color: 'white', border: 'none', borderRadius: '4px' }}>Mesa</button>
-          <button onClick={() => setShowTransferPlatesModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Transferir</button>
-          <button onClick={() => setShowChangeUserModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Mozo</button>
-          <button onClick={handlePrecuenta} disabled={!operation || operation.status === 'COMPLETED' || isProcessing} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: (!operation || operation.status === 'COMPLETED' || isProcessing) ? 0.6 : 1 }}>Precuenta</button>
+          <button onClick={() => setShowChangeTableModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', width: '150px' }}>Mesa</button>
+          <button onClick={() => setShowTransferPlatesModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', width: '150px' }}>Transferir</button>
+          <button onClick={() => setShowChangeUserModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', width: '150px' }}>Mozo</button>
+          <button onClick={handlePrecuenta} disabled={!operation || operation.status === 'COMPLETED' || isProcessing} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', width: '150px', opacity: (!operation || operation.status === 'COMPLETED' || isProcessing) ? 0.6 : 1 }}>Precuenta</button>
           <button onClick={() => refetch()} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Refrescar</button>
         </div>
       </header>
 
       <section style={{ flexShrink: 0, background: 'white', padding: '0.5rem 1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>DOC:</label>
-          <select value={selectedDocumentId} onChange={e => setSelectedDocumentId(e.target.value)} style={{ padding: '0.3rem', fontSize: '0.8rem' }}>
-            <option value="">Documento...</option>
-            {documents.map((d: any) => <option key={d.id} value={d.id}>{d.description}</option>)}
-          </select>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <label style={{ fontSize: '0.7rem', fontWeight: 800 }}>SERIE:</label>
-          <select value={selectedSerialId} onChange={e => setSelectedSerialId(e.target.value)} style={{ padding: '0.3rem', fontSize: '0.8rem' }}>
-            <option value="">Serie...</option>
-            {serials.map((s: any) => <option key={s.id} value={s.id}>{s.serial}</option>)}
-          </select>
-        </div>
         <div style={{ flex: 1, display: 'flex', gap: '0.4rem', position: 'relative' }}>
           <div style={{ flex: 1, display: 'flex', border: '1px solid #cbd5e0', borderRadius: '4px', overflow: 'hidden', backgroundColor: 'white' }}>
             <input 
               type="text" 
-              placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'} 
+              placeholder="Buscar cliente (DNI/RUC). Factura: selecciona cliente con RUC antes de cobrar."
               value={clientSearchTerm} 
               onChange={e => { setClientSearchTerm(e.target.value); setSelectedClientId(''); }} 
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchSunat(); } }}
@@ -1156,11 +1149,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           
           {clientSearchTerm && !selectedClientId && filteredClients.length > 0 && (
             <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '0.2rem', width: '250px', maxHeight: '200px', overflowY: 'auto', background: 'white', border: '1px solid #e2e8f0', borderRadius: '4px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 100 }}>
-              {!isFactura && (
-                <div onClick={() => { setSelectedClientId(''); setClientSearchTerm(''); }} style={{ padding: '0.5rem', fontSize: '0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', color: '#64748b' }}>
-                  Sin cliente (Consumidor final)
-                </div>
-              )}
+              <div onClick={() => { setSelectedClientId(''); setClientSearchTerm(''); }} style={{ padding: '0.5rem', fontSize: '0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', color: '#64748b' }}>
+                Sin cliente (Consumidor final)
+              </div>
               {filteredClients.map((client: any) => (
                 <div key={client.id} onClick={() => { setSelectedClientId(client.id); setClientSearchTerm(client.name || ''); }} style={{ padding: '0.5rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}>
                   <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>{client.name}</div>
@@ -1199,8 +1190,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>Descuentos:</div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input type="number" placeholder="Desc S/" value={discountAmount || ''} onChange={e => setDiscountAmount(Number(e.target.value))} style={{ width: '80px', padding: '0.3rem', fontSize: '0.8rem', border: '1px solid #cbd5e0', borderRadius: '4px' }} title="Descuento Fijo (S/)" />
-                <input type="number" placeholder="Desc %" value={discountPercent || ''} onChange={e => setDiscountPercent(Number(e.target.value))} style={{ width: '80px', padding: '0.3rem', fontSize: '0.8rem', border: '1px solid #cbd5e0', borderRadius: '4px' }} title="Descuento Porcentual (%)" />
+                <input type="number" placeholder="Desc S/" value={discountAmount || ''} onChange={e => setDiscountAmount(Number(e.target.value))} style={{ width: '200px', padding: '0.3rem', fontSize: '0.8rem', border: '1px solid #cbd5e0', borderRadius: '4px' }} title="Descuento Fijo (S/)" />
+                <input type="number" placeholder="Desc %" value={discountPercent || ''} onChange={e => setDiscountPercent(Number(e.target.value))} style={{ width: '200px', padding: '0.3rem', fontSize: '0.8rem', border: '1px solid #cbd5e0', borderRadius: '4px' }} title="Descuento Porcentual (%)" />
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
@@ -1238,16 +1229,54 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               <span>RESTA: {currencyFormatter.format(remaining)}</span>
               {vuelto > 0 && <span style={{ color: 'green' }}>Vuelto: {currencyFormatter.format(vuelto)}</span>}
             </div>
-            <button onClick={handleProcessPayment} disabled={isProcessing || remaining > 0.05} style={{ width: '100%', padding: '0.8rem', background: remaining > 0.05 ? '#cbd5e0' : '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 900, cursor: remaining > 0.05 ? 'not-allowed' : 'pointer' }}>COBRAR</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>Cobrar e imprimir</div>
+              {payDocumentsOrdered.length === 0 ? (
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', padding: '0.5rem 0' }}>No hay tipos de documento configurados en la sucursal.</div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                  {payDocumentsOrdered.map((d: any) => {
+                    const code = String(d.code || '').trim();
+                    const bg =
+                      code === '01' ? '#4f46e5' : code === '03' ? '#059669' : '#475569';
+                    const disabled = isProcessing || remaining > 0.05;
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => handleProcessPayment(String(d.id))}
+                        disabled={disabled}
+                        title={d.description}
+                        style={{
+                          flex: '1 1 calc(33.33% - 0.4rem)',
+                          minWidth: '5.5rem',
+                          padding: '0.65rem 0.35rem',
+                          background: disabled ? '#cbd5e0' : bg,
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontWeight: 800,
+                          fontSize: '0.72rem',
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                          lineHeight: 1.2
+                        }}
+                      >
+                        {payDocumentButtonLabel(d)}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             {canVoidInCashPay && (
-              <button type="button" onClick={() => setShowCancelOperationModal(true)} style={{ width: '100%', marginTop: '0.8rem', background: 'transparent', color: '#ef4444', border: 'none', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer' }}>Anular Orden</button>
+              <button type="button" onClick={() => setShowCancelOperationModal(true)} style={{ width: '100%', marginTop: '0.8rem', padding: '0.5rem', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer' }}>Anular Orden</button>
             )}
           </div>
         </section>
       </main>
 
       {showChangeTableModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, }}>
           <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', width: '300px' }}>
             <h3>Cambiar Mesa</h3>
             <select value={selectedFloorId} onChange={e => setSelectedFloorId(e.target.value)} style={{ width: '100%', marginBottom: '0.5rem' }}>

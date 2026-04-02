@@ -367,7 +367,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
           <h3 style={{ margin: 0, fontSize: titleFontSize, fontWeight: 600, color: '#334155' }}>
             📋 Lista de Productos ({products.length})
           </h3>
-          {products.length > itemsPerPage && (
+          {products.length > 0 && (
             <p style={{ margin: 0, fontSize: inputFontSize, color: '#64748b' }}>
               Página {currentPage} de {totalPages}
             </p>
@@ -626,8 +626,8 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
           </div>
         )}
 
-        {/* Controles de paginación */}
-        {products.length > itemsPerPage && (
+        {/* Controles de paginación (visible con cualquier cantidad de productos) */}
+        {products.length > 0 && (
           <div style={{
             display: 'flex',
             justifyContent: 'center',

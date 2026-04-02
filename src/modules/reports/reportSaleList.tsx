@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useMutation } from '@apollo/client';
-import { CANCEL_ISSUED_DOCUMENT, REPRINT_DOCUMENT } from '../../graphql/mutations';
+import { CANCEL_ISSUED_DOCUMENT, REPRINT_DOCUMENT, REOPEN_ORDER_FROM_ANNULLED_DOCUMENT } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
+import { useUserPermissions } from '../../hooks/useUserPermissions';
 import { useResponsive } from '../../hooks/useResponsive';
 import ConvertDocumentModal from './convertDocumentModal';
 import { parseLocalEmissionDateTime } from '../../utils/localDateTime';
@@ -31,6 +32,7 @@ interface IssuedDocument {
     id: string;
     order: string;
     status: string;
+    operationType?: string;
   };
   items: Array<{
     id: string;
@@ -97,6 +99,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   onRefetch
 }) => {
   const { user, deviceId, getMacAddress, getDeviceId } = useAuth();
+  const { hasPermission } = useUserPermissions();
   const { breakpoint } = useResponsive();
 
   const isSmall = propIsSmall ?? breakpoint === 'sm';
@@ -115,6 +118,8 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   const [printingDocId, setPrintingDocId] = useState<string | null>(null);
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [documentToConvert, setDocumentToConvert] = useState<IssuedDocument | null>(null);
+  const [reopenMessage, setReopenMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [reopeningDocId, setReopeningDocId] = useState<string | null>(null);
 
   // Actualizar documentos locales cuando cambien los props
   React.useEffect(() => {
@@ -160,6 +165,29 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   });
 
   // Mutación para cancelar documento
+  const [reopenOrderFromAnnulledDocument, { loading: reopening }] = useMutation(REOPEN_ORDER_FROM_ANNULLED_DOCUMENT, {
+    onCompleted: (data) => {
+      const r = data?.reopenOrderFromAnnulledDocument;
+      if (r?.success) {
+        setReopenMessage({ type: 'success', text: r.message || 'Orden reaperturada.' });
+        if (onRefetch) onRefetch();
+      } else {
+        setReopenMessage({ type: 'error', text: r?.message || 'No se pudo reaperturar la orden.' });
+      }
+      setReopeningDocId(null);
+      setTimeout(() => setReopenMessage(null), 5000);
+    },
+    onError: (err) => {
+      const msg =
+        err.graphQLErrors?.[0]?.message ||
+        (err as any).networkError?.result?.errors?.[0]?.message ||
+        err.message;
+      setReopenMessage({ type: 'error', text: msg || 'Error al reaperturar.' });
+      setReopeningDocId(null);
+      setTimeout(() => setReopenMessage(null), 5000);
+    }
+  });
+
   const [cancelDocument, { loading: canceling }] = useMutation(CANCEL_ISSUED_DOCUMENT, {
     onCompleted: (data) => {
       if (data.cancelIssuedDocument.success) {
@@ -274,6 +302,30 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   const canCancelDocument = (status: string): boolean => {
     const validStatuses = ['ACCEPTED', 'SENT', 'ACCEPTED_WITH_OBSERVATIONS'];
     return validStatuses.includes(status);
+  };
+
+  /** Misma lógica base que el backend (venta completada, comprobante anulado, permiso orders.edit). */
+  const canReopenAnnulledOrder = (doc: IssuedDocument): boolean => {
+    if (!hasPermission('orders.edit')) return false;
+    if (doc.billingStatus !== 'CANCELLED') return false;
+    if (!doc.operation?.id || doc.operation.status !== 'COMPLETED') return false;
+    const opType = doc.operation.operationType;
+    if (opType && opType !== 'SALE') return false;
+    return true;
+  };
+
+  const handleReopenOrder = (doc: IssuedDocument, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user?.id) return;
+    const msg =
+      '¿Reaperturar la orden de esta venta?\n\n' +
+      'Se anularán en caja los pagos vinculados a este comprobante (solo si no están en un cierre). La orden volverá a “en proceso” y, si hay mesa disponible, quedará ocupada de nuevo.';
+    if (!window.confirm(msg)) return;
+    setReopenMessage(null);
+    setReopeningDocId(doc.id);
+    reopenOrderFromAnnulledDocument({
+      variables: { issuedDocumentId: doc.id, userId: user.id }
+    });
   };
 
   // Motivos de cancelación válidos según SUNAT
@@ -449,6 +501,21 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
           }}
         >
           {printMessage.text}
+        </div>
+      )}
+      {reopenMessage && (
+        <div
+          style={{
+            padding: '0.625rem 1rem',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            background: reopenMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
+            border: `1px solid ${reopenMessage.type === 'success' ? '#86efac' : '#fca5a5'}`,
+            color: reopenMessage.type === 'success' ? '#166534' : '#991b1b',
+            fontSize: tableFontSize,
+          }}
+        >
+          {reopenMessage.text}
         </div>
       )}
       {/* Lista de documentos (el scroll está en el card del padre) */}
@@ -654,6 +721,40 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                         }}
                       >
                         Cancelar
+                      </button>
+                    )}
+                    {doc.billingStatus === 'CANCELLED' && canReopenAnnulledOrder(doc) && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleReopenOrder(doc, e)}
+                        disabled={reopening && reopeningDocId === doc.id}
+                        title="Reaperturar orden: revierte pagos en caja y deja la orden en proceso"
+                        style={{
+                          padding: '0.625rem 1rem',
+                          fontSize: '0.8125rem',
+                          fontWeight: 600,
+                          color: 'white',
+                          background: reopening && reopeningDocId === doc.id ? '#94a3b8' : '#d97706',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: reopening && reopeningDocId === doc.id ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.2s',
+                          minHeight: '40px',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!(reopening && reopeningDocId === doc.id)) {
+                            e.currentTarget.style.background = '#b45309';
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!(reopening && reopeningDocId === doc.id)) {
+                            e.currentTarget.style.background = '#d97706';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                          }
+                        }}
+                      >
+                        {reopening && reopeningDocId === doc.id ? '…' : 'Reaperturar orden'}
                       </button>
                     )}
                     {doc.billingStatus === 'CANCELLED' && (

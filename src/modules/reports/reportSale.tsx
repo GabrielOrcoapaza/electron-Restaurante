@@ -43,6 +43,7 @@ interface IssuedDocument {
     id: string;
     order: string;
     status: string;
+    operationType?: string;
   };
   items: Array<{
     id: string;

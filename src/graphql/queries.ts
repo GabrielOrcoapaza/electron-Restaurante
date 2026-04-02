@@ -948,6 +948,7 @@ export const GET_SALES_REPORT = gql`
           id
           order
           status
+          operationType
         }
         items {
           id

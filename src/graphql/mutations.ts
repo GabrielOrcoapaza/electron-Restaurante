@@ -1364,6 +1364,28 @@ export const CANCEL_ISSUED_DOCUMENT = gql`
   }
 `;
 
+/** Tras anular comprobante fiscal: revierte pagos en caja (sin cierre), orden a PROCESSING, mesa si aplica. Requiere permiso orders.edit en backend. */
+export const REOPEN_ORDER_FROM_ANNULLED_DOCUMENT = gql`
+  mutation ReopenOrderFromAnnulledDocument($issuedDocumentId: ID!, $userId: ID!) {
+    reopenOrderFromAnnulledDocument(issuedDocumentId: $issuedDocumentId, userId: $userId) {
+      success
+      message
+      operation {
+        id
+        order
+        status
+        operationType
+      }
+      table {
+        id
+        name
+        status
+        currentOperationId
+      }
+    }
+  }
+`;
+
 // Mutación para reimprimir documento (camelCase - por si el schema usa camelCase)
 export const REPRINT_DOCUMENT = gql`
   mutation ReprintDocument(
