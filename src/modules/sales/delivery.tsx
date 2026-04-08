@@ -91,7 +91,7 @@ const Delivery: React.FC = () => {
     const [selectedCashRegister, setSelectedCashRegister] = useState<string>('');
     const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
     const [paidAmount, setPaidAmount] = useState<string>('');
-    // Descuento: monto fijo (S/) y/o porcentaje (%)
+    // Descuento: solo uno a la vez — monto fijo (S/) o porcentaje (%)
     const [discountAmount, setDiscountAmount] = useState<number>(0);
     const [discountPercent, setDiscountPercent] = useState<number>(0);
     // Modal de información de pago (se abre al hacer click en Procesar Venta)
@@ -311,6 +311,21 @@ const Delivery: React.FC = () => {
         setCartItems(updatedItems);
     };
 
+    // Total de línea editable (S/): recalcula precio unitario = total / cantidad
+    const handleUpdateLineTotal = (itemId: string, rawValue: string) => {
+        const v = parseFloat(String(rawValue).replace(',', '.'));
+        const lineTotal = Math.max(0, Number.isFinite(v) ? Math.round(v * 100) / 100 : 0);
+        setCartItems(prev =>
+            prev.map(item => {
+                if (item.id !== itemId) return item;
+                const qty = Math.max(1, Number(item.quantity) || 1);
+                const unitPrice = Math.round((lineTotal / qty) * 100) / 100;
+                const alignedTotal = Math.round(unitPrice * qty * 100) / 100;
+                return { ...item, price: unitPrice, total: alignedTotal };
+            })
+        );
+    };
+
     // Función para eliminar ítem
     const handleRemoveItem = (itemId: string) => {
         setCartItems(cartItems.filter(item => item.id !== itemId));
@@ -365,9 +380,13 @@ const Delivery: React.FC = () => {
         setShowObservationModal(null);
     };
 
-    // Calcular totales (con descuento: monto fijo + porcentaje)
+    // Calcular totales (descuento: exclusivo — % o monto S/, no ambos)
     const cartTotalRaw = cartItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
-    const totalDiscount = Math.max(0, (Number(discountAmount) || 0) + (cartTotalRaw * (Number(discountPercent) || 0) / 100));
+    const pct = Number(discountPercent) || 0;
+    const totalDiscount = Math.max(
+        0,
+        pct > 0 ? cartTotalRaw * pct / 100 : (Number(discountAmount) || 0)
+    );
     const cartTotal = Math.max(0, cartTotalRaw - totalDiscount);
     const igvPercentageDecimal = igvPercentageFromBranch / 100;
     const subtotal = parseFloat((cartTotal / (1 + igvPercentageDecimal)).toFixed(2));
@@ -1158,16 +1177,39 @@ const Delivery: React.FC = () => {
                                                 )}
                                             </div>
 
-                                            {/* Precio total */}
-                                            <div style={{
-                                                fontWeight: 700,
-                                                color: '#2d3748',
-                                                fontSize: '0.75rem',
-                                                flexShrink: 0,
-                                                minWidth: '55px',
-                                                textAlign: 'right'
-                                            }}>
-                                                S/ {item.total.toFixed(2)}
+                                            {/* Total línea editable (S/) */}
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.15rem',
+                                                    flexShrink: 0,
+                                                    fontWeight: 700,
+                                                    color: '#2d3748',
+                                                    fontSize: '0.75rem'
+                                                }}
+                                                title="Importe total de la línea (S/)"
+                                            >
+                                                <span style={{ flexShrink: 0 }}>S/</span>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    step={0.01}
+                                                    value={item.total}
+                                                    onChange={(e) => handleUpdateLineTotal(item.id, e.target.value)}
+                                                    style={{
+                                                        width: isSmall ? '64px' : '72px',
+                                                        textAlign: 'right',
+                                                        border: '1px solid #cbd5e0',
+                                                        borderRadius: '4px',
+                                                        padding: '0.12rem 0.25rem',
+                                                        fontWeight: 700,
+                                                        fontSize: '0.75rem',
+                                                        background: 'white',
+                                                        color: '#2d3748',
+                                                        boxSizing: 'border-box'
+                                                    }}
+                                                />
                                             </div>
 
                                             {/* Acciones */}
@@ -1213,7 +1255,7 @@ const Delivery: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Descuento (S/) y (%) */}
+                    {/* Descuento (S/) o (%): solo uno activo */}
                     <div style={{
                         display: 'flex',
                         gap: '0.5rem',
@@ -1227,15 +1269,24 @@ const Delivery: React.FC = () => {
                                 min={0}
                                 step={0.01}
                                 value={discountAmount || ''}
-                                onChange={(e) => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                                disabled={pct > 0}
+                                onChange={(e) => {
+                                    const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                    setDiscountAmount(v);
+                                    if (v > 0) setDiscountPercent(0);
+                                }}
                                 placeholder="0"
+                                title={pct > 0 ? 'Quite el descuento (%) para usar monto en soles' : 'Descuento fijo en soles'}
                                 style={{
                                     width: '100%',
                                     padding: '0.35rem 0.4rem',
                                     border: '1px solid #e2e8f0',
                                     borderRadius: '6px',
                                     fontSize: '0.75rem',
-                                    boxSizing: 'border-box'
+                                    boxSizing: 'border-box',
+                                    opacity: pct > 0 ? 0.55 : 1,
+                                    cursor: pct > 0 ? 'not-allowed' : 'text',
+                                    background: pct > 0 ? '#f1f5f9' : 'white'
                                 }}
                             />
                         </div>
@@ -1247,15 +1298,24 @@ const Delivery: React.FC = () => {
                                 max={100}
                                 step={0.5}
                                 value={discountPercent || ''}
-                                onChange={(e) => setDiscountPercent(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                                disabled={(Number(discountAmount) || 0) > 0}
+                                onChange={(e) => {
+                                    const v = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                                    setDiscountPercent(v);
+                                    if (v > 0) setDiscountAmount(0);
+                                }}
                                 placeholder="0"
+                                title={(Number(discountAmount) || 0) > 0 ? 'Quite el descuento en soles para usar porcentaje' : 'Descuento porcentual sobre el subtotal del carrito'}
                                 style={{
                                     width: '100%',
                                     padding: '0.35rem 0.4rem',
                                     border: '1px solid #e2e8f0',
                                     borderRadius: '6px',
                                     fontSize: '0.75rem',
-                                    boxSizing: 'border-box'
+                                    boxSizing: 'border-box',
+                                    opacity: (Number(discountAmount) || 0) > 0 ? 0.55 : 1,
+                                    cursor: (Number(discountAmount) || 0) > 0 ? 'not-allowed' : 'text',
+                                    background: (Number(discountAmount) || 0) > 0 ? '#f1f5f9' : 'white'
                                 }}
                             />
                         </div>

@@ -289,7 +289,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     const unitPrice = Number(detail.unitPrice) || 0;
     return sum + (quantity * unitPrice);
   }, 0);
-  const totalDiscount = Math.max(0, (Number(discountAmount) || 0) + (total * (Number(discountPercent) || 0) / 100));
+  const discountPct = Number(discountPercent) || 0;
+  const totalDiscount = Math.max(0, discountPct > 0 ? total * discountPct / 100 : (Number(discountAmount) || 0));
   const totalToPay = Math.max(0, total - totalDiscount);
   const igvDecimal = igvPercentage / 100;
   const subtotal = parseFloat((Math.round((totalToPay / (1 + igvDecimal)) * 100) / 100).toFixed(2));
@@ -664,7 +665,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         const unitPrice = Number(detail.unitPrice) || 0;
         return sum + (quantity * unitPrice);
       }, 0);
-      const paymentTotalDiscount = Math.max(0, (Number(discountAmount) || 0) + (rawPaymentTotal * (Number(discountPercent) || 0) / 100));
+      const payPct = Number(discountPercent) || 0;
+      const paymentTotalDiscount = Math.max(0, payPct > 0 ? rawPaymentTotal * payPct / 100 : (Number(discountAmount) || 0));
       const paymentTotal = Math.max(0, rawPaymentTotal - paymentTotalDiscount);
       const igvDecimal = igvPercentage / 100;
       const paymentSubtotal = parseFloat((Math.round((paymentTotal / (1 + igvDecimal)) * 100) / 100).toFixed(2));
@@ -1134,9 +1136,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button onClick={() => setShowChangeTableModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', width: '150px' }}>Mesa</button>
-          <button onClick={() => setShowTransferPlatesModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', width: '150px' }}>Transferir</button>
-          <button onClick={() => setShowChangeUserModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', width: '150px' }}>Mozo</button>
+          <button onClick={() => setShowChangeTableModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#00BFFF', color: 'white', border: 'none', borderRadius: '4px', width: '150px' }}>Cambio de  Mesa</button>
+          <button onClick={() => setShowTransferPlatesModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#808080', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', width: '150px' }}>Transferir platos</button>
+          <button onClick={() => setShowChangeUserModal(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#E9967A', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', width: '150px' }}>Cambio deMozo</button>
           <button onClick={handlePrecuenta} disabled={!operation || operation.status === 'COMPLETED' || isProcessing} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', width: '150px', opacity: (!operation || operation.status === 'COMPLETED' || isProcessing) ? 0.6 : 1 }}>Precuenta</button>
           <button onClick={() => refetch()} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Refrescar</button>
         </div>
@@ -1144,7 +1146,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
       <section style={{ flexShrink: 0, background: 'white', padding: '0.5rem 1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '1rem', alignItems: 'center' }}>
         <div style={{ flex: 1, display: 'flex', gap: '0.4rem', position: 'relative' }}>
-          <div style={{ flex: 1, display: 'flex', border: '1px solid #cbd5e0', borderRadius: '4px', overflow: 'hidden', backgroundColor: 'white' }}>
+          <div style={{ flex: 1, display: 'flex', border: '1px solid #cbd5e0', borderRadius: '4px', overflow: 'hidden', backgroundColor: 'white', height:'50px' }}>
             <input 
               type="text" 
               placeholder="Buscar cliente (DNI/RUC). Factura: selecciona cliente con RUC antes de cobrar."
@@ -1206,9 +1208,56 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           <div style={{ padding: '0.5rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>Descuentos:</div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input type="number" placeholder="Desc S/" value={discountAmount || ''} onChange={e => setDiscountAmount(Number(e.target.value))} style={{ width: '200px', padding: '0.3rem', fontSize: '0.8rem', border: '1px solid #cbd5e0', borderRadius: '4px' }} title="Descuento Fijo (S/)" />
-                <input type="number" placeholder="Desc %" value={discountPercent || ''} onChange={e => setDiscountPercent(Number(e.target.value))} style={{ width: '200px', padding: '0.3rem', fontSize: '0.8rem', border: '1px solid #cbd5e0', borderRadius: '4px' }} title="Descuento Porcentual (%)" />
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <input
+                  type="number"
+                  placeholder="Desc S/"
+                  min={0}
+                  step={0.01}
+                  value={discountAmount || ''}
+                  disabled={discountPct > 0}
+                  onChange={e => {
+                    const v = Math.max(0, parseFloat(e.target.value) || 0);
+                    setDiscountAmount(v);
+                    if (v > 0) setDiscountPercent(0);
+                  }}
+                  style={{
+                    width: '200px',
+                    padding: '0.3rem',
+                    fontSize: '0.8rem',
+                    border: '1px solid #cbd5e0',
+                    borderRadius: '4px',
+                    opacity: discountPct > 0 ? 0.55 : 1,
+                    cursor: discountPct > 0 ? 'not-allowed' : 'text',
+                    background: discountPct > 0 ? '#f1f5f9' : 'white'
+                  }}
+                  title={discountPct > 0 ? 'Quite el descuento (%) para usar monto en soles' : 'Descuento fijo (S/)'}
+                />
+                <input
+                  type="number"
+                  placeholder="Desc %"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={discountPercent || ''}
+                  disabled={(Number(discountAmount) || 0) > 0}
+                  onChange={e => {
+                    const v = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                    setDiscountPercent(v);
+                    if (v > 0) setDiscountAmount(0);
+                  }}
+                  style={{
+                    width: '200px',
+                    padding: '0.3rem',
+                    fontSize: '0.8rem',
+                    border: '1px solid #cbd5e0',
+                    borderRadius: '4px',
+                    opacity: (Number(discountAmount) || 0) > 0 ? 0.55 : 1,
+                    cursor: (Number(discountAmount) || 0) > 0 ? 'not-allowed' : 'text',
+                    background: (Number(discountAmount) || 0) > 0 ? '#f1f5f9' : 'white'
+                  }}
+                  title={(Number(discountAmount) || 0) > 0 ? 'Quite el descuento en soles para usar porcentaje' : 'Descuento porcentual (%)'}
+                />
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
