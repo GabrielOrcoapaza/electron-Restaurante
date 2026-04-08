@@ -238,6 +238,21 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     } catch (error) { console.warn(error); }
   };
 
+  /** Comprobantes que ya no deben restar cantidad “facturada” (reapertura tras anulación, etc.). */
+  const isIssuedItemActiveForDebt = (item: any): boolean => {
+    const st = item?.issuedDocument?.billingStatus;
+    if (st == null) return true;
+    const excluded = new Set([
+      'CANCELLED',
+      'PROCESSING_CANCELLATION',
+      'CANCELLATION_PENDING',
+      'CANCELLATION_ERROR',
+      'REJECTED',
+      'ERROR'
+    ]);
+    return !excluded.has(String(st).toUpperCase());
+  };
+
   const filterCanceledDetails = (details: any[], operationId?: string) => {
     if (!details || !Array.isArray(details)) return [];
     const facturedItemsMap = operationId ? getFacturedItemsFromStorage(operationId) : new Map<string, number>();
@@ -248,7 +263,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       const detailId = String(detail.id);
       const originalQuantity = Number(detail.quantity) || 0;
       const paidFromStorage = facturedItemsMap.get(detailId);
-      const quantityFacturedBackend = (detail.issuedItems || []).reduce((sum: number, item: any) => sum + (Number(item.quantity) || 0), 0);
+      const quantityFacturedBackend = (detail.issuedItems || [])
+        .filter(isIssuedItemActiveForDebt)
+        .reduce((sum: number, item: any) => sum + (Number(item.quantity) || 0), 0);
       let remainingQty: number;
       if (detailId.includes('-split-')) {
         remainingQty = originalQuantity;
@@ -1113,7 +1130,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer' }}>←</button>
           <div>
             <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Mesa: {table.name}</div>
-            <div style={{ fontWeight: 800 }}>Orden #{operation?.orderNumber || '...'}</div>
+            <div style={{ fontWeight: 800 }}>Orden #{operation?.order ?? '...'}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1209,7 +1226,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             <div style={{ fontSize: '1.5rem', fontWeight: 900 }}>{currencyFormatter.format(totalToPay)}</div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}><span style={{ fontSize: '0.8rem', fontWeight: 800 }}>PAGOS</span><button onClick={addPayment} style={{ fontSize: '0.7rem' }}>+ Pago</button></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}><span style={{ fontSize: '0.8rem', fontWeight: 800 }}>PAGOS</span><button onClick={addPayment} style={{ fontSize: '1.0rem' }}>+ Pago</button></div>
             {payments.map(p => (
               <div key={p.id} style={{ border: '1px solid #e2e8f0', padding: '0.4rem', marginBottom: '0.4rem', borderRadius: '4px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>

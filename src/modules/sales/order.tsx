@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -12,10 +12,15 @@ import ModalObservation from './modalObservation';
 import CategoryIcon from '../../components/CategoryIcon';
 import VirtualKeyboard from '../../components/VirtualKeyboard';
 
+export type OrderSuccessPayload = {
+	operationId: string | number;
+	operationDate?: string | null;
+};
+
 type OrderProps = {
 	table: Table;
 	onClose: () => void;
-	onSuccess?: () => void; // Callback opcional para cuando se guarde exitosamente
+	onSuccess?: (payload?: OrderSuccessPayload) => void;
 	onOpenCash?: (table: Table) => void;
 };
 
@@ -373,6 +378,25 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 	const existingOperation = existingOperationData?.operationByTable || existingOperationData?.operationById;
 	// Solo mostrar loading si hay selección, hay una orden existente, está cargando y no se ha inicializado
 	const isLoadingExistingOrder = hasSelection && isExistingOrder && existingOperationLoading && !initializedFromExistingOrder;
+
+	const resolvedFloorName = useMemo(() => {
+		if (table.floorName) return table.floorName;
+		const floors = companyData?.branch?.floors;
+		if (!floors?.length || !table?.id) return null;
+		for (const f of floors) {
+			if (f.tables?.some((t) => String(t.id) === String(table.id))) return f.name;
+		}
+		return null;
+	}, [table.floorName, table.id, companyData?.branch?.floors]);
+
+	const waiterDisplayName =
+		existingOperation?.user?.fullName ||
+		table.userName ||
+		(isLoadingExistingOrder ? '...' : null);
+
+	/** Encabezado: orden existente → mozo de la operación; orden nueva → usuario actual o mesa ocupada. */
+	const headerWaiterName =
+		(isExistingOrder ? waiterDisplayName : user?.fullName || table.userName || null) ?? null;
 
 	// Función para agregar producto a la orden
 	const handleAddProduct = (productIdToAdd?: string, qtyToAdd?: number) => {
@@ -744,7 +768,11 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 
 				if (result.data?.addItemsToOperation?.success) {
 					if (onSuccess) {
-						onSuccess();
+						const opId = existingOperation?.id ?? operationId;
+						onSuccess({
+							operationId: opId,
+							operationDate: existingOperation?.operationDate ?? null
+						});
 					}
 
 					setInitializedFromExistingOrder(false);
@@ -954,7 +982,13 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 				}
 
 				if (onSuccess) {
-					onSuccess();
+					const newOpId = result.data.createOperation.operation?.id;
+					if (newOpId != null && newOpId !== '') {
+						onSuccess({
+							operationId: newOpId,
+							operationDate: result.data.createOperation.operation?.operationDate ?? null
+						});
+					}
 				}
 				setTimeout(() => {
 					onClose();
@@ -1166,37 +1200,33 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 					<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.5rem' : '0.75rem', flexWrap: 'wrap' }}>
 						<div style={{
 							backgroundColor: 'rgba(255,255,255,0.15)',
-							borderRadius: isSmall ? '8px' : '12px',
-							padding: isSmall ? '0.25rem 0.5rem' : '0.35rem 0.6rem',
-							fontWeight: 700,
-							fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem'
+							borderRadius: 12,
+							padding: '0.35rem 0.75rem',
+							fontWeight: 600,
+							fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1.05rem'
 						}}>
+							Piso {resolvedFloorName ?? '—'}
 						</div>
-						<h3 style={{ margin: 0, fontSize: isSmall ? '1rem' : isMedium ? '1.15rem' : '1.35rem', fontWeight: 800 }}>Mesa {table.name.replace('MESA ', '')}</h3>
-						{isExistingOrder && (
-							<>
-								<span style={{ opacity: 0.9, fontSize: isSmall ? '0.75rem' : '1.15rem' }}>•</span>
-								<div style={{
-									backgroundColor: 'rgba(255,255,255,0.15)',
-									borderRadius: 12,
-									padding: '0.35rem 0.75rem',
-									fontWeight: 600,
-									fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1.05rem'
-								}}>
-									Orden #{existingOperation?.order ?? (isLoadingExistingOrder ? '...' : '—')}
-								</div>
-								<span style={{ opacity: 0.9, fontSize: isSmall ? '0.75rem' : '1.15rem' }}>•</span>
-								<div style={{
-									backgroundColor: 'rgba(255,255,255,0.15)',
-									borderRadius: 12,
-									padding: '0.35rem 0.75rem',
-									fontWeight: 600,
-									fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1.05rem'
-								}}>
-									Estado {existingOperation?.status ?? (isLoadingExistingOrder ? '...' : '—')}
-								</div>
-							</>
-						)}
+						<span style={{ opacity: 0.9, fontSize: isSmall ? '0.75rem' : '1.15rem' }}>•</span>
+						<div style={{
+							backgroundColor: 'rgba(255,255,255,0.15)',
+							borderRadius: 12,
+							padding: '0.35rem 0.75rem',
+							fontWeight: 700,
+							fontSize: isSmall ? '0.8rem' : isMedium ? '0.95rem' : '1.1rem'
+						}}>
+							Mesa {table.name.replace('MESA ', '')}
+						</div>
+						<span style={{ opacity: 0.9, fontSize: isSmall ? '0.75rem' : '1.15rem' }}>•</span>
+						<div style={{
+							backgroundColor: 'rgba(255,255,255,0.15)',
+							borderRadius: 12,
+							padding: '0.35rem 0.75rem',
+							fontWeight: 600,
+							fontSize: isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1.05rem'
+						}}>
+							{headerWaiterName ?? '—'}
+						</div>
 					</div>
 					<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.5rem' : '0.65rem', flexWrap: 'wrap' }}>
 						{onOpenCash && canNavigateToCashPay && (

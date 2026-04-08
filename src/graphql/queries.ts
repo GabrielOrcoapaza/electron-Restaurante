@@ -181,6 +181,10 @@ export const GET_TABLES_BY_FLOOR = gql`
       status
       statusColors
       currentOperationId
+      currentOperation {
+        id
+        operationDate
+      }
       occupiedById
       userName
       isActive
@@ -949,6 +953,10 @@ export const GET_SALES_REPORT = gql`
           order
           status
           operationType
+          table {
+            id
+            name
+          }
         }
         items {
           id

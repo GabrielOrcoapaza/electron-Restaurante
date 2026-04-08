@@ -7,7 +7,53 @@ import { useWebSocket } from '../../context/WebSocketContext';
 import { useToast } from '../../context/ToastContext';
 import type { Table, ProcessedTableColors } from '../../types/table';
 import { GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries';
-import Order from './order';
+import Order, { type OrderSuccessPayload } from './order';
+
+const FLOOR_ORDER_START_STORAGE_PREFIX = 'appsuma:floorOrderStart:v1';
+
+function floorOrderStartStorageKey(branchId: string, operationId: string | number): string {
+  return `${FLOOR_ORDER_START_STORAGE_PREFIX}:${branchId}:${String(operationId)}`;
+}
+
+function getOrderStartedAtIso(table: Table, branchId: string | undefined): string | null {
+  if (!branchId || !table.currentOperationId) return null;
+  const fromApi = table.currentOperation?.operationDate;
+  if (fromApi) return fromApi;
+  try {
+    return localStorage.getItem(floorOrderStartStorageKey(branchId, table.currentOperationId));
+  } catch {
+    return null;
+  }
+}
+
+function persistOrderStart(branchId: string, payload: OrderSuccessPayload): void {
+  const opId = payload.operationId;
+  if (opId == null || opId === '') return;
+  const iso = payload.operationDate || new Date().toISOString();
+  try {
+    localStorage.setItem(floorOrderStartStorageKey(branchId, opId), iso);
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function tableShowsOrderTimer(table: Table): boolean {
+  if (!table.currentOperationId) return false;
+  if (table.status === 'AVAILABLE' || table.status === 'MAINTENANCE') return false;
+  return table.status === 'OCCUPIED' || table.status === 'TO_PAY' || table.status === 'IN_PROCESS';
+}
+
+function formatElapsedShort(fromMs: number, nowMs: number): string {
+  const elapsed = Math.max(0, nowMs - fromMs);
+  const totalSec = Math.floor(elapsed / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 
 type FloorProps = {
   onOpenCash?: (table: Table) => void;
@@ -85,6 +131,12 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showOrder, setShowOrder] = useState(false);
+  const [orderTimerTick, setOrderTimerTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setOrderTimerTick(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   // Obtener pisos de la sucursal
   const { data: floorsData, loading: floorsLoading, error: floorsError } = useQuery(GET_FLOORS_BY_BRANCH, {
@@ -212,7 +264,11 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
       return;
     }
     
-    setSelectedTable(table);
+    const floorRec = floorsData?.floorsByBranch?.find((f: { id: string }) => f.id === selectedFloorId);
+    setSelectedTable({
+      ...table,
+      ...(floorRec?.name ? { floorName: String(floorRec.name) } : {})
+    });
     const hasExistingOrder = Boolean(table.currentOperationId) || table.status === 'OCCUPIED' || table.status === 'TO_PAY';
     
     // Solo para mozos: nunca mostrar el modal Orden/Caja, ir siempre directo a order.tsx
@@ -612,6 +668,18 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
               // Determinar si la mesa es redonda (ROUND del backend o CIRCLE)
               const tableShape = table.shape as string;
               const isRoundTable = tableShape === 'ROUND' || tableShape === 'CIRCLE';
+
+              let orderTimerLabel: string | null = null;
+              if (tableShowsOrderTimer(table)) {
+                const startIso = getOrderStartedAtIso(table, companyData?.branch?.id);
+                if (startIso) {
+                  const startMs = new Date(startIso).getTime();
+                  if (!Number.isNaN(startMs)) {
+                    orderTimerLabel = formatElapsedShort(startMs, orderTimerTick);
+                  }
+                }
+              }
+
               return (
                 <div
                   key={table.id}
@@ -693,6 +761,28 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                    table.status === 'IN_PROCESS' ? 'Proc' :
                    table.status === 'MAINTENANCE' ? 'Mant' : '?'}
                 </div>
+
+                {orderTimerLabel != null && (
+                    <div
+                      title="Tiempo desde la apertura de la orden"
+                      style={{
+                        marginTop: isNarrowScreen ? '0.2rem' : '0.25rem',
+                        fontSize: isNarrowScreen ? '0.72rem' : isMedium ? '0.68rem' : isSmallDesktop ? '0.68rem' : '0.75rem',
+                        fontWeight: 700,
+                        fontVariantNumeric: 'tabular-nums',
+                        letterSpacing: '0.02em',
+                        color: colors.textColor,
+                        backgroundColor: 'rgba(255,255,255,0.35)',
+                        padding: isNarrowScreen ? '0.12rem 0.35rem' : '0.14rem 0.4rem',
+                        borderRadius: '6px',
+                        lineHeight: 1.2,
+                        border: `1px solid ${colors.borderColor}`,
+                        textShadow: '0 1px 1px rgba(255,255,255,0.6)'
+                      }}
+                    >
+                      ⏱ {orderTimerLabel}
+                    </div>
+                )}
                 
                 {/* Solo mostrar el nombre del mozo si la mesa NO está disponible */}
                 {table.userName && table.status !== 'AVAILABLE' && (
@@ -863,7 +953,10 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             setShowOrder(false);
             setSelectedTable(null);
           }}
-          onSuccess={async () => {
+          onSuccess={async (payload) => {
+            if (payload && companyData?.branch?.id) {
+              persistOrderStart(companyData.branch.id, payload);
+            }
             showToast(`Orden guardada exitosamente. La mesa ${selectedTable.name} ha sido actualizada.`, 'success');
             // Refetch inmediato de las mesas para actualizar colores
             console.log('🔄 Refetch inmediato de mesas después de guardar orden');

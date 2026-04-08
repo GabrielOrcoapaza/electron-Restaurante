@@ -33,6 +33,10 @@ interface IssuedDocument {
     order: string;
     status: string;
     operationType?: string;
+    table?: {
+      id: string;
+      name: string;
+    } | null;
   };
   items: Array<{
     id: string;
@@ -610,6 +614,11 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                   )}
                   <div style={{ fontSize: tableFontSize, color: '#64748b', marginTop: '0.25rem' }}>
                     Usuario: {doc.user.fullName}
+                    {doc.operation?.table?.name ? (
+                      <span style={{ marginLeft: '0.5rem', color: '#475569' }}>
+                        · Mesa: {doc.operation.table.name}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
 

@@ -18,7 +18,7 @@ export interface ProcessedTableColors {
 export type TableStatus = 'AVAILABLE' | 'OCCUPIED' | 'TO_PAY' | 'IN_PROCESS' | 'MAINTENANCE';
 
 // Tipos para las formas de mesa (coinciden con TABLE_SHAPES del modelo Django)
-export  type TableShape = 'ROUND' | 'SQUARE' | 'CIRCLE' | 'RECTANGLE'; 
+export  type TableShape = 'ROUND' | 'SQUARE' | 'CIRCLE' | 'RECTANGLE';
 
 // Tipos para las mesas
 export interface Table {
@@ -31,6 +31,13 @@ export interface Table {
   status: TableStatus;
   statusColors: string | TableStatusColors; // Puede ser JSON string o objeto
   currentOperationId?: number;
+  /** Nombre del piso (p. ej. rellenado al abrir la orden desde Floor). */
+  floorName?: string;
+  /** Resumen de la operación activa (p. ej. desde tablesByFloor → currentOperation). */
+  currentOperation?: {
+    id?: string;
+    operationDate?: string | null;
+  } | null;
   occupiedById?: number;
   userName?: string;
 }

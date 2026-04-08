@@ -152,6 +152,8 @@ const Kardex: React.FC = () => {
   });
 
   const movements: StockMovement[] = data?.stockMovementsReport?.movements ?? [];
+  const openingBalances: { stockId: string; productId: string; openingQuantity: number }[] =
+    data?.stockMovementsReport?.openingBalances ?? [];
 
   // Extraer stock objetivo del motivo cuando viene "X -> Y" (ej. "1.0000 -> 100.0")
   const getAdjustmentTargetFromReason = (reason: string | null | undefined): number | null => {
@@ -165,17 +167,23 @@ const Kardex: React.FC = () => {
     return Number.isNaN(n) ? null : n;
   };
 
-  // Saldo después de cada movimiento POR PRODUCTO (cada producto tiene su propio balance)
+  // Saldo después de cada movimiento por stock (saldo inicial = openingQuantity antes de startDate)
   const balanceAfterMovementId: Record<string, number> = (() => {
     const map: Record<string, number> = {};
     const sorted = [...movements].sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
-    const balanceByProduct: Record<string, number> = {};
+    const balanceByStock: Record<string, number> = {};
+    for (const ob of openingBalances) {
+      const sid = String(ob.stockId ?? '');
+      if (!sid) continue;
+      const q = Number(ob.openingQuantity);
+      balanceByStock[sid] = Number.isNaN(q) ? 0 : q;
+    }
 
     for (const m of sorted) {
-      const productId = m.productId || '';
-      let balance = balanceByProduct[productId] ?? 0;
+      const stockId = String(m.stockId || '');
+      let balance = balanceByStock[stockId] ?? 0;
       const q = Number(m.quantity) || 0;
       switch ((m.movementType || '').toUpperCase()) {
         case 'IN':
@@ -195,7 +203,7 @@ const Kardex: React.FC = () => {
         default:
           balance += q;
       }
-      balanceByProduct[productId] = balance;
+      balanceByStock[stockId] = balance;
       map[m.id] = balance;
     }
     return map;

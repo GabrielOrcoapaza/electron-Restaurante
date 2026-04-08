@@ -44,6 +44,10 @@ interface IssuedDocument {
     order: string;
     status: string;
     operationType?: string;
+    table?: {
+      id: string;
+      name: string;
+    } | null;
   };
   items: Array<{
     id: string;
