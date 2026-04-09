@@ -73,6 +73,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [selectedTransferTableId, setSelectedTransferTableId] = useState<string>('');
   const [showCancelOperationModal, setShowCancelOperationModal] = useState(false);
   const [cancellationReason, setCancellationReason] = useState<string>('');
+  const [pendingDeleteItem, setPendingDeleteItem] = useState<{
+    detailId: string;
+    originalId: string;
+    isSplit: boolean;
+    productLabel: string;
+  } | null>(null);
+  const [isRemovingItem, setIsRemovingItem] = useState(false);
 
   const {
     data,
@@ -377,16 +384,26 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   }, [table?.id]);
 
   const handleSplitItem = (detailId: string) => {
+    const idx = modifiedDetails.findIndex((d: any) => String(d.id) === String(detailId));
+    if (idx === -1) return;
+    const d = modifiedDetails[idx];
+    const q = Number(d.quantity) || 0;
+    if (q <= 1) {
+      showToast('No se puede dividir: la cantidad debe ser mayor a 1.', 'warning');
+      return;
+    }
     const splitDetailId = `${detailId}-split-${Date.now()}`;
+    const productLabel = d.productName || 'Producto';
+    showToast(`Se separó 1 unidad de "${productLabel}" para cobrar aparte.`, 'info');
     setModifiedDetails(prev => {
-      const idx = prev.findIndex((d: any) => String(d.id) === String(detailId));
-      if (idx === -1) return prev;
-      const d = prev[idx];
-      const q = Number(d.quantity) || 0;
-      if (q <= 1) return prev;
+      const i = prev.findIndex((row: any) => String(row.id) === String(detailId));
+      if (i === -1) return prev;
+      const row = prev[i];
+      const qty = Number(row.quantity) || 0;
+      if (qty <= 1) return prev;
       const next = [...prev];
-      next[idx] = { ...d, quantity: q - 1, remainingQuantity: q - 1 };
-      next.splice(idx + 1, 0, { ...d, id: splitDetailId, originalDetailId: detailId, quantity: 1, remainingQuantity: 1 });
+      next[i] = { ...row, quantity: qty - 1, remainingQuantity: qty - 1 };
+      next.splice(i + 1, 0, { ...row, id: splitDetailId, originalDetailId: detailId, quantity: 1, remainingQuantity: 1 });
       setItemAssignments(p => ({ ...p, [detailId]: true, [splitDetailId]: true }));
       return next;
     });
@@ -411,23 +428,45 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     setItemAssignments(p => { const n = { ...p }; if (n[id]) delete n[id]; else n[id] = true; return n; });
   };
 
-  const handleDeleteItem = async (detailId: string) => {
+  const handleDeleteItem = (detailId: string) => {
     if (!canVoidInCashPay) {
       showToast('No tienes permiso para quitar ítems de la orden en caja.', 'error');
       return;
     }
     const isSplit = detailId?.includes('-split');
     const originalId = isSplit ? detailId.split('-split')[0] : detailId;
+    const row = detailsToUse.find((d: any) => String(d.id) === String(detailId));
+    const productLabel = row?.productName || 'este producto';
+    setPendingDeleteItem({ detailId, originalId, isSplit, productLabel });
+  };
+
+  const handleConfirmRemoveItem = async () => {
+    if (!pendingDeleteItem || !user?.id) return;
+    const { originalId, isSplit } = pendingDeleteItem;
+    setIsRemovingItem(true);
     try {
       const mac = await getMacAddress();
       const res = await cancelOperationDetailMutation({
-        variables: { detailId: originalId, quantity: isSplit ? 1 : undefined, userId: user?.id, deviceId: mac }
+        variables: { detailId: originalId, quantity: isSplit ? 1 : undefined, userId: user.id, deviceId: mac }
       });
       if (res.data?.cancelOperationDetail?.success) {
+        showToast(isSplit ? 'Se quitó 1 unidad del pedido.' : 'Plato quitado del pedido.', 'success');
+        setPendingDeleteItem(null);
         await refetch();
         if (onPaymentSuccess) onPaymentSuccess();
+      } else {
+        showToast(res.data?.cancelOperationDetail?.message || 'No se pudo quitar el ítem.', 'error');
       }
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      console.error(e);
+      showToast(e?.message || 'Error al quitar el ítem.', 'error');
+    } finally {
+      setIsRemovingItem(false);
+    }
+  };
+
+  const closeDeleteItemModal = () => {
+    if (!isRemovingItem) setPendingDeleteItem(null);
   };
 
   const getDeviceIdOrMac = async (): Promise<string> => {
@@ -1123,6 +1162,17 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const contextUsers = (companyData?.branch?.users || []).filter((u: any) => u.isActive !== false);
   const availableUsers = showChangeUserModal ? (serverUsers.length > 0 ? serverUsers : contextUsers) : contextUsers;
 
+  const resolvedFloorName = useMemo(() => {
+    if (!table) return null;
+    if (table.floorName) return table.floorName;
+    const floors = companyData?.branch?.floors;
+    if (!floors?.length) return null;
+    for (const f of floors) {
+      if (f.tables?.some((t: any) => String(t.id) === String(table.id))) return f.name;
+    }
+    return null;
+  }, [table, companyData?.branch?.floors]);
+
   if (!table) return null;
 
   return (
@@ -1131,8 +1181,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer' }}>←</button>
           <div>
-            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Mesa: {table.name}</div>
-            <div style={{ fontWeight: 800 }}>Orden #{operation?.order ?? '...'}</div>
+            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Piso: {resolvedFloorName ?? '—'}</div>
+            <div style={{ fontWeight: 800 }}>{table.name}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1196,10 +1246,10 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 <div style={{ textAlign: 'right' }}>{currencyFormatter.format(d.unitPrice)}</div>
                 <div style={{ textAlign: 'right', fontWeight: 700 }}>{currencyFormatter.format(d.quantity * d.unitPrice)}</div>
                 <div style={{ textAlign: 'center' }}>
-                  {d.quantity > 1 && !String(d.id).includes('-split') && <button onClick={() => handleSplitItem(d.id)} style={{ fontSize: '0.6rem' }}>✂️</button>}
+                  {d.quantity > 1 && !String(d.id).includes('-split') && <button onClick={() => handleSplitItem(d.id)} style={{ fontSize: '1.1rem' }}>✂️</button>}
                   {String(d.id).includes('-split') && <button onClick={() => handleMergeItem(d.id)} style={{ fontSize: '0.6rem' }}>🔗</button>}
                   {canVoidInCashPay && (
-                    <button type="button" onClick={() => handleDeleteItem(d.id)} style={{ fontSize: '0.6rem' }} title="Quitar ítem">🗑️</button>
+                    <button type="button" onClick={() => handleDeleteItem(d.id)} style={{ fontSize: '1.1rem' }} title="Quitar ítem">🗑️</button>
                   )}
                 </div>
               </div>
@@ -1211,7 +1261,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <input
                   type="number"
-                  placeholder="Desc S/"
+                  placeholder="Desc S/" 
                   min={0}
                   step={0.01}
                   value={discountAmount || ''}
@@ -1392,6 +1442,57 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button onClick={() => setShowChangeUserModal(false)} style={{ flex: 1 }}>Cerrar</button>
               <button onClick={handleChangeUser} style={{ flex: 1 }}>Cambiar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteItem && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-item-modal-title"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={closeDeleteItemModal}
+        >
+          <div
+            style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', width: 'min(380px, calc(100vw - 2rem))', boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 id="delete-item-modal-title" style={{ margin: '0 0 0.75rem', fontSize: '1.05rem', color: '#0f172a' }}>Quitar producto</h3>
+            <p style={{ margin: '0 0 1.25rem', fontSize: '0.875rem', lineHeight: 1.5, color: '#475569' }}>
+              {pendingDeleteItem.isSplit ? (
+                <>¿Quitar <strong>1 unidad</strong> de «{pendingDeleteItem.productLabel}» de la orden?</>
+              ) : (
+                <>¿Quitar por completo «<strong>{pendingDeleteItem.productLabel}</strong>» de la orden?</>
+              )}
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={closeDeleteItemModal}
+                disabled={isRemovingItem}
+                style={{ flex: 1, padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'white', cursor: isRemovingItem ? 'not-allowed' : 'pointer', fontWeight: 600 }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemoveItem}
+                disabled={isRemovingItem}
+                style={{
+                  flex: 1,
+                  padding: '0.5rem',
+                  border: 'none',
+                  borderRadius: '6px',
+                  background: isRemovingItem ? '#94a3b8' : '#dc2626',
+                  color: 'white',
+                  cursor: isRemovingItem ? 'not-allowed' : 'pointer',
+                  fontWeight: 700
+                }}
+              >
+                {isRemovingItem ? 'Quitando…' : 'Quitar'}
+              </button>
             </div>
           </div>
         </div>
