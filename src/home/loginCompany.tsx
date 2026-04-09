@@ -12,6 +12,7 @@ const LoginCompany: React.FC = () => {
   const { loginCompany, getMacAddress } = useAuth();
   const { isMobile, isTablet } = useResponsive();
   const { showToast } = useToast();
+  const isElectron = navigator.userAgent.toLowerCase().includes('electron');
   
   const [formData, setFormData] = useState({
     ruc: '',
@@ -181,6 +182,24 @@ const LoginCompany: React.FC = () => {
             <div className="form-header">
               <h2>Bienvenido</h2>
               <p>Ingresa los datos de tu empresa para comenzar</p>
+              {!isElectron && (
+                <button 
+                  type="button" 
+                  onClick={() => navigate('/')} 
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--primary)',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    marginTop: '1rem',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  ← Volver al inicio
+                </button>
+              )}
             </div>
 
             {/* Mac Address Mobile Only */}

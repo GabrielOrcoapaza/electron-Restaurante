@@ -4,7 +4,10 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LoginCompany from './home/loginCompany';
 import Login from './home/login';
 import Dashboard from './components/Dashboard';
+import LandingPage from './home/landing/LandingPage';
 import './App.css';
+
+const isElectron = navigator.userAgent.toLowerCase().includes('electron');
 
 // Componente interno que necesita acceso al AuthContext
 const AppRoutes = () => {
@@ -21,6 +24,14 @@ const AppRoutes = () => {
     return <Navigate to="/login-company" replace />;
   };
 
+  // Componente para decidir qué mostrar en la ruta raíz
+  const RootComponent = () => {
+    if (isElectron) {
+      return <RedirectToLogin />;
+    }
+    return <LandingPage />;
+  };
+
   // Componente wrapper para LoginCompany que verifica si ya hay datos de compañía
   const LoginCompanyWrapper = () => {
     // Si ya hay datos de compañía, redirigir al login de empleado
@@ -35,8 +46,8 @@ const AppRoutes = () => {
   return (
     <div className="App">
       <Routes>
-        {/* Ruta principal - redirige según si hay datos de compañía */}
-        <Route path="/" element={<RedirectToLogin />} />
+        {/* Ruta principal - Landing para web, Redirección para Electron */}
+        <Route path="/" element={<RootComponent />} />
 
         {/* Ruta del login de empresa (primera pantalla) - solo si no hay datos guardados */}
         <Route path="/login-company" element={<LoginCompanyWrapper />} />
