@@ -1,137 +1,147 @@
-import { app, BrowserWindow, session, dialog, ipcMain } from 'electron';
-import { autoUpdater } from 'electron-updater';
-import log from 'electron-log';
-import * as path from 'path';
+import { app, BrowserWindow, session, dialog, ipcMain } from "electron";
+import { autoUpdater } from "electron-updater";
+import log from "electron-log";
+import * as path from "path";
 
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-
+const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
 
 // LOGS DEL AUTOUPDATE
 autoUpdater.logger = log as any;
-(autoUpdater.logger as any).transports.file.level = 'info';
+(autoUpdater.logger as any).transports.file.level = "info";
 
 // SOLO BUSCAR ACTUALIZACIONES EN PRODUCCIÓN
 if (!isDev) {
-  app.on('ready', () => {
-    autoUpdater.checkForUpdatesAndNotify();
-  });
+    app.on("ready", () => {
+        autoUpdater.checkForUpdatesAndNotify();
+    });
 }
 
 function createWindow() {
-  const mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 700,
-    minWidth: 1200,
-    minHeight: 800,
-    show: false, // No mostrar hasta que esté listo
-    icon: path.join(__dirname, '../public/sumaq.ico'),
-    webPreferences: {
-      contextIsolation: false,
-      nodeIntegration: true,
-    },
-    autoHideMenuBar: true, // Ocultar barra de menú (File, Edit, etc)
-  });
-
-  // Maximizar la ventana cuando esté lista
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.maximize();
-    mainWindow.show();
-  });
-
-  if (isDev) {
-    // En desarrollo: cargar desde el servidor de Vite
-    mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      if (input.type === 'keyDown' && input.key === 'F12') {
-        mainWindow?.webContents.toggleDevTools();
-      }
+    const mainWindow = new BrowserWindow({
+        width: 1000,
+        height: 700,
+        minWidth: 1200,
+        minHeight: 800,
+        show: false, // No mostrar hasta que esté listo
+        icon: path.join(__dirname, "../public/sumaq.ico"),
+        webPreferences: {
+            contextIsolation: false,
+            nodeIntegration: true,
+        },
+        autoHideMenuBar: true, // Ocultar barra de menú (File, Edit, etc)
     });
-  } else {
-    // En producción: cargar desde archivos estáticos
-    // Limpiar caché antes de cargar para asegurar que se carguen los últimos cambios
-    mainWindow.webContents.session.clearCache().then(() => {
-      mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+
+    // Maximizar la ventana cuando esté lista
+    mainWindow.once("ready-to-show", () => {
+        mainWindow.maximize();
+        mainWindow.show();
     });
-  }
+
+    if (isDev) {
+        // En desarrollo: cargar desde el servidor de Vite
+        mainWindow.loadURL("http://localhost:5173");
+        mainWindow.webContents.on("before-input-event", (event, input) => {
+            if (input.type === "keyDown" && input.key === "F12") {
+                mainWindow?.webContents.toggleDevTools();
+            }
+        });
+    } else {
+        // En producción: cargar desde archivos estáticos
+        // Limpiar caché antes de cargar para asegurar que se carguen los últimos cambios
+        mainWindow.webContents.session.clearCache().then(() => {
+            mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+        });
+    }
 }
 
-autoUpdater.on('update-available', () => {
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Actualización disponible',
-    message: 'Se está descargando una nueva versión del sistema...'
-  });
+autoUpdater.on("update-available", () => {
+    dialog.showMessageBox({
+        type: "info",
+        title: "Actualización disponible",
+        message: "Se está descargando una nueva versión del sistema...",
+    });
 });
 
-autoUpdater.on('update-downloaded', () => {
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Actualización lista',
-    message: 'La actualización se instalará al reiniciar la aplicación.',
-    buttons: ['Reiniciar ahora']
-  }).then(() => {
-    autoUpdater.quitAndInstall();
-  });
+autoUpdater.on("update-downloaded", () => {
+    dialog
+        .showMessageBox({
+            type: "info",
+            title: "Actualización lista",
+            message:
+                "La actualización se instalará al reiniciar la aplicación.",
+            buttons: ["Reiniciar ahora"],
+        })
+        .then(() => {
+            autoUpdater.quitAndInstall();
+        });
 });
 
-autoUpdater.on('error', (err) => {
-  log.error('Error en autoUpdater:', err);
+autoUpdater.on("error", (err) => {
+    log.error("Error en autoUpdater:", err);
 });
 
 // IPC para que el renderer pueda solicitar búsqueda de actualizaciones (botón "Actualizar")
-ipcMain.handle('check-for-updates', async () => {
-  if (isDev) {
-    return { success: false, message: 'En modo desarrollo no se buscan actualizaciones.' };
-  }
-  try {
-    const result = await autoUpdater.checkForUpdates();
-    const hasUpdate = result?.updateInfo != null;
-    return {
-      success: true,
-      hasUpdate,
-      message: hasUpdate
-        ? 'Actualización encontrada. Se está descargando...'
-        : 'No hay actualizaciones disponibles. Ya tienes la última versión.'
-    };
-  } catch (err: any) {
-    log.error('Error al buscar actualizaciones:', err);
-    return { success: false, message: err?.message || 'Error al buscar actualizaciones.' };
-  }
+ipcMain.handle("check-for-updates", async () => {
+    if (isDev) {
+        return {
+            success: false,
+            message: "En modo desarrollo no se buscan actualizaciones.",
+        };
+    }
+    try {
+        const result = await autoUpdater.checkForUpdates();
+        const hasUpdate = result?.updateInfo != null;
+        return {
+            success: true,
+            hasUpdate,
+            message: hasUpdate
+                ? "Actualización encontrada. Se está descargando..."
+                : "No hay actualizaciones disponibles. Ya tienes la última versión.",
+        };
+    } catch (err: any) {
+        log.error("Error al buscar actualizaciones:", err);
+        return {
+            success: false,
+            message: err?.message || "Error al buscar actualizaciones.",
+        };
+    }
 });
 
 app.whenReady().then(() => {
-  // Desactivar caché en producción para asegurar que se carguen los últimos cambios
-  if (!isDev) {
-    // Limpiar solo el caché (NO el localStorage para mantener datos de autenticación)
-    session.defaultSession.clearCache();
-    // NO limpiar clearStorageData() para mantener companyData y otros datos de autenticación
-
-    // Interceptar solicitudes para desactivar caché (solo una vez al iniciar)
-    session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
-      callback({
-        requestHeaders: {
-          ...details.requestHeaders,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      });
-    });
-  }
-
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      // Limpiar caché también al reactivar
-      if (!isDev) {
+    // Desactivar caché en producción para asegurar que se carguen los últimos cambios
+    if (!isDev) {
+        // Limpiar solo el caché (NO el localStorage para mantener datos de autenticación)
         session.defaultSession.clearCache();
-      }
-      createWindow();
+        // NO limpiar clearStorageData() para mantener companyData y otros datos de autenticación
+
+        // Interceptar solicitudes para desactivar caché (solo una vez al iniciar)
+        session.defaultSession.webRequest.onBeforeSendHeaders(
+            (details, callback) => {
+                callback({
+                    requestHeaders: {
+                        ...details.requestHeaders,
+                        "Cache-Control": "no-cache, no-store, must-revalidate",
+                        Pragma: "no-cache",
+                        Expires: "0",
+                    },
+                });
+            },
+        );
     }
-  });
+
+    createWindow();
+
+    app.on("activate", () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+            // Limpiar caché también al reactivar
+            if (!isDev) {
+                session.defaultSession.clearCache();
+            }
+            createWindow();
+        }
+    });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") app.quit();
 });

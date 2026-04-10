@@ -7,28 +7,61 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Dependency directories
-node_modules
+# Dependencias
+node_modules/
 
-# Build output
-dist
-dist-ssr
+# Build outputs
+dist/
+dist-ssr/
+dist-electron/          # ¡NUEVO! Build de Electron
+out/                    # ¡NUEVO! Output de Electron
+release/                # ¡NUEVO! Empaquetados
 *.local
-release/ 
+*.exe                   # ¡NUEVO! Ejecutables Windows
+*.dmg                   # ¡NUEVO! Ejecutables macOS
+*.deb                   # ¡NUEVO! Ejecutables Linux
+*.rpm                   # ¡NUEVO! Ejecutables Linux
 
-# Editor directories and files
+# TypeScript
+*.tsbuildinfo           # ¡NUEVO! Cache de TS
+
+# Archivos temporales (CRÍTICO - tenías temp_*.txt)
+temp_*.txt
+temp_*.log
+temp_useeffect.txt      # Este archivo debería ignorarse
+
+# Vite
+.vite/
+vite.config.ts.timestamp-*
+
+# Editores y IDEs
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
 
-# Windows-specific
+# Windows específico
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Environment files
+# Archivos de entorno
 .env
-.env.* 
+.env.*
+!.env.example
+
+# Cache y archivos temporales del sistema
+.eslintcache
+.parcel-cache/
+*.cache
+Thumbs.db
+desktop.ini
+
+# Archivos de cobertura (si haces tests)
+coverage/
+.nyc_output/
