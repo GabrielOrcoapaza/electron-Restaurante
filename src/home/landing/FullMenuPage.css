@@ -1,0 +1,157 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+
+.menu-page-container {
+    min-height: 100vh;
+    background: #000; /* Fondo negro exterior como en la imagen */
+    color: #000;
+    font-family: 'Inter', sans-serif;
+    padding: 40px 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.menu-paper {
+    background: #fff;
+    width: 100%;
+    max-width: 900px;
+    padding: 60px;
+    box-sizing: border-box;
+    position: relative;
+    min-height: 1200px;
+}
+
+.menu-header-minimal {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 60px;
+}
+
+.brand-info {
+    text-align: left;
+}
+
+.brand-name {
+    font-size: 2.2rem;
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin: 0;
+}
+
+.brand-underline {
+    width: 100%;
+    height: 8px;
+    background: #000;
+    margin-top: 5px;
+}
+
+.brand-since {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-top: 10px;
+    text-transform: uppercase;
+}
+
+.menu-box {
+    background: #000;
+    color: #fff;
+    padding: 15px 12px;
+    text-align: center;
+    font-weight: 900;
+    letter-spacing: 3px;
+    line-height: 1.2;
+    font-size: 1.1rem;
+}
+
+.menu-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+}
+
+.category-block {
+    margin-bottom: 40px;
+}
+
+.category-title-minimal {
+    font-size: 1.4rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 30px;
+    border-bottom: 1px solid transparent;
+}
+
+.products-list-minimal {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.product-item-minimal {
+    margin-bottom: 5px;
+}
+
+.product-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 5px;
+}
+
+.product-name-minimal {
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0;
+}
+
+.product-price-minimal {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-left: 10px;
+}
+
+.product-desc-minimal {
+    font-size: 0.85rem;
+    color: #555;
+    line-height: 1.4;
+    max-width: 90%;
+}
+
+.back-to-landing {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: #fff;
+    color: #000;
+    padding: 12px 25px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.9rem;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 100;
+}
+
+.footer-minimal {
+    margin-top: 60px;
+    text-align: center;
+    border-top: 1px solid #eee;
+    padding-top: 20px;
+    font-size: 0.7rem;
+    color: #999;
+    letter-spacing: 1px;
+}
+
+@media (max-width: 768px) {
+    .menu-grid {
+        grid-template-columns: 1fr;
+    }
+    .menu-paper {
+        padding: 30px;
+    }
+}
