@@ -212,52 +212,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return newDeviceId;
   };
 
-  // Función asíncrona para obtener MAC real
+  // MAC real solo en Electron (Node os). Sin MAC: device_id estable (no MAC inventada en web).
   const getMacAddress = async (): Promise<string> => {
     try {
-      console.log('🔍 Intentando obtener MAC del dispositivo...');
-      console.log('🔍 typeof window:', typeof window);
-      console.log('🔍 window.require existe:', !!(typeof window !== 'undefined' && (window as any).require));
+      const isElectron =
+        typeof navigator !== 'undefined' &&
+        navigator.userAgent.toLowerCase().includes('electron');
 
-      if (typeof window !== 'undefined' && (window as any).require) {
-        console.log('✅ Entorno Electron detectado, obteniendo MAC real...');
+      if (isElectron && typeof window !== 'undefined' && typeof (window as any).require === 'function') {
         const os = (window as any).require('os');
-        const networkInterfaces = os.networkInterfaces();
+        const networkInterfaces = os.networkInterfaces() as Record<string, Array<{ mac?: string }> | undefined>;
 
-        console.log('📡 Interfaces de red disponibles:', Object.keys(networkInterfaces));
-
-        for (const interfaceName in networkInterfaces) {
-          const interfaces = networkInterfaces[interfaceName];
-          if (interfaces) {
-            console.log(`🔍 Revisando interfaz: ${interfaceName}`, interfaces);
-            for (const iface of interfaces) {
-              if (iface.mac && iface.mac !== '00:00:00:00:00:00') {
-                const macAddress = iface.mac.toUpperCase();
-                console.log('✅ MAC real obtenida:', macAddress);
-                console.log('🔍 MAC original:', iface.mac);
-                console.log('🔍 MAC normalizada:', macAddress);
-                console.log('🔍 Longitud de MAC:', macAddress.length);
-                console.log('🔍 Formato de MAC:', macAddress.match(/^[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}$/) ? 'Válido' : 'Inválido');
-                return macAddress;
-              }
+        for (const interfaceName of Object.keys(networkInterfaces)) {
+          const list = networkInterfaces[interfaceName];
+          if (!list) continue;
+          for (const iface of list) {
+            if (iface.mac && iface.mac !== '00:00:00:00:00:00') {
+              return iface.mac.toUpperCase();
             }
           }
         }
-
-        console.log('⚠️ No se encontró MAC válida en Electron');
-      } else {
-        console.log('🌐 Entorno web detectado, no se puede obtener MAC real');
       }
 
-      // Fallback
-      const fallback = `FF:${Math.random().toString(16).substring(2, 4).toUpperCase()}:${Math.random().toString(16).substring(2, 4).toUpperCase()}:${Math.random().toString(16).substring(2, 4).toUpperCase()}:${Math.random().toString(16).substring(2, 4).toUpperCase()}:${Math.random().toString(16).substring(2, 4).toUpperCase()}`;
-      console.log('⚠️ Usando MAC generada como fallback:', fallback);
-      return fallback;
+      return getDeviceId();
     } catch (error) {
-      console.error('❌ Error obteniendo MAC:', error);
-      const errorFallback = 'FF:FF:FF:FF:FF:FF';
-      console.log('🔄 Usando MAC de error:', errorFallback);
-      return errorFallback;
+      console.error('Error obteniendo MAC:', error);
+      return getDeviceId();
     }
   };
 
