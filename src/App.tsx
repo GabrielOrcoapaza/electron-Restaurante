@@ -3,6 +3,7 @@ import { useAuth } from './hooks/useAuth';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginCompany from './home/loginCompany';
 import Login from './home/login';
+import LoginWeb from './home/loginWeb';
 import Dashboard from './components/Dashboard';
 import LandingPage from './home/landing/LandingPage';
 import './App.css';
@@ -51,6 +52,9 @@ const AppRoutes = () => {
 
         {/* Ruta del login de empresa (primera pantalla) - solo si no hay datos guardados */}
         <Route path="/login-company" element={<LoginCompanyWrapper />} />
+
+        {/* Ruta del login web (RUC, Usuario, Password) */}
+        <Route path="/login" element={<LoginWeb />} />
 
         {/* Ruta del login de empleado (segunda pantalla - requiere login de empresa) */}
         <Route
