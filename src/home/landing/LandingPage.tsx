@@ -9,7 +9,7 @@ const LandingPage: React.FC = () => {
                 <div className="landing-logo">
                     Sum<span>App</span>
                 </div>
-                <Link to="/login-company" className="login-link">
+                <Link to="/login" className="login-link">
                     Acceder al Sistema
                 </Link>
             </nav>
@@ -21,7 +21,7 @@ const LandingPage: React.FC = () => {
                         Desde la gestión inteligente hasta el equipo de cocina más avanzado. 
                         Todo lo que necesitas para que tu negocio crezca sin límites.
                     </p>
-                    <Link to="/login-company" className="hero-btn">
+                    <Link to="/login" className="hero-btn">
                         Comenzar Ahora
                     </Link>
                 </div>

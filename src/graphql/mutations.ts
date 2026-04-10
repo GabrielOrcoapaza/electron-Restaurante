@@ -130,6 +130,24 @@ export const USER_LOGIN = gql`
   }
 `;
 
+export const WEB_LOGIN = gql`
+  mutation WebLogin($ruc: String!, $usuario: String!, $password: String!) {
+    webLogin(ruc: $ruc, usuario: $usuario, password: $password) {
+      success
+      message
+      token
+      refreshToken
+      tokenExpiresAt
+      refreshExpiresAt
+      webDeviceRegistered
+      user { id dni email fullName role }
+      branch { id name }
+      company { id ruc denomination }
+      permissions
+    }
+  }
+`;
+
 // Mutación para crear piso
 export const CREATE_FLOOR = gql`
   mutation CreateFloor($branchId: ID!, $name: String!, $capacity: Int, $order: Int) {
