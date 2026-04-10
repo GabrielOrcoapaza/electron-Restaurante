@@ -13,22 +13,28 @@ node_modules/
 # Build outputs
 dist/
 dist-ssr/
-dist-electron/          # ¡NUEVO! Build de Electron
-out/                    # ¡NUEVO! Output de Electron
-release/                # ¡NUEVO! Empaquetados
+
+# Build de Electron
+dist-electron/
+out/
+
+# Empaquetados de Electron
+release/
+
+# Ejecutables
 *.local
-*.exe                   # ¡NUEVO! Ejecutables Windows
-*.dmg                   # ¡NUEVO! Ejecutables macOS
-*.deb                   # ¡NUEVO! Ejecutables Linux
-*.rpm                   # ¡NUEVO! Ejecutables Linux
+*.exe
+*.dmg
+*.deb
+*.rpm
 
 # TypeScript
-*.tsbuildinfo           # ¡NUEVO! Cache de TS
+*.tsbuildinfo
 
-# Archivos temporales (CRÍTICO - tenías temp_*.txt)
+# Archivos temporales
 temp_*.txt
 temp_*.log
-temp_useeffect.txt      # Este archivo debería ignorarse
+temp_useeffect.txt
 
 # Vite
 .vite/
@@ -62,6 +68,6 @@ vite.config.ts.timestamp-*
 Thumbs.db
 desktop.ini
 
-# Archivos de cobertura (si haces tests)
+# Archivos de cobertura (tests)
 coverage/
 .nyc_output/

@@ -6,6 +6,7 @@ import Login from './home/login';
 import LoginWeb from './home/loginWeb';
 import Dashboard from './components/Dashboard';
 import LandingPage from './home/landing/LandingPage';
+import FullMenuPage from './home/landing/FullMenuPage';
 import './App.css';
 
 const isElectron = navigator.userAgent.toLowerCase().includes('electron');
@@ -75,6 +76,9 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* Ruta para ver la carta completa */}
+        <Route path="/carta/:companyId" element={<FullMenuPage />} />
 
         {/* Ruta catch-all - redirige según si hay datos de compañía */}
         <Route path="*" element={<RedirectToLogin />} />
