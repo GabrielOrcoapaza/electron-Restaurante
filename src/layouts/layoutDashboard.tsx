@@ -177,8 +177,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         variables: { limit: 20 },
         skip: !user?.id,
         pollInterval: 30000,
-        fetchPolicy: "no-cache",
-        nextFetchPolicy: "no-cache",
     });
 
     const {
@@ -189,8 +187,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     } = useQuery(GET_MY_UNREAD_MESSAGES, {
         skip: !user?.id,
         pollInterval: 10000,
-        fetchPolicy: "no-cache",
-        nextFetchPolicy: "no-cache",
     });
 
     const [markMessageReadMutation] = useMutation(MARK_MESSAGE_READ);
