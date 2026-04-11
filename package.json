@@ -44,7 +44,7 @@
                 "AppImage"
             ],
             "category": "Office",
-            "icon": "public/SumApp.ico"
+            "icon": "public/SumApp.png"
         },
         "nsis": {
             "oneClick": false,
