@@ -1,199 +1,280 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@apollo/client';
-import { WEB_LOGIN } from '../graphql/mutations';
-import { useAuth } from '../hooks/useAuth';
-import { useToast } from '../context/ToastContext';
-import VirtualKeyboard from '../components/VirtualKeyboard';
-import { useResponsive } from '../hooks/useResponsive';
+import React, { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMutation } from "@apollo/client";
+import { WEB_LOGIN } from "../graphql/mutations";
+import { useAuth } from "../hooks/useAuth";
+import { useToast } from "../context/ToastContext";
+import VirtualKeyboard from "../components/VirtualKeyboard";
+import { useResponsive } from "../hooks/useResponsive";
 
 const LoginWeb: React.FC = () => {
-  const navigate = useNavigate();
-  const { loginUser, loginCompany } = useAuth();
-  const { showToast } = useToast();
-  const { isMobile, isTablet } = useResponsive();
+    const navigate = useNavigate();
+    const { loginUser, loginCompany } = useAuth();
+    const { showToast } = useToast();
+    const { isMobile, isTablet } = useResponsive();
 
-  const [formData, setFormData] = useState({
-    ruc: '',
-    usuario: '',
-    password: ''
-  });
+    const [formData, setFormData] = useState({
+        ruc: "",
+        usuario: "",
+        password: "",
+    });
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [focusedInput, setFocusedInput] = useState<'ruc' | 'usuario' | 'password' | null>(null);
-  const [virtualKeyboardOpen, setVirtualKeyboardOpen] = useState(false);
-  
-  const rucRef = useRef<HTMLInputElement>(null);
-  const usuarioRef = useRef<HTMLInputElement>(null);
-  const passwordRef = useRef<HTMLInputElement>(null);
+    const [showPassword, setShowPassword] = useState(false);
+    const [focusedInput, setFocusedInput] = useState<
+        "ruc" | "usuario" | "password" | null
+    >(null);
+    const [virtualKeyboardOpen, setVirtualKeyboardOpen] = useState(false);
+    const [rememberMe, setRememberMe] = useState(false);
 
-  const [webLoginMutation, { loading }] = useMutation(WEB_LOGIN);
+    // Recuperar credenciales al cargar el componente
+    React.useEffect(() => {
+        const savedRuc = localStorage.getItem("remember_ruc");
+        const savedUser = localStorage.getItem("remember_user");
+        const savedPass = localStorage.getItem("remember_pass");
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!formData.ruc || !formData.usuario || !formData.password) {
-      showToast('Por favor completa todos los campos', 'warning');
-      return;
-    }
-
-    try {
-      const { data } = await webLoginMutation({
-        variables: {
-          ruc: formData.ruc,
-          usuario: formData.usuario,
-          password: formData.password
+        if (savedRuc || savedUser) {
+            setFormData({
+                ruc: savedRuc || "",
+                usuario: savedUser || "",
+                password: savedPass || "",
+            });
+            setRememberMe(true);
         }
-      });
+    }, []);
 
-      if (data?.webLogin?.success) {
-        const { token, refreshToken, user, branch, company } = data.webLogin;
-        
-        // Simular la estructura de CompanyData que espera el contexto
-        // Nota: Si faltan datos como floors/categories, la app podría fallar en algunas partes,
-        // pero aquí seguimos la solicitud del usuario de usar esta mutación.
-        loginCompany({
-          company: company,
-          branch: {
-            ...branch,
-            isActive: true, // Asumimos activo si el login fue exitoso
-            floors: [],
-            categories: [],
-            tables: []
-          }
-        });
+    const rucRef = useRef<HTMLInputElement>(null);
+    const usuarioRef = useRef<HTMLInputElement>(null);
+    const passwordRef = useRef<HTMLInputElement>(null);
 
-        loginUser(token, refreshToken, user);
-        
-        showToast(`¡Bienvenido, ${user.fullName || user.firstName || 'usuario'}!`, 'success');
-        navigate('/dashboard');
-      } else {
-        showToast(data?.webLogin?.message || 'Error en el inicio de sesión', 'error');
-      }
-    } catch (err: any) {
-      showToast(err.message || 'Error de conexión', 'error');
-    }
-  };
+    const [webLoginMutation, { loading }] = useMutation(WEB_LOGIN);
 
-  const handleVirtualKeyPress = (key: string) => {
-    if (focusedInput === 'ruc') setFormData(prev => ({ ...prev, ruc: prev.ruc + key }));
-    else if (focusedInput === 'usuario') setFormData(prev => ({ ...prev, usuario: prev.usuario + key }));
-    else if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password + key }));
-  };
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
 
-  const handleVirtualBackspace = () => {
-    if (focusedInput === 'ruc') setFormData(prev => ({ ...prev, ruc: prev.ruc.slice(0, -1) }));
-    else if (focusedInput === 'usuario') setFormData(prev => ({ ...prev, usuario: prev.usuario.slice(0, -1) }));
-    else if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password.slice(0, -1) }));
-  };
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
 
-  return (
-    <div className="login-web-wrapper">
-      <div className="login-bg-image"></div>
-      <div className="login-overlay"></div>
+        if (!formData.ruc || !formData.usuario || !formData.password) {
+            showToast("Por favor completa todos los campos", "warning");
+            return;
+        }
 
-      <div className="login-card-container">
-        <div className="login-glass-card">
-          <div className="card-header">
-            <div className="logo-container">
-              <span className="logo-icon">🍽️</span>
-              <h1 className="logo-text">Sum<span>App</span></h1>
+        try {
+            const { data } = await webLoginMutation({
+                variables: {
+                    ruc: formData.ruc,
+                    usuario: formData.usuario,
+                    password: formData.password,
+                },
+            });
+
+            if (data?.webLogin?.success) {
+                const { token, refreshToken, user, branch, company } =
+                    data.webLogin;
+
+                // Simular la estructura de CompanyData que espera el contexto
+                // Nota: Si faltan datos como floors/categories, la app podría fallar en algunas partes,
+                // pero aquí seguimos la solicitud del usuario de usar esta mutación.
+                loginCompany({
+                    company: company,
+                    branch: {
+                        ...branch,
+                        isActive: true, // Asumimos activo si el login fue exitoso
+                        floors: [],
+                        categories: [],
+                        tables: [],
+                    },
+                });
+
+                loginUser(token, refreshToken, user);
+
+                // Guardar o limpiar credenciales según el checkbox de "Recuérdame"
+                if (rememberMe) {
+                    localStorage.setItem("remember_ruc", formData.ruc);
+                    localStorage.setItem("remember_user", formData.usuario);
+                    localStorage.setItem("remember_pass", formData.password);
+                } else {
+                    localStorage.removeItem("remember_ruc");
+                    localStorage.removeItem("remember_user");
+                    localStorage.removeItem("remember_pass");
+                }
+
+                showToast(
+                    `¡Bienvenido, ${user.fullName || user.firstName || "usuario"}!`,
+                    "success",
+                );
+                navigate("/dashboard");
+            } else {
+                showToast(
+                    data?.webLogin?.message || "Error en el inicio de sesión",
+                    "error",
+                );
+            }
+        } catch (err: any) {
+            showToast(err.message || "Error de conexión", "error");
+        }
+    };
+
+    const handleVirtualKeyPress = (key: string) => {
+        if (focusedInput === "ruc")
+            setFormData((prev) => ({ ...prev, ruc: prev.ruc + key }));
+        else if (focusedInput === "usuario")
+            setFormData((prev) => ({ ...prev, usuario: prev.usuario + key }));
+        else if (focusedInput === "password")
+            setFormData((prev) => ({ ...prev, password: prev.password + key }));
+    };
+
+    const handleVirtualBackspace = () => {
+        if (focusedInput === "ruc")
+            setFormData((prev) => ({ ...prev, ruc: prev.ruc.slice(0, -1) }));
+        else if (focusedInput === "usuario")
+            setFormData((prev) => ({
+                ...prev,
+                usuario: prev.usuario.slice(0, -1),
+            }));
+        else if (focusedInput === "password")
+            setFormData((prev) => ({
+                ...prev,
+                password: prev.password.slice(0, -1),
+            }));
+    };
+
+    return (
+        <div className="login-web-wrapper">
+            <div className="login-bg-image"></div>
+            <div className="login-overlay"></div>
+
+            <div className="login-card-container">
+                <div className="login-glass-card">
+                    <div className="card-header">
+                        <div className="logo-container">
+                            <span className="logo-icon">🍽️</span>
+                            <h1 className="logo-text">
+                                Sum<span>App</span>
+                            </h1>
+                        </div>
+                        <h2>Acceso al Sistema</h2>
+                        <p>Ingresa las credenciales de tu empresa</p>
+                    </div>
+
+                    <form className="login-form" onSubmit={handleSubmit}>
+                        <div
+                            className={`input-group ${focusedInput === "ruc" ? "focused" : ""}`}
+                        >
+                            <span className="input-icon">🏢</span>
+                            <input
+                                ref={rucRef}
+                                type="text"
+                                name="ruc"
+                                value={formData.ruc}
+                                onChange={handleChange}
+                                placeholder="RUC de la empresa"
+                                onFocus={() => setFocusedInput("ruc")}
+                                maxLength={11}
+                                autoComplete="off"
+                            />
+                        </div>
+
+                        <div
+                            className={`input-group ${focusedInput === "usuario" ? "focused" : ""}`}
+                        >
+                            <span className="input-icon">👤</span>
+                            <input
+                                ref={usuarioRef}
+                                type="text"
+                                name="usuario"
+                                value={formData.usuario}
+                                onChange={handleChange}
+                                placeholder="Usuario o DNI"
+                                onFocus={() => setFocusedInput("usuario")}
+                                autoComplete="off"
+                            />
+                        </div>
+
+                        <div
+                            className={`input-group ${focusedInput === "password" ? "focused" : ""}`}
+                        >
+                            <span className="input-icon">🔒</span>
+                            <input
+                                ref={passwordRef}
+                                type={showPassword ? "text" : "password"}
+                                name="password"
+                                value={formData.password}
+                                onChange={handleChange}
+                                placeholder="Contraseña"
+                                onFocus={() => setFocusedInput("password")}
+                            />
+                            <button
+                                type="button"
+                                className="password-toggle"
+                                onClick={() => setShowPassword(!showPassword)}
+                            >
+                                {showPassword ? "🙈" : "👁️"}
+                            </button>
+                        </div>
+
+                        <div className="remember-me-container" style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            margin: '5px 0',
+                            cursor: 'pointer'
+                        }} onClick={() => setRememberMe(!rememberMe)}>
+                            <input 
+                                type="checkbox" 
+                                checked={rememberMe} 
+                                onChange={(e) => setRememberMe(e.target.checked)}
+                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 600 }}>Recuérdame</span>
+                        </div>
+
+                        <button
+                            type="submit"
+                            className="login-submit-btn"
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <span className="loader"></span>
+                            ) : (
+                                <>🚀 Entrar al Panel</>
+                            )}
+                        </button>
+                    </form>
+
+                    <div className="card-footer">
+                        <button
+                            className="back-link"
+                            onClick={() => navigate("/")}
+                        >
+                            ← Volver al inicio
+                        </button>
+                    </div>
+                </div>
+
+                {virtualKeyboardOpen && (
+                    <div className="keyboard-container-web">
+                        <VirtualKeyboard
+                            onKeyPress={handleVirtualKeyPress}
+                            onBackspace={handleVirtualBackspace}
+                            onClose={() => setVirtualKeyboardOpen(false)}
+                            tight={isMobile || isTablet}
+                        />
+                    </div>
+                )}
+
+                {!virtualKeyboardOpen && (
+                    <button
+                        className="virtual-kb-toggle"
+                        onClick={() => setVirtualKeyboardOpen(true)}
+                    >
+                        ⌨️
+                    </button>
+                )}
             </div>
-            <h2>Acceso al Sistema</h2>
-            <p>Ingresa las credenciales de tu empresa</p>
-          </div>
 
-          <form className="login-form" onSubmit={handleSubmit}>
-            <div className={`input-group ${focusedInput === 'ruc' ? 'focused' : ''}`}>
-              <span className="input-icon">🏢</span>
-              <input
-                ref={rucRef}
-                type="text"
-                name="ruc"
-                value={formData.ruc}
-                onChange={handleChange}
-                placeholder="RUC de la empresa"
-                onFocus={() => setFocusedInput('ruc')}
-                autoComplete="off"
-              />
-            </div>
-
-            <div className={`input-group ${focusedInput === 'usuario' ? 'focused' : ''}`}>
-              <span className="input-icon">👤</span>
-              <input
-                ref={usuarioRef}
-                type="text"
-                name="usuario"
-                value={formData.usuario}
-                onChange={handleChange}
-                placeholder="Usuario o DNI"
-                onFocus={() => setFocusedInput('usuario')}
-                autoComplete="off"
-              />
-            </div>
-
-            <div className={`input-group ${focusedInput === 'password' ? 'focused' : ''}`}>
-              <span className="input-icon">🔒</span>
-              <input
-                ref={passwordRef}
-                type={showPassword ? 'text' : 'password'}
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="Contraseña"
-                onFocus={() => setFocusedInput('password')}
-              />
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? '🙈' : '👁️'}
-              </button>
-            </div>
-
-            <button type="submit" className="login-submit-btn" disabled={loading}>
-              {loading ? (
-                <span className="loader"></span>
-              ) : (
-                <>🚀 Entrar al Panel</>
-              )}
-            </button>
-          </form>
-
-          <div className="card-footer">
-            <button className="back-link" onClick={() => navigate('/')}>
-              ← Volver al inicio
-            </button>
-          </div>
-        </div>
-
-        {virtualKeyboardOpen && (
-          <div className="keyboard-container-web">
-            <VirtualKeyboard
-              onKeyPress={handleVirtualKeyPress}
-              onBackspace={handleVirtualBackspace}
-              onClose={() => setVirtualKeyboardOpen(false)}
-              tight={isMobile || isTablet}
-            />
-          </div>
-        )}
-
-        {!virtualKeyboardOpen && (
-          <button
-            className="virtual-kb-toggle"
-            onClick={() => setVirtualKeyboardOpen(true)}
-          >
-            ⌨️
-          </button>
-        )}
-      </div>
-
-      <style>{`
+            <style>{`
         .login-web-wrapper {
           position: fixed;
           top: 0; left: 0; right: 0; bottom: 0;
@@ -434,8 +515,8 @@ const LoginWeb: React.FC = () => {
           .logo-text { font-size: 1.5rem; }
         }
       `}</style>
-    </div>
-  );
+        </div>
+    );
 };
 
 export default LoginWeb;

@@ -397,58 +397,199 @@ const LandingPage: React.FC = () => {
                             Potencia tu caja con una herramienta estable y
                             ultrarrápida.
                         </p>
-                        <div className="download-grid" style={{
-                            display: "flex",
-                            justifyContent: "center",
-                            gap: "30px",
-                            flexWrap: "wrap",
-                            marginTop: "2rem"
-                        }}>
-                            <div className="download-card" style={{
-                                background: "rgba(255,255,255,0.1)",
-                                padding: "2.5rem",
-                                borderRadius: "30px",
-                                border: "1px solid rgba(255,255,255,0.1)",
-                                minWidth: "280px",
-                                textAlign: "center",
-                                transition: "all 0.3s ease"
-                            }}>
-                                <span style={{ fontSize: "3rem", display: "block", marginBottom: "1rem" }}>🪟</span>
-                                <h3 style={{ margin: "0 0 10px 0", fontSize: "1.5rem" }}>Windows</h3>
-                                <p style={{ opacity: 0.7, margin: "0 0 5px 0" }}>SumApp Setup 1.1.1.exe</p>
-                                <p style={{ fontWeight: 900, color: "var(--secondary)", margin: "0 0 20px 0" }}>105 MB</p>
-                                <a href="/release/SumApp Setup 1.1.1.exe" className="download-btn" style={{ 
-                                    padding: "1rem 2rem", 
-                                    fontSize: "1.1rem",
-                                    margin: 0,
-                                    width: "100%",
-                                    boxSizing: "border-box"
-                                }}>
+                        <div
+                            className="download-grid"
+                            style={{
+                                display: "flex",
+                                justifyContent: "center",
+                                gap: "30px",
+                                flexWrap: "wrap",
+                                marginTop: "2rem",
+                            }}
+                        >
+                            <div
+                                className="download-card"
+                                style={{
+                                    background: "rgba(255,255,255,0.1)",
+                                    padding: "2.5rem",
+                                    borderRadius: "30px",
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    minWidth: "280px",
+                                    textAlign: "center",
+                                    transition: "all 0.3s ease",
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        fontSize: "3rem",
+                                        display: "block",
+                                        marginBottom: "1rem",
+                                    }}
+                                >
+                                    🪟
+                                </span>
+                                <h3
+                                    style={{
+                                        margin: "0 0 10px 0",
+                                        fontSize: "1.5rem",
+                                    }}
+                                >
+                                    Windows
+                                </h3>
+                                <p
+                                    style={{
+                                        opacity: 0.7,
+                                        margin: "0 0 5px 0",
+                                    }}
+                                >
+                                    SumApp Setup 1.1.1.exe
+                                </p>
+                                <p
+                                    style={{
+                                        fontWeight: 900,
+                                        color: "var(--secondary)",
+                                        margin: "0 0 20px 0",
+                                    }}
+                                >
+                                    105 MB
+                                </p>
+                                <a
+                                    href="/release/SumApp Setup 1.1.1.exe"
+                                    className="download-btn"
+                                    style={{
+                                        padding: "1rem 2rem",
+                                        fontSize: "1.1rem",
+                                        margin: 0,
+                                        width: "100%",
+                                        boxSizing: "border-box",
+                                    }}
+                                >
                                     DESCARGAR .EXE
                                 </a>
                             </div>
 
-                            <div className="download-card" style={{
-                                background: "rgba(255,255,255,0.1)",
-                                padding: "2.5rem",
-                                borderRadius: "30px",
-                                border: "1px solid rgba(255,255,255,0.1)",
-                                minWidth: "280px",
-                                textAlign: "center",
-                                transition: "all 0.3s ease"
-                            }}>
-                                <span style={{ fontSize: "3rem", display: "block", marginBottom: "1rem" }}>🐧</span>
-                                <h3 style={{ margin: "0 0 10px 0", fontSize: "1.5rem" }}>Linux</h3>
-                                <p style={{ opacity: 0.7, margin: "0 0 5px 0" }}>SumApp-1.1.1.AppImage</p>
-                                <p style={{ fontWeight: 900, color: "var(--secondary)", margin: "0 0 20px 0" }}>127 MB</p>
-                                <a href="/release/SumApp-1.1.1.AppImage" className="download-btn" style={{ 
-                                    padding: "1rem 2rem", 
-                                    fontSize: "1.1rem",
-                                    margin: 0,
-                                    width: "100%",
-                                    boxSizing: "border-box"
-                                }}>
+                            <div
+                                className="download-card"
+                                style={{
+                                    background: "rgba(255,255,255,0.1)",
+                                    padding: "2.5rem",
+                                    borderRadius: "30px",
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    minWidth: "280px",
+                                    textAlign: "center",
+                                    transition: "all 0.3s ease",
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        fontSize: "3rem",
+                                        display: "block",
+                                        marginBottom: "1rem",
+                                    }}
+                                >
+                                    🐧
+                                </span>
+                                <h3
+                                    style={{
+                                        margin: "0 0 10px 0",
+                                        fontSize: "1.5rem",
+                                    }}
+                                >
+                                    Linux
+                                </h3>
+                                <p
+                                    style={{
+                                        opacity: 0.7,
+                                        margin: "0 0 5px 0",
+                                    }}
+                                >
+                                    SumApp-1.1.1.AppImage
+                                </p>
+                                <p
+                                    style={{
+                                        fontWeight: 900,
+                                        color: "var(--secondary)",
+                                        margin: "0 0 20px 0",
+                                    }}
+                                >
+                                    127 MB
+                                </p>
+                                <a
+                                    href="/release/SumApp-1.1.1.AppImage"
+                                    className="download-btn"
+                                    style={{
+                                        padding: "1rem 2rem",
+                                        fontSize: "1.1rem",
+                                        margin: 0,
+                                        width: "100%",
+                                        boxSizing: "border-box",
+                                    }}
+                                >
                                     DESCARGAR .APPIMAGE
+                                </a>
+                            </div>
+
+                            <div
+                                className="download-card"
+                                style={{
+                                    background: "rgba(255,255,255,0.1)",
+                                    padding: "2.5rem",
+                                    borderRadius: "30px",
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    minWidth: "280px",
+                                    textAlign: "center",
+                                    transition: "all 0.3s ease",
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        fontSize: "3rem",
+                                        display: "block",
+                                        marginBottom: "1rem",
+                                    }}
+                                >
+                                    🤖
+                                </span>
+                                <h3
+                                    style={{
+                                        margin: "0 0 10px 0",
+                                        fontSize: "1.5rem",
+                                    }}
+                                >
+                                    Android
+                                </h3>
+                                <p
+                                    style={{
+                                        opacity: 0.7,
+                                        margin: "0 0 5px 0",
+                                    }}
+                                >
+                                    Conecta mesas, cocina, caja y mozos en un
+                                    solo sistema
+                                </p>
+                                <p
+                                    style={{
+                                        fontWeight: 900,
+                                        color: "var(--secondary)",
+                                        margin: "0 0 20px 0",
+                                    }}
+                                >
+                                    Google Play Store
+                                </p>
+                                <a
+                                    href="https://play.google.com/store/apps/details?id=com.soluciones4.sumapp"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="download-btn"
+                                    style={{
+                                        padding: "1rem 2rem",
+                                        fontSize: "1.1rem",
+                                        margin: 0,
+                                        width: "100%",
+                                        boxSizing: "border-box",
+                                    }}
+                                >
+                                    VER EN PLAY STORE
                                 </a>
                             </div>
                         </div>

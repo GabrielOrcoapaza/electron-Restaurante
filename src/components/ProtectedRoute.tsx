@@ -14,15 +14,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireUser = false 
 }) => {
   const { isAuthenticated, companyData } = useAuth();
+  const isElectron = typeof navigator !== 'undefined' && 
+                     navigator.userAgent.toLowerCase().includes('electron');
 
   // Si requiere usuario completo (login completo)
   if (requireUser && !isAuthenticated) {
-    return <Navigate to="/login-company" replace />;
+    return <Navigate to={isElectron ? "/login-company" : "/"} replace />;
   }
 
   // Si requiere solo datos de empresa
   if (requireCompany && !companyData) {
-    return <Navigate to="/login-company" replace />;
+    return <Navigate to={isElectron ? "/login-company" : "/"} replace />;
   }
 
   return children;

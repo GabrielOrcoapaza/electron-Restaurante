@@ -349,23 +349,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     console.log('✅ Mesa actualizada en contexto');
   };
 
-  // Logout - Solo limpia datos del usuario, mantiene datos de la empresa
+  // Logout - Solo limpia datos del usuario, mantiene datos de la empresa en Electron
   const logout = () => {
     console.log('🚪 Cerrando sesión de usuario...');
 
-    // Limpiar localStorage - Solo datos del usuario
+    const isElectron = typeof navigator !== 'undefined' && 
+                       navigator.userAgent.toLowerCase().includes('electron');
+
+    // Limpiar localStorage obligatorio (Token y Datos de Usuario)
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('userData');
     localStorage.removeItem('userPhoto');
-    // Mantener companyData para no tener que volver a iniciar sesión como empresa
-    // Usar clearCompanyData() si se quiere cambiar de empresa
-    // Mantener device_id para futuros logins
 
-    // Limpiar estado del usuario
+    if (!isElectron) {
+      // EN WEB: Limpiar TAMBIÉN datos de la empresa para un cierre completo
+      localStorage.removeItem('companyData');
+      setCompanyData(null);
+    }
+
+    // Limpiar estado
     setToken(null);
     setUser(null);
-    // Mantener companyData
     setIsAuthenticated(false);
   };
 
