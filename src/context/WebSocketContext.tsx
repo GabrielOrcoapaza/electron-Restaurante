@@ -184,94 +184,81 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
             wsRef.current = ws;
 
-            // Usar la API de eventos de ws (Node.js)
-            ws.on("open", () => {
+            // Manejar eventos de forma compatible con Navegador y Electron (ws)
+            ws.onopen = () => {
                 console.log(
                     "✅ WebSocket conectado para branch:",
                     companyData.branch.id,
                 );
                 setIsConnected(true);
-                reconnectAttemptsRef.current = 0; // Resetear contador de intentos al conectar exitosamente
+                reconnectAttemptsRef.current = 0;
 
-                // Notificar reconexión exitosa
                 notifySubscribers({
                     type: "connected",
                     message: "Conexión establecida",
                 });
-            });
+            };
 
-            ws.on("message", (data: any) => {
+            ws.onmessage = (event: any) => {
                 try {
-                    const message = JSON.parse(data.toString());
+                    // En navegador el mensaje viene en event.data, en Node 'ws' puede venir directo o en data
+                    const rawData = event.data || event;
+                    const messageString = typeof rawData === 'string' ? rawData : rawData.toString();
+                    const message = JSON.parse(messageString);
+                    
                     console.log("🔄 Mensaje WebSocket recibido:", message);
-
-                    // Notificar a los suscriptores
                     notifySubscribers(message);
                 } catch (error) {
-                    console.error(
-                        "❌ Error parseando mensaje WebSocket:",
-                        error,
-                    );
+                    console.error("❌ Error parseando mensaje WebSocket:", error);
                 }
-            });
+            };
 
-            ws.on("error", (error: any) => {
+            ws.onerror = (error: any) => {
                 console.error("❌ Error WebSocket:", error);
                 setIsConnected(false);
                 notifySubscribers({
                     type: "error",
                     message: "Error de conexión en tiempo real",
                 });
-            });
+            };
 
-            ws.on("close", (code: number, reason: any) => {
-                console.log(
-                    "🔌 WebSocket desconectado:",
-                    code,
-                    reason?.toString?.() || "Sin razón",
-                );
+            ws.onclose = (event: any) => {
+                const code = event.code || event;
+                const reason = event.reason || "Sin razón";
+                
+                console.log("🔌 WebSocket desconectado:", code, reason);
                 setIsConnected(false);
 
-                // Limpiar el ping interval
                 if (pingIntervalRef.current) {
                     clearInterval(pingIntervalRef.current);
                     pingIntervalRef.current = null;
                 }
 
-                // No reintentar si fue desconexión manual o cierre normal
                 if (isManualDisconnectRef.current || code === 1000) {
-                    console.log(
-                        "✅ Cierre normal del WebSocket, no se reintentará",
-                    );
+                    console.log("✅ Cierre normal del WebSocket, no se reintentará");
                     return;
                 }
 
-                // Reintentar conexión con backoff exponencial
                 if (reconnectAttemptsRef.current < maxReconnectAttempts) {
                     const delay = Math.min(
                         1000 * Math.pow(2, reconnectAttemptsRef.current),
                         30000,
-                    ); // Max 30 segundos
+                    );
                     reconnectAttemptsRef.current++;
 
-                    console.log(
-                        `🔄 Reintentando conexión en ${delay / 1000} segundos... (intento ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`,
-                    );
+                    console.log(`🔄 Reintentando conexión en ${delay / 1000} segundos... (intento ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
 
                     reconnectTimeoutRef.current = setTimeout(() => {
                         connectWebSocket();
                     }, delay);
                 } else {
-                    console.error(
-                        "❌ Se alcanzó el máximo de intentos de reconexión",
-                    );
+                    console.error("❌ Se alcanzó el máximo de intentos de reconexión");
                     notifySubscribers({
                         type: "reconnect_failed",
-                        message:
-                            "No se pudo reconectar después de varios intentos",
+                        message: "No se pudo reconectar después de varios intentos",
                     });
                 }
-            });
+            };
 
             // Enviar ping periódico para mantener la conexión viva
             pingIntervalRef.current = setInterval(() => {
