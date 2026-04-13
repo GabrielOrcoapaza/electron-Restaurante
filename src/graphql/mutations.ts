@@ -598,8 +598,20 @@ export const TRANSFER_ITEMS = gql`
 
 // Mutación para cancelar un detalle de operación
 export const CANCEL_OPERATION_DETAIL = gql`
-  mutation CancelOperationDetail($detailId: ID!, $quantity: Float, $userId: ID!, $deviceId: String) {
-    cancelOperationDetail(detailId: $detailId, quantity: $quantity, userId: $userId, deviceId: $deviceId) {
+  mutation CancelOperationDetail(
+    $detailId: ID!
+    $quantity: Float
+    $userId: ID!
+    $deviceId: String
+    $cancellationReason: String!
+  ) {
+    cancelOperationDetail(
+      detailId: $detailId
+      quantity: $quantity
+      userId: $userId
+      deviceId: $deviceId
+      cancellationReason: $cancellationReason
+    ) {
       success
       message
       detail {

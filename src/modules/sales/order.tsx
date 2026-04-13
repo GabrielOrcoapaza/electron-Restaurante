@@ -75,6 +75,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 	const breadcrumbBtnPadX = isSmall ? '1rem' : '1.25rem';
 	const breadcrumbBtnPadY = isSmall ? '0.625rem' : '0.75rem';
 	const breadcrumbBtnRadius = isSmall ? '10px' : '12px';
+	/** Ancho máximo en migas de pan: nombre largo con puntos suspensivos (ver título al hover) */
+	const breadcrumbLabelMaxWidth = isSmall ? '7.5rem' : '11rem';
 
 	// Función para verificar si el usuario puede acceder a esta mesa (por permisos)
 	const canAccessTable = (): { canAccess: boolean; reason?: string } => {
@@ -1420,6 +1422,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 													<span style={{ color: '#94a3b8', fontSize: breadcrumbBtnFont, fontWeight: 700, userSelect: 'none' }} aria-hidden>›</span>
 													<button
 														type="button"
+														title={categories.find((c: any) => c.id === selectedCategory)?.name || undefined}
 														onClick={() => setSelectedSubcategory(null)}
 														style={{
 															minHeight: breadcrumbBtnMinH,
@@ -1432,7 +1435,10 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 															color: !selectedSubcategory ? '#312e81' : '#475569',
 															cursor: 'pointer',
 															whiteSpace: 'nowrap',
-															maxWidth: '100%',
+															maxWidth: breadcrumbLabelMaxWidth,
+															minWidth: 0,
+															overflow: 'hidden',
+															textOverflow: 'ellipsis',
 															touchAction: 'manipulation',
 															boxShadow: !selectedSubcategory ? '0 2px 0 #4f46e5' : '0 1px 2px rgba(0,0,0,.06)',
 															lineHeight: 1.2
@@ -1446,6 +1452,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 												<>
 													<span style={{ color: '#94a3b8', fontSize: breadcrumbBtnFont, fontWeight: 700, userSelect: 'none' }} aria-hidden>›</span>
 													<span
+														title={subcategoriesOfCategory.find((s: any) => s.id === selectedSubcategory)?.name || undefined}
 														style={{
 															minHeight: breadcrumbBtnMinH,
 															padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
@@ -1458,7 +1465,10 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 															fontWeight: 700,
 															color: '#0f172a',
 															whiteSpace: 'nowrap',
-															maxWidth: '100%',
+															maxWidth: breadcrumbLabelMaxWidth,
+															minWidth: 0,
+															overflow: 'hidden',
+															textOverflow: 'ellipsis',
 															boxSizing: 'border-box',
 															lineHeight: 1.2
 														}}
@@ -1540,7 +1550,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 													<div style={{ fontSize: isSmall ? '2rem' : '2.5rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 														<CategoryIcon iconId={category.icon} type="category" size={isSmall ? '2rem' : '2.5rem'} />
 													</div>
-													<div style={{ fontSize: isSmall ? '0.75rem' : breadcrumbFontSize, fontWeight: '700', color: '#1e293b', textAlign: 'center' }}>
+													<div style={{ fontSize: isSmall ? '0.75rem' : breadcrumbFontSize, fontWeight: '700', color: '#1e293b', textAlign: 'center', lineHeight: 1.25, wordBreak: 'break-word' }}>
 														{category.name}
 													</div>
 												</div>
@@ -1578,7 +1588,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 												<div style={{ fontSize: isSmall ? '1.5rem' : '2rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 													<CategoryIcon iconId={sub.icon} type="subcategory" size={isSmall ? '1.5rem' : '2rem'} />
 												</div>
-												<div style={{ fontSize: isSmall ? '0.75rem' : '0.8125rem', fontWeight: '600', color: '#334155', textAlign: 'center' }}>
+												<div style={{ fontSize: isSmall ? '0.75rem' : '0.8125rem', fontWeight: '600', color: '#334155', textAlign: 'center', lineHeight: 1.25, wordBreak: 'break-word' }}>
 													{sub.name}
 												</div>
 											</div>
@@ -1648,12 +1658,9 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 															fontWeight: '600',
 															color: '#1e293b',
 															marginBottom: '0.25rem',
-															lineHeight: '1.2',
+															lineHeight: 1.25,
 															flex: 1,
-															display: '-webkit-box',
-															WebkitLineClamp: 2,
-															WebkitBoxOrient: 'vertical' as const,
-															overflow: 'hidden'
+															wordBreak: 'break-word'
 														}}>
 															{product.name}
 														</div>

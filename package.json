@@ -1,5 +1,5 @@
 {
-    "name": "SumApp",
+    "name": "Sumaq",
     "private": false,
     "version": "1.1.1",
     "main": "dist-electron/main.js",
@@ -17,7 +17,7 @@
     },
     "build": {
         "appId": "com.mirestaurante.restaurante",
-        "productName": "SumApp",
+        "productName": "Sumaq",
         "directories": {
             "output": "release"
         },
@@ -37,14 +37,14 @@
             "target": [
                 "nsis"
             ],
-            "icon": "public/SumApp.ico"
+            "icon": "public/Sumaq.ico"
         },
         "linux": {
             "target": [
                 "AppImage"
             ],
             "category": "Office",
-            "icon": "public/SumApp.png"
+            "icon": "public/Sumaq.png"
         },
         "nsis": {
             "oneClick": false,

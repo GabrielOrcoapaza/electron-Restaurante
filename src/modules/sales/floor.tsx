@@ -43,16 +43,16 @@ function tableShowsOrderTimer(table: Table): boolean {
   return table.status === 'OCCUPIED' || table.status === 'TO_PAY' || table.status === 'IN_PROCESS';
 }
 
+/** Tiempo transcurrido solo en minutos (sin segundos): 0–59 s → «0 min», luego «1 min», … y con horas «1h 5m». */
 function formatElapsedShort(fromMs: number, nowMs: number): string {
   const elapsed = Math.max(0, nowMs - fromMs);
-  const totalSec = Math.floor(elapsed / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
+  const totalMinutes = Math.floor(elapsed / 60000);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
   if (h > 0) {
-    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${h}h ${m}m`;
   }
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${totalMinutes} min`;
 }
 
 type FloorProps = {

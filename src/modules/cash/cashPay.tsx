@@ -28,6 +28,19 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 /** Evita artefactos de punto flotante (ej. 9.560000000000002) en montos de pago. */
 const roundMoney2 = (n: number): number => Math.round((Number(n) || 0) * 100) / 100;
 
+/** Coincide con PAYMENT_METHODS en backend (Django). */
+const PAYMENT_METHODS: { value: string; label: string }[] = [
+  { value: 'CASH', label: 'Efectivo' },
+  { value: 'YAPE', label: 'Yape' },
+  { value: 'PLIN', label: 'Plin' },
+  { value: 'CARD', label: 'Tarjeta' },
+  { value: 'TRANSFER', label: 'Transferencia Bancaria' },
+  { value: 'OTROS', label: 'Otros' }
+];
+
+const paymentMethodSendsReference = (method: string): boolean =>
+  method === 'YAPE' || method === 'PLIN' || method === 'TRANSFER' || method === 'OTROS';
+
 const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTableChange }) => {
   const { companyData, user, deviceId, getMacAddress, updateTableInContext } = useAuth();
   const { hasPermission } = useUserPermissions();
@@ -73,6 +86,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [selectedTransferTableId, setSelectedTransferTableId] = useState<string>('');
   const [showCancelOperationModal, setShowCancelOperationModal] = useState(false);
   const [cancellationReason, setCancellationReason] = useState<string>('');
+  const [detailCancellationReason, setDetailCancellationReason] = useState<string>('');
   const [pendingDeleteItem, setPendingDeleteItem] = useState<{
     detailId: string;
     originalId: string;
@@ -437,20 +451,32 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     const originalId = isSplit ? detailId.split('-split')[0] : detailId;
     const row = detailsToUse.find((d: any) => String(d.id) === String(detailId));
     const productLabel = row?.productName || 'este producto';
+    setDetailCancellationReason('');
     setPendingDeleteItem({ detailId, originalId, isSplit, productLabel });
   };
 
   const handleConfirmRemoveItem = async () => {
     if (!pendingDeleteItem || !user?.id) return;
+    if (!detailCancellationReason.trim()) {
+      showToast('Indica el motivo por el que quitas este ítem.', 'error');
+      return;
+    }
     const { originalId, isSplit } = pendingDeleteItem;
     setIsRemovingItem(true);
     try {
       const mac = await getMacAddress();
       const res = await cancelOperationDetailMutation({
-        variables: { detailId: originalId, quantity: isSplit ? 1 : undefined, userId: user.id, deviceId: mac }
+        variables: {
+          detailId: originalId,
+          quantity: isSplit ? 1 : undefined,
+          userId: user.id,
+          deviceId: mac,
+          cancellationReason: detailCancellationReason.trim()
+        }
       });
       if (res.data?.cancelOperationDetail?.success) {
         showToast(isSplit ? 'Se quitó 1 unidad del pedido.' : 'Plato quitado del pedido.', 'success');
+        setDetailCancellationReason('');
         setPendingDeleteItem(null);
         await refetch();
         if (onPaymentSuccess) onPaymentSuccess();
@@ -466,7 +492,10 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   };
 
   const closeDeleteItemModal = () => {
-    if (!isRemovingItem) setPendingDeleteItem(null);
+    if (!isRemovingItem) {
+      setDetailCancellationReason('');
+      setPendingDeleteItem(null);
+    }
   };
 
   const getDeviceIdOrMac = async (): Promise<string> => {
@@ -760,7 +789,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             paidAmount: Number(p.amount),
             paymentDate: formatInstantISO(now),
             dueDate: null,
-            referenceNumber: (p.method === 'YAPE' || p.method === 'PLIN' || p.method === 'TRANSFER') ? (p.referenceNumber || null) : null,
+            referenceNumber: paymentMethodSendsReference(p.method) ? (p.referenceNumber || null) : null,
             notes: null
           }));
       } else {
@@ -1112,14 +1141,25 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       showToast('No tienes permiso para anular la orden en caja.', 'error');
       return;
     }
-    if (!cancellationReason.trim()) { showToast('Ingresa una razón', 'error'); return; }
+    if (!cancellationReason.trim()) {
+      showToast('Indica el motivo de la anulación.', 'error');
+      return;
+    }
     setIsProcessing(true);
     try {
       const mac = await getMacAddress();
       const res = await cancelOperationMutation({
-        variables: { operationId: operation?.id, branchId: companyData?.branch.id, userId: user?.id, cancellationReason, deviceId: mac }
+        variables: {
+          operationId: operation?.id,
+          branchId: companyData?.branch.id,
+          userId: user?.id,
+          cancellationReason: cancellationReason.trim(),
+          deviceId: mac
+        }
       });
       if (res.data?.cancelOperation?.success) {
+        setCancellationReason('');
+        setShowCancelOperationModal(false);
         updateTableInContext?.({ id: table?.id || '', status: 'AVAILABLE', currentOperationId: null, occupiedById: null, userName: null });
         onBack();
       }
@@ -1330,7 +1370,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               <div key={p.id} style={{ border: '1px solid #e2e8f0', padding: '0.4rem', marginBottom: '0.4rem', borderRadius: '4px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
                   <select value={p.method} onChange={e => updatePayment(p.id, 'method', e.target.value)} style={{ flex: 1, marginRight: '0.4rem', padding: '0.2rem' }}>
-                    <option value="CASH">Efectivo</option><option value="YAPE">Yape</option><option value="CARD">Tarjeta</option>
+                    {PAYMENT_METHODS.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </select>
                   {payments.length > 1 && (
                     <button onClick={() => removePayment(p.id)} style={{ padding: '0 0.4rem', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
@@ -1385,7 +1427,13 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               )}
             </div>
             {canVoidInCashPay && (
-              <button type="button" onClick={() => setShowCancelOperationModal(true)} style={{ width: '100%', marginTop: '0.8rem', padding: '0.5rem', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer' }}>Anular Orden</button>
+              <button
+                type="button"
+                onClick={() => { setCancellationReason(''); setShowCancelOperationModal(true); }}
+                style={{ width: '100%', marginTop: '0.8rem', padding: '0.5rem', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer' }}
+              >
+                Anular Orden
+              </button>
             )}
           </div>
         </section>
@@ -1460,13 +1508,37 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             onClick={e => e.stopPropagation()}
           >
             <h3 id="delete-item-modal-title" style={{ margin: '0 0 0.75rem', fontSize: '1.05rem', color: '#0f172a' }}>Quitar producto</h3>
-            <p style={{ margin: '0 0 1.25rem', fontSize: '0.875rem', lineHeight: 1.5, color: '#475569' }}>
+            <p style={{ margin: '0 0 0.75rem', fontSize: '0.875rem', lineHeight: 1.5, color: '#475569' }}>
               {pendingDeleteItem.isSplit ? (
                 <>¿Quitar <strong>1 unidad</strong> de «{pendingDeleteItem.productLabel}» de la orden?</>
               ) : (
                 <>¿Quitar por completo «<strong>{pendingDeleteItem.productLabel}</strong>» de la orden?</>
               )}
             </p>
+            <label htmlFor="delete-item-reason" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+              Motivo (obligatorio)
+            </label>
+            <textarea
+              id="delete-item-reason"
+              value={detailCancellationReason}
+              onChange={e => setDetailCancellationReason(e.target.value)}
+              placeholder="Describe el motivo (obligatorio)…"
+              required
+              aria-required="true"
+              disabled={isRemovingItem}
+              rows={3}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                marginBottom: '1rem',
+                padding: '0.5rem 0.65rem',
+                fontSize: '0.875rem',
+                borderRadius: '6px',
+                border: '1px solid #cbd5e1',
+                resize: 'vertical',
+                minHeight: '72px'
+              }}
+            />
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button
                 type="button"
@@ -1500,12 +1572,29 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
      {showCancelOperationModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', width: '300px' }}>
-            <h3>Anular Orden</h3>
-            <textarea placeholder="Motivo..." value={cancellationReason} onChange={e => setCancellationReason(e.target.value)} style={{ width: '100%', height: '80px', marginBottom: '1rem' }} />
+          <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', width: 'min(380px, calc(100vw - 2rem))' }}>
+            <h3 style={{ margin: '0 0 0.5rem' }}>Anular orden</h3>
+            <p style={{ margin: '0 0 0.75rem', fontSize: '0.875rem', color: '#64748b' }}>Debes indicar por qué se anula la orden.</p>
+            <label htmlFor="cancel-operation-reason" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+              Motivo (obligatorio)
+            </label>
+            <textarea
+              id="cancel-operation-reason"
+              placeholder="Describe el motivo (obligatorio)…"
+              value={cancellationReason}
+              onChange={e => setCancellationReason(e.target.value)}
+              required
+              aria-required="true"
+              disabled={isProcessing}
+              style={{ width: '100%', height: '88px', marginBottom: '1rem', padding: '0.5rem 0.65rem', fontSize: '0.875rem', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+            />
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button onClick={() => setShowCancelOperationModal(false)} style={{ flex: 1 }}>Cerrar</button>
-              <button onClick={handleCancelOperation} style={{ flex: 1, background: 'red', color: 'white', border: 'none' }}>Anular</button>
+              <button type="button" onClick={() => { setShowCancelOperationModal(false); setCancellationReason(''); }} disabled={isProcessing} style={{ flex: 1 }}>
+                Cerrar
+              </button>
+              <button type="button" onClick={handleCancelOperation} disabled={isProcessing} style={{ flex: 1, background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', cursor: isProcessing ? 'not-allowed' : 'pointer' }}>
+                {isProcessing ? 'Anulando…' : 'Anular'}
+              </button>
             </div>
           </div>
         </div>

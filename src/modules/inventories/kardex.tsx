@@ -249,7 +249,10 @@ const Kardex: React.FC = () => {
   return (
     <div
       style={{
+        flexShrink: 0,
         minHeight: '100%',
+        width: '100%',
+        maxWidth: '100%',
         display: 'flex',
         flexDirection: 'column',
         gap: containerGap,
@@ -259,6 +262,7 @@ const Kardex: React.FC = () => {
         boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
         position: 'relative',
         overflow: 'hidden',
+        boxSizing: 'border-box',
       }}
     >
       {/* Elementos decorativos de fondo */}
@@ -612,11 +616,9 @@ const Kardex: React.FC = () => {
                 </p>
               </div>
               <div style={{
-                overflow: 'auto',
+                overflowX: 'auto',
                 width: '100%',
                 maxWidth: '100%',
-                maxHeight: 'min(55vh, 620px)',
-                minHeight: '200px',
                 boxSizing: 'border-box',
                 WebkitOverflowScrolling: 'touch',
                 borderRadius: '8px',

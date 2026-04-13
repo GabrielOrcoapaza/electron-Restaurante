@@ -682,7 +682,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     backgroundClip: "text",
                                 }}
                             >
-                                AppSuma
+                                SUMAQ
                             </h2>
                             <p
                                 style={{
