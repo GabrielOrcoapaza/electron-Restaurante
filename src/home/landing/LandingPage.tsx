@@ -105,13 +105,17 @@ const LandingPage: React.FC = () => {
     }, [selectedCompany]);
 
     return (
-        <div className={`landing-container ${darkMode ? "dark-mode" : ""}`}>
+        <div
+            className={`landing-container ${darkMode ? "dark-mode" : ""} ${
+                darkMode ? "bg-slate-900 text-slate-50" : "bg-white text-slate-900"
+            }`}
+        >
             {/* Nav */}
             <nav className={`landing-nav ${isScrolled ? "scrolled" : ""}`}>
                 <div className="landing-logo">
                     Sum<span>app</span>
                 </div>
-                <div className="nav-actions">
+                <div className="nav-actions flex items-center gap-3">
                     <button
                         className="dark-mode-toggle"
                         onClick={() => setDarkMode(!darkMode)}
@@ -165,20 +169,14 @@ const LandingPage: React.FC = () => {
             {/* Info */}
             <section className="info-section">
                 <div className="section-wrapper">
-                    <div
-                        className="section-title"
-                        style={{ textAlign: "center", marginBottom: "5rem" }}
-                    >
-                        <h2 style={{ fontSize: "3rem", fontWeight: 900 }}>
+                    <div className="section-title mb-12 text-center md:mb-20">
+                        <h2 className="font-['Outfit'] text-4xl font-black leading-tight md:text-5xl">
                             El primer ecosistema todo-en-uno
                         </h2>
                         <p
-                            style={{
-                                fontSize: "1.2rem",
-                                opacity: 0.7,
-                                maxWidth: "800px",
-                                margin: "0 auto",
-                            }}
+                            className={`mx-auto mt-4 max-w-3xl text-base md:text-xl ${
+                                darkMode ? "text-slate-300" : "text-slate-600"
+                            }`}
                         >
                             Todo lo que necesitas ya funciona junto bajo la
                             tecnología Sumapp.
@@ -189,15 +187,15 @@ const LandingPage: React.FC = () => {
                         <div className="info-card">
                             <span className="card-icon">📱</span>
                             <h3>Para el Mesero</h3>
-                            <p style={{ marginBottom: "1.5rem", opacity: 0.8 }}>
+                            <p className="mb-6">
                                 App táctil diseñada para el alto tráfico de
                                 pedidos.
                             </p>
-                            <ul style={{ listStyle: "none", padding: 0 }}>
-                                <li style={{ marginBottom: "0.8rem" }}>
+                            <ul className="list-none p-0">
+                                <li className="mb-3">
                                     ✓ Toma de pedidos instantánea
                                 </li>
-                                <li style={{ marginBottom: "0.8rem" }}>
+                                <li className="mb-3">
                                     ✓ Sincronización real con cocina
                                 </li>
                                 <li>✓ Funciona offline</li>
@@ -206,14 +204,14 @@ const LandingPage: React.FC = () => {
                         <div className="info-card">
                             <span className="card-icon">🖥️</span>
                             <h3>Para la Caja</h3>
-                            <p style={{ marginBottom: "1.5rem", opacity: 0.8 }}>
+                            <p className="mb-6">
                                 Software de escritorio robusto y ultrarrápido.
                             </p>
-                            <ul style={{ listStyle: "none", padding: 0 }}>
-                                <li style={{ marginBottom: "0.8rem" }}>
+                            <ul className="list-none p-0">
+                                <li className="mb-3">
                                     ✓ Gestión avanzada de ventas
                                 </li>
-                                <li style={{ marginBottom: "0.8rem" }}>
+                                <li className="mb-3">
                                     ✓ Control total de inventario
                                 </li>
                                 <li>✓ Arqueos y cierres diarios</li>
@@ -222,12 +220,12 @@ const LandingPage: React.FC = () => {
                         <div className="info-card">
                             <span className="card-icon">📠</span>
                             <h3>Control de Cocina</h3>
-                            <p style={{ marginBottom: "1.5rem", opacity: 0.8 }}>
+                            <p className="mb-6">
                                 Controlador inteligente basado en Raspberry Pi
                                 4.
                             </p>
-                            <ul style={{ listStyle: "none", padding: 0 }}>
-                                <li style={{ marginBottom: "0.8rem" }}>
+                            <ul className="list-none p-0">
+                                <li className="mb-3">
                                     ✓ Hasta 3 impresoras simultáneas
                                 </li>
                             </ul>
@@ -302,16 +300,34 @@ const LandingPage: React.FC = () => {
             <section className="digital-menu-section">
                 <div className="section-wrapper">
                     <div className="menu-preview-container">
-                        <div className="menu-info-panel">
+                        <div
+                            className={`menu-info-panel rounded-3xl border p-6 md:p-10 ${
+                                darkMode
+                                    ? "border-slate-700 bg-slate-800/60 text-slate-100"
+                                    : "border-slate-200 bg-white text-slate-900"
+                            }`}
+                        >
                             <span className="preview-pill">NUEVA FUNCIÓN</span>
-                            <h2>Carta Digital Interactiva</h2>
-                            <p>
+                            <h2 className="font-['Outfit'] text-3xl font-extrabold md:text-4xl">
+                                Carta Digital Interactiva
+                            </h2>
+                            <p
+                                className={`mt-4 text-base leading-relaxed ${
+                                    darkMode ? "text-slate-300" : "text-slate-600"
+                                }`}
+                            >
                                 Tus clientes escanean el QR y acceden a una
                                 experiencia visual Sumapp.
                             </p>
 
-                            <div className="selector-group">
-                                <label>Restaurante</label>
+                            <div className="selector-group mt-6">
+                                <label
+                                    className={`mb-2 block text-sm font-semibold ${
+                                        darkMode ? "text-slate-200" : "text-slate-700"
+                                    }`}
+                                >
+                                    Restaurante
+                                </label>
                                 <select
                                     className="company-select"
                                     value={selectedCompanyId}
@@ -329,7 +345,15 @@ const LandingPage: React.FC = () => {
 
                             {selectedCompany?.branches?.length > 1 && (
                                 <div className="selector-group">
-                                    <label>Sede</label>
+                                    <label
+                                        className={`mb-2 block text-sm font-semibold ${
+                                            darkMode
+                                                ? "text-slate-200"
+                                                : "text-slate-700"
+                                        }`}
+                                    >
+                                        Sede
+                                    </label>
                                     <select
                                         className="company-select"
                                         value={selectedBranchId}
@@ -350,11 +374,7 @@ const LandingPage: React.FC = () => {
 
                             <Link
                                 to={`/carta/${selectedCompanyId}${selectedBranchId ? `?branch=${selectedBranchId}` : ""}`}
-                                className="banner-btn"
-                                style={{
-                                    width: "100%",
-                                    justifyContent: "center",
-                                }}
+                                className="banner-btn mt-2 flex w-full justify-center text-center"
                             >
                                 VER CARTA COMPLETA
                             </Link>
@@ -421,7 +441,13 @@ const LandingPage: React.FC = () => {
             {/* Download */}
             <section className="download-section">
                 <div className="section-wrapper">
-                    <div className="download-box">
+                    <div
+                        className={`download-box ${
+                            darkMode
+                                ? "border-slate-700 bg-slate-800 text-slate-100"
+                                : "border-slate-200 bg-white text-slate-900"
+                        }`}
+                    >
                         <h2>Sumapp para Escritorio</h2>
                         <p>
                             La potencia del sistema integral en tu computadora.
@@ -430,12 +456,24 @@ const LandingPage: React.FC = () => {
                             DESCARGAR PARA WINDOWS
                         </a>
                         <div className="platform-grid">
-                            <div className="platform-card">
+                            <div
+                                className={`platform-card ${
+                                    darkMode
+                                        ? "border-slate-700 bg-slate-900 text-slate-100"
+                                        : "border-slate-200 bg-slate-50 text-slate-900"
+                                }`}
+                            >
                                 <span className="material-icons">laptop</span>
                                 <h4>Linux (.AppImage)</h4>
                                 <a href="#">DESCARGAR</a>
                             </div>
-                            <div className="platform-card">
+                            <div
+                                className={`platform-card ${
+                                    darkMode
+                                        ? "border-slate-700 bg-slate-900 text-slate-100"
+                                        : "border-slate-200 bg-slate-50 text-slate-900"
+                                }`}
+                            >
                                 <span className="material-icons">
                                     phone_android
                                 </span>
@@ -452,8 +490,10 @@ const LandingPage: React.FC = () => {
             {/* Contact */}
             <section className="contact-section">
                 <div className="section-wrapper">
-                    <h2>¿Listo para digitalizar tu negocio?</h2>
-                    <p>
+                    <h2 className="font-['Outfit'] text-3xl font-extrabold md:text-4xl">
+                        ¿Listo para digitalizar tu negocio?
+                    </h2>
+                    <p className="mx-auto mt-4 max-w-2xl text-base md:text-lg">
                         Contáctanos hoy y descubre cómo transformar tu
                         restaurante.
                     </p>

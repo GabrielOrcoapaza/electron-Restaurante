@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@apollo/client";
 import { WEB_LOGIN } from "../graphql/mutations";
@@ -25,9 +25,12 @@ const LoginWeb: React.FC = () => {
     >(null);
     const [virtualKeyboardOpen, setVirtualKeyboardOpen] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
+    const [isDarkTheme, setIsDarkTheme] = useState(
+        () => localStorage.getItem("sumaq-theme") === "dark",
+    );
 
     // Recuperar credenciales al cargar el componente
-    React.useEffect(() => {
+    useEffect(() => {
         const savedRuc = localStorage.getItem("remember_ruc");
         const savedUser = localStorage.getItem("remember_user");
         const savedPass = localStorage.getItem("remember_pass");
@@ -40,6 +43,14 @@ const LoginWeb: React.FC = () => {
             });
             setRememberMe(true);
         }
+    }, []);
+
+    useEffect(() => {
+        const syncTheme = () => {
+            setIsDarkTheme(localStorage.getItem("sumaq-theme") === "dark");
+        };
+        window.addEventListener("storage", syncTheme);
+        return () => window.removeEventListener("storage", syncTheme);
     }, []);
 
     const rucRef = useRef<HTMLInputElement>(null);
@@ -141,28 +152,59 @@ const LoginWeb: React.FC = () => {
     };
 
     return (
-        <div className="login-web-wrapper">
-            <div className="login-bg-image"></div>
-            <div className="login-overlay"></div>
+        <div className="fixed inset-0 z-[1000] flex h-screen w-screen items-center justify-center overflow-hidden font-['Inter']">
+            <div
+                className="absolute inset-0 bg-cover bg-center"
+                style={{
+                    backgroundImage:
+                        "url('https://images.unsplash.com/photo-1517248135467-4c7ed9d42c77?auto=format&fit=crop&q=80&w=1920')",
+                    filter: "brightness(0.58)",
+                }}
+            />
+            <div
+                className={`absolute inset-0 backdrop-blur-md ${
+                    isDarkTheme
+                        ? "bg-gradient-to-br from-slate-900/70 via-slate-900/55 to-emerald-900/60"
+                        : "bg-gradient-to-br from-rose-400/45 via-slate-900/65 to-emerald-700/45"
+                }`}
+            />
 
-            <div className="login-card-container">
-                <div className="login-glass-card">
-                    <div className="card-header">
-                        <div className="logo-container">
-                            <span className="logo-icon">🍽️</span>
-                            <h1 className="logo-text">
+            <div className="relative z-10 w-full max-w-md px-5">
+                <div
+                    className={`rounded-3xl border p-6 shadow-2xl backdrop-blur-xl md:p-10 ${
+                        isDarkTheme
+                            ? "border-slate-700/80 bg-slate-900/80 text-slate-100"
+                            : "border-white/30 bg-white/90 text-slate-900"
+                    }`}
+                >
+                    <div className="mb-8 text-center">
+                        <div className="mb-5 flex items-center justify-center gap-2.5">
+                            <span className="text-4xl">🍽️</span>
+                            <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100">
                                 Sum<span>App</span>
                             </h1>
                         </div>
-                        <h2>Acceso al Sistema</h2>
-                        <p>Ingresa las credenciales de tu empresa</p>
+                        <h2 className="text-2xl font-bold">Acceso al Sistema</h2>
+                        <p
+                            className={`mt-2 text-sm ${
+                                isDarkTheme ? "text-slate-300" : "text-slate-500"
+                            }`}
+                        >
+                            Ingresa las credenciales de tu empresa
+                        </p>
                     </div>
 
-                    <form className="login-form" onSubmit={handleSubmit}>
+                    <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
                         <div
-                            className={`input-group ${focusedInput === "ruc" ? "focused" : ""}`}
+                            className={`group flex items-center rounded-xl border-2 transition-all ${
+                                focusedInput === "ruc"
+                                    ? "border-rose-500 bg-white shadow-[0_0_0_4px_rgba(244,63,94,0.18)]"
+                                    : isDarkTheme
+                                      ? "border-slate-700 bg-slate-800/90"
+                                      : "border-transparent bg-slate-100"
+                            }`}
                         >
-                            <span className="input-icon">🏢</span>
+                            <span className="pl-4 text-lg opacity-70">🏢</span>
                             <input
                                 ref={rucRef}
                                 type="text"
@@ -171,15 +213,27 @@ const LoginWeb: React.FC = () => {
                                 onChange={handleChange}
                                 placeholder="RUC de la empresa"
                                 onFocus={() => setFocusedInput("ruc")}
+                                onBlur={() => setFocusedInput(null)}
                                 maxLength={11}
                                 autoComplete="off"
+                                className={`w-full bg-transparent px-4 py-3.5 text-base font-medium outline-none ${
+                                    isDarkTheme
+                                        ? "text-slate-100 placeholder:text-slate-400"
+                                        : "text-slate-800 placeholder:text-slate-500"
+                                }`}
                             />
                         </div>
 
                         <div
-                            className={`input-group ${focusedInput === "usuario" ? "focused" : ""}`}
+                            className={`group flex items-center rounded-xl border-2 transition-all ${
+                                focusedInput === "usuario"
+                                    ? "border-rose-500 bg-white shadow-[0_0_0_4px_rgba(244,63,94,0.18)]"
+                                    : isDarkTheme
+                                      ? "border-slate-700 bg-slate-800/90"
+                                      : "border-transparent bg-slate-100"
+                            }`}
                         >
-                            <span className="input-icon">👤</span>
+                            <span className="pl-4 text-lg opacity-70">👤</span>
                             <input
                                 ref={usuarioRef}
                                 type="text"
@@ -188,14 +242,26 @@ const LoginWeb: React.FC = () => {
                                 onChange={handleChange}
                                 placeholder="Usuario o DNI"
                                 onFocus={() => setFocusedInput("usuario")}
+                                onBlur={() => setFocusedInput(null)}
                                 autoComplete="off"
+                                className={`w-full bg-transparent px-4 py-3.5 text-base font-medium outline-none ${
+                                    isDarkTheme
+                                        ? "text-slate-100 placeholder:text-slate-400"
+                                        : "text-slate-800 placeholder:text-slate-500"
+                                }`}
                             />
                         </div>
 
                         <div
-                            className={`input-group ${focusedInput === "password" ? "focused" : ""}`}
+                            className={`group flex items-center rounded-xl border-2 transition-all ${
+                                focusedInput === "password"
+                                    ? "border-rose-500 bg-white shadow-[0_0_0_4px_rgba(244,63,94,0.18)]"
+                                    : isDarkTheme
+                                      ? "border-slate-700 bg-slate-800/90"
+                                      : "border-transparent bg-slate-100"
+                            }`}
                         >
-                            <span className="input-icon">🔒</span>
+                            <span className="pl-4 text-lg opacity-70">🔒</span>
                             <input
                                 ref={passwordRef}
                                 type={showPassword ? "text" : "password"}
@@ -204,48 +270,61 @@ const LoginWeb: React.FC = () => {
                                 onChange={handleChange}
                                 placeholder="Contraseña"
                                 onFocus={() => setFocusedInput("password")}
+                                onBlur={() => setFocusedInput(null)}
+                                className={`w-full bg-transparent px-4 py-3.5 text-base font-medium outline-none ${
+                                    isDarkTheme
+                                        ? "text-slate-100 placeholder:text-slate-400"
+                                        : "text-slate-800 placeholder:text-slate-500"
+                                }`}
                             />
                             <button
                                 type="button"
-                                className="password-toggle"
+                                className="pr-4 text-xl"
                                 onClick={() => setShowPassword(!showPassword)}
                             >
                                 {showPassword ? "🙈" : "👁️"}
                             </button>
                         </div>
 
-                        <div className="remember-me-container" style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            margin: '5px 0',
-                            cursor: 'pointer'
-                        }} onClick={() => setRememberMe(!rememberMe)}>
-                            <input 
-                                type="checkbox" 
-                                checked={rememberMe} 
+                        <div
+                            className="my-1 flex cursor-pointer items-center gap-2.5"
+                            onClick={() => setRememberMe(!rememberMe)}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={rememberMe}
                                 onChange={(e) => setRememberMe(e.target.checked)}
-                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                className="h-[18px] w-[18px] cursor-pointer accent-rose-600"
                             />
-                            <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 600 }}>Recuérdame</span>
+                            <span
+                                className={`text-sm font-semibold ${
+                                    isDarkTheme ? "text-slate-300" : "text-slate-500"
+                                }`}
+                            >
+                                Recuérdame
+                            </span>
                         </div>
 
                         <button
                             type="submit"
-                            className="login-submit-btn"
+                            className="mt-2 flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 px-4 py-4 text-lg font-bold text-white shadow-[0_12px_25px_-8px_rgba(190,24,93,0.55)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
                             disabled={loading}
                         >
                             {loading ? (
-                                <span className="loader"></span>
+                                <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-white border-b-transparent" />
                             ) : (
                                 <>🚀 Entrar al Panel</>
                             )}
                         </button>
                     </form>
 
-                    <div className="card-footer">
+                    <div className="mt-6 text-center">
                         <button
-                            className="back-link"
+                            className={`text-sm font-semibold transition ${
+                                isDarkTheme
+                                    ? "text-slate-300 hover:text-rose-400"
+                                    : "text-slate-500 hover:text-rose-500"
+                            }`}
                             onClick={() => navigate("/")}
                         >
                             ← Volver al inicio
@@ -254,7 +333,13 @@ const LoginWeb: React.FC = () => {
                 </div>
 
                 {virtualKeyboardOpen && (
-                    <div className="keyboard-container-web">
+                    <div
+                        className={`fixed inset-x-0 bottom-0 z-[1000] border-t p-5 backdrop-blur-md ${
+                            isDarkTheme
+                                ? "border-slate-700 bg-slate-900/95"
+                                : "border-slate-200 bg-white/95"
+                        }`}
+                    >
                         <VirtualKeyboard
                             onKeyPress={handleVirtualKeyPress}
                             onBackspace={handleVirtualBackspace}
@@ -266,255 +351,13 @@ const LoginWeb: React.FC = () => {
 
                 {!virtualKeyboardOpen && (
                     <button
-                        className="virtual-kb-toggle"
+                        className="fixed bottom-5 right-5 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-2xl text-white shadow-lg transition hover:scale-105"
                         onClick={() => setVirtualKeyboardOpen(true)}
                     >
                         ⌨️
                     </button>
                 )}
             </div>
-
-            <style>{`
-        .login-web-wrapper {
-          position: fixed;
-          top: 0; left: 0; right: 0; bottom: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 100vw; height: 100vh;
-          font-family: 'Inter', sans-serif;
-          z-index: 1000;
-          overflow: hidden;
-        }
-
-        .login-bg-image {
-          position: absolute;
-          inset: 0;
-          background-image: url('https://images.unsplash.com/photo-1517248135467-4c7ed9d42c77?auto=format&fit=crop&q=80&w=1920');
-          background-size: cover;
-          background-position: center;
-          filter: brightness(0.6);
-          z-index: 1;
-        }
-
-        .login-overlay {
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(135deg, rgba(255, 107, 107, 0.4) 0%, rgba(30, 41, 59, 0.8) 100%);
-          backdrop-filter: blur(8px);
-          z-index: 2;
-        }
-
-        .login-card-container {
-          position: relative;
-          z-index: 10;
-          width: 100%;
-          max-width: 450px;
-          padding: 20px;
-        }
-
-        .login-glass-card {
-          background: rgba(255, 255, 255, 0.9);
-          backdrop-filter: blur(20px);
-          border-radius: 24px;
-          padding: 40px;
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          animation: slideUp 0.6s ease-out;
-        }
-
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(30px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .card-header {
-          text-align: center;
-          margin-bottom: 32px;
-        }
-
-        .logo-container {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          margin-bottom: 20px;
-        }
-
-        .logo-icon { font-size: 2.5rem; }
-        .logo-text { font-size: 2rem; font-weight: 800; color: #1e293b; }
-        .logo-text span { color: #ff6b6b; }
-
-        .card-header h2 {
-          font-size: 1.5rem;
-          color: #1e293b;
-          font-weight: 700;
-          margin-bottom: 8px;
-        }
-
-        .card-header p {
-          color: #64748b;
-          font-size: 0.95rem;
-        }
-
-        .login-form {
-          display: flex;
-          flex-direction: column;
-          gap: 18px;
-        }
-
-        .input-group {
-          position: relative;
-          display: flex;
-          align-items: center;
-          background: #f1f5f9;
-          border: 2px solid transparent;
-          border-radius: 12px;
-          transition: all 0.2s;
-        }
-
-        .input-group.focused {
-          background: #fff;
-          border-color: #ff6b6b;
-          box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.1);
-        }
-
-        .input-icon {
-          padding-left: 16px;
-          font-size: 1.2rem;
-          opacity: 0.6;
-        }
-
-        .input-group input {
-          width: 100%;
-          padding: 14px 16px;
-          border: none;
-          background: transparent;
-          font-size: 1rem;
-          color: #1e293b;
-          font-weight: 500;
-          outline: none;
-        }
-
-        .password-toggle {
-          background: none;
-          border: none;
-          padding-right: 16px;
-          cursor: pointer;
-          font-size: 1.2rem;
-        }
-
-        .login-submit-btn {
-          margin-top: 10px;
-          padding: 16px;
-          background: linear-gradient(135deg, #ff6b6b 0%, #ee5253 100%);
-          color: white;
-          border: none;
-          border-radius: 12px;
-          font-size: 1.1rem;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          box-shadow: 0 10px 15px -3px rgba(238, 82, 83, 0.4);
-        }
-
-        .login-submit-btn:hover {
-          transform: translateY(-2px);
-          filter: brightness(1.1);
-          box-shadow: 0 15px 20px -3px rgba(238, 82, 83, 0.5);
-        }
-
-        .login-submit-btn:active {
-          transform: translateY(0);
-        }
-
-        .login-submit-btn:disabled {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
-
-        .card-footer {
-          margin-top: 24px;
-          text-align: center;
-        }
-
-        .back-link {
-          background: none;
-          border: none;
-          color: #64748b;
-          font-size: 0.9rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: color 0.2s;
-        }
-
-        .back-link:hover {
-          color: #ff6b6b;
-        }
-
-        .virtual-kb-toggle {
-          position: fixed;
-          bottom: 20px;
-          right: 20px;
-          width: 50px;
-          height: 50px;
-          border-radius: 50%;
-          background: #1e293b;
-          color: white;
-          border: none;
-          font-size: 1.5rem;
-          cursor: pointer;
-          z-index: 100;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .keyboard-container-web {
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          background: rgba(255, 255, 255, 0.95);
-          backdrop-filter: blur(10px);
-          padding: 20px;
-          z-index: 1000;
-          border-top: 1px solid #e2e8f0;
-          animation: slideUpKeyboard 0.3s ease-out;
-        }
-
-        @keyframes slideUpKeyboard {
-          from { transform: translateY(100%); }
-          to { transform: translateY(0); }
-        }
-
-        .loader {
-          width: 20px;
-          height: 20px;
-          border: 3px solid #FFF;
-          border-bottom-color: transparent;
-          border-radius: 50%;
-          display: inline-block;
-          animation: rotation 1s linear infinite;
-        }
-
-        @keyframes rotation {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 480px) {
-          .login-glass-card {
-            padding: 24px;
-          }
-          .logo-text { font-size: 1.5rem; }
-        }
-      `}</style>
         </div>
     );
 };
