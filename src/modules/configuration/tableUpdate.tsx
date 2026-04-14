@@ -51,7 +51,6 @@ const TableUpdateModal: React.FC<TableUpdateModalProps> = ({ table, onClose, onU
     onCompleted: (res) => {
       const result = res?.updateTable;
       if (result?.success) {
-        setMessage({ type: 'success', text: result.message || 'Mesa actualizada' });
         onUpdated();
         onClose();
       } else {

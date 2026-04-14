@@ -66,20 +66,19 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 		setManualNotes(prev => prev.slice(0, -1));
 	};
 
-	// Sincronizar las selecciones locales y notas manuales con las props cuando cambian
+	// Semilla inicial al abrir: solo al montar / cuando isOpen pasa a true. No repetir cuando el padre re-renderiza
+	// con `|| []` o `new Set()` nuevos en las props, porque eso pisaba la selección al instante.
 	useEffect(() => {
-		if (isOpen) {
-			setLocalSelected(new Set(selectedObservationIds));
-			
-			// Extraer las notas manuales (excluyendo las observaciones)
-			const allObservationNotes = observations.map(obs => obs.note);
-			const currentNotesArray = currentNotes ? currentNotes.split(', ').map(n => n.trim()) : [];
-			const manualNotesArray = currentNotesArray
-				.filter(note => !allObservationNotes.includes(note))
-				.filter(note => note !== '');
-			setManualNotes(manualNotesArray.join(', '));
-		}
-	}, [isOpen, selectedObservationIds, currentNotes, observations]);
+		if (!isOpen) return;
+		setLocalSelected(new Set(selectedObservationIds));
+		const allObservationNotes = observations.map(obs => obs.note);
+		const currentNotesArray = currentNotes ? currentNotes.split(', ').map(n => n.trim()) : [];
+		const manualNotesArray = currentNotesArray
+			.filter(note => !allObservationNotes.includes(note))
+			.filter(note => note !== '');
+		setManualNotes(manualNotesArray.join(', '));
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- props de apertura; incluir deps haría re-sync y borraría chips al elegir
+	}, [isOpen]);
 
 	if (!isOpen) return null;
 

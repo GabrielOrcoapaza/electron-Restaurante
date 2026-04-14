@@ -39,6 +39,10 @@ type OrderItem = {
 	printedAt?: string;
 };
 
+/** Referencias estables: evitan que el modal de observaciones re-sincronice en cada render del padre (|| [] y new Set() nuevos pisaban la selección). */
+const EMPTY_OBSERVATION_OPTIONS: any[] = [];
+const EMPTY_SELECTED_OBSERVATION_IDS = new Set<string>();
+
 const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) => {
 	const { companyData, user, deviceId, getDeviceId, getMacAddress, updateTableInContext } = useAuth();
 	const { hasPermission } = useUserPermissions();
@@ -1320,50 +1324,89 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 							padding: isSmall ? '0.75rem' : isMedium ? '0.85rem' : '1rem',
 							flexShrink: 0
 						}}>
-							<div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+							<div style={{
+								display: 'flex',
+								flexDirection: 'row',
+								alignItems: 'center',
+								flexWrap: 'wrap',
+								gap: (isXs || isSmall) ? '0.5rem' : isMedium ? '0.55rem' : '0.65rem',
+								rowGap: (isXs || isSmall) ? '0.5rem' : '0.55rem'
+							}}>
 								<button
 									type="button"
 									onClick={() => setSearchByCodeOnly((v) => !v)}
 									style={{
-										padding: isSmall ? '0.35rem 0.6rem' : '0.4rem 0.75rem',
+										padding: (isXs || isSmall) ? '0.4rem 0.65rem' : isMedium ? '0.4rem 0.75rem' : '0.45rem 0.85rem',
 										borderRadius: '8px',
 										border: '1px solid #e2e8f0',
 										backgroundColor: searchByCodeOnly ? '#3b82f6' : 'white',
 										color: searchByCodeOnly ? 'white' : '#64748b',
-										fontSize: isSmall ? '0.75rem' : '0.8125rem',
+										fontSize: (isXs || isSmall) ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem',
 										fontWeight: 600,
 										cursor: 'pointer',
-										whiteSpace: 'nowrap'
+										whiteSpace: 'nowrap',
+										flexShrink: 0,
+										touchAction: 'manipulation',
+										minHeight: (isXs || isSmall) ? 40 : 36
 									}}
 								>
 									Búsqueda solo código
 								</button>
 								{searchByCodeOnly && (
-									<span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-										(escribe o escanea el código)
+									<span style={{
+										fontSize: (isXs || isSmall) ? '0.7rem' : '0.75rem',
+										color: '#64748b',
+										flexShrink: 0,
+										lineHeight: 1.25,
+										maxWidth: (isXs || isSmall) ? '100%' : '12rem'
+									}}>
+										
 									</span>
 								)}
-							</div>
-							<div style={{ position: 'relative' }}>
-								<span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', opacity: 0.6, fontSize: '1.2rem' }}>🔎</span>
-								<input
-									ref={searchInputRef}
-									type="text"
-									placeholder={searchByCodeOnly ? 'Código del producto...' : 'Buscar producto o escanear código'}
-									value={searchTerm}
-									onChange={(e) => setSearchTerm(e.target.value)}
-									onKeyDown={(e) => {
-										if (e.key === 'Enter' && productsList.length > 0) {
-											e.preventDefault();
-											handleAddProduct(productsList[0].id, 1);
-										}
-									}}
-									style={{
-										width: '100%', padding: '0.85rem 1rem 0.85rem 2.75rem',
-										border: '1px solid #e2e8f0', borderRadius: 12,
-										fontSize: '1.05rem'
-									}}
-								/>
+								<div style={{
+									position: 'relative',
+									flex: '1 1 11rem',
+									minWidth: 0,
+									width: '100%',
+									maxWidth: '100%'
+								}}>
+									<span style={{
+										position: 'absolute',
+										left: (isXs || isSmall) ? 12 : 14,
+										top: '50%',
+										transform: 'translateY(-50%)',
+										opacity: 0.6,
+										fontSize: (isXs || isSmall) ? '1.05rem' : '1.15rem',
+										pointerEvents: 'none'
+									}}>🔎</span>
+									<input
+										ref={searchInputRef}
+										type="text"
+										placeholder={searchByCodeOnly ? 'Código del producto...' : 'Buscar producto o escanear código'}
+										value={searchTerm}
+										onChange={(e) => setSearchTerm(e.target.value)}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter' && productsList.length > 0) {
+												e.preventDefault();
+												handleAddProduct(productsList[0].id, 1);
+											}
+										}}
+										style={{
+											width: '100%',
+											boxSizing: 'border-box',
+											padding: (isXs || isSmall)
+												? '0.7rem 0.85rem 0.7rem 2.5rem'
+												: isMedium
+													? '0.8rem 0.95rem 0.8rem 2.65rem'
+													: '0.85rem 1rem 0.85rem 2.75rem',
+											border: '1px solid #e2e8f0',
+											borderRadius: (isXs || isSmall) ? 10 : 12,
+											fontSize: (isXs || isSmall) ? '0.95rem' : isMedium ? '1rem' : '1.05rem',
+											minHeight: (isXs || isSmall) ? 44 : 42,
+											touchAction: 'manipulation'
+										}}
+									/>
+								</div>
 							</div>
 						</div>
 
@@ -2128,12 +2171,13 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 				const item = orderItems.find(i => i.id === showObservationModal);
 				if (!item) return null;
 
-				const observations = productObservations[showObservationModal] || [];
-				const selectedIds = selectedObservations[showObservationModal] || new Set<string>();
+				const observations = productObservations[showObservationModal] ?? EMPTY_OBSERVATION_OPTIONS;
+				const selectedIds = selectedObservations[showObservationModal] ?? EMPTY_SELECTED_OBSERVATION_IDS;
 				const canEdit = !isExistingOrder || item.isNew;
 
 				return (
 					<ModalObservation
+						key={showObservationModal}
 						isOpen={true}
 						onClose={() => setShowObservationModal(null)}
 						observations={observations}

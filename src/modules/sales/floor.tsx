@@ -152,6 +152,9 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     fetchPolicy: 'network-only'
   });
 
+  const tablesOnFloor: Table[] = tablesData?.tablesByFloor ?? [];
+  const visibleTables = tablesOnFloor.filter((t) => t.isActive !== false);
+
   // WebSocket para cambios en tiempo real usando el contexto
   const { subscribe } = useWebSocket();
 
@@ -643,7 +646,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
           }}>
             Error al cargar las mesas: {tablesError.message}
           </div>
-        ) : tablesData?.tablesByFloor?.length === 0 ? (
+        ) : tablesOnFloor.length === 0 ? (
           <div style={{
             textAlign: 'center',
             padding: '3rem',
@@ -652,6 +655,17 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🪑</div>
             <p style={{ fontSize: '1.125rem', margin: 0 }}>
               No hay mesas en este piso
+            </p>
+          </div>
+        ) : visibleTables.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '3rem',
+            color: '#718096'
+          }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🪑</div>
+            <p style={{ fontSize: '1.125rem', margin: 0 }}>
+              No hay mesas activas en este piso. Actívalas en Configuración → Mesas.
             </p>
           </div>
         ) : (
@@ -663,7 +677,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             overflow: 'hidden',
             boxSizing: 'border-box'
           }}>
-            {tablesData?.tablesByFloor?.map((table: Table) => {
+            {visibleTables.map((table: Table) => {
               const colors = getTableColors(table);
               // Determinar si la mesa es redonda (ROUND del backend o CIRCLE)
               const tableShape = table.shape as string;

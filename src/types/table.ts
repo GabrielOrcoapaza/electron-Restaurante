@@ -40,6 +40,8 @@ export interface Table {
   } | null;
   occupiedById?: number;
   userName?: string;
+  /** Si es false, la mesa no se muestra en el piso de ventas. */
+  isActive?: boolean;
 }
 
 // Opciones de estado para las mesas (coinciden con el modelo Django)

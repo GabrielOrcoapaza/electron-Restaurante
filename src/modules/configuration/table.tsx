@@ -223,14 +223,20 @@ const TableModule: React.FC = () => {
         <TableList
           tables={tables}
           floorName={selectedFloor?.name}
-          onEdit={(t) => setEditingTable(t)}
+          onEdit={(t) => {
+            setMessage(null);
+            setEditingTable(t);
+          }}
         />
       )}
       {editingTable && (
         <TableUpdateModal
           table={editingTable}
           onClose={() => setEditingTable(null)}
-          onUpdated={() => refetchTables()}
+          onUpdated={() => {
+            setMessage(null);
+            refetchTables();
+          }}
         />
       )}
     </div>
