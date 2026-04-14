@@ -22,8 +22,9 @@ function createWindow() {
         height: 700,
         minWidth: 1200,
         minHeight: 800,
+        title: "SumApp",
         show: false, // No mostrar hasta que esté listo
-        icon: path.join(__dirname, "../public/sumaq.ico"),
+        icon: path.join(__dirname, "../public/SumApp.ico"),
         webPreferences: {
             contextIsolation: false,
             nodeIntegration: true,

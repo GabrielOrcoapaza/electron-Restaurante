@@ -448,7 +448,7 @@ const LandingPage: React.FC = () => {
                                 : "border-slate-200 bg-white text-slate-900"
                         }`}
                     >
-                        <h2>Sumapp para Escritorio</h2>
+                        <h2>SumApp para Escritorio</h2>
                         <p>
                             La potencia del sistema integral en tu computadora.
                         </p>
