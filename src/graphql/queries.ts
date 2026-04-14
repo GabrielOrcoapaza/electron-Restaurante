@@ -32,6 +32,11 @@ export const GET_COMPANIES_FOR_CARTA_DIGITAL = gql`
                 categories {
                     id
                     name
+                    alias
+                    showInMenu
+                    icon
+                    color
+                    isActive
                     subcategories {
                         id
                         name
@@ -62,6 +67,8 @@ export const GET_COMPANY_FOR_CARTA = gql`
                 categories {
                     id
                     name
+                    alias
+                    showInMenu
                     subcategories {
                         id
                         name
@@ -279,6 +286,8 @@ export const GET_CATEGORIES_BY_BRANCH = gql`
             color
             order
             isActive
+            alias
+            showInMenu
             subcategories {
                 id
                 name

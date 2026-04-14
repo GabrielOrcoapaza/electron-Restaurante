@@ -12,6 +12,9 @@ import banner1 from "../../assets/landing/banner1.png";
 import banner2 from "../../assets/landing/banner2.png";
 import banner3 from "../../assets/landing/banner3.png";
 
+const GRAPHQL_URL = import.meta.env.VITE_GRAPHQL_URL || "";
+const API_MEDIA_URL = GRAPHQL_URL.replace("/graphql", "/media/");
+
 const banners = [
     {
         image: banner1,
@@ -37,6 +40,7 @@ const LandingPage: React.FC = () => {
     const [currentSlide, setCurrentSlide] = useState(0);
     const [isScrolled, setIsScrolled] = useState(false);
     const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+    const [selectedBranchId, setSelectedBranchId] = useState<string>("");
     const [darkMode, setDarkMode] = useState(() => {
         return localStorage.getItem("sumaq-theme") === "dark";
     });
@@ -53,20 +57,38 @@ const LandingPage: React.FC = () => {
     useEffect(() => {
         const timer = setInterval(() => {
             setCurrentSlide((prev) => (prev + 1) % banners.length);
-        }, 8000);
+        }, 10000);
         return () => clearInterval(timer);
     }, []);
+
+    const nextSlide = () => {
+        setCurrentSlide((prev) => (prev + 1) % banners.length);
+    };
+
+    const prevSlide = () => {
+        setCurrentSlide((prev) => (prev - 1 + banners.length) % banners.length);
+    };
 
     useEffect(() => {
         localStorage.setItem("sumaq-theme", darkMode ? "dark" : "light");
     }, [darkMode]);
 
     const selectedCompany = useMemo(() => {
-        if (!menuData || !selectedCompanyId) return null;
+        if (!menuData?.allCompanies || !selectedCompanyId) return null;
         return menuData.allCompanies.find(
             (c: any) => c.id === selectedCompanyId,
         );
     }, [menuData, selectedCompanyId]);
+
+    const selectedBranch = useMemo(() => {
+        if (!selectedCompany?.branches) return null;
+        if (!selectedBranchId) return selectedCompany.branches[0];
+        return (
+            selectedCompany.branches.find(
+                (b: any) => b.id === selectedBranchId,
+            ) || selectedCompany.branches[0]
+        );
+    }, [selectedCompany, selectedBranchId]);
 
     useEffect(() => {
         if (menuData?.allCompanies?.length > 0 && !selectedCompanyId) {
@@ -74,12 +96,20 @@ const LandingPage: React.FC = () => {
         }
     }, [menuData, selectedCompanyId]);
 
+    useEffect(() => {
+        if (selectedCompany?.branches?.length > 0) {
+            setSelectedBranchId(selectedCompany.branches[0].id);
+        } else {
+            setSelectedBranchId("");
+        }
+    }, [selectedCompany]);
+
     return (
         <div className={`landing-container ${darkMode ? "dark-mode" : ""}`}>
             {/* Nav */}
             <nav className={`landing-nav ${isScrolled ? "scrolled" : ""}`}>
                 <div className="landing-logo">
-                    Sum<span>aq</span>
+                    Sum<span>app</span>
                 </div>
                 <div className="nav-actions">
                     <button
@@ -111,6 +141,25 @@ const LandingPage: React.FC = () => {
                         </div>
                     </div>
                 ))}
+
+                {/* Arrow Controls */}
+                <button className="banner-arrow prev" onClick={prevSlide}>
+                    <span className="material-icons">chevron_left</span>
+                </button>
+                <button className="banner-arrow next" onClick={nextSlide}>
+                    <span className="material-icons">chevron_right</span>
+                </button>
+
+                {/* Dot Indicators */}
+                <div className="banner-dots">
+                    {banners.map((_, index) => (
+                        <span
+                            key={index}
+                            className={`dot ${index === currentSlide ? "active" : ""}`}
+                            onClick={() => setCurrentSlide(index)}
+                        ></span>
+                    ))}
+                </div>
             </header>
 
             {/* Info */}
@@ -132,7 +181,7 @@ const LandingPage: React.FC = () => {
                             }}
                         >
                             Todo lo que necesitas ya funciona junto bajo la
-                            tecnología Sumaq.
+                            tecnología Sumapp.
                         </p>
                     </div>
 
@@ -181,11 +230,41 @@ const LandingPage: React.FC = () => {
                                 <li style={{ marginBottom: "0.8rem" }}>
                                     ✓ Hasta 3 impresoras simultáneas
                                 </li>
-                                <li style={{ marginBottom: "0.8rem" }}>
-                                    ✓ Impresión segmentada por área
-                                </li>
-                                <li>✓ Elimina confusiones en despacho</li>
                             </ul>
+                        </div>
+                        <div className="info-card">
+                            <div className="card-icon">
+                                <span className="material-icons">
+                                    smartphone
+                                </span>
+                            </div>
+                            <h3>App de Mozos</h3>
+                            <p>
+                                Toma pedidos rápidamente desde cualquier
+                                smartphone o tablet.
+                            </p>
+                        </div>
+                        <div className="info-card">
+                            <div className="card-icon">
+                                <span className="material-icons">
+                                    restaurant
+                                </span>
+                            </div>
+                            <h3>Sistema para Cocina</h3>
+                            <p>
+                                Gestión eficiente de comandas en tiempo real
+                                para evitar retrasos.
+                            </p>
+                        </div>
+                        <div className="info-card">
+                            <div className="card-icon">
+                                <span className="material-icons">computer</span>
+                            </div>
+                            <h3>Software de Caja</h3>
+                            <p>
+                                Control total de facturación, inventarios y
+                                reportes detallados.
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -193,65 +272,46 @@ const LandingPage: React.FC = () => {
 
             {/* Clients */}
             <section className="clients-section">
-                <h2>CONFÍAN EN EL SABOR DE SUMAQ</h2>
-                <div className="logos-container">
-                    {companiesData?.allCompanies
-                        ?.filter((c: any) => c.logoBase64)
-                        .map((company: any) => (
-                            <img
-                                key={company.id}
-                                src={company.logoBase64}
-                                alt={company.denomination}
-                                className="client-logo"
-                                title={company.denomination}
-                            />
-                        ))}
-                    {!companiesData?.allCompanies?.some(
-                        (c: any) => c.logoBase64,
-                    ) && (
-                        <div style={{ fontWeight: 900, opacity: 0.8 }}>
-                            EMPRESAS LÍDERES DEL SECTOR GASTRONÓMICO
-                        </div>
-                    )}
+                <div className="section-wrapper">
+                    <h2>Empresas que confían en Sumapp</h2>
+                    <div className="logos-container">
+                        {companiesData?.allCompanies
+                            ?.slice(0, 6)
+                            .map((c: any) => (
+                                <img
+                                    key={c.id}
+                                    src={
+                                        c.logoBase64
+                                            ? c.logoBase64
+                                            : c.logo
+                                            ? `${API_MEDIA_URL}${c.logo}`
+                                            : "/logo_company.png"
+                                    }
+                                    alt={c.commercialName}
+                                    className="client-logo"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).src = "/logo_company.png";
+                                    }}
+                                />
+                            ))}
+                    </div>
                 </div>
             </section>
 
-            {/* Carta Digital */}
+            {/* Digital Menu */}
             <section className="digital-menu-section">
                 <div className="section-wrapper">
                     <div className="menu-preview-container">
-                        <div className="menu-selector-panel">
+                        <div className="menu-info-panel">
                             <span className="preview-pill">NUEVA FUNCIÓN</span>
-                            <h2
-                                style={{
-                                    fontSize: "3rem",
-                                    fontWeight: 900,
-                                    marginBottom: "2rem",
-                                }}
-                            >
-                                Carta Digital
-                            </h2>
-                            <p
-                                style={{
-                                    opacity: 0.8,
-                                    fontSize: "1.3rem",
-                                    marginBottom: "3rem",
-                                }}
-                            >
+                            <h2>Carta Digital Interactiva</h2>
+                            <p>
                                 Tus clientes escanean el QR y acceden a una
-                                experiencia visual Sumaq.
+                                experiencia visual Sumapp.
                             </p>
 
                             <div className="selector-group">
-                                <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "15px",
-                                        fontWeight: 700,
-                                    }}
-                                >
-                                    Selecciona un restaurante
-                                </label>
+                                <label>Restaurante</label>
                                 <select
                                     className="company-select"
                                     value={selectedCompanyId}
@@ -267,103 +327,87 @@ const LandingPage: React.FC = () => {
                                 </select>
                             </div>
 
+                            {selectedCompany?.branches?.length > 1 && (
+                                <div className="selector-group">
+                                    <label>Sede</label>
+                                    <select
+                                        className="company-select"
+                                        value={selectedBranchId}
+                                        onChange={(e) =>
+                                            setSelectedBranchId(e.target.value)
+                                        }
+                                    >
+                                        {selectedCompany.branches.map(
+                                            (b: any) => (
+                                                <option key={b.id} value={b.id}>
+                                                    {b.name}
+                                                </option>
+                                            ),
+                                        )}
+                                    </select>
+                                </div>
+                            )}
+
                             <Link
-                                to={`/carta/${selectedCompanyId}`}
+                                to={`/carta/${selectedCompanyId}${selectedBranchId ? `?branch=${selectedBranchId}` : ""}`}
                                 className="banner-btn"
                                 style={{
-                                    background: "var(--secondary)",
-                                    color: "var(--dark)",
                                     width: "100%",
                                     justifyContent: "center",
-                                    marginBottom: "1.5rem",
                                 }}
                             >
-                                📖 VER CARTA COMPLETA
+                                VER CARTA COMPLETA
                             </Link>
                         </div>
 
                         <div className="menu-preview-display">
-                            <header
-                                style={{
-                                    textAlign: "center",
-                                    marginBottom: "3rem",
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        width: "70px",
-                                        height: "70px",
-                                        borderRadius: "50%",
-                                        background: "var(--primary)",
-                                        margin: "0 auto 15px",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        color: "white",
-                                        fontSize: "1.5rem",
-                                        fontWeight: 900,
-                                    }}
-                                >
-                                    {selectedCompany?.denomination?.charAt(0) ||
-                                        "S"}
+                            <header className="preview-header">
+                                <div className="preview-avatar">
+                                    <img 
+                                        src={
+                                            selectedCompany?.logoBase64 
+                                            ? selectedCompany.logoBase64 
+                                            : selectedCompany?.logo 
+                                            ? `${API_MEDIA_URL}${selectedCompany.logo}` 
+                                            : "/logo_company.png"
+                                        } 
+                                        alt="Logo"
+                                        onError={(e) => { (e.target as HTMLImageElement).src = "/logo_company.png"; }}
+                                    />
                                 </div>
-                                <h3 style={{ margin: 0, fontWeight: 900 }}>
-                                    {selectedCompany?.denomination ||
-                                        "Sumaq Demo"}
-                                </h3>
+                                <h3>{selectedCompany?.commercialName || selectedCompany?.denomination}</h3>
                             </header>
 
                             <div className="preview-items">
-                                {selectedCompany?.branches?.[0]?.categories?.[0]?.subcategories?.[0]?.products
-                                    ?.slice(0, 4)
+                                {selectedBranch?.categories
+                                    ?.find(
+                                        (cat: any) =>
+                                            cat.showInMenu !== false &&
+                                            cat.isActive !== false,
+                                    )
+                                    ?.subcategories?.[0]?.products?.slice(0, 4)
                                     ?.map((p: any) => (
                                         <div
                                             key={p.id}
-                                            style={{
-                                                display: "flex",
-                                                gap: "20px",
-                                                padding: "1.5rem 0",
-                                                borderBottom: "1px solid #eee",
-                                            }}
+                                            className="preview-item"
                                         >
-                                            <img
-                                                src={
-                                                    p.imageBase64 ||
-                                                    "https://via.placeholder.com/80"
-                                                }
-                                                style={{
-                                                    width: "80px",
-                                                    height: "80px",
-                                                    borderRadius: "15px",
-                                                    objectFit: "cover",
-                                                }}
-                                                alt={p.name}
-                                            />
-                                            <div>
-                                                <h4
-                                                    style={{
-                                                        margin: 0,
-                                                        fontWeight: 800,
+                                            <div className="preview-item-image">
+                                                <img
+                                                    src={
+                                                        p.imageBase64 ||
+                                                        "/default_dish.png"
+                                                    }
+                                                    alt={p.name}
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).src = "/default_dish.png";
                                                     }}
-                                                >
-                                                    {p.name}
-                                                </h4>
-                                                <p
-                                                    style={{
-                                                        fontSize: "0.9rem",
-                                                        color: "#64748b",
-                                                        margin: "5px 0",
-                                                    }}
-                                                >
-                                                    {p.description}
-                                                </p>
-                                                <span
-                                                    style={{
-                                                        fontWeight: 900,
-                                                        color: "var(--primary)",
-                                                    }}
-                                                >
-                                                    S/ {p.salePrice}
+                                                />
+                                            </div>
+                                            <div className="item-info">
+                                                <h4>{p.name}</h4>
+                                                <p>{p.description}</p>
+                                                <span className="item-price">
+                                                    S/ {Number(p.salePrice).toFixed(2)}
                                                 </span>
                                             </div>
                                         </div>
@@ -378,218 +422,26 @@ const LandingPage: React.FC = () => {
             <section className="download-section">
                 <div className="section-wrapper">
                     <div className="download-box">
-                        <h2
-                            style={{
-                                fontSize: "3rem",
-                                fontWeight: 900,
-                                marginBottom: "2rem",
-                            }}
-                        >
-                            Sumaq para Escritorio
-                        </h2>
-                        <p
-                            style={{
-                                fontSize: "1.3rem",
-                                opacity: 0.9,
-                                marginBottom: "3rem",
-                            }}
-                        >
-                            Potencia tu caja con una herramienta estable y
-                            ultrarrápida.
+                        <h2>Sumapp para Escritorio</h2>
+                        <p>
+                            La potencia del sistema integral en tu computadora.
                         </p>
-                        <div
-                            className="download-grid"
-                            style={{
-                                display: "flex",
-                                justifyContent: "center",
-                                gap: "30px",
-                                flexWrap: "wrap",
-                                marginTop: "2rem",
-                            }}
-                        >
-                            <div
-                                className="download-card"
-                                style={{
-                                    background: "rgba(255,255,255,0.1)",
-                                    padding: "2.5rem",
-                                    borderRadius: "30px",
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    minWidth: "280px",
-                                    textAlign: "center",
-                                    transition: "all 0.3s ease",
-                                }}
-                            >
-                                <span
-                                    style={{
-                                        fontSize: "3rem",
-                                        display: "block",
-                                        marginBottom: "1rem",
-                                    }}
-                                >
-                                    🪟
-                                </span>
-                                <h3
-                                    style={{
-                                        margin: "0 0 10px 0",
-                                        fontSize: "1.5rem",
-                                    }}
-                                >
-                                    Windows
-                                </h3>
-                                <p
-                                    style={{
-                                        opacity: 0.7,
-                                        margin: "0 0 5px 0",
-                                    }}
-                                >
-                                    SumApp Setup 1.1.1.exe
-                                </p>
-                                <p
-                                    style={{
-                                        fontWeight: 900,
-                                        color: "var(--secondary)",
-                                        margin: "0 0 20px 0",
-                                    }}
-                                >
-                                    105 MB
-                                </p>
-                                <a
-                                    href="/release/SumApp Setup 1.1.1.exe"
-                                    className="download-btn"
-                                    style={{
-                                        padding: "1rem 2rem",
-                                        fontSize: "1.1rem",
-                                        margin: 0,
-                                        width: "100%",
-                                        boxSizing: "border-box",
-                                    }}
-                                >
-                                    DESCARGAR .EXE
-                                </a>
+                        <a href="#" className="download-btn">
+                            DESCARGAR PARA WINDOWS
+                        </a>
+                        <div className="platform-grid">
+                            <div className="platform-card">
+                                <span className="material-icons">laptop</span>
+                                <h4>Linux (.AppImage)</h4>
+                                <a href="#">DESCARGAR</a>
                             </div>
-
-                            <div
-                                className="download-card"
-                                style={{
-                                    background: "rgba(255,255,255,0.1)",
-                                    padding: "2.5rem",
-                                    borderRadius: "30px",
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    minWidth: "280px",
-                                    textAlign: "center",
-                                    transition: "all 0.3s ease",
-                                }}
-                            >
-                                <span
-                                    style={{
-                                        fontSize: "3rem",
-                                        display: "block",
-                                        marginBottom: "1rem",
-                                    }}
-                                >
-                                    🐧
+                            <div className="platform-card">
+                                <span className="material-icons">
+                                    phone_android
                                 </span>
-                                <h3
-                                    style={{
-                                        margin: "0 0 10px 0",
-                                        fontSize: "1.5rem",
-                                    }}
-                                >
-                                    Linux
-                                </h3>
-                                <p
-                                    style={{
-                                        opacity: 0.7,
-                                        margin: "0 0 5px 0",
-                                    }}
-                                >
-                                    SumApp-1.1.1.AppImage
-                                </p>
-                                <p
-                                    style={{
-                                        fontWeight: 900,
-                                        color: "var(--secondary)",
-                                        margin: "0 0 20px 0",
-                                    }}
-                                >
-                                    127 MB
-                                </p>
-                                <a
-                                    href="/release/SumApp-1.1.1.AppImage"
-                                    className="download-btn"
-                                    style={{
-                                        padding: "1rem 2rem",
-                                        fontSize: "1.1rem",
-                                        margin: 0,
-                                        width: "100%",
-                                        boxSizing: "border-box",
-                                    }}
-                                >
-                                    DESCARGAR .APPIMAGE
-                                </a>
-                            </div>
-
-                            <div
-                                className="download-card"
-                                style={{
-                                    background: "rgba(255,255,255,0.1)",
-                                    padding: "2.5rem",
-                                    borderRadius: "30px",
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    minWidth: "280px",
-                                    textAlign: "center",
-                                    transition: "all 0.3s ease",
-                                }}
-                            >
-                                <span
-                                    style={{
-                                        fontSize: "3rem",
-                                        display: "block",
-                                        marginBottom: "1rem",
-                                    }}
-                                >
-                                    🤖
-                                </span>
-                                <h3
-                                    style={{
-                                        margin: "0 0 10px 0",
-                                        fontSize: "1.5rem",
-                                    }}
-                                >
-                                    Android
-                                </h3>
-                                <p
-                                    style={{
-                                        opacity: 0.7,
-                                        margin: "0 0 5px 0",
-                                    }}
-                                >
-                                    Conecta mesas, cocina, caja y mozos en un
-                                    solo sistema
-                                </p>
-                                <p
-                                    style={{
-                                        fontWeight: 900,
-                                        color: "var(--secondary)",
-                                        margin: "0 0 20px 0",
-                                    }}
-                                >
-                                    Google Play Store
-                                </p>
-                                <a
-                                    href="https://play.google.com/store/apps/details?id=com.soluciones4.sumapp"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="download-btn"
-                                    style={{
-                                        padding: "1rem 2rem",
-                                        fontSize: "1.1rem",
-                                        margin: 0,
-                                        width: "100%",
-                                        boxSizing: "border-box",
-                                    }}
-                                >
-                                    VER EN PLAY STORE
+                                <h4>Android (Play Store)</h4>
+                                <a href="https://play.google.com/store/apps/details?id=com.soluciones4.sumapp">
+                                    VER APP
                                 </a>
                             </div>
                         </div>
@@ -600,25 +452,10 @@ const LandingPage: React.FC = () => {
             {/* Contact */}
             <section className="contact-section">
                 <div className="section-wrapper">
-                    <h2
-                        style={{
-                            fontSize: "3rem",
-                            fontWeight: 900,
-                            color: "var(--primary)",
-                            marginBottom: "1.5rem",
-                        }}
-                    >
-                        ¿Listo para el cambio?
-                    </h2>
-                    <p
-                        style={{
-                            fontSize: "1.3rem",
-                            opacity: 0.7,
-                            marginBottom: "4rem",
-                        }}
-                    >
-                        Te mostramos cómo Sumaq puede transformar tu negocio
-                        hoy.
+                    <h2>¿Listo para digitalizar tu negocio?</h2>
+                    <p>
+                        Contáctanos hoy y descubre cómo transformar tu
+                        restaurante.
                     </p>
                     <a
                         href="https://wa.me/51953716606"
@@ -626,25 +463,16 @@ const LandingPage: React.FC = () => {
                         target="_blank"
                         rel="noopener noreferrer"
                     >
-                        📲 DEMO POR WHATSAPP
+                        SOLICITAR DEMO POR WHATSAPP
                     </a>
                 </div>
             </section>
 
             <footer className="landing-footer">
-                <div
-                    style={{
-                        fontWeight: 900,
-                        fontSize: "1.2rem",
-                        color: "#fff",
-                        marginBottom: "1rem",
-                    }}
-                >
-                    SUMAQ RESTAURANTE
-                </div>
-                <p style={{ margin: 0, opacity: 0.5 }}>
-                    &copy; {new Date().getFullYear()} Sumaq Tech. Raíces
-                    cusqueñas.
+                <div className="footer-brand">SUMAPP RESTAURANTE</div>
+                <p>
+                    &copy; {new Date().getFullYear()} Soluciones 4 Sumapp.
+                    Tecnología para crecer.
                 </p>
             </footer>
         </div>

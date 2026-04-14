@@ -1,10 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap");
 
 .menu-page-container {
     min-height: 100vh;
     background: #000; /* Fondo negro exterior como en la imagen */
     color: #000;
-    font-family: 'Inter', sans-serif;
+    font-family: "Inter", sans-serif;
     padding: 40px 20px;
     display: flex;
     justify-content: center;
@@ -32,6 +32,7 @@
 }
 
 .brand-name {
+    font-family: "Outfit", sans-serif;
     font-size: 2.2rem;
     font-weight: 900;
     letter-spacing: 4px;
@@ -42,7 +43,7 @@
 .brand-underline {
     width: 100%;
     height: 8px;
-    background: #000;
+    background: #a90125; /* Primario 2 (Rojo) */
     margin-top: 5px;
 }
 
@@ -55,7 +56,7 @@
 }
 
 .menu-box {
-    background: #000;
+    background: #09763d; /* Primario 1 (Verde) */
     color: #fff;
     padding: 15px 12px;
     text-align: center;
@@ -75,12 +76,23 @@
     margin-bottom: 40px;
 }
 
+.category-header-minimal {
+    display: flex;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.category-icon {
+    font-size: 1.8rem;
+    flex-shrink: 0;
+}
+
 .category-title-minimal {
+    font-family: "Outfit", sans-serif;
     font-size: 1.4rem;
-    font-weight: 900;
+    font-weight: 800;
     letter-spacing: 3px;
     text-transform: uppercase;
-    margin-bottom: 30px;
     border-bottom: 1px solid transparent;
 }
 
@@ -102,17 +114,23 @@
 }
 
 .product-name-minimal {
-    font-size: 1rem;
+    font-family: "Outfit", sans-serif;
+    font-size: 20px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
     margin: 0;
+    /*color: #09763d; /* Primario 1 (Verde) */
 }
 
 .product-price-minimal {
-    font-size: 1rem;
-    font-weight: 700;
+    font-family: "Inter", sans-serif;
+    font-size: 18px;
+    font-weight: 600;
     margin-left: 10px;
+    color: #a90125; /* Primario 2 (Rojo) */
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .product-desc-minimal {
@@ -122,10 +140,18 @@
     max-width: 90%;
 }
 
-.back-to-landing {
+.menu-actions-floating {
     position: fixed;
     bottom: 30px;
     right: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    z-index: 100;
+}
+
+.back-to-landing-btn,
+.download-pdf-btn {
     background: #fff;
     color: #000;
     padding: 12px 25px;
@@ -133,8 +159,43 @@
     text-decoration: none;
     font-weight: 700;
     font-size: 0.9rem;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    z-index: 100;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.3s ease;
+}
+
+.download-pdf-btn {
+    background: #a90125;
+    color: #fff;
+}
+
+.download-pdf-btn:hover {
+    background: #801212;
+    transform: scale(1.05);
+}
+
+@media print {
+    .menu-actions-floating {
+        display: none !important;
+    }
+    .menu-page-container {
+        padding: 0;
+        background: #fff;
+    }
+    .menu-paper {
+        padding: 0;
+        width: 100%;
+        max-width: none;
+        box-shadow: none;
+    }
+    body {
+        background: #fff;
+    }
 }
 
 .footer-minimal {
