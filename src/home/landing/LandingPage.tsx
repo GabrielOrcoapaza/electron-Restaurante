@@ -372,9 +372,22 @@ const LandingPage: React.FC = () => {
                                 </div>
                             )}
 
+                            <div className="qr-preview-section mt-8 flex flex-col items-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                                <div className="bg-white p-3 rounded-xl shadow-md">
+                                    <img 
+                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/#/carta/${selectedCompanyId}${selectedBranchId ? `?branch=${selectedBranchId}` : ""}`)}&bgcolor=ffffff&color=0f172a&margin=5`} 
+                                        alt="QR Carta Digital" 
+                                        className="w-32 h-32"
+                                    />
+                                </div>
+                                <p className="mt-4 text-[10px] font-black tracking-widest text-emerald-600 dark:text-emerald-400 uppercase">
+                                    ESCANEAME PARA PROBAR
+                                </p>
+                            </div>
+
                             <Link
                                 to={`/carta/${selectedCompanyId}${selectedBranchId ? `?branch=${selectedBranchId}` : ""}`}
-                                className="banner-btn mt-2 flex w-full justify-center text-center"
+                                className="banner-btn mt-6 flex w-full justify-center text-center py-4"
                             >
                                 VER CARTA COMPLETA
                             </Link>
