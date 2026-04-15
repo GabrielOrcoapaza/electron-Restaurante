@@ -45,6 +45,7 @@ export const GET_COMPANIES_FOR_CARTA_DIGITAL = gql`
                             name
                             description
                             salePrice
+                            image
                             imageBase64
                         }
                     }
@@ -60,10 +61,12 @@ export const GET_COMPANY_FOR_CARTA = gql`
             ruc
             denomination
             commercialName
+            logo
             logoBase64
             branches {
                 id
                 name
+                address
                 categories {
                     id
                     name

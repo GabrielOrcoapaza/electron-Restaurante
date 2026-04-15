@@ -5,6 +5,9 @@ import { GET_COMPANY_FOR_CARTA } from "../../graphql/queries";
 import { categoryIconFromIdOrDefault } from "../../constants/categoryIcons";
 import "./FullMenuPage.css";
 
+const GRAPHQL_URL = import.meta.env.VITE_GRAPHQL_URL || "";
+const API_MEDIA_URL = GRAPHQL_URL.replace("/graphql", "/media/");
+
 const FullMenuPage: React.FC = () => {
     const { companyId } = useParams<{ companyId: string }>();
     const location = useLocation();
@@ -68,8 +71,8 @@ const FullMenuPage: React.FC = () => {
                 <Link to="/" className="back-to-landing-btn">
                     ← VOLVER
                 </Link>
-                <button 
-                    onClick={handleDownloadPDF} 
+                <button
+                    onClick={handleDownloadPDF}
                     className="download-pdf-btn"
                     title="Descargar como PDF"
                 >
@@ -81,23 +84,53 @@ const FullMenuPage: React.FC = () => {
             <div className="menu-paper">
                 <header className="menu-header-minimal">
                     <div className="brand-info">
-                        <h1 className="brand-name">
-                            {company.commercialName || company.denomination}
-                        </h1>
-                        {selectedBranch && company.branches?.length > 1 && (
-                            <p
-                                style={{
-                                    margin: "5px 0 0",
-                                    opacity: 0.6,
-                                    fontSize: "0.9rem",
-                                    textAlign: "center",
-                                }}
-                            >
-                                Sede: {selectedBranch.name}
-                            </p>
+                        <div className="brand-header-flex">
+                            {(company.logo || company.logoBase64) && (
+                                <div className="brand-logo-container">
+                                    <img
+                                        src={
+                                            company.logo
+                                                ? `${API_MEDIA_URL}${company.logo}`
+                                                : company.logoBase64.startsWith(
+                                                        "data:",
+                                                    )
+                                                  ? company.logoBase64
+                                                  : `data:image/png;base64,${company.logoBase64}`
+                                        }
+                                        alt={company.commercialName}
+                                        className="brand-logo-img"
+                                        onError={(e) => {
+                                            (
+                                                e.target as HTMLImageElement
+                                            ).style.display = "none";
+                                        }}
+                                    />
+                                </div>
+                            )}
+                            <h1 className="brand-name">
+                                {company.commercialName || company.denomination}
+                            </h1>
+                        </div>
+                        {selectedBranch && (
+                            <div className="branch-info-header">
+                                {company.branches?.length > 1 && (
+                                    <p className="branch-name-header">
+                                        Sede: {selectedBranch.name}
+                                    </p>
+                                )}
+                            </div>
                         )}
                         <div className="brand-underline"></div>
-                        <div className="brand-since">PRECIOS VÁLIDOS SOLO EN ESTABLECIMIENTO</div>
+                        <div className="brand-meta-wrapper">
+                            <div className="brand-since">
+                                PRECIOS VÁLIDOS SOLO EN ESTABLECIMIENTO
+                            </div>
+                            {selectedBranch.address && (
+                                <p className="branch-address-header">
+                                    {selectedBranch.address}
+                                </p>
+                            )}
+                        </div>
                     </div>
                     <div className="menu-box">
                         ME
@@ -129,50 +162,71 @@ const FullMenuPage: React.FC = () => {
                             </div>
 
                             <div className="products-list-minimal">
-                                {category.subcategories?.map((subcategory: any) => {
-                                    const activeProducts = subcategory.products?.filter(
-                                        (p: any) => p.isActive !== false && p.name?.trim()
-                                    ) || [];
+                                {category.subcategories?.map(
+                                    (subcategory: any) => {
+                                        const activeProducts =
+                                            subcategory.products?.filter(
+                                                (p: any) =>
+                                                    p.isActive !== false &&
+                                                    p.name?.trim(),
+                                            ) || [];
 
-                                    if (activeProducts.length === 0) return null;
+                                        if (activeProducts.length === 0)
+                                            return null;
 
-                                    return (
-                                        <div key={subcategory.id} className="subcategory-block">
-                                            {category.subcategories.length > 1 && (
-                                                <h3 className="subcategory-title-minimal">
-                                                    {subcategory.name}
-                                                </h3>
-                                            )}
-                                            {activeProducts.map((product: any) => (
-                                                <div
-                                                    key={product.id}
-                                                    className="product-item-minimal"
-                                                >
-                                                    <div className="product-row">
-                                                        <h4 className="product-name-minimal">
-                                                            {product.name}
-                                                        </h4>
-                                                        <span className="product-price-minimal">
-                                                            S/ {Number(product.salePrice).toFixed(2)}
-                                                        </span>
-                                                    </div>
-                                                    {product.description && (
-                                                        <p className="product-desc-minimal">
-                                                            {product.description}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    );
-                                })}
+                                        return (
+                                            <div
+                                                key={subcategory.id}
+                                                className="subcategory-block"
+                                            >
+                                                {category.subcategories.length >
+                                                    1 && (
+                                                    <h3 className="subcategory-title-minimal">
+                                                        {subcategory.name}
+                                                    </h3>
+                                                )}
+                                                {activeProducts.map(
+                                                    (product: any) => (
+                                                        <div
+                                                            key={product.id}
+                                                            className="product-item-minimal"
+                                                        >
+                                                            <div className="product-row">
+                                                                <h4 className="product-name-minimal">
+                                                                    {
+                                                                        product.name
+                                                                    }
+                                                                </h4>
+                                                                <span className="product-price-minimal">
+                                                                    S/{" "}
+                                                                    {Number(
+                                                                        product.salePrice,
+                                                                    ).toFixed(
+                                                                        2,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            {product.description && (
+                                                                <p className="product-desc-minimal">
+                                                                    {
+                                                                        product.description
+                                                                    }
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    ),
+                                                )}
+                                            </div>
+                                        );
+                                    },
+                                )}
                             </div>
                         </section>
                     ))}
                 </main>
 
                 <footer className="footer-minimal">
-                    <p>{company.address}</p>
+                    <p>{selectedBranch?.address || company.address}</p>
                     <p>{company.ruc} | POWERED BY SUMAPP</p>
                 </footer>
             </div>

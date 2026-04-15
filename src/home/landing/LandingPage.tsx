@@ -281,11 +281,13 @@ const LandingPage: React.FC = () => {
                                 <img
                                     key={c.id}
                                     src={
-                                        c.logoBase64
-                                            ? c.logoBase64
-                                            : c.logo
-                                              ? `${API_MEDIA_URL}${c.logo}`
-                                              : "/logo_company.png"
+                                        c.logo
+                                            ? `${API_MEDIA_URL}${c.logo}` // Prioridad al archivo
+                                            : c.logoBase64
+                                              ? c.logoBase64.startsWith("data:")
+                                                  ? c.logoBase64
+                                                  : `data:image/png;base64,${c.logoBase64}` // Reparación automática
+                                              : "/logo_company.png" // Fallback
                                     }
                                     alt={c.commercialName}
                                     className="client-logo"
@@ -405,13 +407,17 @@ const LandingPage: React.FC = () => {
                                 <div className="preview-avatar">
                                     <img
                                         src={
-                                            selectedCompany?.logoBase64
-                                                ? selectedCompany.logoBase64
-                                                : selectedCompany?.logo
-                                                  ? `${API_MEDIA_URL}${selectedCompany.logo}`
+                                            selectedCompany?.logo
+                                                ? `${API_MEDIA_URL}${selectedCompany.logo}`
+                                                : selectedCompany?.logoBase64
+                                                  ? selectedCompany.logoBase64.startsWith(
+                                                        "data:",
+                                                    )
+                                                      ? selectedCompany.logoBase64
+                                                      : `data:image/png;base64,${selectedCompany.logoBase64}`
                                                   : "/logo_company.png"
                                         }
-                                        alt="Logo"
+                                        alt={selectedCompany?.commercialName}
                                         onError={(e) => {
                                             (e.target as HTMLImageElement).src =
                                                 "/logo_company.png";
@@ -440,8 +446,15 @@ const LandingPage: React.FC = () => {
                                             <div className="preview-item-image">
                                                 <img
                                                     src={
-                                                        p.imageBase64 ||
-                                                        "/default_dish.png"
+                                                        p.image
+                                                            ? `${API_MEDIA_URL}${p.image}`
+                                                            : p.imageBase64
+                                                              ? p.imageBase64.startsWith(
+                                                                    "data:",
+                                                                )
+                                                                  ? p.imageBase64
+                                                                  : `data:image/png;base64,${p.imageBase64}`
+                                                              : "/default_dish.png"
                                                     }
                                                     alt={p.name}
                                                     onError={(e) => {
