@@ -86,11 +86,11 @@ const PrintersList: React.FC<PrintersListProps> = ({ printers, onEdit, onOpenPer
             <tbody>
               {printers.map((p) => (
                 <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '0.5rem' }}>{p.name}</td>
-                  <td style={{ padding: '0.5rem' }}>{p.code}</td>
-                  <td style={{ padding: '0.5rem' }}>{pVal(p, 'ipAddress', 'ip_address') ?? '-'}</td>
-                  <td style={{ padding: '0.5rem' }}>{pVal(p, 'printerType', 'printer_type') ?? 'THERMAL'}</td>
-                  <td style={{ padding: '0.5rem' }}>
+                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>{p.name}</td>
+                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>{p.code}</td>
+                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>{pVal(p, 'ipAddress', 'ip_address') ?? '-'}</td>
+                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>{pVal(p, 'printerType', 'printer_type') ?? 'THERMAL'}</td>
+                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>
                     {[
                       pVal(p, 'isKitchen', 'is_kitchen'),
                       pVal(p, 'isBar', 'is_bar'),
@@ -102,12 +102,12 @@ const PrintersList: React.FC<PrintersListProps> = ({ printers, onEdit, onOpenPer
                       .filter(Boolean)
                       .join(', ') || '-'}
                   </td>
-                  <td style={{ padding: '0.5rem' }}>
+                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>
                     {pVal(p, 'isActive', 'is_active') !== false ? 'Activa' : 'Inactiva'}
                   </td>
                   <td style={{ padding: '0.5rem', display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                     <button type="button" onClick={() => onOpenPermissions(p)} style={{ ...styleButton(false), padding: '0.375rem 0.75rem', fontSize: '0.8125rem' }}>
-                      🔐 Permisos
+                      🔐 Asignaciones 
                     </button>
                     <button type="button" onClick={() => onEdit(p)} style={styleButton(false)}>
                       Editar

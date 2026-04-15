@@ -68,6 +68,16 @@ const Delivery: React.FC = () => {
     const cartItemFontSize = isSmall ? '0.8125rem' : '0.875rem';
     const cartItemPadding = isSmall ? '0.35rem 0.5rem' : isMedium ? '0.45rem 0.55rem' : '0.6rem 0.75rem';
 
+    /** Encabezado de navegación categorías: botones grandes para uso táctil en salón */
+	const breadcrumbBtnMinH = isSmall ? 48 : 52;
+	const breadcrumbBtnFont = isSmall ? '0.9375rem' : isMedium ? '1.0625rem' : '1.125rem';
+	const breadcrumbBtnPadX = isSmall ? '1rem' : '1.25rem';
+	const breadcrumbBtnPadY = isSmall ? '0.625rem' : '0.75rem';
+	const breadcrumbBtnRadius = isSmall ? '10px' : '12px';
+
+    /** Ancho máximo en migas de pan: nombre largo con puntos suspensivos (ver título al hover) */
+	const breadcrumbLabelMaxWidth = isSmall ? '7.5rem' : '11rem';
+
     // IGV de la sucursal
     const igvPercentageFromBranch = Number(companyData?.branch?.igvPercentage) || 10.5;
 
@@ -760,15 +770,19 @@ const Delivery: React.FC = () => {
                                     <button
                                         onClick={() => { setSelectedCategory(null); setSelectedSubcategory(null); }}
                                         style={{
-                                            padding: isSmall ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
-                                            background: !selectedCategory ? '#f1f5f9' : 'transparent',
+                                            minHeight: breadcrumbBtnMinH,
+                                            padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
+                                            background: !selectedCategory ? '#e0e7ff' : '#ffffff',
                                             border: 'none',
-                                            borderRadius: '6px',
-                                            fontSize: breadcrumbFontSize,
-                                            fontWeight: !selectedCategory ? '700' : '500',
+                                            borderRadius: breadcrumbBtnRadius,
+											fontSize: breadcrumbBtnFont,
+                                            fontWeight: !selectedCategory ? '700' : '600',
                                             color: !selectedCategory ? '#1e293b' : '#64748b',
                                             cursor: 'pointer',
-                                            whiteSpace: 'nowrap'
+                                            whiteSpace: 'nowrap',
+                                            touchAction: 'manipulation',
+											boxShadow: !selectedCategory ? '0 2px 0 #4f46e5' : '0 1px 2px rgba(0,0,0,.06)',
+											lineHeight: 1.2
                                         }}
                                     >
                                         Categorías
@@ -779,15 +793,23 @@ const Delivery: React.FC = () => {
                                             <button
                                                 onClick={() => setSelectedSubcategory(null)}
                                                 style={{
-                                                    padding: isSmall ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
-                                                    background: !selectedSubcategory ? '#f1f5f9' : 'transparent',
-                                                    border: 'none',
-                                                    borderRadius: '6px',
-                                                    fontSize: breadcrumbFontSize,
-                                                    fontWeight: !selectedSubcategory ? '700' : '500',
-                                                    color: !selectedSubcategory ? '#1e293b' : '#64748b',
-                                                    cursor: 'pointer',
-                                                    whiteSpace: 'nowrap'
+                                                    minHeight: breadcrumbBtnMinH,
+													padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
+													background: !selectedSubcategory ? '#e0e7ff' : '#ffffff',
+													border: `2px solid ${!selectedSubcategory ? '#6366f1' : '#cbd5e1'}`,
+													borderRadius: breadcrumbBtnRadius,
+													fontSize: breadcrumbBtnFont,
+													fontWeight: !selectedSubcategory ? 700 : 600,
+													color: !selectedSubcategory ? '#312e81' : '#475569',
+													cursor: 'pointer',
+													whiteSpace: 'nowrap',
+													maxWidth: breadcrumbLabelMaxWidth,
+													minWidth: 0,
+													overflow: 'hidden',
+													textOverflow: 'ellipsis',
+													touchAction: 'manipulation',
+													boxShadow: !selectedSubcategory ? '0 2px 0 #4f46e5' : '0 1px 2px rgba(0,0,0,.06)',
+													lineHeight: 1.2
                                                 }}
                                             >
                                                 {categories.find((c: any) => c.id === selectedCategory)?.name || 'Categoría'}
@@ -798,13 +820,23 @@ const Delivery: React.FC = () => {
                                         <>
                                             <span style={{ color: '#94a3b8' }}>/</span>
                                             <span style={{
-                                                padding: isSmall ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
-                                                background: '#f1f5f9',
-                                                borderRadius: '6px',
-                                                fontSize: breadcrumbFontSize,
-                                                fontWeight: '700',
-                                                color: '#1e293b',
-                                                whiteSpace: 'nowrap'
+                                                minHeight: breadcrumbBtnMinH,
+												padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
+												display: 'inline-flex',
+												alignItems: 'center',
+												background: '#f1f5f9',
+												border: '2px solid #94a3b8',
+												borderRadius: breadcrumbBtnRadius,
+												fontSize: breadcrumbBtnFont,
+												fontWeight: 700,
+												color: '#0f172a',
+												whiteSpace: 'nowrap',
+												maxWidth: breadcrumbLabelMaxWidth,
+												minWidth: 0,
+												overflow: 'hidden',
+												textOverflow: 'ellipsis',
+												boxSizing: 'border-box',
+												lineHeight: 1.2
                                             }}>
                                                 {subcategoriesOfCategory.find((s: any) => s.id === selectedSubcategory)?.name || 'Subcategoría'}
                                             </span>
@@ -814,30 +846,7 @@ const Delivery: React.FC = () => {
                             )}
                         </div>
 
-                        {(selectedCategory || isSearching) && (
-                            <button
-                                onClick={() => {
-                                    if (isSearching) setSearchTerm('');
-                                    else if (selectedSubcategory) setSelectedSubcategory(null);
-                                    else setSelectedCategory(null);
-                                }}
-                                style={{
-                                    padding: isSmall ? '0.3rem 0.5rem' : '0.375rem 0.75rem',
-                                    backgroundColor: '#f8fafc',
-                                    border: '1px solid #e2e8f0',
-                                    borderRadius: '8px',
-                                    fontSize: isSmall ? '0.7rem' : '0.75rem',
-                                    fontWeight: '600',
-                                    color: '#475569',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.25rem'
-                                }}
-                            >
-                                ⬅ Volver
-                            </button>
-                        )}
+                        
                     </div>
 
                     {/* Grid de items - scroll en pantallas pequeñas */}

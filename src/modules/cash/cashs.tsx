@@ -1847,7 +1847,11 @@ const Cashs: React.FC = () => {
         isOpen={showManualTransactionModal}
         onClose={() => setShowManualTransactionModal(false)}
         onSuccess={() => {
-          refetchCashRegisters();
+          void refetchCashRegisters();
+          if (showPreview && selectedCashRegister) {
+            void refetchPreview();
+            void refetchMovements();
+          }
         }}
         cashRegisters={cashRegisters}
         userId={user?.id || ''}

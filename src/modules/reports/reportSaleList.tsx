@@ -14,6 +14,8 @@ interface IssuedDocument {
   emissionTime: string;
   totalAmount: number;
   totalDiscount: number;
+  globalDiscount?: number;
+  globalDiscountPercent?: number;
   igvAmount: number;
   billingStatus: string;
   notes?: string;
@@ -33,9 +35,17 @@ interface IssuedDocument {
     order: string;
     status: string;
     operationType?: string;
+    user?: {
+      id: string;
+      fullName: string;
+    } | null;
     table?: {
       id: string;
       name: string;
+      floor?: {
+        id: string;
+        name: string;
+      } | null;
     } | null;
   };
   items: Array<{
@@ -58,6 +68,10 @@ interface IssuedDocument {
     paidAmount: number;
     paymentDate: string;
     status: string;
+    user?: {
+      id: string;
+      fullName: string;
+    } | null;
   }>;
   user: {
     id: string;
@@ -92,6 +106,21 @@ const dateFormatter = new Intl.DateTimeFormat('es-PE', {
   hour: '2-digit',
   minute: '2-digit'
 });
+
+const roundMoney2 = (n: number): number => Math.round((Number(n) || 0) * 100) / 100;
+
+/** Descuento en listado: "10% (S/ 1,60)" si aplica %; si no, solo monto en soles. */
+function formatSalesDiscountSummary(doc: IssuedDocument): string | null {
+  const td = roundMoney2(doc.totalDiscount);
+  if (td <= 0) return null;
+  const moneyStr = currencyFormatter.format(td);
+  const pct = roundMoney2(doc.globalDiscountPercent ?? 0);
+  if (pct > 0.001) {
+    const pctDisplay = Math.abs(pct % 1) < 0.001 ? String(Math.trunc(pct)) : String(pct);
+    return `${pctDisplay}% (${moneyStr})`;
+  }
+  return moneyStr;
+}
 
 const ReportSaleList: React.FC<ReportSaleListProps> = ({
   documents,
@@ -412,13 +441,19 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     const search = searchTerm.toLowerCase();
 
     // Buscar en campos básicos del documento
+    const paymentUserMatch = doc.payments.some(
+      (p) => p.user?.fullName?.toLowerCase().includes(search) ?? false
+    );
     const basicMatch =
       doc.serial.toLowerCase().includes(search) ||
       doc.number.toLowerCase().includes(search) ||
       doc.document.description.toLowerCase().includes(search) ||
       (doc.person?.name.toLowerCase().includes(search) || false) ||
       (doc.person?.documentNumber.toLowerCase().includes(search) || false) ||
-      doc.user.fullName.toLowerCase().includes(search);
+      doc.user.fullName.toLowerCase().includes(search) ||
+      (doc.operation?.user?.fullName?.toLowerCase().includes(search) ?? false) ||
+      (doc.operation?.table?.floor?.name?.toLowerCase().includes(search) ?? false) ||
+      paymentUserMatch;
 
     // Buscar en productos de los items
     const productMatch = doc.items.some(item =>
@@ -427,7 +462,19 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     );
 
     return basicMatch || productMatch;
-  });
+ });
+
+  const paymentRegistrarLabel = (doc: IssuedDocument): string => {
+    const names = [
+      ...new Set(
+        doc.payments
+          .map((p) => p.user?.fullName)
+          .filter((n): n is string => Boolean(n && String(n).trim()))
+      )
+    ];
+    if (names.length > 0) return names.join(', ');
+    return doc.user?.fullName ?? '—';
+  };
 
   if (loading) {
     return (
@@ -531,6 +578,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
       }}>
         {filteredDocuments.map((doc) => {
           const isExpanded = expandedDocument === doc.id;
+          const discountSummary = formatSalesDiscountSummary(doc);
           const paymentMethodsMap = new Map<string, number>();
 
           doc.payments.forEach(payment => {
@@ -612,13 +660,37 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                       Cliente: {doc.person.name} ({doc.person.documentNumber})
                     </div>
                   )}
-                  <div style={{ fontSize: tableFontSize, color: '#64748b', marginTop: '0.25rem' }}>
-                    Usuario: {doc.user.fullName}
-                    {doc.operation?.table?.name ? (
-                      <span style={{ marginLeft: '0.5rem', color: '#475569' }}>
-                        · Mesa: {doc.operation.table.name}
-                      </span>
+                  <div
+                    style={{
+                      fontSize: tableFontSize,
+                      color: '#64748b',
+                      marginTop: '0.25rem',
+                      lineHeight: 1.5
+                    }}
+                  >
+                    {(doc.operation?.table?.floor?.name || doc.operation?.table?.name) ? (
+                      <div style={{ color: '#475569' }}>
+                        {doc.operation?.table?.floor?.name ? (
+                          <span>Piso: {doc.operation.table.floor.name}</span>
+                        ) : null}
+                        {doc.operation?.table?.floor?.name && doc.operation?.table?.name ? (
+                          <span style={{ color: '#94a3b8' }}> · </span>
+                        ) : null}
+                        {doc.operation?.table?.name ? (
+                          <span>Mesa: {doc.operation.table.name}</span>
+                        ) : null}
+                      </div>
                     ) : null}
+                    {doc.operation?.user?.fullName ? (
+                      <div>
+                        <span style={{ fontWeight: 600, color: '#64748b' }}>Orden (mozo):</span>{' '}
+                        {doc.operation.user.fullName}
+                      </div>
+                    ) : null}
+                    <div>
+                      <span style={{ fontWeight: 600, color: '#64748b' }}>Pago (caja):</span>{' '}
+                      {paymentRegistrarLabel(doc)}
+                    </div>
                   </div>
                 </div>
 
@@ -642,6 +714,19 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                     }}>
                       {currencyFormatter.format(doc.totalAmount)}
                     </div>
+                    {discountSummary && (
+                      <div
+                        style={{
+                          fontSize: badgeFontSize,
+                          fontWeight: 600,
+                          color: '#b45309',
+                          marginBottom: '0.35rem',
+                          textAlign: 'right'
+                        }}
+                      >
+                        Descuento: {discountSummary}
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                       {Array.from(paymentMethodsMap.entries()).map(([method, amount]) => {
                         const color = getPaymentMethodColor(method);
@@ -885,7 +970,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                 Descuento:
                               </td>
                               <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>
-                                {currencyFormatter.format(doc.totalDiscount)}
+                                {discountSummary ?? currencyFormatter.format(doc.totalDiscount)}
                               </td>
                             </tr>
                           )}

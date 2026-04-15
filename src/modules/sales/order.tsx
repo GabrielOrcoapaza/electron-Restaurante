@@ -1195,7 +1195,11 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 				{/* Header */}
 				<div style={{
 					background: 'linear-gradient(135deg, #667eea, #764ba2)',
-					padding: isSmall ? '0.5rem 0.75rem' : isMedium ? '0.75rem 1rem' : '1rem 1.25rem',
+					padding: isSmall
+						? '0.5rem 0.75rem 0.3rem 0.75rem'
+						: isMedium
+							? '0.75rem 1rem 0.4rem 1rem'
+							: '1rem 1.25rem 0.4rem 1.25rem',
 					color: 'white',
 					display: 'flex',
 					alignItems: 'center',
@@ -1304,7 +1308,11 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 					display: 'grid',
 					gridTemplateColumns: isSmall || isMedium ? '1fr' : '1.5fr 1fr', // Ajustado a 1.5fr y 1fr para mejor balance
 					gap: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1.25rem',
-					padding: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1.25rem',
+					padding: isSmall
+						? '0.2rem 0.5rem 0.5rem 0.5rem'
+						: isMedium
+							? '0.3rem 0.75rem 0.75rem 0.75rem'
+							: '0.2rem 1.25rem 1.25rem 1.25rem',
 					flex: 1,
 					overflow: 'hidden'
 				}}>
@@ -1312,16 +1320,19 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 					<div style={{
 						display: 'flex',
 						flexDirection: 'column',
-						gap: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
+						gap: isSmall ? '0.3rem' : isMedium ? '0.4rem' : '0.5rem',
 						overflow: 'hidden',
 						order: isSmall || isMedium ? 2 : 1
 					}}>
 						{/* Búsqueda */}
 						<div style={{
 							background: 'white',
-							border: '1px solid #e2e8f0',
 							borderRadius: isSmall ? '10px' : isMedium ? '12px' : '14px',
-							padding: isSmall ? '0.75rem' : isMedium ? '0.85rem' : '1rem',
+							padding: isSmall
+								? '0.45rem 0.75rem 0.4rem'
+								: isMedium
+									? '0.5rem 0.85rem 0.45rem'
+									: '0.45rem 1rem 0.5rem',
 							flexShrink: 0
 						}}>
 							<div style={{

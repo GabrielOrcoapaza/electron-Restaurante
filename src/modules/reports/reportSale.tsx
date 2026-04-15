@@ -25,6 +25,8 @@ interface IssuedDocument {
   emissionTime: string;
   totalAmount: number;
   totalDiscount: number;
+  globalDiscount?: number;
+  globalDiscountPercent?: number;
   igvAmount: number;
   billingStatus: string;
   notes?: string;
@@ -44,9 +46,17 @@ interface IssuedDocument {
     order: string;
     status: string;
     operationType?: string;
+    user?: {
+      id: string;
+      fullName: string;
+    } | null;
     table?: {
       id: string;
       name: string;
+      floor?: {
+        id: string;
+        name: string;
+      } | null;
     } | null;
   };
   items: Array<{
@@ -69,6 +79,10 @@ interface IssuedDocument {
     paidAmount: number;
     paymentDate: string;
     status: string;
+    user?: {
+      id: string;
+      fullName: string;
+    } | null;
   }>;
   user: {
     id: string;

@@ -1044,6 +1044,8 @@ export const GET_SALES_REPORT = gql`
                 emissionTime
                 totalAmount
                 totalDiscount
+                globalDiscount
+                globalDiscountPercent
                 billingStatus
                 igvAmount
                 notes
@@ -1063,9 +1065,17 @@ export const GET_SALES_REPORT = gql`
                     order
                     status
                     operationType
+                    user {
+                        id
+                        fullName
+                    }
                     table {
                         id
                         name
+                        floor {
+                            id
+                            name
+                        }
                     }
                 }
                 items {
@@ -1092,6 +1102,10 @@ export const GET_SALES_REPORT = gql`
                     paidAmount
                     paymentDate
                     status
+                    user {
+                        id
+                        fullName
+                    }
                 }
                 user {
                     id

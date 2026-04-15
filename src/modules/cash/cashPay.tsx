@@ -319,6 +319,12 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
 
   const addPayment = () => {
     const currentTotalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    if (
+      roundMoney2(totalToPay) <= 0.01 ||
+      roundMoney2(currentTotalPaid) >= roundMoney2(totalToPay)
+    ) {
+      return;
+    }
     const remainingAmount = roundMoney2(Math.max(0, totalToPay - currentTotalPaid));
     setPayments([...payments, { id: String(Date.now()), method: 'CASH', amount: remainingAmount, referenceNumber: '' }]);
   };
@@ -329,6 +335,14 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const remaining = totalToPay - totalPaid;
   const vuelto = remaining < 0 ? Math.abs(remaining) : 0;
+  /** Misma tolerancia que al enviar el pago (totalPaymentsAmount >= paymentTotal - 0.01). */
+  const paymentsCoverDebt =
+    roundMoney2(totalToPay) <= 0.01 ||
+    roundMoney2(totalPaid) >= roundMoney2(totalToPay) - 0.01;
+  /** Solo permitir otro método si la suma de pagos es menor que la deuda (DEUDA). */
+  const canAddPaymentMethod =
+    roundMoney2(totalToPay) > 0.01 &&
+    roundMoney2(totalPaid) < roundMoney2(totalToPay);
 
   useEffect(() => {
     if (payments.length === 1 && payments[0].amount === 0) setPayments([{ ...payments[0], amount: roundMoney2(totalToPay) }]);
@@ -1365,7 +1379,26 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             <div style={{ fontSize: '1.5rem', fontWeight: 900 }}>{currencyFormatter.format(totalToPay)}</div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}><span style={{ fontSize: '0.8rem', fontWeight: 800 }}>PAGOS</span><button onClick={addPayment} style={{ fontSize: '1.0rem' }}>+ Pago</button></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 800 }}>PAGOS</span>
+              <button
+                type="button"
+                onClick={addPayment}
+                disabled={!canAddPaymentMethod}
+                title={
+                  canAddPaymentMethod
+                    ? 'Agregar otro método de pago'
+                    : 'Solo puede agregar otro pago si la suma es menor que la deuda total'
+                }
+                style={{
+                  fontSize: '1.0rem',
+                  opacity: canAddPaymentMethod ? 1 : 0.45,
+                  cursor: canAddPaymentMethod ? 'pointer' : 'not-allowed'
+                }}
+              >
+                + Pago
+              </button>
+            </div>
             {payments.map(p => (
               <div key={p.id} style={{ border: '1px solid #e2e8f0', padding: '0.4rem', marginBottom: '0.4rem', borderRadius: '4px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
@@ -1397,7 +1430,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                     const code = String(d.code || '').trim();
                     const bg =
                       code === '01' ? '#4f46e5' : code === '03' ? '#059669' : '#475569';
-                    const disabled = isProcessing || remaining > 0.05;
+                    const disabled = isProcessing || !paymentsCoverDebt;
                     return (
                       <button
                         key={d.id}

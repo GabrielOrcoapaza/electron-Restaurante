@@ -165,8 +165,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     const [hiddenNotificationIds, setHiddenNotificationIds] = useState<
         string[]
     >([]);
-    const previousNotificationIdsRef = useRef<Set<string>>(new Set());
-    const isInitialLoadRef = useRef<boolean>(true);
 
     const {
         data: notificationsData,
@@ -249,24 +247,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         user?.id,
     ]);
 
-    useEffect(() => {
-        if (!showNotifications) {
-            return;
-        }
-        const handleClickOutside = (event: MouseEvent) => {
-            if (
-                notificationsRef.current &&
-                !notificationsRef.current.contains(event.target as Node)
-            ) {
-                setShowNotifications(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, [showNotifications]);
-
     // Función para verificar si el usuario debe ver un mensaje broadcast según su rol
     const shouldUserSeeMessage = (
         messageRecipients: string,
@@ -345,10 +325,20 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     );
     const unreadCount = visibleNotifications.length;
 
+    /** Clave estable del conjunto de pendientes (evita reabrir el panel en cada refetch si el usuario ya lo cerró). */
+    const visibleNotificationIdsKey = useMemo(
+        () =>
+            allNotifications
+                .filter((n: any) => !hiddenNotificationIds.includes(n?.id))
+                .map((n: any) => String(n.id))
+                .sort()
+                .join("|"),
+        [allNotifications, hiddenNotificationIds],
+    );
+
     useEffect(() => {
         if (!allNotifications.length) {
             setHiddenNotificationIds([]);
-            previousNotificationIdsRef.current = new Set();
             return;
         }
         setHiddenNotificationIds((prev) =>
@@ -360,44 +350,39 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         );
     }, [allNotifications]);
 
-    // Detectar nuevas notificaciones y abrir el modal automáticamente
+    // Abrir al cargar o cuando cambian los pendientes (nuevo aviso o cierre con ×); no forzar reapertura si solo repitió el mismo set tras un refetch
     useEffect(() => {
-        if (!allNotifications.length) {
-            previousNotificationIdsRef.current = new Set();
-            // Si no hay notificaciones, no es la carga inicial (ya se procesaron datos)
-            if (!isInitialLoadRef.current) {
-                isInitialLoadRef.current = false;
+        if (notificationsLoading || broadcastMessagesLoading) {
+            return;
+        }
+        if (!visibleNotificationIdsKey) {
+            setShowNotifications(false);
+            return;
+        }
+        setShowNotifications(true);
+    }, [
+        visibleNotificationIdsKey,
+        notificationsLoading,
+        broadcastMessagesLoading,
+    ]);
+
+    useEffect(() => {
+        if (!showNotifications) {
+            return;
+        }
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                notificationsRef.current &&
+                !notificationsRef.current.contains(event.target as Node)
+            ) {
+                setShowNotifications(false);
             }
-            return;
-        }
-
-        // Obtener las IDs actuales de todas las notificaciones (incluyendo ocultas)
-        const currentAllIds = new Set(
-            allNotifications.map((notification: any) => notification.id),
-        );
-
-        // En la carga inicial, solo guardar las IDs sin abrir el modal
-        if (isInitialLoadRef.current) {
-            previousNotificationIdsRef.current = currentAllIds;
-            isInitialLoadRef.current = false;
-            return;
-        }
-
-        // Verificar si hay nuevas notificaciones comparando con las anteriores
-        const hasNewNotifications = Array.from(currentAllIds).some(
-            (id) => !previousNotificationIdsRef.current.has(id),
-        );
-
-        // Solo abrir el modal si:
-        // 1. Hay nuevas notificaciones (nuevas IDs que no estaban antes)
-        // 2. Y hay notificaciones visibles (no todas están ocultas)
-        if (hasNewNotifications && visibleNotifications.length > 0) {
-            setShowNotifications(true);
-        }
-
-        // Actualizar la referencia con las IDs actuales de todas las notificaciones
-        previousNotificationIdsRef.current = currentAllIds;
-    }, [allNotifications, visibleNotifications.length]);
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [showNotifications]);
 
     const handleDismissNotification = (notificationId: string) => {
         setHiddenNotificationIds((prev) =>
@@ -499,7 +484,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 : currentView === "configuration"
                                   ? "Configuración"
                                   : currentView === "delivery"
-                                    ? "Delivery"
+                                    ? "Punto de venta"
                                     : "Caja";
 
     const headerSubtitle =
@@ -1027,7 +1012,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 }}
                             >
                                 <span style={{ fontSize: "1.25rem" }}>🚗</span>
-                                {sidebarOpen && "Delivery"}
+                                {sidebarOpen && "Punto de venta"}
                             </button>
                         )}
 

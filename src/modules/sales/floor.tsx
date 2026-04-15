@@ -78,8 +78,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     isNarrowScreen ? 'repeat(4, 1fr)' : isMedium ? 'repeat(6, 1fr)' : isSmallDesktop ? 'repeat(7, 1fr)' : 'repeat(8, 1fr)';
   const floorsGridColumns = isNarrowScreen ? 'repeat(5, 1fr)' : 'repeat(10, 1fr)';
 
-  const titleFontSize = isNarrowScreen ? '1.35rem' : isMedium ? '1.3rem' : isSmallDesktop ? '1.375rem' : '1.5rem';
-
+  
   // Tipografía y tamaño táctil dentro de cada mesa
   const tableNameFont = isNarrowScreen ? '1.155rem' : isMedium ? '1.0925rem' : isSmallDesktop ? '1.0925rem' : '1.4rem';
   const tableBadgeFont = isNarrowScreen ? '0.985rem' : isMedium ? '0.9125rem' : isSmallDesktop ? '0.9125rem' : '1.2rem';
@@ -217,10 +216,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     setSelectedFloorId(floorId);
   };
 
-  const handleBackToFloors = () => {
-    setSelectedFloorId('');
-  };
-
+  
   // Función para verificar si el usuario puede acceder a una mesa específica (por permisos)
   const canAccessTable = (table: Table): { canAccess: boolean; reason?: string } => {
     // Quien tiene permiso de cobrar (sales.pay) puede acceder para procesar pagos
@@ -402,8 +398,6 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     );
   }
 
-  const selectedFloor = floorsData?.floorsByBranch?.find((floor: any) => floor.id === selectedFloorId);
-
   return (
     <>
       {/* CSS para animaciones */}
@@ -573,54 +567,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
               display: 'flex',
               flexDirection: 'column'
             }}>
-              {/* Header con botón de regreso */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: isNarrowScreen ? '1rem' : isMedium ? '1.25rem' : '1.5rem',
-                paddingBottom: '0.75rem',
-                borderBottom: '1px solid #e2e8f0',
-                flexWrap: 'wrap',
-                gap: '0.5rem',
-                flexShrink: 0
-              }}>
-                <h2 style={{
-                  fontSize: titleFontSize,
-                  fontWeight: '700',
-                  color: '#2d3748',
-                  margin: 0
-                }}>
-                  {selectedFloor?.name}
-                </h2>
-                <button
-                  onClick={handleBackToFloors}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: isNarrowScreen ? '0.55rem 1rem' : isMedium ? '0.625rem 1.25rem' : '0.75rem 1.5rem',
-                    backgroundColor: '#f7fafc',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    color: '#4a5568',
-                    cursor: 'pointer',
-                    fontSize: isNarrowScreen ? '0.875rem' : '0.8125rem',
-                    fontWeight: '500',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.backgroundColor = '#edf2f7';
-                    e.currentTarget.style.borderColor = '#cbd5e0';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f7fafc';
-                    e.currentTarget.style.borderColor = '#e2e8f0';
-                  }}
-                >
-                  ← Volver a pisos
-                </button>
-              </div>
+              
 
               {/* Lista de mesas */}
               <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
