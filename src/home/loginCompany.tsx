@@ -150,7 +150,7 @@ const LoginCompany: React.FC = () => {
               <div className="brand-icon-container">
                 <span className="brand-icon">🍽️</span>
               </div>
-              <h1 className="brand-title">AppSuma</h1>
+              <h1 className="brand-title">SumApp</h1>
               <p className="brand-subtitle">Gestión inteligente para restaurantes modernos. Controla todo en tiempo real.</p>
               
               <div className="mac-address-pill">

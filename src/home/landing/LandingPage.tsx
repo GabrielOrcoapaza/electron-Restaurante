@@ -465,7 +465,7 @@ const LandingPage: React.FC = () => {
                         <p>
                             La potencia del sistema integral en tu computadora.
                         </p>
-                        <a href="https://github.com/GabrielOrcoapaza/electron-Restaurante/releases/latest/download/Sumaq.exe" className="download-btn" 
+                        <a href="https://github.com/GabrielOrcoapaza/electron-Restaurante/releases/latest/download/SumApp.exe" className="download-btn" 
                            target="_blank" rel="noopener noreferrer">
                             DESCARGAR PARA WINDOWS
                         </a>
