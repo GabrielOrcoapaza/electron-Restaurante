@@ -107,7 +107,9 @@ const LandingPage: React.FC = () => {
     return (
         <div
             className={`landing-container ${darkMode ? "dark-mode" : ""} ${
-                darkMode ? "bg-slate-900 text-slate-50" : "bg-white text-slate-900"
+                darkMode
+                    ? "bg-slate-900 text-slate-50"
+                    : "bg-white text-slate-900"
             }`}
         >
             {/* Nav */}
@@ -282,13 +284,14 @@ const LandingPage: React.FC = () => {
                                         c.logoBase64
                                             ? c.logoBase64
                                             : c.logo
-                                            ? `${API_MEDIA_URL}${c.logo}`
-                                            : "/logo_company.png"
+                                              ? `${API_MEDIA_URL}${c.logo}`
+                                              : "/logo_company.png"
                                     }
                                     alt={c.commercialName}
                                     className="client-logo"
                                     onError={(e) => {
-                                        (e.target as HTMLImageElement).src = "/logo_company.png";
+                                        (e.target as HTMLImageElement).src =
+                                            "/logo_company.png";
                                     }}
                                 />
                             ))}
@@ -313,7 +316,9 @@ const LandingPage: React.FC = () => {
                             </h2>
                             <p
                                 className={`mt-4 text-base leading-relaxed ${
-                                    darkMode ? "text-slate-300" : "text-slate-600"
+                                    darkMode
+                                        ? "text-slate-300"
+                                        : "text-slate-600"
                                 }`}
                             >
                                 Tus clientes escanean el QR y acceden a una
@@ -323,7 +328,9 @@ const LandingPage: React.FC = () => {
                             <div className="selector-group mt-6">
                                 <label
                                     className={`mb-2 block text-sm font-semibold ${
-                                        darkMode ? "text-slate-200" : "text-slate-700"
+                                        darkMode
+                                            ? "text-slate-200"
+                                            : "text-slate-700"
                                     }`}
                                 >
                                     Restaurante
@@ -374,9 +381,9 @@ const LandingPage: React.FC = () => {
 
                             <div className="qr-preview-section mt-8 flex flex-col items-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
                                 <div className="bg-white p-3 rounded-xl shadow-md">
-                                    <img 
-                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/#/carta/${selectedCompanyId}${selectedBranchId ? `?branch=${selectedBranchId}` : ""}`)}&bgcolor=ffffff&color=0f172a&margin=5`} 
-                                        alt="QR Carta Digital" 
+                                    <img
+                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/#/carta/${selectedCompanyId}${selectedBranchId ? `?branch=${selectedBranchId}` : ""}`)}&bgcolor=ffffff&color=0f172a&margin=5`}
+                                        alt="QR Carta Digital"
                                         className="w-32 h-32"
                                     />
                                 </div>
@@ -396,19 +403,25 @@ const LandingPage: React.FC = () => {
                         <div className="menu-preview-display">
                             <header className="preview-header">
                                 <div className="preview-avatar">
-                                    <img 
+                                    <img
                                         src={
-                                            selectedCompany?.logoBase64 
-                                            ? selectedCompany.logoBase64 
-                                            : selectedCompany?.logo 
-                                            ? `${API_MEDIA_URL}${selectedCompany.logo}` 
-                                            : "/logo_company.png"
-                                        } 
+                                            selectedCompany?.logoBase64
+                                                ? selectedCompany.logoBase64
+                                                : selectedCompany?.logo
+                                                  ? `${API_MEDIA_URL}${selectedCompany.logo}`
+                                                  : "/logo_company.png"
+                                        }
                                         alt="Logo"
-                                        onError={(e) => { (e.target as HTMLImageElement).src = "/logo_company.png"; }}
+                                        onError={(e) => {
+                                            (e.target as HTMLImageElement).src =
+                                                "/logo_company.png";
+                                        }}
                                     />
                                 </div>
-                                <h3>{selectedCompany?.commercialName || selectedCompany?.denomination}</h3>
+                                <h3>
+                                    {selectedCompany?.commercialName ||
+                                        selectedCompany?.denomination}
+                                </h3>
                             </header>
 
                             <div className="preview-items">
@@ -432,7 +445,10 @@ const LandingPage: React.FC = () => {
                                                     }
                                                     alt={p.name}
                                                     onError={(e) => {
-                                                        (e.target as HTMLImageElement).src = "/default_dish.png";
+                                                        (
+                                                            e.target as HTMLImageElement
+                                                        ).src =
+                                                            "/default_dish.png";
                                                     }}
                                                 />
                                             </div>
@@ -440,7 +456,10 @@ const LandingPage: React.FC = () => {
                                                 <h4>{p.name}</h4>
                                                 <p>{p.description}</p>
                                                 <span className="item-price">
-                                                    S/ {Number(p.salePrice).toFixed(2)}
+                                                    S/{" "}
+                                                    {Number(
+                                                        p.salePrice,
+                                                    ).toFixed(2)}
                                                 </span>
                                             </div>
                                         </div>
@@ -465,8 +484,12 @@ const LandingPage: React.FC = () => {
                         <p>
                             La potencia del sistema integral en tu computadora.
                         </p>
-                        <a href="https://github.com/GabrielOrcoapaza/electron-Restaurante/releases/latest/download/SumApp.exe" className="download-btn" 
-                           target="_blank" rel="noopener noreferrer">
+                        <a
+                            href="https://github.com/GabrielOrcoapaza/electron-Restaurante/releases/latest/download/SumApp.exe"
+                            className="download-btn"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
                             DESCARGAR PARA WINDOWS
                         </a>
                         <div className="platform-grid">
@@ -512,7 +535,7 @@ const LandingPage: React.FC = () => {
                         restaurante.
                     </p>
                     <a
-                        href="https://wa.me/51953716606"
+                        href={`https://wa.me/51973591709?text=${encodeURIComponent("Hola, quiero información sobre Sumaq para mi restaurante. ¿Podemos agendar una demo?")}`}
                         className="whatsapp-btn"
                         target="_blank"
                         rel="noopener noreferrer"
