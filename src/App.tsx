@@ -28,9 +28,11 @@ const AppRoutes = () => {
 
   // Componente para decidir qué mostrar en la ruta raíz
   const RootComponent = () => {
-    if (isElectron) {
+    // Si estamos en Electron y ya hay datos de compañía, ir al flujo de login
+    if (isElectron && companyData) {
       return <RedirectToLogin />;
     }
+    // En cualquier otro caso (Web o Electron sin configurar), mostrar Landing
     return <LandingPage />;
   };
 
@@ -80,8 +82,8 @@ const AppRoutes = () => {
         {/* Ruta para ver la carta completa */}
         <Route path="/carta/:companyId" element={<FullMenuPage />} />
 
-        {/* Ruta catch-all - redirige según si hay datos de compañía */}
-        <Route path="*" element={<RedirectToLogin />} />
+        {/* Ruta catch-all - redirige a la raíz para evitar bloqueos por login */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
   );

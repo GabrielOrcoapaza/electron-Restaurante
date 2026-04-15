@@ -129,40 +129,43 @@ const FullMenuPage: React.FC = () => {
                             </div>
 
                             <div className="products-list-minimal">
-                                {category.subcategories?.map(
-                                    (subcategory: any) => (
-                                        <React.Fragment key={subcategory.id}>
-                                            {subcategory.products
-                                                ?.filter(
-                                                    (p: any) =>
-                                                        p.isActive !== false &&
-                                                        p.name?.trim(),
-                                                )
-                                                .map((product: any) => (
-                                                    <div
-                                                        key={product.id}
-                                                        className="product-item-minimal"
-                                                    >
-                                                        <div className="product-row">
-                                                            <h4 className="product-name-minimal">
-                                                                {product.name}
-                                                            </h4>
-                                                            <span className="product-price-minimal">
-                                                                S/ {Number(product.salePrice).toFixed(2)}
-                                                            </span>
-                                                        </div>
-                                                        {product.description && (
-                                                            <p className="product-desc-minimal">
-                                                                {
-                                                                    product.description
-                                                                }
-                                                            </p>
-                                                        )}
+                                {category.subcategories?.map((subcategory: any) => {
+                                    const activeProducts = subcategory.products?.filter(
+                                        (p: any) => p.isActive !== false && p.name?.trim()
+                                    ) || [];
+
+                                    if (activeProducts.length === 0) return null;
+
+                                    return (
+                                        <div key={subcategory.id} className="subcategory-block">
+                                            {category.subcategories.length > 1 && (
+                                                <h3 className="subcategory-title-minimal">
+                                                    {subcategory.name}
+                                                </h3>
+                                            )}
+                                            {activeProducts.map((product: any) => (
+                                                <div
+                                                    key={product.id}
+                                                    className="product-item-minimal"
+                                                >
+                                                    <div className="product-row">
+                                                        <h4 className="product-name-minimal">
+                                                            {product.name}
+                                                        </h4>
+                                                        <span className="product-price-minimal">
+                                                            S/ {Number(product.salePrice).toFixed(2)}
+                                                        </span>
                                                     </div>
-                                                ))}
-                                        </React.Fragment>
-                                    ),
-                                )}
+                                                    {product.description && (
+                                                        <p className="product-desc-minimal">
+                                                            {product.description}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </section>
                     ))}
