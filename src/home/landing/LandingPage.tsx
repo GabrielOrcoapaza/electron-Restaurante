@@ -209,6 +209,7 @@ const LandingPage: React.FC = () => {
             <section className="info-section">
                 <div className="section-wrapper">
                     <div className="section-title mb-12 text-center md:mb-20">
+                        <span className="info-badge">SOLUCION MODULAR</span>
                         <h2 className="font-['Outfit'] text-4xl font-black leading-tight md:text-5xl">
                             El primer ecosistema todo-en-uno
                         </h2>
@@ -230,14 +231,14 @@ const LandingPage: React.FC = () => {
                                 App táctil diseñada para el alto tráfico de
                                 pedidos.
                             </p>
-                            <ul className="list-none p-0">
-                                <li className="mb-3">
+                            <ul className="info-feature-list">
+                                <li className="info-point">
                                     ✓ Toma de pedidos instantánea
                                 </li>
-                                <li className="mb-3">
+                                <li className="info-point">
                                     ✓ Sincronización real con cocina
                                 </li>
-                                <li>✓ Funciona offline</li>
+                                <li className="info-point">✓ Funciona offline</li>
                             </ul>
                         </div>
                         <div className="info-card">
@@ -246,14 +247,16 @@ const LandingPage: React.FC = () => {
                             <p className="mb-6">
                                 Software de escritorio robusto y ultrarrápido.
                             </p>
-                            <ul className="list-none p-0">
-                                <li className="mb-3">
+                            <ul className="info-feature-list">
+                                <li className="info-point">
                                     ✓ Gestión avanzada de ventas
                                 </li>
-                                <li className="mb-3">
+                                <li className="info-point">
                                     ✓ Control total de inventario
                                 </li>
-                                <li>✓ Arqueos y cierres diarios</li>
+                                <li className="info-point">
+                                    ✓ Arqueos y cierres diarios
+                                </li>
                             </ul>
                         </div>
                         <div className="info-card">
@@ -263,8 +266,8 @@ const LandingPage: React.FC = () => {
                                 Controlador inteligente basado en Raspberry Pi
                                 4.
                             </p>
-                            <ul className="list-none p-0">
-                                <li className="mb-3">
+                            <ul className="info-feature-list">
+                                <li className="info-point">
                                     ✓ Hasta 3 impresoras simultáneas
                                 </li>
                             </ul>
@@ -560,6 +563,7 @@ const LandingPage: React.FC = () => {
                                 : "border-slate-200 bg-white text-slate-900"
                         }`}
                     >
+                        <span className="download-badge">DESCARGAS OFICIALES</span>
                         <h2>SumApp para Escritorio</h2>
                         <p>
                             La potencia del sistema integral en tu computadora.
@@ -570,6 +574,7 @@ const LandingPage: React.FC = () => {
                             target="_blank"
                             rel="noopener noreferrer"
                         >
+                            <span className="material-icons">download</span>
                             DESCARGAR PARA WINDOWS
                         </a>
                         <div className="platform-grid">
