@@ -419,6 +419,7 @@ const LandingPage: React.FC = () => {
                                         }
                                         alt={selectedCompany?.commercialName}
                                         onError={(e) => {
+                                            console.error("Error cargando logo de empresa:", selectedCompany?.commercialName, e);
                                             (e.target as HTMLImageElement).src =
                                                 "/logo_company.png";
                                         }}
@@ -458,6 +459,7 @@ const LandingPage: React.FC = () => {
                                                     }
                                                     alt={p.name}
                                                     onError={(e) => {
+                                                        console.error("Error cargando imagen del producto:", p.name, e);
                                                         (
                                                             e.target as HTMLImageElement
                                                         ).src =

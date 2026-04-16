@@ -100,6 +100,11 @@ const FullMenuPage: React.FC = () => {
                                         alt={company.commercialName}
                                         className="brand-logo-img"
                                         onError={(e) => {
+                                            console.error(
+                                                "Error cargando logo de empresa:",
+                                                company.commercialName,
+                                                e,
+                                            );
                                             (
                                                 e.target as HTMLImageElement
                                             ).style.display = "none";
