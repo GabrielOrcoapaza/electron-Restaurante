@@ -81,6 +81,9 @@ const LandingPage: React.FC = () => {
     const [darkMode, setDarkMode] = useState(() => {
         return localStorage.getItem("sumaq-theme") === "dark";
     });
+    const [activeDownloadTab, setActiveDownloadTab] = useState<
+        "downloads" | "guide"
+    >("downloads");
 
     const { data: companiesData } = useQuery(GET_ALL_COMPANIES);
     const { data: menuData } = useQuery(GET_COMPANIES_FOR_CARTA_DIGITAL);
@@ -554,7 +557,7 @@ const LandingPage: React.FC = () => {
             </section>
 
             {/* Download */}
-            <section className="download-section">
+            <section className="download-section" id="downloads">
                 <div className="section-wrapper">
                     <div
                         className={`download-box ${
@@ -563,48 +566,188 @@ const LandingPage: React.FC = () => {
                                 : "border-slate-200 bg-white text-slate-900"
                         }`}
                     >
-                        <span className="download-badge">DESCARGAS OFICIALES</span>
-                        <h2>SumApp para Escritorio</h2>
-                        <p>
-                            La potencia del sistema integral en tu computadora.
-                        </p>
-                        <a
-                            href="https://github.com/GabrielOrcoapaza/electron-Restaurante/releases/latest/download/SumApp.exe"
-                            className="download-btn"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            <span className="material-icons">download</span>
-                            DESCARGAR PARA WINDOWS
-                        </a>
-                        <div className="platform-grid">
-                            <div
-                                className={`platform-card ${
-                                    darkMode
-                                        ? "border-slate-700 bg-slate-900 text-slate-100"
-                                        : "border-slate-200 bg-slate-50 text-slate-900"
-                                }`}
+                        <div className="download-tabs-header">
+                            <button
+                                className={`download-tab-btn ${activeDownloadTab === "downloads" ? "active" : ""}`}
+                                onClick={() => setActiveDownloadTab("downloads")}
                             >
-                                <span className="material-icons">laptop</span>
-                                <h4>Linux (.AppImage)</h4>
-                                <a href="#">DESCARGAR</a>
-                            </div>
-                            <div
-                                className={`platform-card ${
-                                    darkMode
-                                        ? "border-slate-700 bg-slate-900 text-slate-100"
-                                        : "border-slate-200 bg-slate-50 text-slate-900"
-                                }`}
+                                <span className="material-icons">download</span>
+                                DESCARGAS
+                            </button>
+                            <button
+                                className={`download-tab-btn ${activeDownloadTab === "guide" ? "active" : ""}`}
+                                onClick={() => setActiveDownloadTab("guide")}
                             >
-                                <span className="material-icons">
-                                    phone_android
-                                </span>
-                                <h4>Android (Play Store)</h4>
-                                <a href="https://play.google.com/store/apps/details?id=com.soluciones4.sumapp">
-                                    VER APP
-                                </a>
-                            </div>
+                                <span className="material-icons">menu_book</span>
+                                GUÍA DE INSTALACIÓN
+                            </button>
                         </div>
+
+                        {activeDownloadTab === "downloads" ? (
+                            <div className="download-tab-content">
+                                <span className="download-badge">
+                                    DESCARGAS OFICIALES
+                                </span>
+                                <h2>SumApp para Escritorio</h2>
+                                <p>
+                                    La potencia del sistema integral en tu
+                                    computadora.
+                                </p>
+                                <a
+                                    href="https://github.com/GabrielOrcoapaza/electron-Restaurante/releases/latest/download/SumApp.exe"
+                                    className="download-btn"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    <span className="material-icons">
+                                        download
+                                    </span>
+                                    DESCARGAR PARA WINDOWS
+                                </a>
+                                <div className="platform-grid">
+                                    <div
+                                        className={`platform-card ${
+                                            darkMode
+                                                ? "border-slate-700 bg-slate-900 text-slate-100"
+                                                : "border-slate-200 bg-slate-50 text-slate-900"
+                                        }`}
+                                    >
+                                        <span className="material-icons">
+                                            laptop
+                                        </span>
+                                        <h4>Linux (.AppImage)</h4>
+                                        <a href="#">DESCARGAR</a>
+                                    </div>
+                                    <div
+                                        className={`platform-card ${
+                                            darkMode
+                                                ? "border-slate-700 bg-slate-900 text-slate-100"
+                                                : "border-slate-200 bg-slate-50 text-slate-900"
+                                        }`}
+                                    >
+                                        <span className="material-icons">
+                                            phone_android
+                                        </span>
+                                        <h4>Android (Play Store)</h4>
+                                        <a href="https://play.google.com/store/apps/details?id=com.soluciones4.sumapp">
+                                            VER APP
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="guide-tab-content">
+                                <div className="guide-welcome">
+                                    <h3>Configuración de SumApp Desktop</h3>
+                                    <p>Sigue esta guía paso a paso para poner en marcha el sistema en tu restaurante.</p>
+                                </div>
+
+                                <div className="guide-steps-container">
+                                    {/* Pasos 1-3 */}
+                                    <div className="guide-step">
+                                        <div className="step-number">01</div>
+                                        <div className="step-body">
+                                            <h4>Descargar e instalar</h4>
+                                            <p>Descarga "SumApp para Escritorio" desde la pestaña anterior u oficial: <a href="https://sumapp.pe/">https://sumapp.pe/</a></p>
+                                            <p>Ejecuta el instalador y sigue las instrucciones en pantalla. Al finalizar, aparecerá el ícono de SumApp en tu escritorio.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="guide-step">
+                                        <div className="step-number">02</div>
+                                        <div className="step-body">
+                                            <h4>Primer inicio - Configurar sucursal</h4>
+                                            <p>Ejecuta SumApp e ingresa los datos de conexión:</p>
+                                            <ul className="guide-list">
+                                                <li>RUC de la sucursal</li>
+                                                <li>Correo corporativo</li>
+                                                <li>Contraseña (asignada por el administrador)</li>
+                                            </ul>
+                                            <div className="guide-warning">
+                                                <span className="material-icons">warning</span>
+                                                <p><strong>¿Olvidaste tu contraseña?</strong> Usa el link "¿Olvidaste tu contraseña?" o contacta a tu administrador.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="guide-step">
+                                        <div className="step-number">03</div>
+                                        <div className="step-body">
+                                            <h4>Iniciar sesión como usuario</h4>
+                                            <p>Selecciona tu usuario según tu rol (mozo, cajero, administrador) e ingresa tu contraseña personal.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="guide-step">
+                                        <div className="step-number">04</div>
+                                        <div className="step-body">
+                                            <h4>Panel de pisos y mesas</h4>
+                                            <p>Selecciona un piso e identifica el estado de las mesas por color:</p>
+                                            <div className="mesa-legend">
+                                                <div className="legend-item"><span className="dot verde"></span> <strong>Verde:</strong> Libre</div>
+                                                <div className="legend-item"><span className="dot rojo"></span> <strong>Rojo:</strong> Ocupada</div>
+                                                <div className="legend-item"><span className="dot amarillo"></span> <strong>Amarillo:</strong> Por pagar</div>
+                                            </div>
+                                            <img src="/guides/desktop/step_4.png" alt="Pisos y mesas" className="guide-img" />
+                                        </div>
+                                    </div>
+
+                                    <div className="guide-step">
+                                        <div className="step-number">05</div>
+                                        <div className="step-body">
+                                            <h4>Tomar el pedido</h4>
+                                            <p>Navega por categorías y subcategorías para seleccionar los platos deseados. Puedes ajustar cantidades y agregar notas especiales.</p>
+                                            <img src="/guides/desktop/step_5.png" alt="Tomar pedido" className="guide-img" />
+                                        </div>
+                                    </div>
+
+                                    <div className="guide-step">
+                                        <div className="step-number">06</div>
+                                        <div className="step-body">
+                                            <h4>Enviar a cocina</h4>
+                                            <p>Pulsa <strong>"Enviar a cocina"</strong>. El sistema te redirigirá al panel de mesas y el pedido se imprimirá automáticamente vía Raspberry Pi.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="guide-step">
+                                        <div className="step-number">07</div>
+                                        <div className="step-body">
+                                            <h4>Gestionar un pedido activo</h4>
+                                            <p>Haz clic en una mesa roja para ver las opciones de gestión:</p>
+                                            
+                                            <div className="guide-sub-step">
+                                                <h5>Opción A: ORDEN (Añadir platos)</h5>
+                                                <p>Agrega nuevos platos y vuelve a pulsar "Enviar a cocina". También puedes imprimir la <strong>Precuenta</strong> para que el comensal sepa cuánto pagará.</p>
+                                                <img src="/guides/desktop/step_7a.png" alt="Muro de orden" className="guide-img" />
+                                            </div>
+
+                                            <div className="guide-sub-step">
+                                                <h5>Opción B: CAJA (Procesar pago)</h5>
+                                                <p>Selecciona qué items pagar, el tipo de documento (Boleta/Factura) y el medio de pago (Efectivo, Yape, Tarjeta, etc.).</p>
+                                                <img src="/guides/desktop/step_7b.png" alt="Procesar pago" className="guide-img" />
+                                            </div>
+
+                                            <div className="guide-info-box">
+                                                <h6>Operaciones avanzadas</h6>
+                                                <ul className="guide-list small">
+                                                    <li><strong>Cambio de mesa/platos:</strong> Mueve órdenes entre pisos o mesas.</li>
+                                                    <li><strong>Transferir mozo:</strong> Delega la atención.</li>
+                                                    <li><strong>Anular Orden:</strong> Cancela el pedido y libera la mesa.</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="guide-step">
+                                        <div className="step-number">08</div>
+                                        <div className="step-body">
+                                            <h4>Cerrar sesión o salir</h4>
+                                            <p>Ve al menú principal → <strong>Cerrar Sesión</strong>. Para cerrar la aplicación usa <strong>Archivo → Salir</strong> o Alt+F4.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </section>
