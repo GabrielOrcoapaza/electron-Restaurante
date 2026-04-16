@@ -25,20 +25,31 @@ const getFullImageUrl = (path: string | null | undefined): string => {
     if (!path) return "";
     if (path.startsWith("http") || path.startsWith("data:")) return path;
 
-    // Si el path ya empieza con /media/, y API_MEDIA_URL también termina en /media/
-    // removemos el prefijo duplicado.
-    if (path.startsWith("/media/") && API_MEDIA_URL.endsWith("/media/")) {
-        const baseUrl = API_MEDIA_URL.replace(/\/media\/?$/, "");
-        return `${baseUrl}${path}`;
+    try {
+        // Si el path ya tiene /media/, nos aseguramos de no duplicarlo
+        if (path.startsWith("/media/")) {
+            const base = API_MEDIA_URL.replace(/\/media\/?$/, "");
+            const url = new URL(path, base || window.location.origin);
+            return url.toString();
+        }
+
+        const url = new URL(
+            path,
+            API_MEDIA_URL.startsWith("http")
+                ? API_MEDIA_URL
+                : window.location.origin +
+                      (API_MEDIA_URL.startsWith("/") ? "" : "/") +
+                      API_MEDIA_URL,
+        );
+        return url.toString();
+    } catch (err) {
+        console.warn("Error construyendo URL de imagen:", err, {
+            path,
+            API_MEDIA_URL,
+        });
+        // Fallback simple si falla el constructor de URL
+        return `${API_MEDIA_URL}${path}`.replace(/\/+/g, "/");
     }
-
-    // Asegurarse de que no haya doble slash entre API_MEDIA_URL y el inicio del path
-    const baseUrl = API_MEDIA_URL.endsWith("/")
-        ? API_MEDIA_URL
-        : `${API_MEDIA_URL}/`;
-    const cleanPath = path.startsWith("/") ? path.substring(1) : path;
-
-    return `${baseUrl}${cleanPath}`;
 };
 
 const banners = [
@@ -447,9 +458,21 @@ const LandingPage: React.FC = () => {
                                         }
                                         alt={selectedCompany?.commercialName}
                                         onError={(e) => {
-                                            console.error("Error cargando logo de empresa:", selectedCompany?.commercialName, e);
-                                            (e.target as HTMLImageElement).src =
-                                                "/logo_company.png";
+                                            const target =
+                                                e.target as HTMLImageElement;
+                                            console.error(
+                                                "DETALLE ERROR LOGO:",
+                                                {
+                                                    empresa:
+                                                        selectedCompany?.commercialName,
+                                                    urlIntentada: target.src,
+                                                    pathOriginal:
+                                                        selectedCompany?.logo,
+                                                    apiMediaUrl: API_MEDIA_URL,
+                                                    baseURI: document.baseURI,
+                                                },
+                                            );
+                                            target.src = "/logo_company.png";
                                         }}
                                     />
                                 </div>
@@ -476,7 +499,9 @@ const LandingPage: React.FC = () => {
                                                 <img
                                                     src={
                                                         p.image
-                                                            ? getFullImageUrl(p.image)
+                                                            ? getFullImageUrl(
+                                                                  p.image,
+                                                              )
                                                             : p.imageBase64
                                                               ? p.imageBase64.startsWith(
                                                                     "data:",
@@ -487,10 +512,22 @@ const LandingPage: React.FC = () => {
                                                     }
                                                     alt={p.name}
                                                     onError={(e) => {
-                                                        console.error("Error cargando imagen del producto:", p.name, e);
-                                                        (
-                                                            e.target as HTMLImageElement
-                                                        ).src =
+                                                        const target =
+                                                            e.target as HTMLImageElement;
+                                                        console.error(
+                                                            "DETALLE ERROR PRODUCTO:",
+                                                            {
+                                                                producto:
+                                                                    p.name,
+                                                                urlIntentada:
+                                                                    target.src,
+                                                                pathOriginal:
+                                                                    p.image,
+                                                                apiMediaUrl:
+                                                                    API_MEDIA_URL,
+                                                            },
+                                                        );
+                                                        target.src =
                                                             "/default_dish.png";
                                                     }}
                                                 />

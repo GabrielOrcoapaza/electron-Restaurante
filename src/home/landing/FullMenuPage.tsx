@@ -18,20 +18,31 @@ const getFullImageUrl = (path: string | null | undefined): string => {
     if (!path) return "";
     if (path.startsWith("http") || path.startsWith("data:")) return path;
 
-    // Si el path ya empieza con /media/, y API_MEDIA_URL también termina en /media/
-    // removemos el prefijo duplicado.
-    if (path.startsWith("/media/") && API_MEDIA_URL.endsWith("/media/")) {
-        const baseUrl = API_MEDIA_URL.replace(/\/media\/?$/, "");
-        return `${baseUrl}${path}`;
+    try {
+        // Si el path ya tiene /media/, nos aseguramos de no duplicarlo
+        if (path.startsWith("/media/")) {
+            const base = API_MEDIA_URL.replace(/\/media\/?$/, "");
+            const url = new URL(path, base || window.location.origin);
+            return url.toString();
+        }
+
+        const url = new URL(
+            path,
+            API_MEDIA_URL.startsWith("http")
+                ? API_MEDIA_URL
+                : window.location.origin +
+                  (API_MEDIA_URL.startsWith("/") ? "" : "/") +
+                  API_MEDIA_URL,
+        );
+        return url.toString();
+    } catch (err) {
+        console.warn("Error construyendo URL de imagen:", err, {
+            path,
+            API_MEDIA_URL,
+        });
+        // Fallback simple si falla el constructor de URL
+        return `${API_MEDIA_URL}${path}`.replace(/\/+/g, "/");
     }
-
-    // Asegurarse de que no haya doble slash entre API_MEDIA_URL y el inicio del path
-    const baseUrl = API_MEDIA_URL.endsWith("/")
-        ? API_MEDIA_URL
-        : `${API_MEDIA_URL}/`;
-    const cleanPath = path.startsWith("/") ? path.substring(1) : path;
-
-    return `${baseUrl}${cleanPath}`;
 };
 
 const FullMenuPage: React.FC = () => {
@@ -126,14 +137,19 @@ const FullMenuPage: React.FC = () => {
                                         alt={company.commercialName}
                                         className="brand-logo-img"
                                         onError={(e) => {
+                                            const target =
+                                                e.target as HTMLImageElement;
                                             console.error(
-                                                "Error cargando logo de empresa:",
-                                                company.commercialName,
-                                                e,
+                                                "DETALLE ERROR LOGO CARTA:",
+                                                {
+                                                    empresa:
+                                                        company.commercialName,
+                                                    urlIntentada: target.src,
+                                                    pathOriginal: company.logo,
+                                                    apiMediaUrl: API_MEDIA_URL,
+                                                },
                                             );
-                                            (
-                                                e.target as HTMLImageElement
-                                            ).style.display = "none";
+                                            target.style.display = "none";
                                         }}
                                     />
                                 </div>
