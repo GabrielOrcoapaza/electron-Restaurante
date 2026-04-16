@@ -13,7 +13,33 @@ import banner2 from "../../assets/landing/banner2.png";
 import banner3 from "../../assets/landing/banner3.png";
 
 const GRAPHQL_URL = import.meta.env.VITE_GRAPHQL_URL || "";
-const API_MEDIA_URL = GRAPHQL_URL.replace("/graphql", "/media/");
+const API_MEDIA_URL = GRAPHQL_URL
+    ? GRAPHQL_URL.replace("/graphql", "/media/")
+    : "/media/";
+
+/**
+ * Función para obtener la URL completa de una imagen de forma segura.
+ * Evita duplicar el prefijo /media/ si el path ya lo contiene.
+ */
+const getFullImageUrl = (path: string | null | undefined): string => {
+    if (!path) return "";
+    if (path.startsWith("http") || path.startsWith("data:")) return path;
+
+    // Si el path ya empieza con /media/, y API_MEDIA_URL también termina en /media/
+    // removemos el prefijo duplicado.
+    if (path.startsWith("/media/") && API_MEDIA_URL.endsWith("/media/")) {
+        const baseUrl = API_MEDIA_URL.replace(/\/media\/?$/, "");
+        return `${baseUrl}${path}`;
+    }
+
+    // Asegurarse de que no haya doble slash entre API_MEDIA_URL y el inicio del path
+    const baseUrl = API_MEDIA_URL.endsWith("/")
+        ? API_MEDIA_URL
+        : `${API_MEDIA_URL}/`;
+    const cleanPath = path.startsWith("/") ? path.substring(1) : path;
+
+    return `${baseUrl}${cleanPath}`;
+};
 
 const banners = [
     {
@@ -282,7 +308,7 @@ const LandingPage: React.FC = () => {
                                     key={c.id}
                                     src={
                                         c.logo
-                                            ? `${API_MEDIA_URL}${c.logo}` // Prioridad al archivo
+                                            ? getFullImageUrl(c.logo) // Prioridad al archivo
                                             : c.logoBase64
                                               ? c.logoBase64.startsWith("data:")
                                                   ? c.logoBase64
@@ -408,7 +434,9 @@ const LandingPage: React.FC = () => {
                                     <img
                                         src={
                                             selectedCompany?.logo
-                                                ? `${API_MEDIA_URL}${selectedCompany.logo}`
+                                                ? getFullImageUrl(
+                                                      selectedCompany.logo,
+                                                  )
                                                 : selectedCompany?.logoBase64
                                                   ? selectedCompany.logoBase64.startsWith(
                                                         "data:",
@@ -448,7 +476,7 @@ const LandingPage: React.FC = () => {
                                                 <img
                                                     src={
                                                         p.image
-                                                            ? `${API_MEDIA_URL}${p.image}`
+                                                            ? getFullImageUrl(p.image)
                                                             : p.imageBase64
                                                               ? p.imageBase64.startsWith(
                                                                     "data:",

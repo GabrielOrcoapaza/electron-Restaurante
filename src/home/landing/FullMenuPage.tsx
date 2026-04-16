@@ -6,7 +6,33 @@ import { categoryIconFromIdOrDefault } from "../../constants/categoryIcons";
 import "./FullMenuPage.css";
 
 const GRAPHQL_URL = import.meta.env.VITE_GRAPHQL_URL || "";
-const API_MEDIA_URL = GRAPHQL_URL.replace("/graphql", "/media/");
+const API_MEDIA_URL = GRAPHQL_URL
+    ? GRAPHQL_URL.replace("/graphql", "/media/")
+    : "/media/";
+
+/**
+ * Función para obtener la URL completa de una imagen de forma segura.
+ * Evita duplicar el prefijo /media/ si el path ya lo contiene.
+ */
+const getFullImageUrl = (path: string | null | undefined): string => {
+    if (!path) return "";
+    if (path.startsWith("http") || path.startsWith("data:")) return path;
+
+    // Si el path ya empieza con /media/, y API_MEDIA_URL también termina en /media/
+    // removemos el prefijo duplicado.
+    if (path.startsWith("/media/") && API_MEDIA_URL.endsWith("/media/")) {
+        const baseUrl = API_MEDIA_URL.replace(/\/media\/?$/, "");
+        return `${baseUrl}${path}`;
+    }
+
+    // Asegurarse de que no haya doble slash entre API_MEDIA_URL y el inicio del path
+    const baseUrl = API_MEDIA_URL.endsWith("/")
+        ? API_MEDIA_URL
+        : `${API_MEDIA_URL}/`;
+    const cleanPath = path.startsWith("/") ? path.substring(1) : path;
+
+    return `${baseUrl}${cleanPath}`;
+};
 
 const FullMenuPage: React.FC = () => {
     const { companyId } = useParams<{ companyId: string }>();
@@ -90,7 +116,7 @@ const FullMenuPage: React.FC = () => {
                                     <img
                                         src={
                                             company.logo
-                                                ? `${API_MEDIA_URL}${company.logo}`
+                                                ? getFullImageUrl(company.logo)
                                                 : company.logoBase64.startsWith(
                                                         "data:",
                                                     )
