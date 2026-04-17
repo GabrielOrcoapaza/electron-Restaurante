@@ -943,6 +943,7 @@ export const UPDATE_PRODUCT = gql`
     $currentStock: Float
     $isActive: Boolean
     $managesStock: Boolean
+    $imageBase64: String
   ) {
     updateProduct(
       productId: $productId
@@ -960,6 +961,7 @@ export const UPDATE_PRODUCT = gql`
       currentStock: $currentStock
       isActive: $isActive
       managesStock: $managesStock
+      imageBase64: $imageBase64
     ) {
       success
       message
@@ -972,6 +974,7 @@ export const UPDATE_PRODUCT = gql`
         preparationTime
         currentStock
         isActive
+        imageBase64
       }
     }
   }

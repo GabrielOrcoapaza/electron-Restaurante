@@ -947,7 +947,6 @@ const Cashs: React.FC = () => {
                   </div>
                   <div>
                     <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.25rem' }}>Pagos Pendientes</div>
-                    <div style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b' }}>{preview.totalPaymentsPending}</div>
                   </div>
                 </div>
               </div>

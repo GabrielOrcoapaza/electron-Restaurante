@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { UPDATE_PRODUCT } from '../../graphql/mutations';
 import { GET_CATEGORIES_BY_BRANCH } from '../../graphql/queries';
@@ -12,6 +12,7 @@ interface Product {
   name: string;
   description?: string;
   salePrice: number;
+  imageBase64?: string;
   preparationTime?: number;
   productType?: string;
   purchasePrice?: number;
@@ -88,7 +89,21 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
     managesStock: product.managesStock ?? false,
   });
   const [enableStockEdit, setEnableStockEdit] = useState(false);
+  const [newImageBase64, setNewImageBase64] = useState<string | null>(null);
+  const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const { showToast } = useToast();
+
+  const existingImageDataUrl =
+    product.imageBase64 && !imageRemoved
+      ? product.imageBase64.startsWith('data:')
+        ? product.imageBase64
+        : `data:image/jpeg;base64,${product.imageBase64}`
+      : null;
+  const displayImageSrc = newImagePreview ?? existingImageDataUrl;
+
+  const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 
   const { data: categoriesData } = useQuery(GET_CATEGORIES_BY_BRANCH, {
     variables: { branchId: branchId! },
@@ -115,6 +130,44 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
       showToast(error.message, 'error');
     },
   });
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('El archivo debe ser una imagen', 'error');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      showToast('La imagen no debe superar 3 MB', 'error');
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      const comma = dataUrl.indexOf(',');
+      const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+      setNewImageBase64(b64);
+      setNewImagePreview(dataUrl);
+      setImageRemoved(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleClearImage = () => {
+    if (newImageBase64 !== null) {
+      setNewImageBase64(null);
+      setNewImagePreview(null);
+      if (imageInputRef.current) imageInputRef.current.value = '';
+      return;
+    }
+    if (product.imageBase64) {
+      setImageRemoved(true);
+    }
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -161,12 +214,23 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
       variables.subcategoryId = formData.subcategoryId;
     }
 
+    let imageMutation: string | null | undefined = undefined;
+    if (newImageBase64 !== null) {
+      imageMutation = newImageBase64;
+    } else if (imageRemoved && product.imageBase64) {
+      imageMutation = null;
+    }
+
     // Solo incluir los campos que tienen valores
     Object.keys(variables).forEach(key => {
       if (variables[key] === undefined || variables[key] === null) {
         delete variables[key];
       }
     });
+
+    if (imageMutation !== undefined) {
+      variables.imageBase64 = imageMutation;
+    }
 
     updateProduct({ variables });
   };
@@ -401,6 +465,84 @@ const EditProduct: React.FC<EditProductProps> = ({ product, onClose, onSuccess }
                   fontFamily: 'inherit'
                 }}
               />
+            </div>
+
+            {/* Foto del producto */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
+                Foto del producto
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '0.75rem' }}>
+                {displayImageSrc ? (
+                  <img
+                    src={displayImageSrc}
+                    alt="Producto"
+                    style={{
+                      width: isSmall ? '72px' : '88px',
+                      height: isSmall ? '72px' : '88px',
+                      objectFit: 'cover',
+                      borderRadius: '10px',
+                      border: '1px solid #e2e8f0'
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: isSmall ? '72px' : '88px',
+                      height: isSmall ? '72px' : '88px',
+                      borderRadius: '10px',
+                      border: '1px dashed #cbd5e1',
+                      background: '#f8fafc',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#94a3b8',
+                      fontSize: '1.5rem',
+                    }}
+                  >
+                    🖼️
+                  </div>
+                )}
+                <div style={{ flex: '1', minWidth: isSmall ? '100%' : '160px' }}>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    onChange={handleImageChange}
+                    style={{
+                      width: '100%',
+                      padding: isSmall ? '0.35rem' : '0.4rem',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: inputFontSize,
+                      boxSizing: 'border-box',
+                      backgroundColor: 'white'
+                    }}
+                  />
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.65rem', color: '#94a3b8' }}>
+                    JPG, PNG, WebP o GIF. Máx. 3 MB. Guardar envía la nueva imagen o quita la actual.
+                  </p>
+                </div>
+                {(displayImageSrc || newImageBase64 !== null) && (
+                  <button
+                    type="button"
+                    onClick={handleClearImage}
+                    style={{
+                      padding: '0.4rem 0.65rem',
+                      fontSize: inputFontSize,
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      background: '#f8fafc',
+                      color: '#64748b',
+                      cursor: 'pointer',
+                      fontWeight: 500,
+                      alignSelf: 'center'
+                    }}
+                  >
+                    Quitar foto
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Precios */}

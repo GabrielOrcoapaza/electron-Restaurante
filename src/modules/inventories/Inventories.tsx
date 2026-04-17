@@ -88,6 +88,7 @@ const Inventories: React.FC = () => {
   const tableFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
   const tableCellPadding = isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
   const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
+  const gapSize = isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '0.875rem' : isMediumDesktop ? '1rem' : '1rem';
   const badgeFontSize = isSmall ? '0.625rem' : isMedium ? '0.6875rem' : isSmallDesktop ? '0.6875rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
 
   const { data: productsData, loading: productsLoading, error: productsError } = useQuery(
@@ -117,25 +118,49 @@ const Inventories: React.FC = () => {
   });
 
   const allProducts: Product[] = productsData?.productsByBranch || [];
-  const categories = categoriesData?.categoriesByBranch || [];
+  const categories: Category[] = categoriesData?.categoriesByBranch || [];
   const productIdsInCategory: string[] = (productsByCategoryData?.products || []).map((p: { id: string }) => p.id);
 
-  // Filtrar productos: solo mostrar los de la categoría seleccionada (por ID, con datos de stock)
-  let filteredProducts: Product[] = [];
+  const getProductCategoryNames = (subcategoryId?: string) => {
+    if (!subcategoryId) return { catName: '—', subName: '—' };
+    for (const cat of categories) {
+      const sub = cat.subcategories?.find((s) => s.id === subcategoryId);
+      if (sub) return { catName: cat.name, subName: sub.name };
+    }
+    return { catName: '—', subName: '—' };
+  };
 
-  if (selectedCategory && productIdsInCategory.length >= 0) {
-    filteredProducts = allProducts.filter((product) => productIdsInCategory.includes(product.id));
-  }
+  const trimmedSearch = searchTerm.trim();
+  const hasSearch = Boolean(trimmedSearch);
 
-  // Filtrar por búsqueda
-  if (searchTerm) {
-    const searchLower = searchTerm.toLowerCase();
-    filteredProducts = filteredProducts.filter((product) =>
+  const matchesSearch = (product: Product, searchLower: string) => {
+    const { catName, subName } = getProductCategoryNames(product.subcategoryId);
+    return (
       product.name?.toLowerCase().includes(searchLower) ||
       product.code?.toLowerCase().includes(searchLower) ||
-      product.description?.toLowerCase().includes(searchLower)
+      (product.description && product.description.toLowerCase().includes(searchLower)) ||
+      (catName !== '—' && catName.toLowerCase().includes(searchLower)) ||
+      (subName !== '—' && subName.toLowerCase().includes(searchLower))
     );
+  };
+
+  // Sin categoría + con búsqueda: todos los productos con stock que coincidan (no hace falta elegir categoría)
+  // Con categoría: intersección con productos de esa categoría; la búsqueda acota si hay texto
+  let filteredProducts: Product[] = [];
+
+  if (hasSearch && !selectedCategory) {
+    const searchLower = trimmedSearch.toLowerCase();
+    filteredProducts = allProducts.filter((product) => matchesSearch(product, searchLower));
+  } else if (selectedCategory) {
+    filteredProducts = allProducts.filter((product) => productIdsInCategory.includes(product.id));
+    if (hasSearch) {
+      const searchLower = trimmedSearch.toLowerCase();
+      filteredProducts = filteredProducts.filter((product) => matchesSearch(product, searchLower));
+    }
   }
+
+  const showSelectCategoryHint = !selectedCategory && !hasSearch;
+  const showCategoryLoadingState = Boolean(selectedCategory && productsByCategoryLoading);
 
   // Paginación
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
@@ -253,25 +278,84 @@ const Inventories: React.FC = () => {
           </div>
         </div>
 
-        {/* Filtros */}
+        {/* Filtros (mismo patrón que listProduct en Products) */}
         <div style={{
-          backgroundColor: 'white',
-          borderRadius: '12px',
-          padding: cardPadding,
+          display: 'flex',
+          gap: gapSize,
           marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : '1.5rem',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-          border: '1px solid #e2e8f0',
-          display: 'grid',
-          gridTemplateColumns: isSmall ? '1fr' : '1fr 1fr',
-          gap: isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '0.875rem' : '1rem'
+          flexWrap: 'wrap'
         }}>
-          <div>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '0.5rem', 
-              fontWeight: 500, 
-              fontSize: labelFontSize, 
-              color: '#475569' 
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            padding: cardPadding,
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+            border: '1px solid #e2e8f0',
+            flex: '1',
+            minWidth: isSmall ? '100%' : isMedium ? '250px' : isSmallDesktop ? '300px' : '350px'
+          }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              fontWeight: 500,
+              fontSize: labelFontSize,
+              color: '#475569'
+            }}>
+              Buscar producto:
+            </label>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 10, top: 10, opacity: 0.6 }}>{'\u{1F50D}'}</span>
+              <input
+                type="text"
+                placeholder="Buscar producto o escanear código"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 0.85rem 0.65rem 2.2rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: inputFontSize,
+                  boxSizing: 'border-box',
+                  backgroundColor: 'white'
+                }}
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  style={{
+                    position: 'absolute',
+                    right: 10,
+                    top: 10,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    opacity: 0.5,
+                    fontSize: '1rem'
+                  }}
+                >
+                  {'\u2715'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            padding: cardPadding,
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+            border: '1px solid #e2e8f0',
+            flex: '1',
+            minWidth: isSmall ? '100%' : isMedium ? '200px' : isSmallDesktop ? '200px' : '250px'
+          }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              fontWeight: 500,
+              fontSize: labelFontSize,
+              color: '#475569'
             }}>
               Filtrar por categoría:
             </label>
@@ -289,40 +373,14 @@ const Inventories: React.FC = () => {
               }}
             >
               <option value="">Todas las categorías</option>
-              {(categories as Category[])
-                .filter((cat: Category) => cat.isActive)
-                .map((category: Category) => (
+              {categories
+                .filter((cat) => cat.isActive)
+                .map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
                 ))}
             </select>
-          </div>
-
-          <div>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '0.5rem', 
-              fontWeight: 500, 
-              fontSize: labelFontSize, 
-              color: '#475569' 
-            }}>
-              Buscar producto:
-            </label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por nombre, código o descripción..."
-              style={{
-                width: '100%',
-                padding: inputPadding,
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px',
-                fontSize: inputFontSize,
-                boxSizing: 'border-box'
-              }}
-            />
           </div>
         </div>
 
@@ -348,17 +406,17 @@ const Inventories: React.FC = () => {
             )}
           </h3>
           
-          {!selectedCategory ? (
+          {showSelectCategoryHint ? (
             <div style={{ 
               textAlign: 'center', 
               padding: isSmall ? '2rem' : isMedium ? '2.5rem' : '3rem', 
               color: '#64748b' 
             }}>
               <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem', margin: 0 }}>
-                Selecciona una categoría para ver los productos del inventario
+                Busca un producto o selecciona una categoría para ver el inventario
               </p>
             </div>
-          ) : productsByCategoryLoading ? (
+          ) : showCategoryLoadingState ? (
             <div style={{ 
               textAlign: 'center', 
               padding: isSmall ? '2rem' : isMedium ? '2.5rem' : '3rem', 
@@ -375,7 +433,9 @@ const Inventories: React.FC = () => {
               color: '#64748b' 
             }}>
               <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem', margin: 0 }}>
-                No hay productos en esta categoría
+                {hasSearch
+                  ? 'No se encontraron productos con ese criterio'
+                  : 'No hay productos en esta categoría'}
               </p>
             </div>
           ) : (
@@ -478,7 +538,7 @@ const Inventories: React.FC = () => {
           )}
 
           {/* Paginación */}
-          {selectedCategory && !productsByCategoryLoading && filteredProducts.length > 0 && (
+          {!showCategoryLoadingState && filteredProducts.length > 0 && (
             <div style={{
               display: 'flex',
               flexWrap: 'wrap',
