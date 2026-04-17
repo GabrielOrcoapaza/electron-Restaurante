@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { GET_CATEGORIES_BY_BRANCH } from '../../graphql/queries';
@@ -88,6 +88,24 @@ const Subcategory: React.FC = () => {
   const categories: Category[] = data?.categoriesByBranch || [];
   const activeCategories = categories.filter((category) => category.isActive);
 
+  const duplicateActiveCategoryNames = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of activeCategories) {
+      const k = c.name.trim().toLowerCase();
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    const dups = new Set<string>();
+    counts.forEach((n, k) => {
+      if (n > 1) dups.add(k);
+    });
+    return dups;
+  }, [activeCategories]);
+
+  const formatCategoryOptionLabel = (c: Category) =>
+    duplicateActiveCategoryNames.has(c.name.trim().toLowerCase())
+      ? `${c.name} · ${String(c.id).slice(-6)}`
+      : c.name;
+
   if (!branchId) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: '#dc2626' }}>
@@ -167,18 +185,23 @@ const Subcategory: React.FC = () => {
             <option value="">Seleccionar categoría</option>
             {activeCategories.map((category) => (
               <option key={category.id} value={category.id}>
-                {category.name}
+                {formatCategoryOptionLabel(category)}
               </option>
             ))}
           </select>
 
-          <input
-            value={formData.name}
-            onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-            placeholder="Nombre de subcategoría"
-            required
-            style={{ padding: '0.625rem 0.875rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <input
+              value={formData.name}
+              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="Nombre de subcategoría"
+              required
+              style={{ padding: '0.625rem 0.875rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
+            />
+            <span style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.35 }}>
+              Puede coincidir con el nombre de la categoría u otras subcategorías; no hay restricción en esta pantalla.
+            </span>
+          </div>
 
           <input
             value={formData.description}

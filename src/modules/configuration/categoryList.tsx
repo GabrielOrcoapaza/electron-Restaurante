@@ -1,4 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+
+function normalizeCategoryListName(s: string): string {
+  return s.trim().toLowerCase();
+}
+
 
 interface Category {
   id: string;
@@ -20,7 +25,25 @@ const ITEMS_PER_PAGE = 10;
 const CategoryList: React.FC<CategoryListProps> = ({ categories, onEdit }) => {
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(categories.length / ITEMS_PER_PAGE));
-  const categoriesPaginated = categories.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const categoriesPaginated = categories.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE); 
+
+  const duplicateCategoryNames = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of categories) {
+      const k = normalizeCategoryListName(c.name);
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    const dups = new Set<string>();
+    counts.forEach((n, k) => {
+      if (n > 1) dups.add(k);
+    });
+    return dups;
+  }, [categories]);
+
+  const formatCategoryCellName = (c: Category) =>
+    duplicateCategoryNames.has(normalizeCategoryListName(c.name))
+      ? `${c.name} · ${String(c.id).slice(-6)}`
+      : c.name;
 
   useEffect(() => {
     setPage((p) => Math.min(p, totalPages));
@@ -59,7 +82,7 @@ const CategoryList: React.FC<CategoryListProps> = ({ categories, onEdit }) => {
               <tbody>
                 {categoriesPaginated.map((category) => (
                 <tr key={category.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '0.65rem', color: '#334155', fontWeight: 600 }}>{category.name}</td>
+                  <td style={{ padding: '0.65rem', color: '#334155', fontWeight: 600 }}>{formatCategoryCellName(category)}</td>
                   <td style={{ padding: '0.65rem', color: '#64748b' }}>{category.description || '-'}</td>
                   <td style={{ padding: '0.65rem', textAlign: 'center', color: '#334155' }}>{category.order ?? 0}</td>
                   <td style={{ padding: '0.65rem', textAlign: 'center' }}>

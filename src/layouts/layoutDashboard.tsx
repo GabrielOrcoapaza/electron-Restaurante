@@ -550,6 +550,19 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         hasPermission("reports.sold_products") ||
         hasPermission("reports.user_sales");
 
+    // Tras login (login.tsx): abrir vista Mesas si el usuario tiene permiso
+    useEffect(() => {
+        try {
+            if (sessionStorage.getItem("postLoginOpenFloors") !== "1") return;
+            sessionStorage.removeItem("postLoginOpenFloors");
+            if (canSeeFloors) {
+                setCurrentView("floors");
+            }
+        } catch {
+            /* sin sessionStorage */
+        }
+    }, [canSeeFloors]);
+
     // Si la vista actual no está permitida, redirigir a la primera permitida
     useEffect(() => {
         const allowed = (v: typeof currentView) =>

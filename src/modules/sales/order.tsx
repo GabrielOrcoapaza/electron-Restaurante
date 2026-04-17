@@ -1569,9 +1569,9 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 													onClick={() => {
 														setSelectedCategory(category.id);
 														const activeSubcategories = category.subcategories?.filter((s: any) => s.isActive) || [];
-														const matchingSub = activeSubcategories.find((s: any) => s.name?.toLowerCase() === category.name?.toLowerCase());
-														if (matchingSub) {
-															setSelectedSubcategory(matchingSub.id);
+														// Una sola sub activa → ir directo a productos; varias (o ninguna con subs) → elegir sub o ver productos sin sub
+														if (activeSubcategories.length === 1) {
+															setSelectedSubcategory(activeSubcategories[0].id);
 														} else {
 															setSelectedSubcategory(null);
 														}

@@ -126,6 +126,11 @@ const Login: React.FC = () => {
           data.userLogin.userPhotoBase64
         );
         showToast(`¡Bienvenido, ${loggedUser.firstName || 'usuario'}!`, 'success');
+        try {
+          sessionStorage.setItem('postLoginOpenFloors', '1');
+        } catch {
+          /* ignorar si no hay storage */
+        }
         navigate('/dashboard');
         return true;
       }

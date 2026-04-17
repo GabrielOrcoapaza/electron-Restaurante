@@ -81,7 +81,6 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   
   // Tipografía y tamaño táctil dentro de cada mesa
   const tableNameFont = isNarrowScreen ? '1.155rem' : isMedium ? '1.0925rem' : isSmallDesktop ? '1.0925rem' : '1.4rem';
-  const tableBadgeFont = isNarrowScreen ? '0.985rem' : isMedium ? '0.9125rem' : isSmallDesktop ? '0.9125rem' : '1.2rem';
   const tableWaiterFont = isNarrowScreen ? '0.985rem' : isMedium ? '0.9125rem' : isSmallDesktop ? '0.9125rem' : '1.2rem';
   const tableCellPadding = isNarrowScreen ? '0.55rem' : isMedium ? '0.55rem' : isSmallDesktop ? '0.65rem' : '0.75rem';
   const tablesGridGap = isNarrowScreen ? '0.5rem' : isMedium ? '0.55rem' : isSmallDesktop ? '0.6rem' : '0.7rem';
@@ -437,11 +436,15 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             </div>
           ) : (
             <div style={{
-              maxHeight: isNarrowScreen ? '160px' : isMedium ? '170px' : '180px',
+              maxHeight: isNarrowScreen ? '172px' : isMedium ? '182px' : '192px',
               overflowY: 'auto',
               overflowX: 'hidden',
+              /* Espacio vertical: sin esto el borde superior de las tarjetas queda pegado al clip del scroll */
+              paddingTop: '6px',
+              paddingBottom: '6px',
               paddingRight: '0.25rem',
-              scrollbarWidth: 'thin'
+              scrollbarWidth: 'thin',
+              boxSizing: 'border-box'
             }}>
               <div style={{
                 display: 'grid',
@@ -450,14 +453,16 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 width: '100%',
                 boxSizing: 'border-box'
               }}>
-                {floorsData?.floorsByBranch?.map((floor: any) => (
+                {floorsData?.floorsByBranch?.map((floor: any) => {
+                  const isFloorSelected = selectedFloorId === floor.id;
+                  return (
                   <div
                     key={floor.id}
                     onClick={() => handleFloorSelect(floor.id)}
                     title={floor.name}
                     style={{
-                      backgroundColor: selectedFloorId === floor.id ? '#eef2ff' : '#f7fafc',
-                      border: selectedFloorId === floor.id ? '1.5px solid #667eea' : '1.5px solid #e2e8f0',
+                      backgroundColor: isFloorSelected ? '#2563eb' : '#dbeafe',
+                      border: isFloorSelected ? '3px solid #1d4ed8' : '2px solid #2563eb',
                       borderRadius: '8px',
                       padding: isNarrowScreen ? '0.55rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.75rem' : '0.875rem',
                       cursor: 'pointer',
@@ -466,22 +471,23 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                       position: 'relative',
                       overflow: 'hidden',
                       minWidth: 0,
-                      boxSizing: 'border-box'
+                      boxSizing: 'border-box',
+                      boxShadow: isFloorSelected ? '0 4px 16px rgba(37, 99, 235, 0.55)' : '0 2px 8px rgba(37, 99, 235, 0.22)'
                     }}
                     onMouseOver={(e) => {
-                      if (selectedFloorId !== floor.id) {
-                        e.currentTarget.style.borderColor = '#667eea';
-                        e.currentTarget.style.backgroundColor = '#f0f4ff';
+                      if (!isFloorSelected) {
+                        e.currentTarget.style.borderColor = '#1d4ed8';
+                        e.currentTarget.style.backgroundColor = '#93c5fd';
                         e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 8px 25px rgba(102, 126, 234, 0.15)';
+                        e.currentTarget.style.boxShadow = '0 8px 22px rgba(37, 99, 235, 0.35)';
                       }
                     }}
                     onMouseOut={(e) => {
-                      if (selectedFloorId !== floor.id) {
-                        e.currentTarget.style.borderColor = '#e2e8f0';
-                        e.currentTarget.style.backgroundColor = '#f7fafc';
+                      if (!isFloorSelected) {
+                        e.currentTarget.style.borderColor = '#2563eb';
+                        e.currentTarget.style.backgroundColor = '#dbeafe';
                         e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = 'none';
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(37, 99, 235, 0.22)';
                       }
                     }}
                   >
@@ -494,8 +500,8 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                     </div>
                     <h3 style={{
                       fontSize: isNarrowScreen ? '0.75rem' : isMedium ? '0.68rem' : isSmallDesktop ? '0.72rem' : '0.8rem',
-                      fontWeight: '600',
-                      color: '#2d3748',
+                      fontWeight: '700',
+                      color: isFloorSelected ? '#ffffff' : '#1e40af',
                       margin: '0 0 0.125rem 0',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -506,7 +512,8 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                       display: '-webkit-box',
                       WebkitLineClamp: 2,
                       WebkitBoxOrient: 'vertical',
-                      minHeight: '2.3em'
+                      minHeight: '2.3em',
+                      textShadow: isFloorSelected ? '0 1px 3px rgba(29, 78, 216, 0.4)' : 'none'
                     }}>
                       {floor.name}
                     </h3>
@@ -515,7 +522,8 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       fontSize: isNarrowScreen ? '0.65rem' : isMedium ? '0.6rem' : isSmallDesktop ? '0.6rem' : '0.65rem',
-                      color: '#718096',
+                      color: isFloorSelected ? 'rgba(255,255,255,0.92)' : '#1d4ed8',
+                      fontWeight: 600,
                       marginTop: '0.25rem',
                       lineHeight: 1.2
                     }}>
@@ -526,18 +534,20 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                       position: 'absolute',
                       top: '0.25rem',
                       right: '0.25rem',
-                      backgroundColor: selectedFloorId === floor.id ? '#667eea' : '#667eea',
+                      backgroundColor: isFloorSelected ? '#1d4ed8' : '#2563eb',
                       color: 'white',
                       padding: '0.1rem 0.375rem',
                       borderRadius: '12px',
                       fontSize: isNarrowScreen ? '0.62rem' : isMedium ? '0.56rem' : isSmallDesktop ? '0.56rem' : '0.625rem',
-                      fontWeight: '600',
-                      lineHeight: 1.2
+                      fontWeight: '700',
+                      lineHeight: 1.2,
+                      boxShadow: '0 1px 4px rgba(37, 99, 235, 0.45)'
                     }}>
                       {floor.order}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -570,7 +580,15 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
               
 
               {/* Lista de mesas */}
-              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+              <div style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                paddingTop: '6px',
+                paddingBottom: '6px',
+                boxSizing: 'border-box'
+              }}>
         {tablesLoading ? (
           <div style={{
             display: 'flex',
@@ -621,7 +639,6 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             gridTemplateColumns: tablesGridColumns,
             gap: tablesGridGap,
             width: '100%',
-            overflow: 'hidden',
             boxSizing: 'border-box'
           }}>
             {visibleTables.map((table: Table) => {
@@ -702,27 +719,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                   {table.name}
                 </h4>
                 
-                <div style={{
-                  display: 'inline-block',
-                  padding: isNarrowScreen ? '0.18rem 0.45rem' : isMedium ? '0.16rem 0.5rem' : isSmallDesktop ? '0.16rem 0.5rem' : '0.2rem 0.625rem',
-                  borderRadius: '12px',
-                  fontSize: tableBadgeFont,
-                  fontWeight: '700',
-                  backgroundColor: colors.badgeColor,
-                  color: colors.badgeTextColor,
-                  lineHeight: 1.2,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  maxWidth: '100%'
-                }}>
-                  {table.status === 'AVAILABLE' ? 'Disp' : 
-                   table.status === 'OCCUPIED' ? 'Ocup' : 
-                   table.status === 'TO_PAY' ? 'Pagar' :
-                   table.status === 'IN_PROCESS' ? 'Proc' :
-                   table.status === 'MAINTENANCE' ? 'Mant' : '?'}
-                </div>
-
+                
                 {orderTimerLabel != null && (
                     <div
                       title="Tiempo desde la apertura de la orden"

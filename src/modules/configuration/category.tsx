@@ -150,13 +150,18 @@ const CategoryModule: React.FC = () => {
           }}
           style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}
         >
-          <input
-            value={formData.name}
-            onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-            placeholder="Nombre de categoría"
-            required
-            style={{ padding: '0.625rem 0.875rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <input
+              value={formData.name}
+              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="Nombre de categoría"
+              required
+              style={{ padding: '0.625rem 0.875rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
+            />
+            <span style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.35 }}>
+              Puede repetirse el mismo nombre en varias categorías; en listas y desplegables se mostrará un sufijo para distinguirlas.
+            </span>
+          </div>
 
           <input
             value={formData.description}

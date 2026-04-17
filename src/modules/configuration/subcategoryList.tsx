@@ -1,4 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+
+function normalizeSubcategoryListName(s: string): string {
+  return s.trim().toLowerCase();
+}
 
 interface Subcategory {
   id: string;
@@ -37,6 +41,34 @@ const SubcategoryList: React.FC<SubcategoryListProps> = ({ categories, onEdit })
       ...subcategory,
     }))
   );
+
+  const duplicateCategoryNames = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of categories) {
+      const k = normalizeSubcategoryListName(c.name);
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    const dups = new Set<string>();
+    counts.forEach((n, k) => {
+      if (n > 1) dups.add(k);
+    });
+    return dups;
+  }, [categories]);
+  /** Misma subcategoría (nombre) repetida bajo la misma categoría */
+  const duplicateSubKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const cat of categories) {
+      for (const s of cat.subcategories || []) {
+        const k = `${cat.id}|${normalizeSubcategoryListName(s.name)}`;
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+    }
+    const dups = new Set<string>();
+    counts.forEach((n, k) => {
+      if (n > 1) dups.add(k);
+    });
+    return dups;
+  }, [categories]);
 
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(rows.length / ITEMS_PER_PAGE));
@@ -80,8 +112,16 @@ const SubcategoryList: React.FC<SubcategoryListProps> = ({ categories, onEdit })
               <tbody>
                 {rowsPaginated.map((row) => (
                 <tr key={row.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '0.65rem', color: '#334155', fontWeight: 600 }}>{row.categoryName}</td>
-                  <td style={{ padding: '0.65rem', color: '#334155' }}>{row.name}</td>
+                 <td style={{ padding: '0.65rem', color: '#334155', fontWeight: 600 }}>
+                    {duplicateCategoryNames.has(normalizeSubcategoryListName(row.categoryName))
+                      ? `${row.categoryName} · ${String(row.categoryId).slice(-6)}`
+                      : row.categoryName}
+                  </td>
+                  <td style={{ padding: '0.65rem', color: '#334155' }}>
+                    {duplicateSubKeys.has(`${row.categoryId}|${normalizeSubcategoryListName(row.name)}`)
+                      ? `${row.name} · ${String(row.id).slice(-6)}`
+                      : row.name}
+                  </td>
                   <td style={{ padding: '0.65rem', color: '#64748b' }}>{row.description || '-'}</td>
                   <td style={{ padding: '0.65rem', color: '#334155', textAlign: 'center' }}>{row.order ?? 0}</td>
                   <td style={{ padding: '0.65rem', textAlign: 'center' }}>
