@@ -1010,55 +1010,230 @@
     }
 }
 
-@media (max-width: 768px) {
-    .section-wrapper {
-        padding: 0 1.25rem;
+/* Tabs en Descargas */
+.download-tabs-header {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 3rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    padding-bottom: 1rem;
+}
+
+.download-tab-btn {
+    background: transparent;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-weight: 800;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    border-radius: 8px;
+}
+
+.dark-mode .download-tab-btn {
+    color: #94a3b8;
+}
+
+.download-tab-btn:hover {
+    color: var(--primary-1);
+    background: rgba(9, 118, 61, 0.05);
+}
+
+.download-tab-btn.active {
+    color: var(--primary-1);
+    background: rgba(9, 118, 61, 0.08);
+}
+
+.download-tab-btn.active::after {
+    content: "";
+    position: absolute;
+    bottom: -1rem;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: var(--primary-1);
+    border-radius: 3px 3px 0 0;
+}
+
+/* Guía Tab Content */
+.guide-tab-content {
+    text-align: left;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.guide-welcome {
+    margin-bottom: 3rem;
+    text-align: center;
+}
+
+.guide-welcome h3 {
+    font-family: "Outfit", sans-serif;
+    font-size: 1.8rem;
+    font-weight: 900;
+    margin-bottom: 0.75rem;
+}
+
+.guide-steps-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+}
+
+.guide-step {
+    display: flex;
+    gap: 2rem;
+    padding: 2rem;
+    background: rgba(148, 163, 184, 0.03);
+    border-radius: 20px;
+    border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.dark-mode .guide-step {
+    background: rgba(30, 41, 59, 0.3);
+}
+
+.step-number {
+    font-family: "Outfit", sans-serif;
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: var(--primary-1);
+    opacity: 0.3;
+    line-height: 1;
+}
+
+.step-body h4 {
+    font-family: "Outfit", sans-serif;
+    font-size: 1.25rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    color: var(--primary-1);
+}
+
+.guide-list {
+    list-style: none;
+    padding: 0;
+    margin: 1.25rem 0;
+}
+
+.guide-list li {
+    padding-left: 1.5rem;
+    position: relative;
+    margin-bottom: 0.5rem;
+}
+
+.guide-list li::before {
+    content: "•";
+    position: absolute;
+    left: 0.25rem;
+    color: var(--primary-1);
+    font-weight: bold;
+}
+
+.guide-warning {
+    display: flex;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: rgba(245, 158, 11, 0.08);
+    border-radius: 12px;
+    border-left: 4px solid #f59e0b;
+    margin-top: 1.5rem;
+}
+
+.guide-warning .material-icons {
+    color: #f59e0b;
+}
+
+.mesa-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background: rgba(148, 163, 184, 0.05);
+    border-radius: 12px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.dot.verde { background: #10b981; box-shadow: 0 0 10px rgba(16, 185, 129, 0.4); }
+.dot.rojo { background: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
+.dot.amarillo { background: #f59e0b; box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
+
+.guide-img {
+    width: 100%;
+    max-width: 100%;
+    margin-top: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.guide-sub-step {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px dashed rgba(148, 163, 184, 0.2);
+}
+
+.guide-sub-step h5 {
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+}
+
+.guide-info-box {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: var(--primary-1);
+    color: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(9, 118, 61, 0.2);
+}
+
+.guide-info-box h6 {
+    font-size: 1rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    letter-spacing: 0.5px;
+}
+
+.guide-list.small li::before {
+    color: white;
+}
+
+@media (max-width: 640px) {
+    .guide-step {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1.5rem;
     }
-    .landing-nav {
-        padding: 0.9rem 1rem;
+    .download-tabs-header {
+        flex-direction: column;
+        gap: 0.5rem;
     }
-    .landing-nav.scrolled {
-        padding: 0.7rem 1rem;
+    .download-tab-btn {
+        width: 100%;
+        justify-content: center;
     }
-    .landing-logo {
-        font-size: 1.4rem;
-    }
-    .login-link {
-        padding: 0.55rem 1.1rem;
-        font-size: 0.78rem;
-    }
-    .banner-arrow {
-        width: 42px;
-        height: 42px;
-    }
-    .banner-arrow.prev {
-        left: 10px;
-    }
-    .banner-arrow.next {
-        right: 10px;
-    }
-    .banner-dots {
-        bottom: 22px;
-    }
-    .digital-menu-section,
-    .download-section,
-    .contact-section,
-    .info-section {
-        padding: 4.5rem 0;
-    }
-    .info-card {
-        padding: 2.2rem 1.4rem;
-    }
-    .info-card h3 {
-        font-size: 1.24rem;
-    }
-    .card-icon {
-        width: 58px;
-        height: 58px;
-        font-size: 2.1rem;
-        margin-bottom: 1.25rem;
-    }
-    .menu-preview-display {
-        height: 500px;
+    .download-tab-btn.active::after {
+        display: none;
     }
 }
