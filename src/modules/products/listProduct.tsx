@@ -405,16 +405,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
               minWidth: 0
             }}>
               <colgroup>
-                <col style={{ width: '6%' }} /> {/* Imagen */}
-                <col style={{ width: '7%' }} /> {/* Código */}
-                <col style={{ width: '12%' }} /> {/* Nombre */}
-                <col style={{ width: '10%' }} /> {/* Categoría */}
-                <col style={{ width: '10%' }} /> {/* Subcategoría */}
-                <col style={{ width: '14%' }} /> {/* Descripción */}
-                <col style={{ width: '8%' }} /> {/* Precio */}
-                <col style={{ width: '6%' }} /> {/* Tiempo */}
-                <col style={{ width: '8%' }} /> {/* Estado */}
-                <col style={{ width: '19%' }} /> {/* Acciones */}
+                <col style={{ width: '6%' }} /><col style={{ width: '7%' }} /><col style={{ width: '12%' }} /><col style={{ width: '10%' }} /><col style={{ width: '10%' }} /><col style={{ width: '14%' }} /><col style={{ width: '8%' }} /><col style={{ width: '6%' }} /><col style={{ width: '8%' }} /><col style={{ width: '19%' }} />
               </colgroup>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0', backgroundColor: '#f8fafc' }}>

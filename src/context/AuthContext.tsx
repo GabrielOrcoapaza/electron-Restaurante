@@ -154,43 +154,36 @@ interface AuthProviderProps {
 
 // Provider del contexto
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<UserData | null>(null);
-  const [companyData, setCompanyData] = useState<CompanyData | null>(null);
-  const [deviceId, setDeviceId] = useState<string | null>(null);
-
-  // Cargar datos de localStorage al iniciar
-  useEffect(() => {
-    const storedToken = localStorage.getItem('token');
+  // Cargar datos de localStorage de forma síncrona para evitar parpadeos/redirecciones
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
+  const [user, setUser] = useState<UserData | null>(() => {
     const storedUser = localStorage.getItem('userData');
-    const storedCompany = localStorage.getItem('companyData');
-    const storedDeviceId = localStorage.getItem('device_id');
-
-    if (storedToken) {
-      setToken(storedToken);
-      setIsAuthenticated(true);
-    }
-
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
+        return JSON.parse(storedUser);
       } catch (error) {
-        console.error('Error al parsear userData:', error);
+        console.error('Error al parsear userData inicial:', error);
       }
     }
-
+    return null;
+  });
+  const [companyData, setCompanyData] = useState<CompanyData | null>(() => {
+    const storedCompany = localStorage.getItem('companyData');
     if (storedCompany) {
       try {
-        setCompanyData(JSON.parse(storedCompany));
+        return JSON.parse(storedCompany);
       } catch (error) {
-        console.error('Error al parsear companyData:', error);
+        console.error('Error al parsear companyData inicial:', error);
       }
     }
+    return null;
+  });
+  const [deviceId, setDeviceId] = useState<string | null>(() => localStorage.getItem('device_id'));
 
-    if (storedDeviceId) {
-      setDeviceId(storedDeviceId);
-    }
+  // Sincronización adicional si fuera necesaria
+  useEffect(() => {
+    // Si por alguna razón los datos cambian externamente (poco probable en este flujo)
   }, []);
 
 

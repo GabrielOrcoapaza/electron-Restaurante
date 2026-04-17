@@ -103,7 +103,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
               : isSmallDesktop
                 ? "260px"
                 : "280px"
-        : "80px";
+        : "0px";
     const headerPadding = isSmall
         ? "0.75rem 1rem"
         : isMedium
@@ -143,7 +143,35 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         | "reports"
         | "configuration"
         | "delivery"
-    >("dashboard");
+    >(() => {
+        const savedView = localStorage.getItem("currentDashboardView");
+        const validViews = [
+            "dashboard",
+            "floors",
+            "cash",
+            "cashs",
+            "messages",
+            "employees",
+            "permissions",
+            "products",
+            "inventory",
+            "kardex",
+            "purchase",
+            "reports",
+            "configuration",
+            "delivery",
+        ];
+        return savedView && validViews.includes(savedView)
+            ? (savedView as any)
+            : "dashboard";
+    });
+
+    useEffect(() => {
+        if (currentView) {
+            localStorage.setItem("currentDashboardView", currentView);
+        }
+    }, [currentView]);
+
     const [configurationTab, setConfigurationTab] = useState<
         | "category"
         | "subcategory"
@@ -458,6 +486,35 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         setSelectedCashTable(null);
     };
 
+    const SidebarItem = ({
+        view,
+        icon,
+        label,
+        isActive,
+    }: {
+        view: any;
+        icon: string;
+        label: string;
+        isActive: boolean;
+    }) => (
+        <button
+            onClick={() => handleMenuClick(view)}
+            className={`group relative mx-4 flex w-[calc(100%-2rem)] items-center gap-3 overflow-hidden rounded-xl border px-5 py-3 text-left text-sm transition-all duration-300 ${
+                isActive
+                    ? "border-indigo-400/30 bg-indigo-500/15 text-indigo-300 shadow-[0_8px_20px_rgba(99,102,241,0.18)]"
+                    : "border-transparent text-slate-400 hover:border-white/10 hover:bg-white/5 hover:text-slate-100"
+            }`}
+        >
+            <span className="text-xl">{icon}</span>
+            {sidebarOpen && label}
+            {isActive && (
+                <div
+                    className="absolute bottom-[20%] left-0 top-[20%] w-1 rounded-r bg-indigo-400"
+                />
+            )}
+        </button>
+    );
+
     const headerTitle =
         currentView === "dashboard"
             ? "Panel"
@@ -630,168 +687,48 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         >
             {/* Sidebar */}
             <div
+                className="fixed z-[1000] flex h-screen flex-col overflow-x-hidden overflow-y-auto border-r border-slate-800/70 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-900 text-white shadow-2xl shadow-slate-950/40"
                 style={{
                     width: sidebarWidth,
-                    backgroundColor: "#1a202c",
-                    color: "white",
-                    transition: "width 0.3s ease",
-                    position: "fixed",
-                    height: "100vh",
-                    zIndex: 1000,
-                    overflow: "auto",
-                    boxShadow: "2px 0 10px rgba(0, 0, 0, 0.1)",
-                    display: "flex",
-                    flexDirection: "column",
+                    transition: "width 0.3s ease, box-shadow 0.3s ease",
+                    boxShadow: sidebarOpen
+                        ? "2px 0 10px rgba(0, 0, 0, 0.1)"
+                        : "none",
                 }}
             >
                 {/* Header del Sidebar */}
-                <div
-                    style={{
-                        padding: isSmall
-                            ? "1rem"
-                            : isMedium
-                              ? "1.25rem"
-                              : isSmallDesktop
-                                ? "1.25rem"
-                                : "1.5rem",
-                        borderBottom: "1px solid #2d3748",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                    }}
-                >
+                <div className="flex items-center justify-between border-b border-slate-800 p-5">
                     {sidebarOpen && (
                         <div>
                             <h2
-                                style={{
-                                    fontSize: isSmall
-                                        ? "1rem"
-                                        : isMedium
-                                          ? "1.125rem"
-                                          : isSmallDesktop
-                                            ? "1.125rem"
-                                            : "1.25rem",
-                                    fontWeight: "700",
-                                    margin: 0,
-                                    background:
-                                        "linear-gradient(135deg, #667eea, #764ba2)",
-                                    WebkitBackgroundClip: "text",
-                                    WebkitTextFillColor: "transparent",
-                                    backgroundClip: "text",
-                                }}
+                                className="m-0 bg-gradient-to-r from-indigo-400 to-fuchsia-400 bg-clip-text text-xl font-bold text-transparent"
                             >
                                 SumApp
                             </h2>
-                            <p
-                                style={{
-                                    fontSize: isSmall
-                                        ? "0.75rem"
-                                        : isMedium
-                                          ? "0.8125rem"
-                                          : isSmallDesktop
-                                            ? "0.8125rem"
-                                            : "0.875rem",
-                                    color: "#a0aec0",
-                                    margin: "0.25rem 0 0",
-                                    fontWeight: "500",
-                                }}
-                            >
+                            <p className="mt-1 text-sm font-medium text-slate-400">
                                 {companyData?.company.denomination}
                             </p>
                             {macAddress && (
-                                <p
-                                    style={{
-                                        fontSize: isSmall
-                                            ? "0.65rem"
-                                            : isMedium
-                                              ? "0.6875rem"
-                                              : isSmallDesktop
-                                                ? "0.6875rem"
-                                                : "0.75rem",
-                                        color: "#a0aec0",
-                                        margin: "0.25rem 0 0",
-                                        fontFamily: "monospace",
-                                    }}
-                                >
+                                <p className="mt-1 font-mono text-xs text-slate-500">
                                     MAC: {macAddress}
                                 </p>
                             )}
                         </div>
                     )}
-                    <button
-                        onClick={toggleSidebar}
-                        style={{
-                            background: "rgba(255, 255, 255, 0.1)",
-                            border: "none",
-                            color: "white",
-                            padding: "0.5rem",
-                            borderRadius: "8px",
-                            cursor: "pointer",
-                            fontSize: "1.25rem",
-                            transition: "background 0.2s ease",
-                        }}
-                        onMouseOver={(e) =>
-                            (e.currentTarget.style.background =
-                                "rgba(255, 255, 255, 0.2)")
-                        }
-                        onMouseOut={(e) =>
-                            (e.currentTarget.style.background =
-                                "rgba(255, 255, 255, 0.1)")
-                        }
-                    >
-                        {sidebarOpen ? "←" : "→"}
-                    </button>
                 </div>
 
                 {/* Información del Usuario */}
-                <div
-                    style={{
-                        padding: "1.5rem",
-                        borderBottom: "1px solid #2d3748",
-                    }}
-                >
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.75rem",
-                            marginBottom: "1rem",
-                        }}
-                    >
-                        <div
-                            style={{
-                                width: "40px",
-                                height: "40px",
-                                background:
-                                    "linear-gradient(135deg, #667eea, #764ba2)",
-                                borderRadius: "50%",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: "1.25rem",
-                            }}
-                        >
+                <div className="border-b border-slate-800 p-6">
+                    <div className="mb-4 flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-xl shadow-lg shadow-indigo-500/20">
                             👤
                         </div>
                         {sidebarOpen && (
                             <div>
-                                <p
-                                    style={{
-                                        margin: 0,
-                                        fontSize: "0.875rem",
-                                        fontWeight: "600",
-                                        color: "white",
-                                    }}
-                                >
+                                <p className="m-0 text-sm font-semibold text-white">
                                     {user?.fullName}
                                 </p>
-                                <p
-                                    style={{
-                                        margin: 0,
-                                        fontSize: "0.75rem",
-                                        color: "#a0aec0",
-                                    }}
-                                >
+                                <p className="m-0 text-xs text-slate-400">
                                     {roleDisplay(user?.role)}
                                 </p>
                             </div>
@@ -799,25 +736,12 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                     </div>
 
                     {sidebarOpen && (
-                        <div
-                            style={{
-                                backgroundColor: "rgba(255, 255, 255, 0.05)",
-                                padding: "0.75rem",
-                                borderRadius: "8px",
-                                fontSize: "0.75rem",
-                                color: "#a0aec0",
-                            }}
-                        >
-                            <p
-                                style={{
-                                    margin: "0 0 0.25rem",
-                                    fontWeight: "500",
-                                }}
-                            >
+                        <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-slate-300">
+                            <p className="mb-1 font-medium">
                                 <strong>Sucursal:</strong>{" "}
                                 {companyData?.branch.name}
                             </p>
-                            <p style={{ margin: 0 }}>
+                            <p className="m-0">
                                 <strong>DNI:</strong> {user?.dni}
                             </p>
                         </div>
@@ -825,643 +749,141 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                 </div>
 
                 {/* Menú de Navegación */}
-                <nav
-                    style={{
-                        padding: "1rem 0",
-                        flex: 1,
-                        overflowY: "auto",
-                        scrollbarWidth: "thin", // Firefox
-                    }}
-                >
-                    <div
-                        style={{
-                            padding: "0.5rem 1.5rem",
-                            color: "#a0aec0",
-                            fontSize: "0.75rem",
-                            fontWeight: "600",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            marginBottom: "0.5rem",
-                        }}
-                    >
+                <nav className="flex-1 overflow-y-auto py-4 [scrollbar-width:thin]">
+                    <div className="mb-2 px-6 py-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
                         {sidebarOpen && "MENÚ"}
                     </div>
 
                     {/* Opciones del menú */}
-                    <div
-                        style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "0.25rem",
-                        }}
-                    >
+                    <div className="flex flex-col gap-2">
                         {canSeeDashboard && (
-                            <button
-                                onClick={() => handleMenuClick("dashboard")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background:
-                                        currentView === "dashboard"
-                                            ? "rgba(102, 126, 234, 0.1)"
-                                            : "transparent",
-                                    border: "none",
-                                    color:
-                                        currentView === "dashboard"
-                                            ? "#667eea"
-                                            : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (currentView !== "dashboard") {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (currentView !== "dashboard") {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>📊</span>
-                                {sidebarOpen && "Panel"}
-                            </button>
+                            <SidebarItem
+                                view="dashboard"
+                                icon="📊"
+                                label="Panel"
+                                isActive={currentView === "dashboard"}
+                            />
                         )}
 
                         {canSeeProducts && (
-                            <button
-                                onClick={() => handleMenuClick("products")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background:
-                                        currentView === "products"
-                                            ? "rgba(102, 126, 234, 0.1)"
-                                            : "transparent",
-                                    border: "none",
-                                    color:
-                                        currentView === "products"
-                                            ? "#667eea"
-                                            : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (currentView !== "products") {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (currentView !== "products") {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>🍽️</span>
-                                {sidebarOpen && "Productos"}
-                            </button>
+                            <SidebarItem
+                                view="products"
+                                icon="🍽️"
+                                label="Productos"
+                                isActive={currentView === "products"}
+                            />
                         )}
 
                         {canSeeFloors && (
-                            <button
-                                onClick={() => handleMenuClick("floors")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background: isFloorsSection
-                                        ? "rgba(102, 126, 234, 0.1)"
-                                        : "transparent",
-                                    border: "none",
-                                    color: isFloorsSection
-                                        ? "#667eea"
-                                        : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (!isFloorsSection) {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (!isFloorsSection) {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>🪑</span>
-                                {sidebarOpen && "Mesas"}
-                            </button>
+                            <SidebarItem
+                                view="floors"
+                                icon="🪑"
+                                label="Mesas"
+                                isActive={isFloorsSection}
+                            />
                         )}
 
                         {canSeeDelivery && (
-                            <button
-                                onClick={() => handleMenuClick("delivery")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background:
-                                        currentView === "delivery"
-                                            ? "rgba(102, 126, 234, 0.1)"
-                                            : "transparent",
-                                    border: "none",
-                                    color:
-                                        currentView === "delivery"
-                                            ? "#667eea"
-                                            : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (currentView !== "delivery") {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (currentView !== "delivery") {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>🚗</span>
-                                {sidebarOpen && "Punto de venta"}
-                            </button>
+                            <SidebarItem
+                                view="delivery"
+                                icon="🚗"
+                                label="Punto de venta"
+                                isActive={currentView === "delivery"}
+                            />
                         )}
 
                         {canSeeConfiguration && (
-                            <button
-                                onClick={() => handleMenuClick("configuration")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background:
-                                        currentView === "configuration"
-                                            ? "rgba(102, 126, 234, 0.1)"
-                                            : "transparent",
-                                    border: "none",
-                                    color:
-                                        currentView === "configuration"
-                                            ? "#667eea"
-                                            : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (currentView !== "configuration") {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (currentView !== "configuration") {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>⚙️</span>
-                                {sidebarOpen && "Configuración"}
-                            </button>
+                            <SidebarItem
+                                view="configuration"
+                                icon="⚙️"
+                                label="Configuración"
+                                isActive={currentView === "configuration"}
+                            />
                         )}
 
                         {canSeeMessages && (
-                            <button
-                                onClick={() => handleMenuClick("messages")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background:
-                                        currentView === "messages"
-                                            ? "rgba(102, 126, 234, 0.1)"
-                                            : "transparent",
-                                    border: "none",
-                                    color:
-                                        currentView === "messages"
-                                            ? "#667eea"
-                                            : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (currentView !== "messages") {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (currentView !== "messages") {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>💬</span>
-                                {sidebarOpen && "Mensajes"}
-                            </button>
+                            <SidebarItem
+                                view="messages"
+                                icon="💬"
+                                label="Mensajes"
+                                isActive={currentView === "messages"}
+                            />
                         )}
 
                         {canSeeEmployees && (
-                            <button
-                                onClick={() => handleMenuClick("employees")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background:
-                                        currentView === "employees"
-                                            ? "rgba(102, 126, 234, 0.1)"
-                                            : "transparent",
-                                    border: "none",
-                                    color:
-                                        currentView === "employees"
-                                            ? "#667eea"
-                                            : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (currentView !== "employees") {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (currentView !== "employees") {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>👥</span>
-                                {sidebarOpen && "Empleados"}
-                            </button>
+                            <SidebarItem
+                                view="employees"
+                                icon="👥"
+                                label="Empleados"
+                                isActive={currentView === "employees"}
+                            />
                         )}
 
                         {canSeePermissions && (
-                            <button
-                                onClick={() => handleMenuClick("permissions")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background:
-                                        currentView === "permissions"
-                                            ? "rgba(102, 126, 234, 0.1)"
-                                            : "transparent",
-                                    border: "none",
-                                    color:
-                                        currentView === "permissions"
-                                            ? "#667eea"
-                                            : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (currentView !== "permissions") {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (currentView !== "permissions") {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>🔐</span>
-                                {sidebarOpen && "Permisos"}
-                            </button>
+                            <SidebarItem
+                                view="permissions"
+                                icon="🔐"
+                                label="Permisos"
+                                isActive={currentView === "permissions"}
+                            />
                         )}
 
                         {canSeePurchase && (
-                            <button
-                                onClick={() => handleMenuClick("purchase")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background:
-                                        currentView === "purchase"
-                                            ? "rgba(102, 126, 234, 0.1)"
-                                            : "transparent",
-                                    border: "none",
-                                    color:
-                                        currentView === "purchase"
-                                            ? "#667eea"
-                                            : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (currentView !== "purchase") {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (currentView !== "purchase") {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>🛒</span>
-                                {sidebarOpen && "Compras"}
-                            </button>
+                            <SidebarItem
+                                view="purchase"
+                                icon="🛒"
+                                label="Compras"
+                                isActive={currentView === "purchase"}
+                            />
                         )}
 
                         {canSeeCashs && (
-                            <button
-                                onClick={() => handleMenuClick("cashs")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background:
-                                        currentView === "cashs"
-                                            ? "rgba(102, 126, 234, 0.1)"
-                                            : "transparent",
-                                    border: "none",
-                                    color:
-                                        currentView === "cashs"
-                                            ? "#667eea"
-                                            : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (currentView !== "cashs") {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (currentView !== "cashs") {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>💰</span>
-                                {sidebarOpen && "Caja"}
-                            </button>
+                            <SidebarItem
+                                view="cashs"
+                                icon="💰"
+                                label="Caja"
+                                isActive={currentView === "cashs"}
+                            />
                         )}
 
                         {canSeeInventory && (
-                            <button
-                                onClick={() => handleMenuClick("inventory")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background:
-                                        currentView === "inventory"
-                                            ? "rgba(102, 126, 234, 0.1)"
-                                            : "transparent",
-                                    border: "none",
-                                    color:
-                                        currentView === "inventory"
-                                            ? "#667eea"
-                                            : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (currentView !== "inventory") {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (currentView !== "inventory") {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>📦</span>
-                                {sidebarOpen && "Inventario"}
-                            </button>
+                            <SidebarItem
+                                view="inventory"
+                                icon="📦"
+                                label="Inventario"
+                                isActive={currentView === "inventory"}
+                            />
                         )}
 
                         {canSeeKardex && (
-                            <button
-                                onClick={() => handleMenuClick("kardex")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background:
-                                        currentView === "kardex"
-                                            ? "rgba(102, 126, 234, 0.1)"
-                                            : "transparent",
-                                    border: "none",
-                                    color:
-                                        currentView === "kardex"
-                                            ? "#667eea"
-                                            : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (currentView !== "kardex") {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (currentView !== "kardex") {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>📋</span>
-                                {sidebarOpen && "Kardex"}
-                            </button>
+                            <SidebarItem
+                                view="kardex"
+                                icon="📋"
+                                label="Kardex"
+                                isActive={currentView === "kardex"}
+                            />
                         )}
 
                         {canSeeReports && (
-                            <button
-                                onClick={() => handleMenuClick("reports")}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    padding: "0.75rem 1.5rem",
-                                    background:
-                                        currentView === "reports"
-                                            ? "rgba(102, 126, 234, 0.1)"
-                                            : "transparent",
-                                    border: "none",
-                                    color:
-                                        currentView === "reports"
-                                            ? "#667eea"
-                                            : "#a0aec0",
-                                    cursor: "pointer",
-                                    fontSize: "0.875rem",
-                                    fontWeight: "500",
-                                    transition: "all 0.2s ease",
-                                    textAlign: "left",
-                                    width: "100%",
-                                }}
-                                onMouseOver={(e) => {
-                                    if (currentView !== "reports") {
-                                        e.currentTarget.style.background =
-                                            "rgba(255, 255, 255, 0.05)";
-                                        e.currentTarget.style.color = "white";
-                                    }
-                                }}
-                                onMouseOut={(e) => {
-                                    if (currentView !== "reports") {
-                                        e.currentTarget.style.background =
-                                            "transparent";
-                                        e.currentTarget.style.color = "#a0aec0";
-                                    }
-                                }}
-                            >
-                                <span style={{ fontSize: "1.25rem" }}>📊</span>
-                                {sidebarOpen && "Reportes"}
-                            </button>
+                            <SidebarItem
+                                view="reports"
+                                icon="📊"
+                                label="Reportes"
+                                isActive={currentView === "reports"}
+                            />
                         )}
                     </div>
                 </nav>
 
                 {/* Footer del Sidebar */}
-                <div
-                    style={{
-                        padding: "1.5rem",
-                        borderTop: "1px solid #2d3748",
-                    }}
-                >
+                <div className="border-t border-slate-800 p-6">
                     <button
                         onClick={handleLogout}
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.75rem",
-                            padding: "0.75rem",
-                            background: "rgba(245, 87, 108, 0.1)",
-                            border: "none",
-                            color: "#f5576c",
-                            cursor: "pointer",
-                            fontSize: "0.875rem",
-                            fontWeight: "500",
-                            transition: "all 0.2s ease",
-                            textAlign: "left",
-                            width: "100%",
-                            borderRadius: "8px",
-                        }}
-                        onMouseOver={(e) => {
-                            e.currentTarget.style.background =
-                                "rgba(245, 87, 108, 0.2)";
-                        }}
-                        onMouseOut={(e) => {
-                            e.currentTarget.style.background =
-                                "rgba(245, 87, 108, 0.1)";
-                        }}
+                        className="flex w-full items-center gap-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-left text-sm font-semibold text-rose-300 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-300/50 hover:bg-rose-500/20 hover:text-rose-200 hover:shadow-lg hover:shadow-rose-500/20"
                     >
-                        <span style={{ fontSize: "1.25rem" }}>🚪</span>
+                        <span className="text-xl drop-shadow-[0_2px_4px_rgba(239,68,68,0.2)]">
+                            🚪
+                        </span>
                         {sidebarOpen && "Cerrar Sesión"}
                     </button>
                 </div>
@@ -1489,54 +911,39 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             >
                 {/* Header Principal: título | sucursal centrada | empleado + notificaciones */}
                 <header
+                    className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-slate-200 bg-white shadow-sm"
                     style={{
-                        backgroundColor: "white",
                         padding: headerPadding,
-                        borderBottom: "1px solid #e2e8f0",
-                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                        display: "grid",
-                        gridTemplateColumns: "1fr auto 1fr",
-                        alignItems: "center",
-                        gap: "1rem",
                     }}
                 >
-                    <div style={{ justifySelf: "start", minWidth: 0 }}>
-                        <h1
-                            style={{
-                                fontSize: headerFontSize,
-                                fontWeight: "700",
-                                color: "#2d3748",
-                                margin: 0,
-                            }}
+                    <div className="flex min-w-0 items-center gap-4 justify-self-start">
+                        <button
+                            onClick={toggleSidebar}
+                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-xl text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
                         >
-                            {headerTitle}
-                        </h1>
-                        <p
-                            style={{
-                                fontSize: headerSubFontSize,
-                                color: "#718096",
-                                margin: "0.25rem 0 0",
-                            }}
-                        >
-                            {headerSubtitle}
-                        </p>
+                            {sidebarOpen ? "⇤" : "☰"}
+                        </button>
+                        <div className="min-w-0">
+                            <h1
+                                className="m-0 truncate font-bold text-slate-800"
+                                style={{
+                                    fontSize: headerFontSize,
+                                }}
+                            >
+                                {headerTitle}
+                            </h1>
+                            <div
+                                className="mt-1 truncate text-slate-500"
+                                style={{
+                                    fontSize: headerSubFontSize,
+                                }}
+                            >
+                                {headerSubtitle}
+                            </div>
+                        </div>
                     </div>
 
-                    <div
-                        style={{
-                            justifySelf: "center",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            padding: "0.5rem 1rem",
-                            backgroundColor: "#f7fafc",
-                            borderRadius: "8px",
-                            fontSize: "0.875rem",
-                            color: "#4a5568",
-                            maxWidth: "100%",
-                            boxSizing: "border-box",
-                        }}
-                    >
+                    <div className="flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 justify-self-center">
                         <span>🏢</span>
                         {(companyData?.availableBranches?.length ?? 0) > 1 ? (
                             <select
@@ -1549,19 +956,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     }
                                 }}
                                 disabled={switchingBranch}
-                                style={{
-                                    border: "1px solid #e2e8f0",
-                                    borderRadius: "6px",
-                                    padding: "0.25rem 0.5rem",
-                                    fontSize: "0.875rem",
-                                    fontWeight: 600,
-                                    color: "#2d3748",
-                                    backgroundColor: "white",
-                                    cursor: switchingBranch
-                                        ? "wait"
-                                        : "pointer",
-                                    minWidth: "140px",
-                                }}
+                                className="min-w-[140px] cursor-pointer rounded-md border border-slate-200 bg-white px-2 py-1 text-sm font-semibold text-slate-700 disabled:cursor-wait disabled:opacity-70"
                             >
                                 {companyData?.availableBranches?.map(
                                     (b: any) => (
@@ -1572,43 +967,17 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 )}
                             </select>
                         ) : (
-                            <span style={{ fontWeight: 600, color: "#2d3748" }}>
+                            <span className="font-semibold text-slate-700">
                                 {companyData?.branch.name}
                             </span>
                         )}
                     </div>
 
-                    <div
-                        style={{
-                            justifySelf: "end",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "1rem",
-                            minWidth: 0,
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.5rem",
-                                padding: "0.5rem 1rem",
-                                backgroundColor: "#f7fafc",
-                                borderRadius: "8px",
-                                fontSize: "0.875rem",
-                                color: "#4a5568",
-                                maxWidth: "min(240px, 100%)",
-                            }}
-                        >
+                    <div className="flex min-w-0 items-center gap-4 justify-self-end">
+                        <div className="flex max-w-[min(240px,100%)] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
                             <span>👤</span>
                             <span
-                                style={{
-                                    fontWeight: 600,
-                                    color: "#2d3748",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                }}
+                                className="truncate font-semibold text-slate-700"
                                 title={user?.fullName ?? user?.firstName ?? ""}
                             >
                                 {user?.fullName ?? user?.firstName}
@@ -1616,7 +985,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                         </div>
                         <div
                             ref={notificationsRef}
-                            style={{ position: "relative", flexShrink: 0 }}
+                            className="relative shrink-0"
                         >
                             <button
                                 type="button"
@@ -1624,56 +993,16 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 onClick={() =>
                                     setShowNotifications((prev) => !prev)
                                 }
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    width: "42px",
-                                    height: "42px",
-                                    borderRadius: "9999px",
-                                    border: "1px solid #e2e8f0",
-                                    backgroundColor: showNotifications
-                                        ? "#edf2f7"
-                                        : "#f8fafc",
-                                    color: "#4a5568",
-                                    fontSize: "1.1rem",
-                                    cursor: "pointer",
-                                    transition: "all 0.2s ease",
-                                    position: "relative",
-                                }}
-                                onMouseOver={(e) => {
-                                    e.currentTarget.style.backgroundColor =
-                                        "#edf2f7";
-                                    e.currentTarget.style.borderColor =
-                                        "#cbd5e0";
-                                }}
-                                onMouseOut={(e) => {
-                                    if (!showNotifications) {
-                                        e.currentTarget.style.backgroundColor =
-                                            "#f8fafc";
-                                        e.currentTarget.style.borderColor =
-                                            "#e2e8f0";
-                                    }
-                                }}
+                                className={`relative flex h-[42px] w-[42px] items-center justify-center rounded-full border text-[1.1rem] text-slate-600 transition ${
+                                    showNotifications
+                                        ? "border-slate-300 bg-slate-200"
+                                        : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-200"
+                                }`}
                             >
                                 🔔
                                 {unreadCount > 0 && (
                                     <span
-                                        style={{
-                                            position: "absolute",
-                                            top: "4px",
-                                            right: "4px",
-                                            width: "18px",
-                                            height: "18px",
-                                            borderRadius: "9999px",
-                                            backgroundColor: "#f56565",
-                                            color: "white",
-                                            fontSize: "0.7rem",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            fontWeight: 700,
-                                        }}
+                                        className="absolute right-1 top-1 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-rose-500 text-[0.7rem] font-bold text-white"
                                     >
                                         {unreadCount > 9 ? "9+" : unreadCount}
                                     </span>

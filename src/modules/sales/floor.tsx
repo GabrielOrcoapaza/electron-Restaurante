@@ -143,6 +143,13 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     fetchPolicy: 'network-only'
   });
 
+  // Seleccionar el primer piso automáticamente al cargar los datos
+  useEffect(() => {
+    if (floorsData?.floorsByBranch?.length > 0 && !selectedFloorId) {
+      setSelectedFloorId(floorsData.floorsByBranch[0].id);
+    }
+  }, [floorsData, selectedFloorId]);
+
   // Obtener mesas del piso seleccionado (siempre desde red para ver cambios de otros mozos)
   const { data: tablesData, loading: tablesLoading, error: tablesError, refetch: refetchTables } = useQuery(GET_TABLES_BY_FLOOR, {
     variables: { floorId: selectedFloorId },
@@ -170,7 +177,9 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     // Suscribirse a tables_snapshot
     const unsubscribeSnapshot = subscribe('tables_snapshot', (message) => {
       console.log('📊 Snapshot de mesas recibido:', message.tables?.length, 'mesas');
-      refetchTables();
+      if (selectedFloorId) {
+        refetchTables();
+      }
     });
 
     // Suscribirse a table_update
@@ -182,12 +191,14 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         timestamp: message.timestamp
       });
       
-      // Refetch inmediato para actualizar los colores de la mesa
-      refetchTables().then(() => {
-        console.log(`✅ Mesas actualizadas después de table_update para mesa ${message.table_id}`);
-      }).catch((error) => {
-        console.error('❌ Error al refetch mesas:', error);
-      });
+      // Refetch inmediato para actualizar los colores de la mesa (solo si hay un piso seleccionado)
+      if (selectedFloorId) {
+        refetchTables().then(() => {
+          console.log(`✅ Mesas actualizadas después de table_update para mesa ${message.table_id}`);
+        }).catch((error) => {
+          console.error('❌ Error al refetch mesas:', error);
+        });
+      }
     });
 
     // Suscribirse a errores

@@ -115,6 +115,8 @@ const LoginWeb: React.FC = () => {
                     `¡Bienvenido, ${user.fullName || user.firstName || "usuario"}!`,
                     "success",
                 );
+                // Pre-establecer la vista en Mesas al iniciar sesión
+                localStorage.setItem("currentDashboardView", "floors");
                 navigate("/dashboard");
             } else {
                 showToast(

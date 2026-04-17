@@ -128,6 +128,7 @@ const Login: React.FC = () => {
         showToast(`¡Bienvenido, ${loggedUser.firstName || 'usuario'}!`, 'success');
         try {
           sessionStorage.setItem('postLoginOpenFloors', '1');
+          localStorage.setItem('currentDashboardView', 'floors');
         } catch {
           /* ignorar si no hay storage */
         }
