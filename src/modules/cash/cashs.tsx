@@ -10,7 +10,7 @@ import {
   GET_CASH_CLOSURES,
   GET_PAYMENTS_PENDING_CLOSURE
 } from '../../graphql/queries';
-import { CLOSE_CASH, REPRINT_CLOSURE, PRINT_PAYMENT, CANCEL_PAYMENT } from '../../graphql/mutations';
+import { CLOSE_CASH, REPRINT_CLOSURE, PRINT_PAYMENT, CANCEL_PAYMENT, UPDATE_PAYMENT_METHOD } from '../../graphql/mutations';
 import ManualTransactionModal from './manualTransactionModal';
 import CashDetailModal, { type CashClosureForDetail } from './cashDetailModal';
 
@@ -112,6 +112,9 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
   minimumFractionDigits: 2
 });
 
+/** Coincide con valid_methods en UpdatePaymentMethodMutation (Django). */
+const EDITABLE_PAYMENT_METHOD_CODES = ['CASH', 'YAPE', 'PLIN', 'CARD', 'TRANSFER', 'OTROS'] as const;
+
 const Cashs: React.FC = () => {
   const apolloClient = useApolloClient();
   const { companyData, user, getMacAddress } = useAuth();
@@ -166,6 +169,9 @@ const Cashs: React.FC = () => {
     isAdminUser || hasPermission('cash.register_movements') || canCloseCashRegister;
   const canChangeManualPaymentMethod =
     isAdminUser || hasPermission('cash.change_payment_method') || canCloseCashRegister;
+  /** Debe coincidir con UpdatePaymentMethodMutation en Django (cash.change_payment_method). */
+  const canEditPaymentMethodInMovementsList =
+    isAdminUser || hasPermission('cash.change_payment_method');
   const canVoidManualMovementInList =
     isAdminUser ||
     hasPermission('cash.view') ||
@@ -240,6 +246,8 @@ const Cashs: React.FC = () => {
 
   const [cancelPaymentMutation] = useMutation(CANCEL_PAYMENT);
   const [cancelingPaymentId, setCancelingPaymentId] = useState<string | null>(null);
+  const [updatePaymentMethodMutation] = useMutation(UPDATE_PAYMENT_METHOD);
+  const [updatingPaymentMethodId, setUpdatingPaymentMethodId] = useState<string | null>(null);
 
   const handleReprintClosure = async (closure: CashClosure) => {
     try {
@@ -337,6 +345,31 @@ const Cashs: React.FC = () => {
       showToast(gqlMsg || err?.message || 'Error al anular el movimiento', 'error');
     } finally {
       setCancelingPaymentId(null);
+    }
+  };
+
+  const handleUpdatePaymentMethod = async (paymentId: string, newMethod: string, currentRaw: string) => {
+    const normalized = String(newMethod || '').toUpperCase();
+    const current = String(currentRaw || '').toUpperCase();
+    if (normalized === current) return;
+    try {
+      setUpdatingPaymentMethodId(paymentId);
+      const result = await updatePaymentMethodMutation({
+        variables: { paymentId, newPaymentMethod: normalized }
+      });
+      const data = result.data?.updatePaymentMethod ?? (result.data as { update_payment_method?: { success?: boolean; message?: string } })?.update_payment_method;
+      if (data?.success) {
+        showToast(data.message || 'Método de pago actualizado', 'success');
+        await refetchMovements();
+        refetchPreview();
+      } else {
+        showToast(data?.message || 'No se pudo cambiar el método de pago', 'error');
+      }
+    } catch (err: any) {
+      const gqlMsg = err?.graphQLErrors?.[0]?.message;
+      showToast(gqlMsg || err?.message || 'Error al cambiar el método de pago', 'error');
+    } finally {
+      setUpdatingPaymentMethodId(null);
     }
   };
 
@@ -1083,6 +1116,21 @@ const Cashs: React.FC = () => {
                 </div>
                 {showMovements && (
                   <>
+                    {!movementsLoading &&
+                      movements.length > 0 &&
+                      canEditPaymentMethodInMovementsList && (
+                      <p
+                        style={{
+                          margin: '0 0 0.75rem',
+                          fontSize: '0.75rem',
+                          color: '#64748b',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        El desplegable solo aparece si tu usuario tiene el permiso{' '}
+                        <strong>cash.change_payment_method</strong> (en la app y en Django). No modifica montos.
+                      </p>
+                    )}
                     {movementsLoading ? (
                       <div style={{ padding: '1.5rem', textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
                         Cargando movimientos...
@@ -1098,7 +1146,7 @@ const Cashs: React.FC = () => {
                             <tr style={{ borderBottom: '2px solid #e2e8f0', backgroundColor: '#f1f5f9' }}>
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Fecha / Hora</th>
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Tipo</th>
-                              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Método</th>
+                              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Método de pago</th>
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Monto</th>
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Usuario</th>
                               <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Referencia / Notas</th>
@@ -1152,8 +1200,57 @@ const Cashs: React.FC = () => {
                                       {getTransactionTypeLabel(type)}
                                     </span>
                                   </td>
-                                  <td style={{ padding: '0.75rem', color: isCancelled ? '#94a3b8' : '#475569' }}>
-                                    {getPaymentMethodLabel(method)}
+                                  <td style={{ padding: '0.75rem', color: isCancelled ? '#94a3b8' : '#475569', verticalAlign: 'middle' }}>
+                                    {(() => {
+                                      const raw = String(method ?? '').trim();
+                                      const m = raw.toUpperCase().replace(/\s+/g, '_');
+                                      const codes = EDITABLE_PAYMENT_METHOD_CODES as readonly string[];
+                                      const isKnownCode = codes.includes(m);
+                                      /** Valor controlado: código estándar, código raro del API, o CASH por defecto. */
+                                      const valueForSelect = isKnownCode
+                                        ? m
+                                        : m
+                                          ? m
+                                          : 'CASH';
+                                      const canEditMethod =
+                                        canEditPaymentMethodInMovementsList && !isCancelled;
+                                      if (canEditMethod) {
+                                        return (
+                                          <select
+                                            value={valueForSelect}
+                                            disabled={updatingPaymentMethodId === mov.id}
+                                            title="Corregir método de pago (no cambia montos ni saldo)"
+                                            onChange={(e) => handleUpdatePaymentMethod(mov.id, e.target.value, raw || method)}
+                                            style={{
+                                              maxWidth: '168px',
+                                              width: '100%',
+                                              minHeight: '30px',
+                                              fontSize: '0.8125rem',
+                                              padding: '0.35rem 0.45rem',
+                                              borderRadius: '8px',
+                                              border: '2px solid #64748b',
+                                              background: updatingPaymentMethodId === mov.id ? '#f1f5f9' : '#ffffff',
+                                              color: '#0f172a',
+                                              cursor: updatingPaymentMethodId === mov.id ? 'wait' : 'pointer',
+                                              boxShadow: '0 1px 2px rgba(15,23,42,0.08)',
+                                              appearance: 'auto',
+                                            }}
+                                          >
+                                            {!isKnownCode && Boolean(m) ? (
+                                              <option value={m}>
+                                                {getPaymentMethodLabel(raw) || raw || m}
+                                              </option>
+                                            ) : null}
+                                            {EDITABLE_PAYMENT_METHOD_CODES.map((code) => (
+                                              <option key={code} value={code}>
+                                                {getPaymentMethodLabel(code)}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        );
+                                      }
+                                      return getPaymentMethodLabel(method);
+                                    })()}
                                   </td>
                                   <td style={{
                                     padding: '0.75rem',

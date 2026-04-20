@@ -1159,6 +1159,42 @@ export const GET_SOLD_PRODUCTS_REPORT = gql`
     }
 `;
 
+// Consolidado de platos y bebidas facturados agrupados por categoría (documentos emitidos válidos)
+export const GET_CATEGORY_SALES_REPORT = gql`
+    query GetCategorySalesReport(
+        $branchId: ID!
+        $startDate: Date!
+        $endDate: Date!
+        $categoryId: ID
+    ) {
+        categorySalesReport(
+            branchId: $branchId
+            startDate: $startDate
+            endDate: $endDate
+            categoryId: $categoryId
+        ) {
+            categories {
+                categoryId
+                categoryName
+                categoryOrder
+                totalQuantity
+                totalAmount
+                products {
+                    productId
+                    code
+                    name
+                    totalQuantity
+                    totalAmount
+                }
+            }
+            summary {
+                grandTotalQuantity
+                grandTotalAmount
+            }
+        }
+    }
+`;
+
 // Query para obtener reporte de ventas por empleado
 export const GET_USER_SALES_REPORT = gql`
     query GetUserSalesReport(

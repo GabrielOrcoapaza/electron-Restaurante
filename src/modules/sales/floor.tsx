@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -143,12 +143,25 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     fetchPolicy: 'network-only'
   });
 
-  // Seleccionar el primer piso automáticamente al cargar los datos
+  const branchFloors = floorsData?.floorsByBranch;
+  /** En salón solo se muestran pisos activos (configuración puede desactivar un piso). */
+  const activeFloors = useMemo(
+    () => (branchFloors ?? []).filter((f: { isActive?: boolean }) => f.isActive !== false),
+    [branchFloors]
+  );
+  const hasAnyFloorRecord = (branchFloors?.length ?? 0) > 0;
+
+  // Seleccionar primer piso activo; si el seleccionado pasa a inactivo, cambiar a otro activo o limpiar
   useEffect(() => {
-    if (floorsData?.floorsByBranch?.length > 0 && !selectedFloorId) {
-      setSelectedFloorId(floorsData.floorsByBranch[0].id);
+    if (activeFloors.length === 0) {
+      if (selectedFloorId) setSelectedFloorId('');
+      return;
     }
-  }, [floorsData, selectedFloorId]);
+    const stillValid = activeFloors.some((f: { id: string }) => f.id === selectedFloorId);
+    if (!selectedFloorId || !stillValid) {
+      setSelectedFloorId(activeFloors[0].id);
+    }
+  }, [activeFloors, selectedFloorId]);
 
   // Obtener mesas del piso seleccionado (siempre desde red para ver cambios de otros mozos)
   const { data: tablesData, loading: tablesLoading, error: tablesError, refetch: refetchTables } = useQuery(GET_TABLES_BY_FLOOR, {
@@ -273,7 +286,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
       return;
     }
     
-    const floorRec = floorsData?.floorsByBranch?.find((f: { id: string }) => f.id === selectedFloorId);
+    const floorRec = activeFloors.find((f: { id: string }) => f.id === selectedFloorId);
     setSelectedTable({
       ...table,
       ...(floorRec?.name ? { floorName: String(floorRec.name) } : {})
@@ -434,7 +447,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
           width: '100%',
           boxSizing: 'border-box'
         }}>
-          {floorsData?.floorsByBranch?.length === 0 ? (
+          {activeFloors.length === 0 ? (
             <div style={{
               textAlign: 'center',
               padding: isNarrowScreen ? '1.5rem' : isMedium ? '2rem' : '2.5rem',
@@ -442,7 +455,9 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             }}>
               <div style={{ fontSize: isNarrowScreen ? '2rem' : '2.5rem', marginBottom: '0.5rem' }}>🏢</div>
               <p style={{ fontSize: isNarrowScreen ? '0.9375rem' : '1rem', margin: 0 }}>
-                No hay pisos disponibles para esta sucursal
+                {hasAnyFloorRecord
+                  ? 'No hay pisos activos. Active un piso en Configuración para verlo aquí.'
+                  : 'No hay pisos disponibles para esta sucursal'}
               </p>
             </div>
           ) : (
@@ -464,7 +479,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                 width: '100%',
                 boxSizing: 'border-box'
               }}>
-                {floorsData?.floorsByBranch?.map((floor: any) => {
+                {activeFloors.map((floor: any) => {
                   const isFloorSelected = selectedFloorId === floor.id;
                   return (
                   <div

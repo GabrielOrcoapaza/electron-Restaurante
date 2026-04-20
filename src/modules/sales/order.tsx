@@ -43,6 +43,13 @@ type OrderItem = {
 const EMPTY_OBSERVATION_OPTIONS: any[] = [];
 const EMPTY_SELECTED_OBSERVATION_IDS = new Set<string>();
 
+/** Solo platos y bebidas activos (venta en salón; coincide con search_products sin ingredientes). */
+function isOrderSearchProduct(p: { productType?: string | null; isActive?: boolean | null }) {
+	if (p.isActive === false) return false;
+	const t = p.productType;
+	return t === 'DISH' || t === 'BEVERAGE';
+}
+
 const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) => {
 	const { companyData, user, deviceId, getDeviceId, getMacAddress, updateTableInContext } = useAuth();
 	const { hasPermission } = useUserPermissions();
@@ -235,16 +242,17 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 	if (searchByCodeOnly && searchTerm.trim().length >= 1) {
 		// Búsqueda solo por código: soporta productByCode (camelCase) y product_by_code (snake_case según backend)
 		const p = productByCodeData?.productByCode ?? productByCodeData?.product_by_code;
-		products = p ? [p] : [];
+		products = p && isOrderSearchProduct(p) ? [p] : [];
 		productsLoading = productByCodeLoading;
 	} else if (searchTerm.length >= 3) {
-		// Prioridad 1: Búsqueda avanzada (del servidor)
-		products = searchData?.searchProducts;
+		// Prioridad 1: Búsqueda avanzada (del servidor): solo platos/bebidas activos
+		const raw = searchData?.searchProducts;
+		products = Array.isArray(raw) ? raw.filter(isOrderSearchProduct) : raw;
 		productsLoading = searchLoading;
 
 		// Fallback: Si la búsqueda del servidor falla, hacer búsqueda local simple
 		if (!products || products.length === 0) {
-			const allProducts = productsByBranchData?.productsByBranch || [];
+			const allProducts = (productsByBranchData?.productsByBranch || []).filter(isOrderSearchProduct);
 			const searchLower = searchTerm.toLowerCase();
 			products = allProducts.filter((p: any) =>
 				p.name?.toLowerCase().includes(searchLower) ||

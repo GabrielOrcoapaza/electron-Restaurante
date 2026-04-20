@@ -50,6 +50,7 @@ const FloorList: React.FC<FloorListProps> = ({ floors, onEdit }) => {
                   <th style={{ textAlign: 'left', padding: '0.65rem' }}>Nombre</th>
                   <th style={{ textAlign: 'center', padding: '0.65rem' }}>Capacidad</th>
                   <th style={{ textAlign: 'center', padding: '0.65rem' }}>Orden</th>
+                  <th style={{ textAlign: 'center', padding: '0.65rem' }}>Estado</th>
                   {onEdit && <th style={{ textAlign: 'center', padding: '0.65rem', width: '80px' }}>Acción</th>}
                 </tr>
               </thead>
@@ -59,6 +60,35 @@ const FloorList: React.FC<FloorListProps> = ({ floors, onEdit }) => {
                     <td style={{ padding: '0.65rem', color: '#334155', fontWeight: 600 }}>{floor.name}</td>
                     <td style={{ padding: '0.65rem', textAlign: 'center', color: '#334155' }}>{floor.capacity ?? 0}</td>
                     <td style={{ padding: '0.65rem', textAlign: 'center', color: '#334155' }}>{floor.order ?? 0}</td>
+                    <td style={{ padding: '0.65rem', textAlign: 'center' }}>
+                      {floor.isActive === false ? (
+                        <span
+                          style={{
+                            padding: '0.2rem 0.55rem',
+                            borderRadius: '9999px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            backgroundColor: '#fee2e2',
+                            color: '#991b1b',
+                          }}
+                        >
+                          Inactivo
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            padding: '0.2rem 0.55rem',
+                            borderRadius: '9999px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            backgroundColor: '#dcfce7',
+                            color: '#166534',
+                          }}
+                        >
+                          Activo
+                        </span>
+                      )}
+                    </td>
                     {onEdit && (
                       <td style={{ padding: '0.65rem', textAlign: 'center' }}>
                         <button

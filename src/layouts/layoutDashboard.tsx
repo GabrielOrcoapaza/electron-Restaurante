@@ -19,6 +19,7 @@ import Purchase from "../modules/purchase/Purchase";
 import ReportSale from "../modules/reports/reportSale";
 import ReportCancel from "../modules/reports/reportCancel";
 import ReportsProductsSold from "../modules/reports/reportsProductsSold";
+import ReportCategorySales from "../modules/reports/reportCategorySales";
 import ReportEmployee from "../modules/reports/reportEmployee";
 import Observation from "../modules/configuration/observation";
 import Subcategory from "../modules/configuration/subcategory";
@@ -183,7 +184,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         "floors" | "tables"
     >("floors");
     const [reportType, setReportType] = useState<
-        "sales" | "cancellation" | "productsSold" | "employees"
+        "sales" | "cancellation" | "productsSold" | "categorySales" | "employees"
     >("sales");
     const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(
         null,
@@ -572,7 +573,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                       ? "Visualiza el historial de anulaciones de operaciones y productos."
                                       : reportType === "productsSold"
                                         ? "Visualiza productos vendidos por cantidad y monto."
-                                        : "Visualiza ventas por empleado en el periodo."
+                                        : reportType === "categorySales"
+                                          ? "Visualiza ventas de platos y bebidas agrupadas por categoría."
+                                          : "Visualiza ventas por empleado en el periodo."
                                 : currentView === "configuration"
                                   ? "Configura observaciones y subcategorías de tus productos."
                                   : currentView === "delivery"
@@ -1540,6 +1543,42 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     Productos vendidos
                                 </button>
                                 <button
+                                    onClick={() =>
+                                        setReportType("categorySales")
+                                    }
+                                    style={{
+                                        padding: isSmall
+                                            ? "0.375rem 0.75rem"
+                                            : isMedium
+                                              ? "0.45rem 1rem"
+                                              : "0.5rem 1.5rem",
+                                        borderRadius: "8px",
+                                        border: "none",
+                                        background:
+                                            reportType === "categorySales"
+                                                ? "#3b82f6"
+                                                : "transparent",
+                                        color:
+                                            reportType === "categorySales"
+                                                ? "white"
+                                                : "#64748b",
+                                        cursor: "pointer",
+                                        fontWeight: 600,
+                                        fontSize: isSmall
+                                            ? "0.75rem"
+                                            : isMedium
+                                              ? "0.8125rem"
+                                              : "0.875rem",
+                                        transition: "all 0.2s ease",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "0.5rem",
+                                    }}
+                                >
+                                    <span>📂</span>
+                                    Por categoría
+                                </button>
+                                <button
                                     onClick={() => setReportType("employees")}
                                     style={{
                                         padding: isSmall
@@ -1580,6 +1619,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 <ReportCancel />
                             ) : reportType === "productsSold" ? (
                                 <ReportsProductsSold />
+                            ) : reportType === "categorySales" ? (
+                                <ReportCategorySales />
                             ) : (
                                 <ReportEmployee />
                             )}

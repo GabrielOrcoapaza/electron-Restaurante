@@ -1227,16 +1227,83 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     return null;
   }, [table, companyData?.branch?.floors]);
 
+  /** Mozo asignado a la operación (API) o nombre en contexto de mesa (floor). */
+  const resolvedWaiterName = useMemo(() => {
+    const u = operation?.user as { fullName?: string | null; firstName?: string | null; lastName?: string | null } | null | undefined;
+    if (u) {
+      const fn = (u.fullName && String(u.fullName).trim()) || [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+      if (fn) return fn;
+    }
+    if (table?.userName && String(table.userName).trim()) return String(table.userName).trim();
+    return null;
+  }, [operation?.user, table?.userName]);
+
   if (!table) return null;
 
   return (
     <div style={{ height: '100%', maxHeight: '100%', display: 'flex', flexDirection: 'column', background: '#f8fafc', overflow: 'hidden', fontFamily: "'Inter', sans-serif" }}>
-      <header style={{ flexShrink: 0, background: '#1e293b', color: 'white', padding: '0.5rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header
+        style={{
+          flexShrink: 0,
+          background: 'linear-gradient(180deg, #aeb9c5 0%, #9aa8b6 100%)',
+          color: '#0f172a',
+          padding: '0.65rem 1rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+          boxShadow: '0 1px 0 rgba(255,255,255,0.35) inset',
+        }}
+      >
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer' }}>←</button>
-          <div>
-            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Piso: {resolvedFloorName ?? '—'}</div>
-            <div style={{ fontWeight: 800 }}>{table.name}</div>
+          <button
+            onClick={onBack}
+            type="button"
+            style={{
+              background: 'rgba(15, 23, 42, 0.08)',
+              border: '1px solid rgba(15, 23, 42, 0.12)',
+              color: '#0f172a',
+              padding: '0.45rem 0.55rem',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '1.125rem',
+              lineHeight: 1,
+            }}
+            aria-label="Volver"
+          >
+            ←
+          </button>
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: '0.8125rem',
+                color: '#0f172a',
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: '0.4rem 0.95rem',
+                lineHeight: 1.4,
+              }}
+            >
+              <span>
+                <span style={{ fontWeight: 700 }}>Piso:</span> {resolvedFloorName ?? '—'}
+              </span>
+              <span aria-hidden>·</span>
+              <span>
+                <span style={{ fontWeight: 700 }}>Mozo:</span> {resolvedWaiterName ?? '—'}
+              </span>
+            </div>
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: '1.2rem',
+                marginTop: '0.15rem',
+                letterSpacing: '0.01em',
+                color: '#0f172a',
+              }}
+            >
+              {table.name}
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>

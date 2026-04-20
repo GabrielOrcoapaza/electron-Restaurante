@@ -16,6 +16,13 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
         'kitchen.view', 'messages.view', 'branch.view',
         'cash.void', 'cash.register_movements', 'cash.change_payment_method'
     ],
+    /** Mismo conjunto que CASHIER (nombre de rol usado en algunos backends / mesas). */
+    'CAJA': [
+        'orders.create', 'point_of_sale', 'sales.pay', 'sales.close', 'products.view',
+        'reports.sales', 'reports.cancellations', 'reports.sold_products', 'reports.user_sales',
+        'kitchen.view', 'messages.view', 'branch.view',
+        'cash.void', 'cash.register_movements', 'cash.change_payment_method'
+    ],
     'WAITER': [
         'orders.create', 'products.view', 'kitchen.view', 'messages.view', 'branch.view'
     ],

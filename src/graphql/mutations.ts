@@ -1579,6 +1579,20 @@ export const CANCEL_PAYMENT = gql`
   }
 `;
 
+/** Cambia solo el método de pago (CASH, YAPE, …) en un movimiento pendiente de cierre. Requiere cash.change_payment_method en backend. */
+export const UPDATE_PAYMENT_METHOD = gql`
+  mutation UpdatePaymentMethod($paymentId: ID!, $newPaymentMethod: String!) {
+    updatePaymentMethod(paymentId: $paymentId, newPaymentMethod: $newPaymentMethod) {
+      success
+      message
+      payment {
+        id
+        paymentMethod
+      }
+    }
+  }
+`;
+
 // Mutación para crear venta para llevar (carry out)
 export const CREATE_SALE_CARRY_OUT = gql`
   mutation CreateSaleCarryOut(
