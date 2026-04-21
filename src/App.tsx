@@ -26,13 +26,12 @@ const AppRoutes = () => {
     return <Navigate to="/login-company" replace />;
   };
 
-  // Componente para decidir qué mostrar en la ruta raíz
   const RootComponent = () => {
-    // Si estamos en Electron y ya hay datos de compañía, ir al flujo de login
-    if (isElectron && companyData) {
+    // Si estamos en Electron, ir siempre al flujo de login (empresa o empleado)
+    if (isElectron) {
       return <RedirectToLogin />;
     }
-    // En cualquier otro caso (Web o Electron sin configurar), mostrar Landing
+    // En Web, mostrar Landing
     return <LandingPage />;
   };
 
