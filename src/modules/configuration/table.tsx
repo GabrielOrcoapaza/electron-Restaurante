@@ -9,7 +9,7 @@ import TableUpdateModal from './tableUpdate';
 const SHAPE_OPTIONS = [
   { value: 'SQUARE', label: 'Cuadrada' },
   { value: 'ROUND', label: 'Redonda' },
-  { value: 'RECTANGLE', label: 'Rectangular' },
+ 
 ];
 
 const TableModule: React.FC = () => {

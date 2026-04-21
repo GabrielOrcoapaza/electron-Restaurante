@@ -270,7 +270,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 		productsLoading = productsByBranchLoading;
 	}
 
-	let productsList = products || [];
+	// Misma regla que en búsqueda: solo platos/bebidas activos (navegación por categoría antes no filtraba isActive)
+	let productsList = (products || []).filter(isOrderSearchProduct);
 	// Filtrar por subcategoría solo cuando se navega por categorías (NO cuando se busca por código)
 	if (!(searchByCodeOnly && searchTerm.trim().length >= 1) && selectedCategory && selectedSubcategory && productsList.length > 0) {
 		productsList = productsList.filter((p: any) => String(p.subcategoryId) === String(selectedSubcategory));
