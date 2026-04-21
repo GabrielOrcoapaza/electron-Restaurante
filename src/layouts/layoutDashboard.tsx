@@ -25,6 +25,7 @@ import Observation from "../modules/configuration/observation";
 import Subcategory from "../modules/configuration/subcategory";
 import CategoryModule from "../modules/configuration/category";
 import Printers from "../modules/configuration/printers";
+import LocalPrinters from "../modules/configuration/localPrinters";
 import FloorModule from "../modules/configuration/floor";
 import TableModule from "../modules/configuration/table";
 import Delivery from "../modules/sales/delivery";
@@ -178,6 +179,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         | "subcategory"
         | "observation"
         | "printers"
+        | "local_printers"
         | "floors_tables"
     >("category");
     const [floorsTablesSubTab, setFloorsTablesSubTab] = useState<
@@ -1793,6 +1795,42 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 </button>
                                 <button
                                     onClick={() =>
+                                        setConfigurationTab("local_printers")
+                                    }
+                                    style={{
+                                        padding: isSmall
+                                            ? "0.375rem 0.75rem"
+                                            : isMedium
+                                              ? "0.45rem 1rem"
+                                              : "0.5rem 1.5rem",
+                                        borderRadius: "8px",
+                                        border: "none",
+                                        background:
+                                            configurationTab === "local_printers"
+                                                ? "#0369a1"
+                                                : "transparent",
+                                        color:
+                                            configurationTab === "local_printers"
+                                                ? "white"
+                                                : "#64748b",
+                                        cursor: "pointer",
+                                        fontWeight: 600,
+                                        fontSize: isSmall
+                                            ? "0.75rem"
+                                            : isMedium
+                                              ? "0.8125rem"
+                                              : "0.875rem",
+                                        transition: "all 0.2s ease",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "0.5rem",
+                                    }}
+                                >
+                                    <span>💻</span>
+                                    Impresoras del equipo
+                                </button>
+                                <button
+                                    onClick={() =>
                                         setConfigurationTab("floors_tables")
                                     }
                                     style={{
@@ -1915,6 +1953,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 <Observation />
                             )}
                             {configurationTab === "printers" && <Printers />}
+                            {configurationTab === "local_printers" && (
+                                <LocalPrinters />
+                            )}
                         </div>
                     )}
                     {currentView === "delivery" && <Delivery />}

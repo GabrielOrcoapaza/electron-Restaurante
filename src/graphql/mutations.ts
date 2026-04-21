@@ -408,6 +408,9 @@ export const CREATE_ISSUED_DOCUMENT = gql`
       message
       wasCompleted
       wasTableFreed
+      printLocally
+      printViaBluetooth
+      documentData
       issuedDocument {
         id
         serial

@@ -205,14 +205,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return newDeviceId;
   };
 
-  // MAC real solo en Electron (Node os). Sin MAC: device_id estable (no MAC inventada en web).
+  /** True si la app corre en SumApp/Electron (escritorio), donde sí hay MAC de la PC vía Node. */
+  const isElectronRuntime = (): boolean =>
+    typeof window !== 'undefined' && Boolean((window as any).process?.versions?.electron);
+
+  /**
+   * Identificador del **equipo cliente** (PC con SumApp) para backend / impresión:
+   * - Electron: MAC de una interfaz de red de esta PC.
+   * - Navegador u otro: `device_id` persistente en localStorage de **este** equipo (no es MAC).
+   */
   const getMacAddress = async (): Promise<string> => {
     try {
-      const isElectron =
-        typeof navigator !== 'undefined' &&
-        navigator.userAgent.toLowerCase().includes('electron');
-
-      if (isElectron && typeof window !== 'undefined' && typeof (window as any).require === 'function') {
+      if (isElectronRuntime() && typeof window !== 'undefined' && typeof (window as any).require === 'function') {
         const os = (window as any).require('os');
         const networkInterfaces = os.networkInterfaces() as Record<string, Array<{ mac?: string }> | undefined>;
 

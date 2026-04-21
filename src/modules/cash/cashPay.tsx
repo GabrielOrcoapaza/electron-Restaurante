@@ -11,6 +11,9 @@ import { GET_DOCUMENTS, GET_CASH_REGISTERS, GET_SERIALS_BY_DOCUMENT, GET_OPERATI
 import CreateClient from '../user/createClient';
 import EditClient from '../user/editClient';
 import { formatLocalDateYYYYMMDD, formatLocalTimeHHMMSS, formatInstantISO } from '../../utils/localDateTime';
+import { invokeLocalIssuedDocumentPrint } from '../../utils/localDocumentPrint';
+import { fetchSystemPrinters, type SystemPrinterInfo } from '../../utils/systemPrinters';
+import { getLocalTicketPrinterStorage, setLocalTicketPrinterStorage } from '../../utils/localPrinterPreference';
 
 type CashPayProps = {
   table: Table | null;
@@ -42,7 +45,7 @@ const paymentMethodSendsReference = (method: string): boolean =>
   method === 'YAPE' || method === 'PLIN' || method === 'TRANSFER' || method === 'OTROS';
 
 const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTableChange }) => {
-  const { companyData, user, deviceId, getMacAddress, updateTableInContext } = useAuth();
+  const { companyData, user, getDeviceId, getMacAddress, updateTableInContext } = useAuth();
   const { hasPermission } = useUserPermissions();
   const canVoidInCashPay = hasPermission('cash.view') || hasPermission('cash.void');
   const { sendMessage, subscribe } = useWebSocket();
@@ -94,6 +97,49 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     productLabel: string;
   } | null>(null);
   const [isRemovingItem, setIsRemovingItem] = useState(false);
+
+  /** Impresora del equipo para ticket cuando el backend devuelve print_locally (nombre `name` de Chromium). */
+  const [selectedLocalPrinterName, setSelectedLocalPrinterName] = useState(() => getLocalTicketPrinterStorage());
+  const [localPrintersOptions, setLocalPrintersOptions] = useState<SystemPrinterInfo[]>([]);
+  const [localPrintersLoading, setLocalPrintersLoading] = useState(false);
+
+  const refreshLocalPrintersForCash = async () => {
+    setLocalPrintersLoading(true);
+    try {
+      const res = await fetchSystemPrinters();
+      if (res.ok) {
+        setLocalPrintersOptions(res.printers);
+        if (res.printers.length === 0) {
+          showToast('No se detectaron impresoras en este equipo (¿SumApp escritorio?).', 'warning');
+        }
+      } else {
+        setLocalPrintersOptions([]);
+        showToast(res.message || 'No se pudieron cargar las impresoras locales.', 'warning');
+      }
+    } catch (e: any) {
+      setLocalPrintersOptions([]);
+      showToast(e?.message || 'Error al cargar impresoras', 'error');
+    } finally {
+      setLocalPrintersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!table?.currentOperationId) return;
+    let cancelled = false;
+    (async () => {
+      setLocalPrintersLoading(true);
+      try {
+        const res = await fetchSystemPrinters();
+        if (!cancelled && res.ok) setLocalPrintersOptions(res.printers);
+      } finally {
+        if (!cancelled) setLocalPrintersLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [table?.currentOperationId]);
 
   const {
     data,
@@ -512,29 +558,31 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     }
   };
 
+  /**
+   * device_id en createIssuedDocument debe ser el del **equipo donde corre la app** (PC con SumApp),
+   * no un id de otro dispositivo. En Electron es la MAC de esta PC; fuera de Electron, getDeviceId() local.
+   */
   const getDeviceIdOrMac = async (): Promise<string> => {
-    console.log('🔍 [PAGO] Obteniendo identificador para impresión...');
+    console.log('🔍 [PAGO] device_id: obteniendo identificador del equipo cliente (PC / esta máquina)…');
     try {
-      // Siempre intentar obtener la MAC primero - es el valor requerido
-      const macAddress = await getMacAddress();
-      if (macAddress && macAddress.trim() !== '') {
-        console.log('✅ [PAGO] USANDO MAC ADDRESS:', macAddress);
-        return macAddress;
-      } else {
-        console.warn('⚠️ [PAGO] MAC address obtenida pero está vacía, pasando a deviceId');
+      const id = await getMacAddress();
+      if (id && id.trim() !== '') {
+        const trimmed = id.trim();
+        const isMac = trimmed.includes(':');
+        console.log(
+          '✅ [PAGO] device_id para backend:',
+          trimmed,
+          isMac ? '(MAC de la PC — SumApp/Electron)' : '(id persistente de este equipo en localStorage)'
+        );
+        return trimmed;
       }
     } catch (error) {
-      console.error('❌ [PAGO] Error al obtener MAC address:', error);
-      console.log('⚠️ [PAGO] Pasando a usar deviceId como fallback');
+      console.error('❌ [PAGO] Error al obtener MAC / id de equipo:', error);
     }
 
-    // Fallback: usar deviceId del contexto para permitir el pago (impresión puede no funcionar)
-    if (deviceId && String(deviceId).trim() !== '') {
-      console.log('⚠️ [PAGO] USANDO DEVICE ID (fallback - no es MAC):', deviceId);
-      return String(deviceId);
-    }
-    console.error('❌ [PAGO] No se pudo obtener MAC ni deviceId. Se usará UNKNOWN (impresión puede fallar)');
-    return 'UNKNOWN';
+    const fallback = getDeviceId();
+    console.warn('⚠️ [PAGO] device_id fallback con getDeviceId() del equipo:', fallback);
+    return fallback;
   };
   // ============================================================================
   // FUNCIÓN AUXILIAR: Obtener ID real del detalle (agregar ANTES de handleProcessPayment)
@@ -633,14 +681,19 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     isProcessingRef.current = true; // Ref se actualiza síncronamente
     setIsProcessing(true); // Estado puede tener delay
 
-    // Obtener MAC address (prioritaria para impresión) o deviceId como fallback
+    // device_id = identificador del equipo cliente (MAC en Electron, getDeviceId en este equipo)
     const resolvedDeviceId = await getDeviceIdOrMac();
     const isMacAddress = resolvedDeviceId.includes(':');
-    console.log('📋 [PAGO] Identificador final para backend:', resolvedDeviceId, isMacAddress ? '(es MAC ✓)' : '(NO es MAC - deviceId)');
+    console.log(
+      '📋 [PAGO] device_id final (equipo cliente) enviado en createIssuedDocument:',
+      resolvedDeviceId,
+      isMacAddress ? '(MAC PC ✓)' : '(id local — en Electron debería ser MAC si hay red)'
+    );
 
-    // Verificar que sea una MAC válida (formato XX:XX:XX:XX:XX:XX o similar)
     if (!isMacAddress) {
-      console.warn('⚠️ [PAGO] El valor no parece ser una MAC address válida. La impresión puede no funcionar.');
+      console.warn(
+        '⚠️ [PAGO] device_id no tiene formato MAC. En escritorio use SumApp/Electron para que sea la MAC de la PC; impresión Raspberry/local puede depender de este valor.'
+      );
     }
 
     try {
@@ -936,8 +989,8 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
         }
       });
       console.log('');
-      console.log('🖨️ IMPRESIÓN:');
-      console.log(`   - ID del Dispositivo: ${resolvedDeviceId || 'No disponible'}`);
+      console.log('🖨️ IMPRESIÓN (device_id = equipo PC cliente):');
+      console.log(`   - deviceId (PC / esta máquina): ${resolvedDeviceId || 'No disponible'}`);
       console.log(`   - ID de Impresora: No especificado`);
       console.log('');
       if (isPartialPayment) {
@@ -980,6 +1033,33 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       if (result.data?.createIssuedDocument?.success) {
         // El documento (boleta/factura) se ha creado exitosamente
         // El backend debería haber impreso el documento si deviceId estaba disponible
+
+        const issuedDocResult = result.data.createIssuedDocument as typeof result.data.createIssuedDocument & {
+          print_locally?: boolean;
+          print_via_bluetooth?: boolean;
+          document_data?: string | null;
+        };
+        const printLocallyFlag =
+          issuedDocResult?.printLocally === true || issuedDocResult?.print_locally === true;
+        const localPrintOk = await invokeLocalIssuedDocumentPrint(
+          {
+            printLocally: issuedDocResult?.printLocally ?? issuedDocResult?.print_locally,
+            printViaBluetooth: issuedDocResult?.printViaBluetooth ?? issuedDocResult?.print_via_bluetooth,
+            documentData: issuedDocResult?.documentData ?? issuedDocResult?.document_data ?? null
+          },
+          {
+            label: isPartialPayment ? 'pago parcial' : 'pago completo',
+            operationId: variables.operationId,
+            deviceId: variables.deviceId ?? null,
+            localPrinterName: selectedLocalPrinterName.trim() || null
+          }
+        );
+        if (printLocallyFlag && !localPrintOk) {
+          showToast(
+            'El pago se registró, pero no se pudo imprimir en la impresora local. Recompile SumApp (npm run build-electron), revise el nombre de la impresora o use la predeterminada de Windows.',
+            'warning'
+          );
+        }
 
         // ✅ VERIFICAR SI EL DOCUMENTO SERÁ ENVIADO A SUNAT
         const selectedDocumentOk = documents.find((doc: any) => String(doc.id) === String(documentId));
@@ -1488,6 +1568,58 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               {vuelto > 0 && <span style={{ color: 'green' }}>Vuelto: {currencyFormatter.format(vuelto)}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>Impresora local (ticket)</div>
+              <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                <select
+                  value={selectedLocalPrinterName}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setSelectedLocalPrinterName(v);
+                    setLocalTicketPrinterStorage(v);
+                  }}
+                  disabled={localPrintersLoading}
+                  title="Impresora de este PC cuando el pago usa impresión local (USB integrada)"
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: '0.72rem',
+                    padding: '0.35rem 0.25rem',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '4px',
+                    background: 'white'
+                  }}
+                >
+                  <option value="">Predeterminada del sistema</option>
+                  {localPrintersOptions.map(p => (
+                    <option key={p.name} value={p.name}>
+                      {p.isSystemDefault ? '★ ' : ''}
+                      {p.displayName || p.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void refreshLocalPrintersForCash()}
+                  disabled={localPrintersLoading}
+                  title="Actualizar lista de impresoras"
+                  style={{
+                    flexShrink: 0,
+                    padding: '0.35rem 0.5rem',
+                    fontSize: '0.85rem',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '4px',
+                    background: '#f8fafc',
+                    cursor: localPrintersLoading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  ↻
+                </button>
+              </div>
+              <div style={{ fontSize: '0.58rem', color: '#94a3b8', lineHeight: 1.35, marginBottom: '0.15rem' }}>
+                SumApp escritorio: elige la impresora física para boleta/ticket cuando el servidor indica impresión en
+                este equipo. La capa nativa debe aceptar el 2.º argumento (nombre) en{' '}
+                <code style={{ fontSize: '0.55rem' }}>LocalPrinter.printDocument</code>.
+              </div>
               <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>Cobrar e imprimir</div>
               {payDocumentsOrdered.length === 0 ? (
                 <div style={{ fontSize: '0.75rem', color: '#94a3b8', padding: '0.5rem 0' }}>No hay tipos de documento configurados en la sucursal.</div>
