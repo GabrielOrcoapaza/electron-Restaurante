@@ -2092,7 +2092,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 									e.currentTarget.style.boxShadow = isSaving || orderItems.length === 0 ? 'none' : '0 2px 6px rgba(59, 130, 246, 0.25)';
 								}}
 							>
-								{isSaving ? 'Guardando...' : 'Enviar a cocina'}
+								{isSaving ? 'Guardando...' : 'Enviar orden'}
 							</button>
 							<button
 								onClick={() => handleSaveOrder('PROCESSING', false)}
@@ -2121,7 +2121,7 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 									e.currentTarget.style.boxShadow = isSaving || orderItems.length === 0 ? 'none' : '0 2px 6px rgba(34, 197, 94, 0.25)';
 								}}
 							>
-								{isSaving ? 'Guardando...' : 'Enviar a cocina (sin imprimir)'}
+								{isSaving ? 'Guardando...' : 'Enviar orden (sin imprimir)'}
 							</button>
 
 							

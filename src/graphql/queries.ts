@@ -583,9 +583,10 @@ export const GET_BRANCH_FULL = gql`
 `;
 
 // Query para obtener usuarios/empleados por sucursal
+// includeInactive: solo aplica con rol ADMIN en backend; si no, se devuelven solo activos
 export const GET_USERS_BY_BRANCH = gql`
-    query GetUsersByBranch($branchId: ID!) {
-        usersByBranch(branchId: $branchId) {
+    query GetUsersByBranch($branchId: ID!, $includeInactive: Boolean) {
+        usersByBranch(branchId: $branchId, includeInactive: $includeInactive) {
             id
             dni
             email

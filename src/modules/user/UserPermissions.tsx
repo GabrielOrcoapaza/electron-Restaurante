@@ -32,7 +32,7 @@ const UserPermissions: React.FC = () => {
   const titleFontSize = isSmall ? '1rem' : isMedium ? '1.05rem' : '1.1rem';
 
   const { data: usersData, loading: usersLoading, error: usersError, refetch } = useQuery(GET_USERS_BY_BRANCH, {
-    variables: { branchId: branchId! },
+    variables: { branchId: branchId!, includeInactive: true },
     skip: !branchId || !isAdmin,
     fetchPolicy: 'network-only'
   });

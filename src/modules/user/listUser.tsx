@@ -40,7 +40,7 @@ const ListUser: React.FC = () => {
   const badgeFontSize = isSmall ? '0.625rem' : isMedium ? '0.6875rem' : isSmallDesktop ? '0.6875rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
 
   const { data, loading, error, refetch } = useQuery(GET_USERS_BY_BRANCH, {
-    variables: { branchId: branchId! },
+    variables: { branchId: branchId!, includeInactive: isAdmin },
     skip: !branchId,
     fetchPolicy: 'network-only',
     onError: (err) => {
@@ -200,9 +200,13 @@ const ListUser: React.FC = () => {
       ) : (
         <div style={{ 
           overflowX: 'auto',
+          overflowY: 'auto',
+          maxHeight: 'min(60vh, 520px)',
           width: '100%',
           maxWidth: '100%',
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
+          borderRadius: '8px',
+          border: '1px solid #f1f5f9',
         }}>
           <table style={{ 
             width: '100%', 

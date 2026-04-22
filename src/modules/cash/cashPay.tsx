@@ -95,6 +95,9 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     originalId: string;
     isSplit: boolean;
     productLabel: string;
+    /** Varios renglones de UI comparten el mismo detalle de BD (divisiones) o fila hija: solo quitar la cantidad de esta fila */
+    removalIsPartial: boolean;
+    rowQuantity: number;
   } | null>(null);
   const [isRemovingItem, setIsRemovingItem] = useState(false);
 
@@ -195,7 +198,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   });
 
   const { data: usersData } = useQuery(GET_USERS_BY_BRANCH, {
-    variables: { branchId: companyData?.branch.id || '' },
+    variables: { branchId: companyData?.branch.id || '', includeInactive: false },
     skip: !companyData?.branch.id || !showChangeUserModal,
     fetchPolicy: 'network-only'
   });
@@ -345,6 +348,23 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       adjustedDetails.push({ ...detail, quantity: remainingQty, remainingQuantity: remainingQty });
     });
     return adjustedDetails;
+  };
+
+  const getRealOperationDetailId = (detail: any): string | null => {
+    if (!detail) return null;
+    let realId: string | null = null;
+    if (detail.originalDetailId) {
+      realId = String(detail.originalDetailId);
+    } else if (String(detail.id).includes('-split-')) {
+      realId = String(detail.id).split('-split-')[0];
+    } else {
+      realId = String(detail.id);
+    }
+    if (realId && !/^\d+$/.test(realId)) {
+      console.error(`getRealOperationDetailId: ID no numérico: "${realId}"`);
+      return null;
+    }
+    return realId;
   };
 
   const detailsToUse = modifiedDetails.length > 0 ? modifiedDetails : filterCanceledDetails(operation?.details || [], operation?.id);
@@ -511,8 +531,22 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     const originalId = isSplit ? detailId.split('-split')[0] : detailId;
     const row = detailsToUse.find((d: any) => String(d.id) === String(detailId));
     const productLabel = row?.productName || 'este producto';
+    const realId = row ? getRealOperationDetailId(row) : null;
+    const sameGroupCount = realId
+      ? detailsToUse.filter((d: any) => getRealOperationDetailId(d) === realId).length
+      : 0;
+    // Misma lógica que al confirmar: si hay 2+ filas para el mismo detalle de BD, o fila hija (split), no anular toda la línea en el servidor
+    const removalIsPartial = sameGroupCount > 1 || isSplit;
+    const rowQuantity = Math.max(0, Number(row?.quantity) || 0) || 1;
     setDetailCancellationReason('');
-    setPendingDeleteItem({ detailId, originalId, isSplit, productLabel });
+    setPendingDeleteItem({
+      detailId,
+      originalId,
+      isSplit,
+      productLabel,
+      removalIsPartial,
+      rowQuantity
+    });
   };
 
   const handleConfirmRemoveItem = async () => {
@@ -521,21 +555,42 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
       showToast('Indica el motivo por el que quitas este ítem.', 'error');
       return;
     }
-    const { originalId, isSplit } = pendingDeleteItem;
+    const { detailId } = pendingDeleteItem;
+    const row = detailsToUse.find((d: any) => String(d.id) === String(detailId));
+    if (!row) {
+      showToast('No se encontró el ítem a quitar.', 'error');
+      return;
+    }
+    const realDetailId = getRealOperationDetailId(row);
+    if (!realDetailId) {
+      showToast('No se pudo identificar el detalle a anular.', 'error');
+      return;
+    }
+    const sameGroup = detailsToUse.filter((d: any) => getRealOperationDetailId(d) === realDetailId);
+    const q = Number(row.quantity) || 0;
+    // Varias filas de UI = mismo detalle de BD: solo cancelar la cantidad de ESTA fila. La fila "padre" (id sin -split) antes anulaba todo el detalle.
+    const usePartial = sameGroup.length > 1 || String(detailId).includes('-split');
+    const quantity = usePartial ? (q > 0 ? q : 1) : undefined;
+
     setIsRemovingItem(true);
     try {
       const mac = await getMacAddress();
       const res = await cancelOperationDetailMutation({
         variables: {
-          detailId: originalId,
-          quantity: isSplit ? 1 : undefined,
+          detailId: realDetailId,
+          quantity,
           userId: user.id,
           deviceId: mac,
           cancellationReason: detailCancellationReason.trim()
         }
       });
       if (res.data?.cancelOperationDetail?.success) {
-        showToast(isSplit ? 'Se quitó 1 unidad del pedido.' : 'Plato quitado del pedido.', 'success');
+        showToast(
+          quantity != null
+            ? `Se quitó ${quantity} unidad(es) del pedido.`
+            : 'Plato quitado del pedido.',
+          'success'
+        );
         setDetailCancellationReason('');
         setPendingDeleteItem(null);
         await refetch();
@@ -583,38 +638,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     const fallback = getDeviceId();
     console.warn('⚠️ [PAGO] device_id fallback con getDeviceId() del equipo:', fallback);
     return fallback;
-  };
-  // ============================================================================
-  // FUNCIÓN AUXILIAR: Obtener ID real del detalle (agregar ANTES de handleProcessPayment)
-  // ============================================================================
-  const getRealOperationDetailId = (detail: any): string | null => {
-    console.log('🔍 getRealOperationDetailId:', detail.id, detail.productName);
-
-    let realId: string | null = null;
-
-    // PRIORIDAD 1: Si tiene originalDetailId, usar ese
-    if (detail.originalDetailId) {
-      realId = String(detail.originalDetailId);
-      console.log(`  ✅ Usando originalDetailId: ${realId}`);
-    }
-    // PRIORIDAD 2: Si el ID contiene '-split-', extraer la parte antes
-    else if (String(detail.id).includes('-split-')) {
-      realId = String(detail.id).split('-split-')[0];
-      console.log(`  ✅ Extrayendo de ID dividido: ${realId}`);
-    }
-    // PRIORIDAD 3: Usar el ID tal cual
-    else {
-      realId = String(detail.id);
-      console.log(`  ✅ Usando ID directo: ${realId}`);
-    }
-
-    // Validar que sea numérico
-    if (realId && !/^\d+$/.test(realId)) {
-      console.error(`  ❌ ERROR: ID no numérico: "${realId}"`);
-      return null;
-    }
-
-    return realId;
   };
 
   const handleProcessPayment = async (documentId: string) => {
@@ -1448,7 +1471,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
                 <div style={{ textAlign: 'right', fontWeight: 700 }}>{currencyFormatter.format(d.quantity * d.unitPrice)}</div>
                 <div style={{ textAlign: 'center' }}>
                   {d.quantity > 1 && !String(d.id).includes('-split') && <button onClick={() => handleSplitItem(d.id)} style={{ fontSize: '1.1rem' }}>✂️</button>}
-                  {String(d.id).includes('-split') && <button onClick={() => handleMergeItem(d.id)} style={{ fontSize: '0.6rem' }}>🔗</button>}
+                  {String(d.id).includes('-split') && <button onClick={() => handleMergeItem(d.id)} style={{ fontSize: '1.1rem' }}>🔗</button>}
                   {canVoidInCashPay && (
                     <button type="button" onClick={() => handleDeleteItem(d.id)} style={{ fontSize: '1.1rem' }} title="Quitar ítem">🗑️</button>
                   )}
@@ -1741,8 +1764,16 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
           >
             <h3 id="delete-item-modal-title" style={{ margin: '0 0 0.75rem', fontSize: '1.05rem', color: '#0f172a' }}>Quitar producto</h3>
             <p style={{ margin: '0 0 0.75rem', fontSize: '0.875rem', lineHeight: 1.5, color: '#475569' }}>
-              {pendingDeleteItem.isSplit ? (
-                <>¿Quitar <strong>1 unidad</strong> de «{pendingDeleteItem.productLabel}» de la orden?</>
+              {pendingDeleteItem.removalIsPartial ? (
+                <>
+                  ¿Quitar{' '}
+                  <strong>
+                    {pendingDeleteItem.rowQuantity === 1
+                      ? '1 unidad'
+                      : `${pendingDeleteItem.rowQuantity} unidades`}
+                  </strong>{' '}
+                  de «{pendingDeleteItem.productLabel}» de la orden?
+                </>
               ) : (
                 <>¿Quitar por completo «<strong>{pendingDeleteItem.productLabel}</strong>» de la orden?</>
               )}

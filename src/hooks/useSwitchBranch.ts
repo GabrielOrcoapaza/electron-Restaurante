@@ -56,7 +56,7 @@ export const useSwitchBranch = () => {
           }),
           client.query({
             query: GET_USERS_BY_BRANCH,
-            variables: { branchId },
+            variables: { branchId, includeInactive: false },
             fetchPolicy: 'network-only',
           }),
         ]);

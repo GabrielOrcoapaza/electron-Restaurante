@@ -34,7 +34,7 @@ const Login: React.FC = () => {
   const [userLoginMutation, { loading }] = useMutation(USER_LOGIN);
 
   const { data: usersData, loading: employeesLoading, refetch: refetchEmployees } = useQuery(GET_USERS_BY_BRANCH, {
-    variables: { branchId: companyData?.branch?.id },
+    variables: { branchId: companyData?.branch?.id, includeInactive: false },
     skip: !companyData?.branch?.id,
     fetchPolicy: 'network-only'
   });

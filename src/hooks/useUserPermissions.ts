@@ -12,7 +12,7 @@ export function useUserPermissions() {
   const branchId = companyData?.branch?.id;
 
   const { data: usersData } = useQuery(GET_USERS_BY_BRANCH, {
-    variables: { branchId: branchId! },
+    variables: { branchId: branchId!, includeInactive: false },
     skip: !branchId || !user?.id,
     fetchPolicy: 'network-only',
   });
