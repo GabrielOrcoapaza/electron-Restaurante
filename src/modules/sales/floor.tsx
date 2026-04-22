@@ -163,21 +163,38 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     }
   }, [activeFloors, selectedFloorId]);
 
-  // Obtener mesas del piso seleccionado (siempre desde red para ver cambios de otros mozos)
+  // Mesas: siempre red (no depender de caché) + repaso periódico por si el WS se pierde (p. ej. orden creada desde el celular)
   const { data: tablesData, loading: tablesLoading, error: tablesError, refetch: refetchTables } = useQuery(GET_TABLES_BY_FLOOR, {
     variables: { floorId: selectedFloorId },
     skip: !selectedFloorId,
-    fetchPolicy: 'network-only'
+    fetchPolicy: 'network-only',
+    nextFetchPolicy: 'network-only',
+    pollInterval: 12000
   });
 
   const tablesOnFloor: Table[] = tablesData?.tablesByFloor ?? [];
   const visibleTables = tablesOnFloor.filter((t) => t.isActive !== false);
+
+  /** Refetch de mesas forzando red (nunca reutilizar solo caché de Apollo) */
+  const refetchTablesFromServer = () =>
+    refetchTables({ fetchPolicy: 'network-only' });
 
   // WebSocket para cambios en tiempo real usando el contexto
   const { subscribe } = useWebSocket();
 
   // Suscribirse a eventos del WebSocket
   useEffect(() => {
+    const refetchIfFloor = () => {
+      if (!selectedFloorId) return;
+      void refetchTablesFromServer()
+        .then(() => {
+          /* ok */
+        })
+        .catch((error) => {
+          console.error('❌ Error al refetch mesas:', error);
+        });
+    };
+
     // Suscribirse a connection_established
     const unsubscribeConnection = subscribe('connection_established', (message) => {
       console.log('✅ Conexión establecida:', {
@@ -190,12 +207,10 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     // Suscribirse a tables_snapshot
     const unsubscribeSnapshot = subscribe('tables_snapshot', (message) => {
       console.log('📊 Snapshot de mesas recibido:', message.tables?.length, 'mesas');
-      if (selectedFloorId) {
-        refetchTables();
-      }
+      refetchIfFloor();
     });
 
-    // Suscribirse a table_update
+    // Suscribirse a table_update (algunos backends/relés lo usan)
     const unsubscribeTableUpdate = subscribe('table_update', (message) => {
       console.log(`🔄 Mesa ${message.table_id} actualizada:`, {
         status: message.status,
@@ -203,15 +218,13 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         userName: message.occupied_by_name,
         timestamp: message.timestamp
       });
-      
-      // Refetch inmediato para actualizar los colores de la mesa (solo si hay un piso seleccionado)
-      if (selectedFloorId) {
-        refetchTables().then(() => {
-          console.log(`✅ Mesas actualizadas después de table_update para mesa ${message.table_id}`);
-        }).catch((error) => {
-          console.error('❌ Error al refetch mesas:', error);
-        });
-      }
+      refetchIfFloor();
+    });
+
+    // order.tsx / caja envían "table_status_update" al guardar; antes el plano no escuchaba → la PC no se enteraba
+    const unsubscribeTableStatusUpdate = subscribe('table_status_update', (message) => {
+      console.log(`🔄 table_status_update mesa ${message.table_id}:`, message.status);
+      refetchIfFloor();
     });
 
     // Suscribirse a errores
@@ -230,10 +243,11 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
       unsubscribeConnection();
       unsubscribeSnapshot();
       unsubscribeTableUpdate();
+      unsubscribeTableStatusUpdate();
       unsubscribeError();
       unsubscribePong();
     };
-  }, [subscribe, refetchTables]);
+  }, [subscribe, refetchTables, selectedFloorId, showToast]);
 
   const handleFloorSelect = (floorId: string) => {
     setSelectedFloorId(floorId);
@@ -945,7 +959,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             // Refetch inmediato de las mesas para actualizar colores
             console.log('🔄 Refetch inmediato de mesas después de guardar orden');
             try {
-              await refetchTables();
+              await refetchTablesFromServer();
               console.log('✅ Mesas actualizadas correctamente');
             } catch (error) {
               console.error('❌ Error al actualizar mesas:', error);
