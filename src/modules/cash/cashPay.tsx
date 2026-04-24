@@ -13,7 +13,11 @@ import EditClient from '../user/editClient';
 import { formatLocalDateYYYYMMDD, formatLocalTimeHHMMSS, formatInstantISO } from '../../utils/localDateTime';
 import { invokeLocalIssuedDocumentPrint } from '../../utils/localDocumentPrint';
 import { fetchSystemPrinters, type SystemPrinterInfo } from '../../utils/systemPrinters';
-import { getLocalTicketPrinterStorage, setLocalTicketPrinterStorage } from '../../utils/localPrinterPreference';
+import {
+	getIntegratedPrinterCashUiEnabled,
+	getLocalTicketPrinterStorage,
+	setLocalTicketPrinterStorage
+} from '../../utils/localPrinterPreference';
 
 type CashPayProps = {
   table: Table | null;
@@ -106,6 +110,22 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   const [localPrintersOptions, setLocalPrintersOptions] = useState<SystemPrinterInfo[]>([]);
   const [localPrintersLoading, setLocalPrintersLoading] = useState(false);
 
+  /**
+   * Preferencia solo en este equipo (localStorage). Actívala en Configuración → Impresoras locales
+   * si esta caja usa impresora USB/integrada; no requiere cambios en el backend.
+   */
+  const [showLocalPrinterPicker, setShowLocalPrinterPicker] = useState(() => getIntegratedPrinterCashUiEnabled());
+
+  useEffect(() => {
+    const sync = () => setShowLocalPrinterPicker(getIntegratedPrinterCashUiEnabled());
+    window.addEventListener('sumapp-integrated-printer-cash-ui', sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener('sumapp-integrated-printer-cash-ui', sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
+
   const refreshLocalPrintersForCash = async () => {
     setLocalPrintersLoading(true);
     try {
@@ -128,7 +148,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
   };
 
   useEffect(() => {
-    if (!table?.currentOperationId) return;
+    if (!showLocalPrinterPicker || !table?.currentOperationId) return;
     let cancelled = false;
     (async () => {
       setLocalPrintersLoading(true);
@@ -142,7 +162,7 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
     return () => {
       cancelled = true;
     };
-  }, [table?.currentOperationId]);
+  }, [table?.currentOperationId, showLocalPrinterPicker]);
 
   const {
     data,
@@ -1166,7 +1186,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             updateTableInContext({
               id: table.id,
               status: 'AVAILABLE',
-              statusColors: null,
               currentOperationId: null,
               occupiedById: null,
               userName: null
@@ -1181,7 +1200,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             updateTableInContext({
               id: table.id,
               status: freedTable.status || 'AVAILABLE',
-              statusColors: freedTable.statusColors || null,
               currentOperationId: null,
               occupiedById: null,
               userName: null
@@ -1194,7 +1212,6 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
             updateTableInContext({
               id: table.id,
               status: 'AVAILABLE',
-              statusColors: null,
               currentOperationId: null,
               occupiedById: null,
               userName: null
@@ -1591,58 +1608,62 @@ const CashPay: React.FC<CashPayProps> = ({ table, onBack, onPaymentSuccess, onTa
               {vuelto > 0 && <span style={{ color: 'green' }}>Vuelto: {currencyFormatter.format(vuelto)}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>Impresora local (ticket)</div>
-              <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-                <select
-                  value={selectedLocalPrinterName}
-                  onChange={e => {
-                    const v = e.target.value;
-                    setSelectedLocalPrinterName(v);
-                    setLocalTicketPrinterStorage(v);
-                  }}
-                  disabled={localPrintersLoading}
-                  title="Impresora de este PC cuando el pago usa impresión local (USB integrada)"
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    fontSize: '0.72rem',
-                    padding: '0.35rem 0.25rem',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '4px',
-                    background: 'white'
-                  }}
-                >
-                  <option value="">Predeterminada del sistema</option>
-                  {localPrintersOptions.map(p => (
-                    <option key={p.name} value={p.name}>
-                      {p.isSystemDefault ? '★ ' : ''}
-                      {p.displayName || p.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => void refreshLocalPrintersForCash()}
-                  disabled={localPrintersLoading}
-                  title="Actualizar lista de impresoras"
-                  style={{
-                    flexShrink: 0,
-                    padding: '0.35rem 0.5rem',
-                    fontSize: '0.85rem',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '4px',
-                    background: '#f8fafc',
-                    cursor: localPrintersLoading ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  ↻
-                </button>
-              </div>
-              <div style={{ fontSize: '0.58rem', color: '#94a3b8', lineHeight: 1.35, marginBottom: '0.15rem' }}>
-                SumApp escritorio: elige la impresora física para boleta/ticket cuando el servidor indica impresión en
-                este equipo. La capa nativa debe aceptar el 2.º argumento (nombre) en{' '}
-                <code style={{ fontSize: '0.55rem' }}>LocalPrinter.printDocument</code>.
-              </div>
+              {showLocalPrinterPicker && (
+                <>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>Impresora local (ticket)</div>
+                  <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                    <select
+                      value={selectedLocalPrinterName}
+                      onChange={e => {
+                        const v = e.target.value;
+                        setSelectedLocalPrinterName(v);
+                        setLocalTicketPrinterStorage(v);
+                      }}
+                      disabled={localPrintersLoading}
+                      title="Impresora de este PC cuando el pago usa impresión local (USB integrada)"
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        fontSize: '0.72rem',
+                        padding: '0.35rem 0.25rem',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '4px',
+                        background: 'white'
+                      }}
+                    >
+                      <option value="">Predeterminada del sistema</option>
+                      {localPrintersOptions.map(p => (
+                        <option key={p.name} value={p.name}>
+                          {p.isSystemDefault ? '★ ' : ''}
+                          {p.displayName || p.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void refreshLocalPrintersForCash()}
+                      disabled={localPrintersLoading}
+                      title="Actualizar lista de impresoras"
+                      style={{
+                        flexShrink: 0,
+                        padding: '0.35rem 0.5rem',
+                        fontSize: '0.85rem',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '4px',
+                        background: '#f8fafc',
+                        cursor: localPrintersLoading ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      ↻
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '0.58rem', color: '#94a3b8', lineHeight: 1.35, marginBottom: '0.15rem' }}>
+                    SumApp escritorio: elige la impresora física para boleta/ticket cuando el servidor indica impresión en
+                    este equipo. La capa nativa debe aceptar el 2.º argumento (nombre) en{' '}
+                    <code style={{ fontSize: '0.55rem' }}>LocalPrinter.printDocument</code>.
+                  </div>
+                </>
+              )}
               <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>Cobrar e imprimir</div>
               {payDocumentsOrdered.length === 0 ? (
                 <div style={{ fontSize: '0.75rem', color: '#94a3b8', padding: '0.5rem 0' }}>No hay tipos de documento configurados en la sucursal.</div>

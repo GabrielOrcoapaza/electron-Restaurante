@@ -962,7 +962,6 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 						updateTableInContext({
 							id: updatedTable.id,
 							status: updatedTable.status,
-							statusColors: updatedTable.statusColors,
 							currentOperationId: currentOperationId,
 							occupiedById: occupiedById,
 							userName: userName
@@ -1060,11 +1059,9 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 			});
 
 			if (result.data?.printAccount?.success) {
-				const resultTable = result.data.printAccount.table;
 				const updatedTableId = table.id;
 				// Forzar siempre TO_PAY para que la mesa se pinte amarilla
 				const updatedStatus = 'TO_PAY';
-				const updatedStatusColors = resultTable?.statusColors ?? table?.statusColors;
 
 				try {
 					await updateTableStatusMutation({
@@ -1091,7 +1088,6 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 					updateTableInContext({
 						id: updatedTableId,
 						status: updatedStatus,
-						statusColors: updatedStatusColors,
 						currentOperationId: finalCurrentOperationId,
 						occupiedById: finalOccupiedById,
 						userName: finalUserName

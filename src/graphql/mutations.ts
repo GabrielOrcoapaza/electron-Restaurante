@@ -62,7 +62,6 @@ export const COMPANY_LOGIN = gql`
             capacity
             status
             isActive
-            statusColors
             currentOperationId
             occupiedById
             userName
@@ -256,7 +255,6 @@ export const UPDATE_TABLE_STATUS = gql`
         id
         name
         status
-        statusColors
         currentOperationId
         occupiedById
         userName
@@ -423,7 +421,6 @@ export const CREATE_ISSUED_DOCUMENT = gql`
       table {
         id
         status
-        statusColors
         currentOperationId
         occupiedById
         userName
@@ -655,7 +652,6 @@ export const CANCEL_OPERATION = gql`
         id
         name
         status
-        statusColors
         currentOperationId
         occupiedById
         userName
@@ -691,7 +687,6 @@ export const PRINT_PRECUENTA = gql`
         id
         name
         status
-        statusColors
       }
     }
   }
@@ -727,7 +722,6 @@ export const PRINT_PARTIAL_PRECUENTA = gql`
         id
         name
         status
-        statusColors
         currentOperationId
         occupiedById
         userName

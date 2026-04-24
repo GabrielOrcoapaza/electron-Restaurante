@@ -114,7 +114,6 @@ export interface UserData {
 export interface UpdatedTable {
   id: string;
   status: string;
-  statusColors?: any;
   currentOperationId?: number | null;
   occupiedById?: number | null;
   userName?: string | null;
@@ -316,7 +315,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               ? {
                 ...table,
                 status: updatedTable.status as Table['status'],
-                statusColors: updatedTable.statusColors !== undefined ? updatedTable.statusColors : table.statusColors,
                 currentOperationId: updatedTable.currentOperationId !== undefined ? (updatedTable.currentOperationId ?? undefined) : table.currentOperationId,
                 occupiedById: updatedTable.occupiedById !== undefined ? (updatedTable.occupiedById ?? undefined) : table.occupiedById,
                 userName: updatedTable.userName !== undefined ? (updatedTable.userName ?? undefined) : table.userName
@@ -330,7 +328,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             ? {
               ...table,
               status: updatedTable.status as Table['status'],
-              statusColors: updatedTable.statusColors !== undefined ? updatedTable.statusColors : table.statusColors,
               currentOperationId: updatedTable.currentOperationId !== undefined ? (updatedTable.currentOperationId ?? undefined) : table.currentOperationId,
               occupiedById: updatedTable.occupiedById !== undefined ? (updatedTable.occupiedById ?? undefined) : table.occupiedById,
               userName: updatedTable.userName !== undefined ? (updatedTable.userName ?? undefined) : table.userName

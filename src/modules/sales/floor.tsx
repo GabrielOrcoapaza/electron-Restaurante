@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -10,6 +10,11 @@ import { GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from '../../graphql/queries
 import Order, { type OrderSuccessPayload } from './order';
 
 const FLOOR_ORDER_START_STORAGE_PREFIX = 'appsuma:floorOrderStart:v1';
+
+/** Agrupa ráfagas de eventos WS en un solo GetTablesByFloor */
+const TABLES_WS_EVENT_DEBOUNCE_MS = 400;
+/** Tras reconexión WS, evita N refetch si el socket tiembla */
+const TABLES_WS_RECONNECT_DEBOUNCE_MS = 500;
 
 function floorOrderStartStorageKey(branchId: string, operationId: string | number): string {
   return `${FLOOR_ORDER_START_STORAGE_PREFIX}:${branchId}:${String(operationId)}`;
@@ -163,28 +168,32 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     }
   }, [activeFloors, selectedFloorId]);
 
-  // Mesas: siempre red (no depender de caché) + repaso periódico por si el WS se pierde (p. ej. orden creada desde el celular)
+  // Mesas: siempre red (no depender de caché). Sin polling: actualización por WebSocket + refetch al reconectar (ver efecto WS abajo).
   const { data: tablesData, loading: tablesLoading, error: tablesError, refetch: refetchTables } = useQuery(GET_TABLES_BY_FLOOR, {
     variables: { floorId: selectedFloorId },
     skip: !selectedFloorId,
     fetchPolicy: 'network-only',
-    nextFetchPolicy: 'network-only',
-    pollInterval: 12000
+    nextFetchPolicy: 'network-only'
   });
 
   const tablesOnFloor: Table[] = tablesData?.tablesByFloor ?? [];
   const visibleTables = tablesOnFloor.filter((t) => t.isActive !== false);
 
   /** Refetch de mesas forzando red (nunca reutilizar solo caché de Apollo) */
-  const refetchTablesFromServer = () =>
-    refetchTables({ fetchPolicy: 'network-only' });
+  const refetchTablesFromServer = useCallback(
+    () => refetchTables({ fetchPolicy: 'network-only' }),
+    [refetchTables]
+  );
+
+  const tablesWsEventDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tablesWsReconnectDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // WebSocket para cambios en tiempo real usando el contexto
   const { subscribe } = useWebSocket();
 
-  // Suscribirse a eventos del WebSocket
+  // Suscribirse a eventos del WebSocket + al volver a la pestaña (sustituye al polling)
   useEffect(() => {
-    const refetchIfFloor = () => {
+    const runRefetch = () => {
       if (!selectedFloorId) return;
       void refetchTablesFromServer()
         .then(() => {
@@ -195,9 +204,36 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         });
     };
 
-    // Suscribirse a connection_established
+    const scheduleEventRefetch = () => {
+      if (!selectedFloorId) return;
+      if (tablesWsEventDebounceRef.current) {
+        clearTimeout(tablesWsEventDebounceRef.current);
+      }
+      tablesWsEventDebounceRef.current = setTimeout(() => {
+        tablesWsEventDebounceRef.current = null;
+        runRefetch();
+      }, TABLES_WS_EVENT_DEBOUNCE_MS);
+    };
+
+    const scheduleReconnectRefetch = () => {
+      if (!selectedFloorId) return;
+      if (tablesWsReconnectDebounceRef.current) {
+        clearTimeout(tablesWsReconnectDebounceRef.current);
+      }
+      tablesWsReconnectDebounceRef.current = setTimeout(() => {
+        tablesWsReconnectDebounceRef.current = null;
+        runRefetch();
+      }, TABLES_WS_RECONNECT_DEBOUNCE_MS);
+    };
+
+    // WebSocketContext emite "connected" en cada onopen (incl. reconexión): alineación tras cortes de red (debounced).
+    const unsubscribeConnected = subscribe('connected', (message) => {
+      console.log('✅ WebSocket conectado:', message);
+      scheduleReconnectRefetch();
+    });
+
     const unsubscribeConnection = subscribe('connection_established', (message) => {
-      console.log('✅ Conexión establecida:', {
+      console.log('✅ Mensaje connection_established:', {
         user: message.user,
         branch: message.branch,
         timestamp: message.timestamp
@@ -207,7 +243,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     // Suscribirse a tables_snapshot
     const unsubscribeSnapshot = subscribe('tables_snapshot', (message) => {
       console.log('📊 Snapshot de mesas recibido:', message.tables?.length, 'mesas');
-      refetchIfFloor();
+      scheduleEventRefetch();
     });
 
     // Suscribirse a table_update (algunos backends/relés lo usan)
@@ -218,13 +254,13 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         userName: message.occupied_by_name,
         timestamp: message.timestamp
       });
-      refetchIfFloor();
+      scheduleEventRefetch();
     });
 
     // order.tsx / caja envían "table_status_update" al guardar; antes el plano no escuchaba → la PC no se enteraba
     const unsubscribeTableStatusUpdate = subscribe('table_status_update', (message) => {
       console.log(`🔄 table_status_update mesa ${message.table_id}:`, message.status);
-      refetchIfFloor();
+      scheduleEventRefetch();
     });
 
     // Suscribirse a errores
@@ -238,8 +274,25 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
       console.log('🏓 Pong recibido:', message.timestamp);
     });
 
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        scheduleEventRefetch();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     // Cleanup: desuscribirse de todos los eventos
     return () => {
+      if (tablesWsEventDebounceRef.current) {
+        clearTimeout(tablesWsEventDebounceRef.current);
+        tablesWsEventDebounceRef.current = null;
+      }
+      if (tablesWsReconnectDebounceRef.current) {
+        clearTimeout(tablesWsReconnectDebounceRef.current);
+        tablesWsReconnectDebounceRef.current = null;
+      }
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      unsubscribeConnected();
       unsubscribeConnection();
       unsubscribeSnapshot();
       unsubscribeTableUpdate();
@@ -247,7 +300,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
       unsubscribeError();
       unsubscribePong();
     };
-  }, [subscribe, refetchTables, selectedFloorId, showToast]);
+  }, [subscribe, refetchTablesFromServer, selectedFloorId, showToast]);
 
   const handleFloorSelect = (floorId: string) => {
     setSelectedFloorId(floorId);
@@ -364,46 +417,9 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     }
   };
 
-  // Función para obtener los colores de la mesa según su estado
-  const getTableColors = (table: Table): ProcessedTableColors => {
-    // Primero intentamos obtener los colores por defecto del estado
-    const defaultColors = DEFAULT_STATUS_COLORS[table.status] || DEFAULT_STATUS_COLORS['MAINTENANCE'];
-    
-    // Si tenemos statusColors del backend, intentamos usarlos
-    if (table.statusColors) {
-      try {
-        // Si es un string JSON, lo parseamos
-        let colors: any;
-        if (typeof table.statusColors === 'string') {
-          // Verificar que sea un JSON válido
-          if (table.statusColors.startsWith('{')) {
-            colors = JSON.parse(table.statusColors);
-          } else {
-            console.warn(`Mesa ${table.name} - statusColors no es JSON válido:`, table.statusColors);
-            return defaultColors;
-          }
-        } else {
-          colors = table.statusColors;
-        }
-        
-        // Solo usamos los colores del backend si tienen los campos requeridos
-        if (colors && typeof colors === 'object' && (colors.color || colors.background_color)) {
-          return {
-            backgroundColor: colors.background_color || defaultColors.backgroundColor,
-            borderColor: colors.color || defaultColors.borderColor,
-            textColor: colors.text_color || defaultColors.textColor,
-            badgeColor: colors.color || defaultColors.badgeColor,
-            badgeTextColor: '#ffffff'
-          };
-        }
-      } catch (error) {
-        console.warn(`Mesa ${table.name} - Error parsing statusColors:`, error);
-      }
-    }
-    
-    // Usar colores por defecto del estado
-    return defaultColors;
-  };
+  // Colores solo por estado (no pedir statusColors al backend: evita N consultas por mesa en cada GetTablesByFloor)
+  const getTableColors = (table: Table): ProcessedTableColors =>
+    DEFAULT_STATUS_COLORS[table.status] || DEFAULT_STATUS_COLORS['MAINTENANCE'];
 
   if (floorsLoading) {
     return (

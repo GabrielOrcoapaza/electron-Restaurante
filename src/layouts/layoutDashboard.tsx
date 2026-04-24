@@ -4,6 +4,7 @@ import { useQuery, useMutation, gql } from "@apollo/client";
 import { useAuth } from "../hooks/useAuth";
 import { useResponsive } from "../hooks/useResponsive";
 import { useSwitchBranch } from "../hooks/useSwitchBranch";
+import { useIntegratedPrinterSyncFromServer } from "../hooks/useIntegratedPrinterSyncFromServer";
 import { useUserPermissions } from "../hooks/useUserPermissions";
 import { WebSocketProvider, useWebSocket } from "../context/WebSocketContext";
 import Floor from "../modules/sales/floor";
@@ -84,6 +85,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 }) => {
     const navigate = useNavigate();
     const { user, companyData, logout, getMacAddress } = useAuth();
+    useIntegratedPrinterSyncFromServer();
     const [macAddress, setMacAddress] = useState<string>("");
     const { disconnect, subscribe } = useWebSocket();
     const { switchToBranch, loading: switchingBranch } = useSwitchBranch();

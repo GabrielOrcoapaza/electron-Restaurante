@@ -1,6 +1,10 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useResponsive } from "../../hooks/useResponsive";
 import { fetchSystemPrinters, type SystemPrinterInfo } from "../../utils/systemPrinters";
+import {
+	getIntegratedPrinterCashUiEnabled,
+	setIntegratedPrinterCashUiEnabled,
+} from "../../utils/localPrinterPreference";
 
 function optionsHint(opts?: Record<string, string>): string {
 	if (!opts || Object.keys(opts).length === 0) return "—";
@@ -19,6 +23,19 @@ const LocalPrinters: React.FC = () => {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
+	const [integratedPrinterCashUi, setIntegratedPrinterCashUi] = useState(() =>
+		getIntegratedPrinterCashUiEnabled(),
+	);
+
+	useEffect(() => {
+		const sync = () => setIntegratedPrinterCashUi(getIntegratedPrinterCashUiEnabled());
+		window.addEventListener("sumapp-integrated-printer-cash-ui", sync);
+		window.addEventListener("storage", sync);
+		return () => {
+			window.removeEventListener("sumapp-integrated-printer-cash-ui", sync);
+			window.removeEventListener("storage", sync);
+		};
+	}, []);
 
 	const load = useCallback(async () => {
 		setLoading(true);
@@ -57,6 +74,42 @@ const LocalPrinters: React.FC = () => {
 					Electron). Es independiente de las impresoras registradas en el servidor o la Raspberry.
 				</p>
 			</div>
+
+			<label
+				style={{
+					display: "flex",
+					alignItems: "flex-start",
+					gap: "0.65rem",
+					padding: "0.85rem 1rem",
+					marginBottom: "1rem",
+					borderRadius: "10px",
+					border: "1px solid #cbd5e1",
+					background: "#f8fafc",
+					cursor: "pointer",
+					maxWidth: "720px",
+				}}
+			>
+				<input
+					type="checkbox"
+					checked={integratedPrinterCashUi}
+					onChange={(e) => {
+						const on = e.target.checked;
+						setIntegratedPrinterCashUi(on);
+						setIntegratedPrinterCashUiEnabled(on);
+					}}
+					style={{ marginTop: "0.2rem", width: "1.1rem", height: "1.1rem", flexShrink: 0 }}
+				/>
+				<span style={{ fontSize: "0.9rem", color: "#334155", lineHeight: 1.45 }}>
+					<strong>Impresora integrada en esta caja (USB)</strong>
+					<br />
+					<span style={{ color: "#64748b", fontSize: "0.85rem" }}>
+						Coincide con <strong>DevicePrintConfig.use_integrated_printer</strong> en el admin de Django
+						(mismo <code style={{ fontSize: "0.8rem" }}>device_id</code> que la MAC de esta PC). Puedes
+						cambiarlo aquí o en el servidor; al iniciar sesión se sincroniza desde el API si está
+						disponible.
+					</span>
+				</span>
+			</label>
 
 			<div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
 				<button

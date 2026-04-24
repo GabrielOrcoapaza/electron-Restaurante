@@ -29,7 +29,8 @@ export interface Table {
   positionY: number;
   capacity: number;
   status: TableStatus;
-  statusColors: string | TableStatusColors; // Puede ser JSON string o objeto
+  /** Legado / caché local; ya no se solicita en GraphQL (colores = mapa por estado en el plano). */
+  statusColors?: string | TableStatusColors;
   currentOperationId?: number;
   /** Nombre del piso (p. ej. rellenado al abrir la orden desde Floor). */
   floorName?: string;

@@ -265,7 +265,6 @@ export const GET_TABLES_BY_FLOOR = gql`
             capacity
             isActive
             status
-            statusColors
             currentOperationId
             currentOperation {
                 id
@@ -553,7 +552,6 @@ export const GET_BRANCH_FULL = gql`
                     capacity
                     status
                     isActive
-                    statusColors
                     currentOperationId
                     occupiedById
                     userName
@@ -1409,6 +1407,16 @@ export const GET_PRINTERS_CONFIG = gql`
                 id
                 name
             }
+        }
+    }
+`;
+
+/** Sincronizar con DevicePrintConfig (use_integrated_printer) — requiere resolver en GraphQL. */
+export const GET_DEVICE_PRINT_INTEGRATION = gql`
+    query GetDevicePrintIntegration($branchId: ID!, $deviceId: String!) {
+        devicePrintIntegration(branchId: $branchId, deviceId: $deviceId) {
+            useIntegratedPrinter
+            useBluetoothPrinter
         }
     }
 `;
