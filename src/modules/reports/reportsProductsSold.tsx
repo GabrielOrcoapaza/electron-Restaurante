@@ -475,9 +475,7 @@ const ReportsProductsSold: React.FC = () => {
           summary={summary}
           loading={loading}
           error={error}
-          isSmallDesktop={isSmallDesktop}
           isSmall={isSmall}
-          isMedium={isMedium}
           isXs={isXs}
         />
       </div>

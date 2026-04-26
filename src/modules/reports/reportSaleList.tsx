@@ -89,7 +89,6 @@ interface ReportSaleListProps {
   error?: any;
   isSmallDesktop: boolean;
   isSmall?: boolean;
-  isMedium?: boolean;
   isXs?: boolean;
   onRefetch?: () => void;
 }
@@ -129,7 +128,6 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   error,
   isSmallDesktop: propIsSmallDesktop,
   isSmall: propIsSmall,
-  isMedium: propIsMedium,
   isXs: propIsXs,
   onRefetch
 }) => {
@@ -138,7 +136,6 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   const { breakpoint, isMobile, isXs: isXsHook } = useResponsive();
 
   const isSmall = propIsSmall ?? (breakpoint === 'sm' || isMobile);
-  const isMedium = propIsMedium ?? breakpoint === 'md';
   const isSmallDesktop = propIsSmallDesktop !== undefined ? propIsSmallDesktop : breakpoint === 'lg';
   const isMediumDesktop = breakpoint === 'xl';
   const isXs = propIsXs ?? isXsHook;
@@ -467,17 +464,6 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     return basicMatch || productMatch;
  });
 
-  const paymentRegistrarLabel = (doc: IssuedDocument): string => {
-    const names = [
-      ...new Set(
-        doc.payments
-          .map((p) => p.user?.fullName)
-          .filter((n): n is string => Boolean(n && String(n).trim()))
-      )
-    ];
-    if (names.length > 0) return names.join(', ');
-    return doc.user?.fullName ?? '—';
-  };
 
   if (loading) {
     return (

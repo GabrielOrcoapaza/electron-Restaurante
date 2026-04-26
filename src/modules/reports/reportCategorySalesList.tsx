@@ -28,9 +28,7 @@ interface ReportCategorySalesListProps {
   summary: CategorySalesSummary | null;
   loading: boolean;
   error?: ApolloError;
-  isSmallDesktop: boolean;
   isSmall?: boolean;
-  isMedium?: boolean;
   isXs?: boolean;
 }
 
@@ -45,9 +43,7 @@ const ReportCategorySalesList: React.FC<ReportCategorySalesListProps> = ({
   summary,
   loading,
   error,
-  isSmallDesktop,
   isSmall = false,
-  isMedium = false,
   isXs = false
 }) => {
   const tableFontSize = isXs ? '0.8rem' : isSmall ? '0.85rem' : '0.875rem';

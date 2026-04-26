@@ -20,7 +20,6 @@ const CreateUser: React.FC = () => {
     const isSmall = breakpoint === "sm" || isMobile; // < 768px
     const isMedium = breakpoint === "md"; // 768px - 1023px
     const isSmallDesktop = breakpoint === "lg"; // 1024px - 1279px
-    const isMediumDesktop = breakpoint === "xl"; // 1280px - 1535px
 
     // Tamaños adaptativos
     const containerPadding = isXs ? "0.75rem" : isSmall ? "1rem" : "1.5rem";

@@ -28,8 +28,6 @@ const ListUser: React.FC = () => {
   
   // Adaptar según tamaño de pantalla
   const isSmall = breakpoint === 'sm' || isMobile; 
-  const isMedium = breakpoint === 'md';
-  const isSmallDesktop = breakpoint === 'lg';
   
   // Tamaños adaptativos
   const cardPadding = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';

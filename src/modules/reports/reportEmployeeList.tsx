@@ -13,9 +13,7 @@ interface ReportEmployeeListProps {
   summary: UserSalesSummary | null;
   loading: boolean;
   error?: ApolloError;
-  isSmallDesktop: boolean;
   isSmall?: boolean;
-  isMedium?: boolean;
   isXs?: boolean;
 }
 
@@ -24,9 +22,7 @@ const ReportEmployeeList: React.FC<ReportEmployeeListProps> = ({
   summary,
   loading,
   error,
-  isSmallDesktop,
   isSmall = false,
-  isMedium = false,
   isXs = false
 }) => {
   const tableFontSize = isXs ? '0.8rem' : isSmall ? '0.85rem' : '0.875rem';

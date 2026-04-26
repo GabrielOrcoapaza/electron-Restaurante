@@ -38,12 +38,10 @@ const Products: React.FC = () => {
     const isXs = breakpoint === "xs"; // < 640px
     const isSmall = breakpoint === "sm"; // 640px - 767px
     const isMedium = breakpoint === "md"; // 768px - 1023px
-    const isSmallDesktop = breakpoint === "lg"; // 1024px - 1279px
-    const isMediumDesktop = breakpoint === "xl"; // 1280px - 1535px
 
     // Tamaños adaptativos
-    const containerPadding = isXs 
-        ? "0.75rem" 
+    const containerPadding = isXs
+        ? "0.75rem"
         : isSmall
           ? "1rem"
           : isMedium
@@ -175,12 +173,14 @@ const Products: React.FC = () => {
                         justifyContent: "space-between",
                         alignItems: isXs || isSmall ? "flex-start" : "center",
                         flexDirection: isXs || isSmall ? "column" : "row",
-                        marginBottom: isXs || isSmall
-                            ? "1rem"
-                            : isMedium
-                              ? "1.5rem"
-                              : "2rem",
-                        flexWrap: isXs || isSmall || isMedium ? "wrap" : "nowrap",
+                        marginBottom:
+                            isXs || isSmall
+                                ? "1rem"
+                                : isMedium
+                                  ? "1.5rem"
+                                  : "2rem",
+                        flexWrap:
+                            isXs || isSmall || isMedium ? "wrap" : "nowrap",
                         gap: isXs || isSmall || isMedium ? "1rem" : "0",
                     }}
                 >

@@ -581,7 +581,6 @@ const ReportSale: React.FC = () => {
                 error={error}
                 isSmallDesktop={isSmallDesktop}
                 isSmall={isSmall}
-                isMedium={isMedium}
                 isXs={isXs}
               />
             </div>

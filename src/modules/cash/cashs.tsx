@@ -133,25 +133,38 @@ const Cashs: React.FC = () => {
     const { companyData, user, getMacAddress } = useAuth();
     const { hasPermission } = useUserPermissions();
     const { showToast } = useToast();
-    const { breakpoint, isMobile, isTablet, isXs } = useResponsive();
+    const { breakpoint, isXs } = useResponsive();
     const branchId = companyData?.branch?.id;
 
     // Adaptar según tamaño de pantalla
     const isSmall = breakpoint === "sm"; // 640px - 767px
     const isMedium = breakpoint === "md"; // 768px - 1023px
     const isSmallDesktop = breakpoint === "lg"; // 1024px - 1279px
-    const isMediumDesktop = breakpoint === "xl"; // 1280px - 1535px
 
     // Tamaños adaptativos
-    const containerPadding = isXs ? "0.75rem" : isSmall ? "1rem" : isMedium ? "1.25rem" : "2rem";
+    const containerPadding = isXs
+        ? "0.75rem"
+        : isSmall
+          ? "1rem"
+          : isMedium
+            ? "1.25rem"
+            : "2rem";
     const cardPadding = isXs ? "0.875rem" : isSmall ? "1rem" : "1.5rem";
     const titleFontSize = isXs ? "1.1rem" : isSmall ? "1.25rem" : "1.75rem";
     const subtitleFontSize = isXs ? "0.7rem" : isSmall ? "0.75rem" : "0.875rem";
-    const sectionTitleFontSize = isXs ? "0.9rem" : isSmall ? "0.9375rem" : "1.125rem";
+    const sectionTitleFontSize = isXs
+        ? "0.9rem"
+        : isSmall
+          ? "0.9375rem"
+          : "1.125rem";
     const gridGap = isXs ? "0.75rem" : isSmall ? "0.75rem" : "1.5rem";
     const statCardMinWidth = isXs ? "140px" : "180px";
     const cashCardMinWidth = isXs ? "100%" : "260px";
-    const buttonPadding = isXs ? "0.5rem 0.75rem" : isSmall ? "0.5rem 0.875rem" : "0.75rem 1.5rem";
+    const buttonPadding = isXs
+        ? "0.5rem 0.75rem"
+        : isSmall
+          ? "0.5rem 0.875rem"
+          : "0.75rem 1.5rem";
     const buttonFontSize = isXs ? "0.75rem" : isSmall ? "0.75rem" : "0.875rem";
 
     const [selectedCashRegister, setSelectedCashRegister] =
@@ -823,7 +836,6 @@ const Cashs: React.FC = () => {
             minute: "2-digit",
         });
     };
-
 
     if (!branchId) {
         return (
@@ -1748,7 +1760,13 @@ const Cashs: React.FC = () => {
                                                 </p>
                                             )}
                                         {movementsLoading ? (
-                                            <div style={{ padding: cardPadding, textAlign: "center", color: "#64748b" }}>
+                                            <div
+                                                style={{
+                                                    padding: cardPadding,
+                                                    textAlign: "center",
+                                                    color: "#64748b",
+                                                }}
+                                            >
                                                 Cargando movimientos...
                                             </div>
                                         ) : movements.length === 0 ? (
@@ -1772,134 +1790,693 @@ const Cashs: React.FC = () => {
                                             >
                                                 {!isXs && !isSmall ? (
                                                     <table
-                                                    style={{
-                                                        width: "100%",
-                                                        borderCollapse:
-                                                            "collapse",
-                                                        fontSize: "0.8125rem",
-                                                    }}
-                                                >
-                                                    <thead>
-                                                        <tr
-                                                            style={{
-                                                                borderBottom:
-                                                                    "2px solid #e2e8f0",
-                                                                backgroundColor:
-                                                                    "#f1f5f9",
-                                                            }}
-                                                        >
-                                                            <th
+                                                        style={{
+                                                            width: "100%",
+                                                            borderCollapse:
+                                                                "collapse",
+                                                            fontSize:
+                                                                "0.8125rem",
+                                                        }}
+                                                    >
+                                                        <thead>
+                                                            <tr
                                                                 style={{
-                                                                    padding:
-                                                                        "0.75rem",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    color: "#475569",
-                                                                    fontWeight: 600,
+                                                                    borderBottom:
+                                                                        "2px solid #e2e8f0",
+                                                                    backgroundColor:
+                                                                        "#f1f5f9",
                                                                 }}
                                                             >
-                                                                Fecha / Hora
-                                                            </th>
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "0.75rem",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    color: "#475569",
-                                                                    fontWeight: 600,
-                                                                }}
-                                                            >
-                                                                Tipo
-                                                            </th>
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "0.75rem",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    color: "#475569",
-                                                                    fontWeight: 600,
-                                                                }}
-                                                            >
-                                                                Método de pago
-                                                            </th>
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "0.75rem",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    color: "#475569",
-                                                                    fontWeight: 600,
-                                                                }}
-                                                            >
-                                                                Monto
-                                                            </th>
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "0.75rem",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    color: "#475569",
-                                                                    fontWeight: 600,
-                                                                }}
-                                                            >
-                                                                Usuario
-                                                            </th>
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "0.75rem",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    color: "#475569",
-                                                                    fontWeight: 600,
-                                                                }}
-                                                            >
-                                                                Referencia /
-                                                                Notas
-                                                            </th>
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "0.75rem",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    color: "#475569",
-                                                                    fontWeight: 600,
-                                                                }}
-                                                            >
-                                                                Documento
-                                                            </th>
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "0.75rem",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    color: "#475569",
-                                                                    fontWeight: 600,
-                                                                }}
-                                                            >
-                                                                Imprimir
-                                                            </th>
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "0.75rem",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    color: "#475569",
-                                                                    fontWeight: 600,
-                                                                }}
-                                                            >
-                                                                Anular
-                                                            </th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
+                                                                <th
+                                                                    style={{
+                                                                        padding:
+                                                                            "0.75rem",
+                                                                        textAlign:
+                                                                            "center",
+                                                                        color: "#475569",
+                                                                        fontWeight: 600,
+                                                                    }}
+                                                                >
+                                                                    Fecha / Hora
+                                                                </th>
+                                                                <th
+                                                                    style={{
+                                                                        padding:
+                                                                            "0.75rem",
+                                                                        textAlign:
+                                                                            "center",
+                                                                        color: "#475569",
+                                                                        fontWeight: 600,
+                                                                    }}
+                                                                >
+                                                                    Tipo
+                                                                </th>
+                                                                <th
+                                                                    style={{
+                                                                        padding:
+                                                                            "0.75rem",
+                                                                        textAlign:
+                                                                            "center",
+                                                                        color: "#475569",
+                                                                        fontWeight: 600,
+                                                                    }}
+                                                                >
+                                                                    Método de
+                                                                    pago
+                                                                </th>
+                                                                <th
+                                                                    style={{
+                                                                        padding:
+                                                                            "0.75rem",
+                                                                        textAlign:
+                                                                            "center",
+                                                                        color: "#475569",
+                                                                        fontWeight: 600,
+                                                                    }}
+                                                                >
+                                                                    Monto
+                                                                </th>
+                                                                <th
+                                                                    style={{
+                                                                        padding:
+                                                                            "0.75rem",
+                                                                        textAlign:
+                                                                            "center",
+                                                                        color: "#475569",
+                                                                        fontWeight: 600,
+                                                                    }}
+                                                                >
+                                                                    Usuario
+                                                                </th>
+                                                                <th
+                                                                    style={{
+                                                                        padding:
+                                                                            "0.75rem",
+                                                                        textAlign:
+                                                                            "center",
+                                                                        color: "#475569",
+                                                                        fontWeight: 600,
+                                                                    }}
+                                                                >
+                                                                    Referencia /
+                                                                    Notas
+                                                                </th>
+                                                                <th
+                                                                    style={{
+                                                                        padding:
+                                                                            "0.75rem",
+                                                                        textAlign:
+                                                                            "center",
+                                                                        color: "#475569",
+                                                                        fontWeight: 600,
+                                                                    }}
+                                                                >
+                                                                    Documento
+                                                                </th>
+                                                                <th
+                                                                    style={{
+                                                                        padding:
+                                                                            "0.75rem",
+                                                                        textAlign:
+                                                                            "center",
+                                                                        color: "#475569",
+                                                                        fontWeight: 600,
+                                                                    }}
+                                                                >
+                                                                    Imprimir
+                                                                </th>
+                                                                <th
+                                                                    style={{
+                                                                        padding:
+                                                                            "0.75rem",
+                                                                        textAlign:
+                                                                            "center",
+                                                                        color: "#475569",
+                                                                        fontWeight: 600,
+                                                                    }}
+                                                                >
+                                                                    Anular
+                                                                </th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {movements.map(
+                                                                (mov) => {
+                                                                    const dateStr =
+                                                                        (
+                                                                            mov as any
+                                                                        )
+                                                                            .paymentDate ??
+                                                                        (
+                                                                            mov as any
+                                                                        )
+                                                                            .payment_date ??
+                                                                        mov.paymentDate;
+                                                                    const amount =
+                                                                        Number(
+                                                                            (
+                                                                                mov as any
+                                                                            )
+                                                                                .paidAmount ??
+                                                                                (
+                                                                                    mov as any
+                                                                                )
+                                                                                    .paid_amount ??
+                                                                                mov.paidAmount ??
+                                                                                0,
+                                                                        );
+                                                                    const type =
+                                                                        (
+                                                                            mov as any
+                                                                        )
+                                                                            .transactionType ??
+                                                                        (
+                                                                            mov as any
+                                                                        )
+                                                                            .transaction_type ??
+                                                                        mov.transactionType ??
+                                                                        "";
+                                                                    const method =
+                                                                        (
+                                                                            mov as any
+                                                                        )
+                                                                            .paymentMethod ??
+                                                                        (
+                                                                            mov as any
+                                                                        )
+                                                                            .payment_method ??
+                                                                        mov.paymentMethod ??
+                                                                        "";
+                                                                    const doc =
+                                                                        mov.issuedDocument ??
+                                                                        (
+                                                                            mov as any
+                                                                        )
+                                                                            .issued_document;
+                                                                    const docLabel =
+                                                                        doc
+                                                                            ? `${doc.serial ?? ""}-${doc.number ?? ""}`.replace(
+                                                                                  /^-|-$/g,
+                                                                                  "",
+                                                                              ) ||
+                                                                              "—"
+                                                                            : "—";
+                                                                    const isCancelled =
+                                                                        isCancelledCashMovement(
+                                                                            mov,
+                                                                        );
+                                                                    const canCancel =
+                                                                        canCancelManualCashMovement(
+                                                                            mov,
+                                                                        );
+                                                                    return (
+                                                                        <tr
+                                                                            key={
+                                                                                mov.id
+                                                                            }
+                                                                            style={{
+                                                                                borderBottom:
+                                                                                    "1px solid #f1f5f9",
+                                                                                opacity:
+                                                                                    isCancelled
+                                                                                        ? 0.48
+                                                                                        : 1,
+                                                                                backgroundColor:
+                                                                                    isCancelled
+                                                                                        ? "rgba(241, 245, 249, 0.65)"
+                                                                                        : undefined,
+                                                                                filter: isCancelled
+                                                                                    ? "grayscale(0.35)"
+                                                                                    : undefined,
+                                                                                transition:
+                                                                                    "opacity 0.15s ease",
+                                                                            }}
+                                                                            title={
+                                                                                isCancelled
+                                                                                    ? "Movimiento anulado (no cuenta en caja)"
+                                                                                    : undefined
+                                                                            }
+                                                                        >
+                                                                            <td
+                                                                                style={{
+                                                                                    padding:
+                                                                                        "0.75rem",
+                                                                                    color: "#334155",
+                                                                                }}
+                                                                            >
+                                                                                {dateStr
+                                                                                    ? formatDate(
+                                                                                          dateStr,
+                                                                                      )
+                                                                                    : "—"}
+                                                                            </td>
+                                                                            <td
+                                                                                style={{
+                                                                                    padding:
+                                                                                        "0.75rem",
+                                                                                }}
+                                                                            >
+                                                                                <span
+                                                                                    style={{
+                                                                                        padding:
+                                                                                            "0.2rem 0.5rem",
+                                                                                        borderRadius:
+                                                                                            "6px",
+                                                                                        fontSize:
+                                                                                            "0.75rem",
+                                                                                        fontWeight: 600,
+                                                                                        backgroundColor:
+                                                                                            isCancelled
+                                                                                                ? "#e2e8f0"
+                                                                                                : type ===
+                                                                                                    "INCOME"
+                                                                                                  ? "#dcfce7"
+                                                                                                  : "#fee2e2",
+                                                                                        color: isCancelled
+                                                                                            ? "#64748b"
+                                                                                            : type ===
+                                                                                                "INCOME"
+                                                                                              ? "#166534"
+                                                                                              : "#991b1b",
+                                                                                    }}
+                                                                                >
+                                                                                    {getTransactionTypeLabel(
+                                                                                        type,
+                                                                                    )}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td
+                                                                                style={{
+                                                                                    padding:
+                                                                                        "0.75rem",
+                                                                                    color: isCancelled
+                                                                                        ? "#94a3b8"
+                                                                                        : "#475569",
+                                                                                    verticalAlign:
+                                                                                        "middle",
+                                                                                }}
+                                                                            >
+                                                                                {(() => {
+                                                                                    const raw =
+                                                                                        String(
+                                                                                            method ??
+                                                                                                "",
+                                                                                        ).trim();
+                                                                                    const m =
+                                                                                        raw
+                                                                                            .toUpperCase()
+                                                                                            .replace(
+                                                                                                /\s+/g,
+                                                                                                "_",
+                                                                                            );
+                                                                                    const codes =
+                                                                                        EDITABLE_PAYMENT_METHOD_CODES as readonly string[];
+                                                                                    const isKnownCode =
+                                                                                        codes.includes(
+                                                                                            m,
+                                                                                        );
+                                                                                    /** Valor controlado: código estándar, código raro del API, o CASH por defecto. */
+                                                                                    const valueForSelect =
+                                                                                        isKnownCode
+                                                                                            ? m
+                                                                                            : m
+                                                                                              ? m
+                                                                                              : "CASH";
+                                                                                    const canEditMethod =
+                                                                                        canEditPaymentMethodInMovementsList &&
+                                                                                        !isCancelled;
+                                                                                    if (
+                                                                                        canEditMethod
+                                                                                    ) {
+                                                                                        return (
+                                                                                            <select
+                                                                                                value={
+                                                                                                    valueForSelect
+                                                                                                }
+                                                                                                disabled={
+                                                                                                    updatingPaymentMethodId ===
+                                                                                                    mov.id
+                                                                                                }
+                                                                                                title="Corregir método de pago (no cambia montos ni saldo)"
+                                                                                                onChange={(
+                                                                                                    e,
+                                                                                                ) =>
+                                                                                                    handleUpdatePaymentMethod(
+                                                                                                        mov.id,
+                                                                                                        e
+                                                                                                            .target
+                                                                                                            .value,
+                                                                                                        raw ||
+                                                                                                            method,
+                                                                                                    )
+                                                                                                }
+                                                                                                style={{
+                                                                                                    maxWidth:
+                                                                                                        "168px",
+                                                                                                    width: "100%",
+                                                                                                    minHeight:
+                                                                                                        "30px",
+                                                                                                    fontSize:
+                                                                                                        "0.8125rem",
+                                                                                                    padding:
+                                                                                                        "0.35rem 0.45rem",
+                                                                                                    borderRadius:
+                                                                                                        "8px",
+                                                                                                    border: "2px solid #64748b",
+                                                                                                    background:
+                                                                                                        updatingPaymentMethodId ===
+                                                                                                        mov.id
+                                                                                                            ? "#f1f5f9"
+                                                                                                            : "#ffffff",
+                                                                                                    color: "#0f172a",
+                                                                                                    cursor:
+                                                                                                        updatingPaymentMethodId ===
+                                                                                                        mov.id
+                                                                                                            ? "wait"
+                                                                                                            : "pointer",
+                                                                                                    boxShadow:
+                                                                                                        "0 1px 2px rgba(15,23,42,0.08)",
+                                                                                                    appearance:
+                                                                                                        "auto",
+                                                                                                }}
+                                                                                            >
+                                                                                                {!isKnownCode &&
+                                                                                                Boolean(
+                                                                                                    m,
+                                                                                                ) ? (
+                                                                                                    <option
+                                                                                                        value={
+                                                                                                            m
+                                                                                                        }
+                                                                                                    >
+                                                                                                        {getPaymentMethodLabel(
+                                                                                                            raw,
+                                                                                                        ) ||
+                                                                                                            raw ||
+                                                                                                            m}
+                                                                                                    </option>
+                                                                                                ) : null}
+                                                                                                {EDITABLE_PAYMENT_METHOD_CODES.map(
+                                                                                                    (
+                                                                                                        code,
+                                                                                                    ) => (
+                                                                                                        <option
+                                                                                                            key={
+                                                                                                                code
+                                                                                                            }
+                                                                                                            value={
+                                                                                                                code
+                                                                                                            }
+                                                                                                        >
+                                                                                                            {getPaymentMethodLabel(
+                                                                                                                code,
+                                                                                                            )}
+                                                                                                        </option>
+                                                                                                    ),
+                                                                                                )}
+                                                                                            </select>
+                                                                                        );
+                                                                                    }
+                                                                                    return getPaymentMethodLabel(
+                                                                                        method,
+                                                                                    );
+                                                                                })()}
+                                                                            </td>
+                                                                            <td
+                                                                                style={{
+                                                                                    padding:
+                                                                                        "0.75rem",
+                                                                                    textAlign:
+                                                                                        "center",
+                                                                                    fontWeight: 600,
+                                                                                    color: isCancelled
+                                                                                        ? "#94a3b8"
+                                                                                        : type ===
+                                                                                            "INCOME"
+                                                                                          ? "#16a34a"
+                                                                                          : "#dc2626",
+                                                                                    textDecoration:
+                                                                                        isCancelled
+                                                                                            ? "line-through"
+                                                                                            : undefined,
+                                                                                }}
+                                                                            >
+                                                                                {type ===
+                                                                                "EXPENSE"
+                                                                                    ? "-"
+                                                                                    : ""}
+                                                                                {currencyFormatter.format(
+                                                                                    amount,
+                                                                                )}
+                                                                            </td>
+                                                                            <td
+                                                                                style={{
+                                                                                    padding:
+                                                                                        "0.75rem",
+                                                                                    color: isCancelled
+                                                                                        ? "#94a3b8"
+                                                                                        : "#64748b",
+                                                                                }}
+                                                                            >
+                                                                                {mov
+                                                                                    .user
+                                                                                    ?.fullName ??
+                                                                                    (
+                                                                                        mov as any
+                                                                                    )
+                                                                                        .user
+                                                                                        ?.full_name ??
+                                                                                    "—"}
+                                                                            </td>
+                                                                            <td
+                                                                                style={{
+                                                                                    padding:
+                                                                                        "0.75rem",
+                                                                                    color: isCancelled
+                                                                                        ? "#94a3b8"
+                                                                                        : "#64748b",
+                                                                                    fontSize:
+                                                                                        "0.75rem",
+                                                                                }}
+                                                                            >
+                                                                                <div
+                                                                                    style={{
+                                                                                        fontWeight: 600,
+                                                                                        color: isCancelled
+                                                                                            ? "#94a3b8"
+                                                                                            : "#475569",
+                                                                                    }}
+                                                                                >
+                                                                                    {mov
+                                                                                        .operation
+                                                                                        ?.order
+                                                                                        ? `Op: ${mov.operation.order}`
+                                                                                        : "—"}
+                                                                                </div>
+                                                                                <div
+                                                                                    style={{
+                                                                                        fontStyle:
+                                                                                            "italic",
+                                                                                        marginTop:
+                                                                                            "0.1rem",
+                                                                                    }}
+                                                                                >
+                                                                                    {mov.notes ||
+                                                                                        "—"}
+                                                                                </div>
+                                                                            </td>
+                                                                            <td
+                                                                                style={{
+                                                                                    padding:
+                                                                                        "0.75rem",
+                                                                                    color: isCancelled
+                                                                                        ? "#94a3b8"
+                                                                                        : "#64748b",
+                                                                                    fontSize:
+                                                                                        "0.75rem",
+                                                                                }}
+                                                                            >
+                                                                                {
+                                                                                    docLabel
+                                                                                }
+                                                                            </td>
+                                                                            <td
+                                                                                style={{
+                                                                                    padding:
+                                                                                        "0.75rem",
+                                                                                    textAlign:
+                                                                                        "center",
+                                                                                    verticalAlign:
+                                                                                        "middle",
+                                                                                }}
+                                                                            >
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={(
+                                                                                        e,
+                                                                                    ) => {
+                                                                                        e.stopPropagation();
+                                                                                        handlePrintPayment(
+                                                                                            mov.id,
+                                                                                        );
+                                                                                    }}
+                                                                                    disabled={
+                                                                                        printingPaymentId ===
+                                                                                        mov.id
+                                                                                    }
+                                                                                    title="Imprimir este movimiento (incluye anulados)"
+                                                                                    style={{
+                                                                                        padding:
+                                                                                            "0.35rem 0.6rem",
+                                                                                        borderRadius:
+                                                                                            "8px",
+                                                                                        border: "none",
+                                                                                        backgroundColor:
+                                                                                            printingPaymentId ===
+                                                                                            mov.id
+                                                                                                ? "#94a3b8"
+                                                                                                : "#2563eb",
+                                                                                        color: "white",
+                                                                                        fontSize:
+                                                                                            "0.75rem",
+                                                                                        cursor:
+                                                                                            printingPaymentId ===
+                                                                                            mov.id
+                                                                                                ? "not-allowed"
+                                                                                                : "pointer",
+                                                                                        opacity:
+                                                                                            printingPaymentId ===
+                                                                                            mov.id
+                                                                                                ? 0.8
+                                                                                                : 1,
+                                                                                    }}
+                                                                                >
+                                                                                    {printingPaymentId ===
+                                                                                    mov.id
+                                                                                        ? "Imprimiendo..."
+                                                                                        : "🖨️"}
+                                                                                </button>
+                                                                            </td>
+                                                                            <td
+                                                                                style={{
+                                                                                    padding:
+                                                                                        "0.75rem",
+                                                                                    textAlign:
+                                                                                        "center",
+                                                                                    verticalAlign:
+                                                                                        "middle",
+                                                                                }}
+                                                                            >
+                                                                                {isCancelled ? (
+                                                                                    <span
+                                                                                        style={{
+                                                                                            display:
+                                                                                                "inline-block",
+                                                                                            padding:
+                                                                                                "0.25rem 0.5rem",
+                                                                                            borderRadius:
+                                                                                                "6px",
+                                                                                            fontSize:
+                                                                                                "0.7rem",
+                                                                                            fontWeight: 700,
+                                                                                            backgroundColor:
+                                                                                                "#f1f5f9",
+                                                                                            color: "#64748b",
+                                                                                            border: "1px dashed #cbd5e1",
+                                                                                        }}
+                                                                                        title="Este movimiento fue anulado"
+                                                                                    >
+                                                                                        Anulado
+                                                                                    </span>
+                                                                                ) : canCancel &&
+                                                                                  canVoidManualMovementInList ? (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={(
+                                                                                            e,
+                                                                                        ) => {
+                                                                                            e.stopPropagation();
+                                                                                            handleCancelManualPayment(
+                                                                                                mov.id,
+                                                                                            );
+                                                                                        }}
+                                                                                        disabled={
+                                                                                            cancelingPaymentId ===
+                                                                                            mov.id
+                                                                                        }
+                                                                                        title="Anular solo ingreso/egreso manual"
+                                                                                        style={{
+                                                                                            padding:
+                                                                                                "0.35rem 0.55rem",
+                                                                                            borderRadius:
+                                                                                                "8px",
+                                                                                            border: "none",
+                                                                                            backgroundColor:
+                                                                                                cancelingPaymentId ===
+                                                                                                mov.id
+                                                                                                    ? "#94a3b8"
+                                                                                                    : "#b91c1c",
+                                                                                            color: "white",
+                                                                                            fontSize:
+                                                                                                "0.75rem",
+                                                                                            fontWeight: 600,
+                                                                                            cursor:
+                                                                                                cancelingPaymentId ===
+                                                                                                mov.id
+                                                                                                    ? "not-allowed"
+                                                                                                    : "pointer",
+                                                                                            opacity:
+                                                                                                cancelingPaymentId ===
+                                                                                                mov.id
+                                                                                                    ? 0.85
+                                                                                                    : 1,
+                                                                                        }}
+                                                                                    >
+                                                                                        {cancelingPaymentId ===
+                                                                                        mov.id
+                                                                                            ? "…"
+                                                                                            : "Anular"}
+                                                                                    </button>
+                                                                                ) : canCancel &&
+                                                                                  !canVoidManualMovementInList ? (
+                                                                                    <span
+                                                                                        style={{
+                                                                                            color: "#94a3b8",
+                                                                                            fontSize:
+                                                                                                "0.7rem",
+                                                                                        }}
+                                                                                        title="Sin permiso para anular movimientos en caja"
+                                                                                    >
+                                                                                        —
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span
+                                                                                        style={{
+                                                                                            color: "#94a3b8",
+                                                                                            fontSize:
+                                                                                                "0.7rem",
+                                                                                        }}
+                                                                                        title="Ventas, compras u operaciones con orden no se anulan aquí"
+                                                                                    >
+                                                                                        —
+                                                                                    </span>
+                                                                                )}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                },
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                ) : (
+                                                    <div
+                                                        style={{
+                                                            display: "flex",
+                                                            flexDirection:
+                                                                "column",
+                                                            gap: "1rem",
+                                                        }}
+                                                    >
                                                         {movements.map(
                                                             (mov) => {
                                                                 const dateStr =
@@ -1946,7 +2523,15 @@ const Cashs: React.FC = () => {
                                                                               "",
                                                                           ) ||
                                                                           "—"
-                                                                        : "—";
+                                                                        : (
+                                                                              mov as any
+                                                                          )
+                                                                              .reference ||
+                                                                          (
+                                                                              mov as any
+                                                                          )
+                                                                              .referenceNumber ||
+                                                                          "";
                                                                 const isCancelled =
                                                                     isCancelledCashMovement(
                                                                         mov,
@@ -1956,52 +2541,49 @@ const Cashs: React.FC = () => {
                                                                         mov,
                                                                     );
                                                                 return (
-                                                                    <tr
+                                                                    <div
                                                                         key={
                                                                             mov.id
                                                                         }
                                                                         style={{
-                                                                            borderBottom:
-                                                                                "1px solid #f1f5f9",
-                                                                            opacity:
-                                                                                isCancelled
-                                                                                    ? 0.48
-                                                                                    : 1,
+                                                                            padding:
+                                                                                "1rem",
+                                                                            borderRadius:
+                                                                                "12px",
+                                                                            border: "1px solid #e2e8f0",
                                                                             backgroundColor:
                                                                                 isCancelled
-                                                                                    ? "rgba(241, 245, 249, 0.65)"
-                                                                                    : undefined,
-                                                                            filter: isCancelled
-                                                                                ? "grayscale(0.35)"
-                                                                                : undefined,
-                                                                            transition:
-                                                                                "opacity 0.15s ease",
+                                                                                    ? "#f8fafc"
+                                                                                    : "white",
+                                                                            opacity:
+                                                                                isCancelled
+                                                                                    ? 0.7
+                                                                                    : 1,
                                                                         }}
-                                                                        title={
-                                                                            isCancelled
-                                                                                ? "Movimiento anulado (no cuenta en caja)"
-                                                                                : undefined
-                                                                        }
                                                                     >
-                                                                        <td
+                                                                        <div
                                                                             style={{
-                                                                                padding:
-                                                                                    "0.75rem",
-                                                                                color: "#334155",
+                                                                                display:
+                                                                                    "flex",
+                                                                                justifyContent:
+                                                                                    "space-between",
+                                                                                marginBottom:
+                                                                                    "0.5rem",
                                                                             }}
                                                                         >
-                                                                            {dateStr
-                                                                                ? formatDate(
-                                                                                      dateStr,
-                                                                                  )
-                                                                                : "—"}
-                                                                        </td>
-                                                                        <td
-                                                                            style={{
-                                                                                padding:
-                                                                                    "0.75rem",
-                                                                            }}
-                                                                        >
+                                                                            <span
+                                                                                style={{
+                                                                                    fontSize:
+                                                                                        "0.75rem",
+                                                                                    color: "#64748b",
+                                                                                }}
+                                                                            >
+                                                                                {dateStr
+                                                                                    ? formatDate(
+                                                                                          dateStr,
+                                                                                      )
+                                                                                    : "—"}
+                                                                            </span>
                                                                             <span
                                                                                 style={{
                                                                                     padding:
@@ -2009,8 +2591,8 @@ const Cashs: React.FC = () => {
                                                                                     borderRadius:
                                                                                         "6px",
                                                                                     fontSize:
-                                                                                        "0.75rem",
-                                                                                    fontWeight: 600,
+                                                                                        "0.7rem",
+                                                                                    fontWeight: 700,
                                                                                     backgroundColor:
                                                                                         isCancelled
                                                                                             ? "#e2e8f0"
@@ -2030,441 +2612,121 @@ const Cashs: React.FC = () => {
                                                                                     type,
                                                                                 )}
                                                                             </span>
-                                                                        </td>
-                                                                        <td
+                                                                        </div>
+                                                                        <div
                                                                             style={{
-                                                                                padding:
-                                                                                    "0.75rem",
-                                                                                color: isCancelled
-                                                                                    ? "#94a3b8"
-                                                                                    : "#475569",
-                                                                                verticalAlign:
-                                                                                    "middle",
-                                                                            }}
-                                                                        >
-                                                                            {(() => {
-                                                                                const raw =
-                                                                                    String(
-                                                                                        method ??
-                                                                                            "",
-                                                                                    ).trim();
-                                                                                const m =
-                                                                                    raw
-                                                                                        .toUpperCase()
-                                                                                        .replace(
-                                                                                            /\s+/g,
-                                                                                            "_",
-                                                                                        );
-                                                                                const codes =
-                                                                                    EDITABLE_PAYMENT_METHOD_CODES as readonly string[];
-                                                                                const isKnownCode =
-                                                                                    codes.includes(
-                                                                                        m,
-                                                                                    );
-                                                                                /** Valor controlado: código estándar, código raro del API, o CASH por defecto. */
-                                                                                const valueForSelect =
-                                                                                    isKnownCode
-                                                                                        ? m
-                                                                                        : m
-                                                                                          ? m
-                                                                                          : "CASH";
-                                                                                const canEditMethod =
-                                                                                    canEditPaymentMethodInMovementsList &&
-                                                                                    !isCancelled;
-                                                                                if (
-                                                                                    canEditMethod
-                                                                                ) {
-                                                                                    return (
-                                                                                        <select
-                                                                                            value={
-                                                                                                valueForSelect
-                                                                                            }
-                                                                                            disabled={
-                                                                                                updatingPaymentMethodId ===
-                                                                                                mov.id
-                                                                                            }
-                                                                                            title="Corregir método de pago (no cambia montos ni saldo)"
-                                                                                            onChange={(
-                                                                                                e,
-                                                                                            ) =>
-                                                                                                handleUpdatePaymentMethod(
-                                                                                                    mov.id,
-                                                                                                    e
-                                                                                                        .target
-                                                                                                        .value,
-                                                                                                    raw ||
-                                                                                                        method,
-                                                                                                )
-                                                                                            }
-                                                                                            style={{
-                                                                                                maxWidth:
-                                                                                                    "168px",
-                                                                                                width: "100%",
-                                                                                                minHeight:
-                                                                                                    "30px",
-                                                                                                fontSize:
-                                                                                                    "0.8125rem",
-                                                                                                padding:
-                                                                                                    "0.35rem 0.45rem",
-                                                                                                borderRadius:
-                                                                                                    "8px",
-                                                                                                border: "2px solid #64748b",
-                                                                                                background:
-                                                                                                    updatingPaymentMethodId ===
-                                                                                                    mov.id
-                                                                                                        ? "#f1f5f9"
-                                                                                                        : "#ffffff",
-                                                                                                color: "#0f172a",
-                                                                                                cursor:
-                                                                                                    updatingPaymentMethodId ===
-                                                                                                    mov.id
-                                                                                                        ? "wait"
-                                                                                                        : "pointer",
-                                                                                                boxShadow:
-                                                                                                    "0 1px 2px rgba(15,23,42,0.08)",
-                                                                                                appearance:
-                                                                                                    "auto",
-                                                                                            }}
-                                                                                        >
-                                                                                            {!isKnownCode &&
-                                                                                            Boolean(
-                                                                                                m,
-                                                                                            ) ? (
-                                                                                                <option
-                                                                                                    value={
-                                                                                                        m
-                                                                                                    }
-                                                                                                >
-                                                                                                    {getPaymentMethodLabel(
-                                                                                                        raw,
-                                                                                                    ) ||
-                                                                                                        raw ||
-                                                                                                        m}
-                                                                                                </option>
-                                                                                            ) : null}
-                                                                                            {EDITABLE_PAYMENT_METHOD_CODES.map(
-                                                                                                (
-                                                                                                    code,
-                                                                                                ) => (
-                                                                                                    <option
-                                                                                                        key={
-                                                                                                            code
-                                                                                                        }
-                                                                                                        value={
-                                                                                                            code
-                                                                                                        }
-                                                                                                    >
-                                                                                                        {getPaymentMethodLabel(
-                                                                                                            code,
-                                                                                                        )}
-                                                                                                    </option>
-                                                                                                ),
-                                                                                            )}
-                                                                                        </select>
-                                                                                    );
-                                                                                }
-                                                                                return getPaymentMethodLabel(
-                                                                                    method,
-                                                                                );
-                                                                            })()}
-                                                                        </td>
-                                                                        <td
-                                                                            style={{
-                                                                                padding:
-                                                                                    "0.75rem",
-                                                                                textAlign:
+                                                                                display:
+                                                                                    "flex",
+                                                                                justifyContent:
+                                                                                    "space-between",
+                                                                                alignItems:
                                                                                     "center",
-                                                                                fontWeight: 600,
-                                                                                color: isCancelled
-                                                                                    ? "#94a3b8"
-                                                                                    : type ===
-                                                                                        "INCOME"
-                                                                                      ? "#16a34a"
-                                                                                      : "#dc2626",
-                                                                                textDecoration:
-                                                                                    isCancelled
-                                                                                        ? "line-through"
-                                                                                        : undefined,
+                                                                                marginBottom:
+                                                                                    "0.5rem",
                                                                             }}
                                                                         >
-                                                                            {type ===
-                                                                            "EXPENSE"
-                                                                                ? "-"
-                                                                                : ""}
-                                                                            {currencyFormatter.format(
-                                                                                amount,
-                                                                            )}
-                                                                        </td>
-                                                                        <td
-                                                                            style={{
-                                                                                padding:
-                                                                                    "0.75rem",
-                                                                                color: isCancelled
-                                                                                    ? "#94a3b8"
-                                                                                    : "#64748b",
-                                                                            }}
-                                                                        >
-                                                                            {mov
-                                                                                .user
-                                                                                ?.fullName ??
-                                                                                (
-                                                                                    mov as any
-                                                                                )
-                                                                                    .user
-                                                                                    ?.full_name ??
-                                                                                "—"}
-                                                                        </td>
-                                                                        <td
-                                                                            style={{
-                                                                                padding:
-                                                                                    "0.75rem",
-                                                                                color: isCancelled
-                                                                                    ? "#94a3b8"
-                                                                                    : "#64748b",
-                                                                                fontSize:
-                                                                                    "0.75rem",
-                                                                            }}
-                                                                        >
-                                                                            <div
+                                                                            <span
                                                                                 style={{
                                                                                     fontWeight: 600,
-                                                                                    color: isCancelled
-                                                                                        ? "#94a3b8"
-                                                                                        : "#475569",
+                                                                                    color: "#1e293b",
                                                                                 }}
                                                                             >
-                                                                                {mov
-                                                                                    .operation
-                                                                                    ?.order
-                                                                                    ? `Op: ${mov.operation.order}`
-                                                                                    : "—"}
-                                                                            </div>
-                                                                            <div
+                                                                                {getPaymentMethodLabel(
+                                                                                    method,
+                                                                                )}
+                                                                            </span>
+                                                                            <span
                                                                                 style={{
-                                                                                    fontStyle:
-                                                                                        "italic",
-                                                                                    marginTop:
-                                                                                        "0.1rem",
+                                                                                    fontWeight: 800,
+                                                                                    fontSize:
+                                                                                        "1.1rem",
+                                                                                    color:
+                                                                                        type ===
+                                                                                        "INCOME"
+                                                                                            ? "#16a34a"
+                                                                                            : "#dc2626",
                                                                                 }}
                                                                             >
-                                                                                {mov.notes ||
-                                                                                    "—"}
-                                                                            </div>
-                                                                        </td>
-                                                                        <td
+                                                                                {currencyFormatter.format(
+                                                                                    amount,
+                                                                                )}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div
                                                                             style={{
-                                                                                padding:
-                                                                                    "0.75rem",
-                                                                                color: isCancelled
-                                                                                    ? "#94a3b8"
-                                                                                    : "#64748b",
                                                                                 fontSize:
+                                                                                    "0.8rem",
+                                                                                color: "#64748b",
+                                                                                marginBottom:
                                                                                     "0.75rem",
                                                                             }}
                                                                         >
-                                                                            {
-                                                                                docLabel
-                                                                            }
-                                                                        </td>
-                                                                        <td
+                                                                            {docLabel ||
+                                                                                mov.notes ||
+                                                                                "Sin referencia"}
+                                                                        </div>
+                                                                        <div
                                                                             style={{
-                                                                                padding:
-                                                                                    "0.75rem",
-                                                                                textAlign:
-                                                                                    "center",
-                                                                                verticalAlign:
-                                                                                    "middle",
+                                                                                display:
+                                                                                    "flex",
+                                                                                gap: "0.5rem",
                                                                             }}
                                                                         >
                                                                             <button
-                                                                                type="button"
-                                                                                onClick={(
-                                                                                    e,
-                                                                                ) => {
-                                                                                    e.stopPropagation();
+                                                                                onClick={() =>
                                                                                     handlePrintPayment(
                                                                                         mov.id,
-                                                                                    );
-                                                                                }}
-                                                                                disabled={
-                                                                                    printingPaymentId ===
-                                                                                    mov.id
+                                                                                    )
                                                                                 }
-                                                                                title="Imprimir este movimiento (incluye anulados)"
                                                                                 style={{
+                                                                                    flex: 1,
                                                                                     padding:
-                                                                                        "0.35rem 0.6rem",
+                                                                                        "0.6rem",
                                                                                     borderRadius:
                                                                                         "8px",
-                                                                                    border: "none",
+                                                                                    border: "1px solid #e2e8f0",
                                                                                     backgroundColor:
-                                                                                        printingPaymentId ===
-                                                                                        mov.id
-                                                                                            ? "#94a3b8"
-                                                                                            : "#2563eb",
-                                                                                    color: "white",
+                                                                                        "#f8fafc",
                                                                                     fontSize:
-                                                                                        "0.75rem",
-                                                                                    cursor:
-                                                                                        printingPaymentId ===
-                                                                                        mov.id
-                                                                                            ? "not-allowed"
-                                                                                            : "pointer",
-                                                                                    opacity:
-                                                                                        printingPaymentId ===
-                                                                                        mov.id
-                                                                                            ? 0.8
-                                                                                            : 1,
+                                                                                        "0.8rem",
+                                                                                    fontWeight: 600,
                                                                                 }}
                                                                             >
-                                                                                {printingPaymentId ===
-                                                                                mov.id
-                                                                                    ? "Imprimiendo..."
-                                                                                    : "🖨️"}
+                                                                                🖨️
+                                                                                Ticket
                                                                             </button>
-                                                                        </td>
-                                                                        <td
-                                                                            style={{
-                                                                                padding:
-                                                                                    "0.75rem",
-                                                                                textAlign:
-                                                                                    "center",
-                                                                                verticalAlign:
-                                                                                    "middle",
-                                                                            }}
-                                                                        >
-                                                                            {isCancelled ? (
-                                                                                <span
-                                                                                    style={{
-                                                                                        display:
-                                                                                            "inline-block",
-                                                                                        padding:
-                                                                                            "0.25rem 0.5rem",
-                                                                                        borderRadius:
-                                                                                            "6px",
-                                                                                        fontSize:
-                                                                                            "0.7rem",
-                                                                                        fontWeight: 700,
-                                                                                        backgroundColor:
-                                                                                            "#f1f5f9",
-                                                                                        color: "#64748b",
-                                                                                        border: "1px dashed #cbd5e1",
-                                                                                    }}
-                                                                                    title="Este movimiento fue anulado"
-                                                                                >
-                                                                                    Anulado
-                                                                                </span>
-                                                                            ) : canCancel &&
-                                                                              canVoidManualMovementInList ? (
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={(
-                                                                                        e,
-                                                                                    ) => {
-                                                                                        e.stopPropagation();
-                                                                                        handleCancelManualPayment(
-                                                                                            mov.id,
-                                                                                        );
-                                                                                    }}
-                                                                                    disabled={
-                                                                                        cancelingPaymentId ===
-                                                                                        mov.id
-                                                                                    }
-                                                                                    title="Anular solo ingreso/egreso manual"
-                                                                                    style={{
-                                                                                        padding:
-                                                                                            "0.35rem 0.55rem",
-                                                                                        borderRadius:
-                                                                                            "8px",
-                                                                                        border: "none",
-                                                                                        backgroundColor:
-                                                                                            cancelingPaymentId ===
-                                                                                            mov.id
-                                                                                                ? "#94a3b8"
-                                                                                                : "#b91c1c",
-                                                                                        color: "white",
-                                                                                        fontSize:
-                                                                                            "0.75rem",
-                                                                                        fontWeight: 600,
-                                                                                        cursor:
-                                                                                            cancelingPaymentId ===
-                                                                                            mov.id
-                                                                                                ? "not-allowed"
-                                                                                                : "pointer",
-                                                                                        opacity:
-                                                                                            cancelingPaymentId ===
-                                                                                            mov.id
-                                                                                                ? 0.85
-                                                                                                : 1,
-                                                                                    }}
-                                                                                >
-                                                                                    {cancelingPaymentId ===
-                                                                                    mov.id
-                                                                                        ? "…"
-                                                                                        : "Anular"}
-                                                                                </button>
-                                                                            ) : canCancel &&
-                                                                              !canVoidManualMovementInList ? (
-                                                                                <span
-                                                                                    style={{
-                                                                                        color: "#94a3b8",
-                                                                                        fontSize:
-                                                                                            "0.7rem",
-                                                                                    }}
-                                                                                    title="Sin permiso para anular movimientos en caja"
-                                                                                >
-                                                                                    —
-                                                                                </span>
-                                                                            ) : (
-                                                                                <span
-                                                                                    style={{
-                                                                                        color: "#94a3b8",
-                                                                                        fontSize:
-                                                                                            "0.7rem",
-                                                                                    }}
-                                                                                    title="Ventas, compras u operaciones con orden no se anulan aquí"
-                                                                                >
-                                                                                    —
-                                                                                </span>
-                                                                            )}
-                                                                        </td>
-                                                                    </tr>
+                                                                            {!isCancelled &&
+                                                                                canCancel &&
+                                                                                canVoidManualMovementInList && (
+                                                                                    <button
+                                                                                        onClick={() =>
+                                                                                            handleCancelManualPayment(
+                                                                                                mov.id,
+                                                                                            )
+                                                                                        }
+                                                                                        style={{
+                                                                                            flex: 1,
+                                                                                            padding:
+                                                                                                "0.6rem",
+                                                                                            borderRadius:
+                                                                                                "8px",
+                                                                                            border: "none",
+                                                                                            backgroundColor:
+                                                                                                "#fee2e2",
+                                                                                            color: "#dc2626",
+                                                                                            fontSize:
+                                                                                                "0.8rem",
+                                                                                            fontWeight: 600,
+                                                                                        }}
+                                                                                    >
+                                                                                        Anular
+                                                                                    </button>
+                                                                                )}
+                                                                        </div>
+                                                                    </div>
                                                                 );
                                                             },
                                                         )}
-                                                    </tbody>
-                                                    </table>
-                                                ) : (
-                                                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                                                        {movements.map((mov) => {
-                                                            const dateStr = (mov as any).paymentDate ?? (mov as any).payment_date ?? mov.paymentDate;
-                                                            const amount = Number((mov as any).paidAmount ?? (mov as any).paid_amount ?? mov.paidAmount ?? 0);
-                                                            const type = (mov as any).transactionType ?? (mov as any).transaction_type ?? mov.transactionType ?? "";
-                                                            const method = (mov as any).paymentMethod ?? (mov as any).payment_method ?? mov.paymentMethod ?? "";
-                                                            const doc = mov.issuedDocument ?? (mov as any).issued_document;
-                                                            const docLabel = doc ? `${doc.serial ?? ""}-${doc.number ?? ""}`.replace(/^-|-$/g, "") || "—" : (mov as any).reference || (mov as any).referenceNumber || "";
-                                                            const isCancelled = isCancelledCashMovement(mov);
-                                                            const canCancel = canCancelManualCashMovement(mov);
-                                                            return (
-                                                                <div key={mov.id} style={{ padding: "1rem", borderRadius: "12px", border: "1px solid #e2e8f0", backgroundColor: isCancelled ? "#f8fafc" : "white", opacity: isCancelled ? 0.7 : 1 }}>
-                                                                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                                                                        <span style={{ fontSize: "0.75rem", color: "#64748b" }}>{dateStr ? formatDate(dateStr) : "—"}</span>
-                                                                        <span style={{ padding: "0.2rem 0.5rem", borderRadius: "6px", fontSize: "0.7rem", fontWeight: 700, backgroundColor: isCancelled ? "#e2e8f0" : type === "INCOME" ? "#dcfce7" : "#fee2e2", color: isCancelled ? "#64748b" : type === "INCOME" ? "#166534" : "#991b1b" }}>{getTransactionTypeLabel(type)}</span>
-                                                                    </div>
-                                                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                                                                        <span style={{ fontWeight: 600, color: "#1e293b" }}>{getPaymentMethodLabel(method)}</span>
-                                                                        <span style={{ fontWeight: 800, fontSize: "1.1rem", color: type === "INCOME" ? "#16a34a" : "#dc2626" }}>{currencyFormatter.format(amount)}</span>
-                                                                    </div>
-                                                                    <div style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.75rem" }}>{docLabel || mov.notes || "Sin referencia"}</div>
-                                                                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                                                                        <button onClick={() => handlePrintPayment(mov.id)} style={{ flex: 1, padding: "0.6rem", borderRadius: "8px", border: "1px solid #e2e8f0", backgroundColor: "#f8fafc", fontSize: "0.8rem", fontWeight: 600 }}>🖨️ Ticket</button>
-                                                                        {!isCancelled && canCancel && canVoidManualMovementInList && (
-                                                                            <button onClick={() => handleCancelManualPayment(mov.id)} style={{ flex: 1, padding: "0.6rem", borderRadius: "8px", border: "none", backgroundColor: "#fee2e2", color: "#dc2626", fontSize: "0.8rem", fontWeight: 600 }}>Anular</button>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
                                                     </div>
                                                 )}
                                             </div>
@@ -3077,296 +3339,326 @@ const Cashs: React.FC = () => {
                             >
                                 {!isXs && !isSmall ? (
                                     <table
-                                    style={{
-                                        width: "100%",
-                                        borderCollapse: "collapse",
-                                        fontSize: "0.875rem",
-                                    }}
-                                >
-                                    <thead>
-                                        <tr
-                                            style={{
-                                                borderBottom:
-                                                    "2px solid #e2e8f0",
-                                                backgroundColor: "#f8fafc",
-                                            }}
-                                        >
-                                            <th
+                                        style={{
+                                            width: "100%",
+                                            borderCollapse: "collapse",
+                                            fontSize: "0.875rem",
+                                        }}
+                                    >
+                                        <thead>
+                                            <tr
                                                 style={{
-                                                    padding: "1rem",
-                                                    textAlign: "center",
-                                                    color: "#64748b",
-                                                    fontWeight: 600,
+                                                    borderBottom:
+                                                        "2px solid #e2e8f0",
+                                                    backgroundColor: "#f8fafc",
                                                 }}
                                             >
-                                                N° Cierre
-                                            </th>
-                                            <th
-                                                style={{
-                                                    padding: "1rem",
-                                                    textAlign: "center",
-                                                    color: "#64748b",
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Caja
-                                            </th>
-                                            <th
-                                                style={{
-                                                    padding: "1rem",
-                                                    textAlign: "center",
-                                                    color: "#64748b",
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Usuario
-                                            </th>
-                                            <th
-                                                style={{
-                                                    padding: "1rem",
-                                                    textAlign: "center",
-                                                    color: "#64748b",
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Fecha y Hora
-                                            </th>
-                                            <th
-                                                style={{
-                                                    padding: "1rem",
-                                                    textAlign: "center",
-                                                    color: "#64748b",
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Ingresos
-                                            </th>
-                                            <th
-                                                style={{
-                                                    padding: "1rem",
-                                                    textAlign: "center",
-                                                    color: "#64748b",
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Egresos
-                                            </th>
-                                            <th
-                                                style={{
-                                                    padding: "1rem",
-                                                    textAlign: "center",
-                                                    color: "#64748b",
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Neto
-                                            </th>
-                                            <th
-                                                style={{
-                                                    padding: "1rem",
-                                                    textAlign: "center",
-                                                    color: "#64748b",
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Acciones
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {closures.map((closure, index) => {
-                                            const {
-                                                bg: cashBg,
-                                                color: cashColor,
-                                            } = getCashTypeColor(
-                                                closure.cashRegister.cashType,
-                                            );
-                                            return (
-                                                <tr
-                                                    key={closure.id}
+                                                <th
                                                     style={{
-                                                        borderBottom:
-                                                            index <
-                                                            closures.length - 1
-                                                                ? "1px solid #f1f5f9"
-                                                                : "none",
-                                                        transition:
-                                                            "background-color 0.2s",
-                                                        cursor: "pointer",
-                                                    }}
-                                                    onClick={() =>
-                                                        setSelectedClosureForDetail(
-                                                            closure as CashClosureForDetail,
-                                                        )
-                                                    }
-                                                    onMouseEnter={(e) => {
-                                                        e.currentTarget.style.backgroundColor =
-                                                            "#f8fafc";
-                                                    }}
-                                                    onMouseLeave={(e) => {
-                                                        e.currentTarget.style.backgroundColor =
-                                                            "transparent";
+                                                        padding: "1rem",
+                                                        textAlign: "center",
+                                                        color: "#64748b",
+                                                        fontWeight: 600,
                                                     }}
                                                 >
-                                                    <td
+                                                    N° Cierre
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: "1rem",
+                                                        textAlign: "center",
+                                                        color: "#64748b",
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    Caja
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: "1rem",
+                                                        textAlign: "center",
+                                                        color: "#64748b",
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    Usuario
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: "1rem",
+                                                        textAlign: "center",
+                                                        color: "#64748b",
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    Fecha y Hora
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: "1rem",
+                                                        textAlign: "center",
+                                                        color: "#64748b",
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    Ingresos
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: "1rem",
+                                                        textAlign: "center",
+                                                        color: "#64748b",
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    Egresos
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: "1rem",
+                                                        textAlign: "center",
+                                                        color: "#64748b",
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    Neto
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: "1rem",
+                                                        textAlign: "center",
+                                                        color: "#64748b",
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    Acciones
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {closures.map((closure, index) => {
+                                                const {
+                                                    bg: cashBg,
+                                                    color: cashColor,
+                                                } = getCashTypeColor(
+                                                    closure.cashRegister
+                                                        .cashType,
+                                                );
+                                                return (
+                                                    <tr
+                                                        key={closure.id}
                                                         style={{
-                                                            padding: "1rem",
-                                                            color: "#334155",
-                                                            fontWeight: 700,
+                                                            borderBottom:
+                                                                index <
+                                                                closures.length -
+                                                                    1
+                                                                    ? "1px solid #f1f5f9"
+                                                                    : "none",
+                                                            transition:
+                                                                "background-color 0.2s",
+                                                            cursor: "pointer",
+                                                        }}
+                                                        onClick={() =>
+                                                            setSelectedClosureForDetail(
+                                                                closure as CashClosureForDetail,
+                                                            )
+                                                        }
+                                                        onMouseEnter={(e) => {
+                                                            e.currentTarget.style.backgroundColor =
+                                                                "#f8fafc";
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            e.currentTarget.style.backgroundColor =
+                                                                "transparent";
                                                         }}
                                                     >
-                                                        <span
+                                                        <td
                                                             style={{
-                                                                display:
-                                                                    "inline-block",
-                                                                padding:
-                                                                    "0.25rem 0.75rem",
-                                                                borderRadius:
-                                                                    "6px",
-                                                                backgroundColor:
-                                                                    "#eff6ff",
-                                                                color: "#2563eb",
-                                                                fontSize:
-                                                                    "0.75rem",
-                                                            }}
-                                                        >
-                                                            #
-                                                            {
-                                                                closure.closureNumber
-                                                            }
-                                                        </span>
-                                                    </td>
-                                                    <td
-                                                        style={{
-                                                            padding: "1rem",
-                                                            color: "#334155",
-                                                            textAlign: "center",
-                                                        }}
-                                                    >
-                                                        <div
-                                                            style={{
-                                                                display: "flex",
-                                                                textAlign:
-                                                                    "center",
-                                                                gap: "0.5rem",
+                                                                padding: "1rem",
+                                                                color: "#334155",
+                                                                fontWeight: 700,
                                                             }}
                                                         >
                                                             <span
                                                                 style={{
-                                                                    textAlign:
-                                                                        "center",
-                                                                    fontWeight: 500,
+                                                                    display:
+                                                                        "inline-block",
                                                                     padding:
-                                                                        "0.25rem 0.5rem",
+                                                                        "0.25rem 0.75rem",
                                                                     borderRadius:
                                                                         "6px",
                                                                     backgroundColor:
-                                                                        cashBg,
-                                                                    color: cashColor,
-                                                                }}
-                                                            >
-                                                                {
-                                                                    closure
-                                                                        .cashRegister
-                                                                        .name
-                                                                }
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td
-                                                        style={{
-                                                            padding: "1rem",
-                                                            color: "#334155",
-                                                        }}
-                                                    >
-                                                        <div>
-                                                            <div
-                                                                style={{
-                                                                    fontWeight: 500,
-                                                                }}
-                                                            >
-                                                                {
-                                                                    closure.user
-                                                                        .fullName
-                                                                }
-                                                            </div>
-                                                            <div
-                                                                style={{
+                                                                        "#eff6ff",
+                                                                    color: "#2563eb",
                                                                     fontSize:
                                                                         "0.75rem",
-                                                                    color: "#64748b",
-                                                                    marginTop:
-                                                                        "0.25rem",
                                                                 }}
                                                             >
+                                                                #
                                                                 {
-                                                                    closure.user
-                                                                        .role
+                                                                    closure.closureNumber
                                                                 }
+                                                            </span>
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: "1rem",
+                                                                color: "#334155",
+                                                                textAlign:
+                                                                    "center",
+                                                            }}
+                                                        >
+                                                            <div
+                                                                style={{
+                                                                    display:
+                                                                        "flex",
+                                                                    textAlign:
+                                                                        "center",
+                                                                    gap: "0.5rem",
+                                                                }}
+                                                            >
+                                                                <span
+                                                                    style={{
+                                                                        textAlign:
+                                                                            "center",
+                                                                        fontWeight: 500,
+                                                                        padding:
+                                                                            "0.25rem 0.5rem",
+                                                                        borderRadius:
+                                                                            "6px",
+                                                                        backgroundColor:
+                                                                            cashBg,
+                                                                        color: cashColor,
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        closure
+                                                                            .cashRegister
+                                                                            .name
+                                                                    }
+                                                                </span>
                                                             </div>
-                                                        </div>
-                                                    </td>
-                                                    <td
-                                                        style={{
-                                                            padding: "1rem",
-                                                            color: "#64748b",
-                                                        }}
-                                                    >
-                                                        <div>
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: "1rem",
+                                                                color: "#334155",
+                                                            }}
+                                                        >
                                                             <div>
-                                                                {formatDate(
-                                                                    closure.closedAt,
-                                                                )}
+                                                                <div
+                                                                    style={{
+                                                                        fontWeight: 500,
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        closure
+                                                                            .user
+                                                                            .fullName
+                                                                    }
+                                                                </div>
+                                                                <div
+                                                                    style={{
+                                                                        fontSize:
+                                                                            "0.75rem",
+                                                                        color: "#64748b",
+                                                                        marginTop:
+                                                                            "0.25rem",
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        closure
+                                                                            .user
+                                                                            .role
+                                                                    }
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    </td>
-                                                    <td
-                                                        style={{
-                                                            padding: "1rem",
-                                                            textAlign: "center",
-                                                            color: "#16a34a",
-                                                            fontWeight: 600,
-                                                        }}
-                                                    >
-                                                        {currencyFormatter.format(
-                                                            Number(
-                                                                (closure as any)
-                                                                    .totalIncome ??
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: "1rem",
+                                                                color: "#64748b",
+                                                            }}
+                                                        >
+                                                            <div>
+                                                                <div>
+                                                                    {formatDate(
+                                                                        closure.closedAt,
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: "1rem",
+                                                                textAlign:
+                                                                    "center",
+                                                                color: "#16a34a",
+                                                                fontWeight: 600,
+                                                            }}
+                                                        >
+                                                            {currencyFormatter.format(
+                                                                Number(
                                                                     (
                                                                         closure as any
                                                                     )
-                                                                        .total_income ??
-                                                                    0,
-                                                            ),
-                                                        )}
-                                                    </td>
-                                                    <td
-                                                        style={{
-                                                            padding: "1rem",
-                                                            textAlign: "center",
-                                                            color: "#dc2626",
-                                                            fontWeight: 600,
-                                                        }}
-                                                    >
-                                                        {currencyFormatter.format(
-                                                            Number(
-                                                                (closure as any)
-                                                                    .totalExpense ??
+                                                                        .totalIncome ??
+                                                                        (
+                                                                            closure as any
+                                                                        )
+                                                                            .total_income ??
+                                                                        0,
+                                                                ),
+                                                            )}
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: "1rem",
+                                                                textAlign:
+                                                                    "center",
+                                                                color: "#dc2626",
+                                                                fontWeight: 600,
+                                                            }}
+                                                        >
+                                                            {currencyFormatter.format(
+                                                                Number(
                                                                     (
                                                                         closure as any
                                                                     )
-                                                                        .total_expense ??
-                                                                    0,
-                                                            ),
-                                                        )}
-                                                    </td>
-                                                    <td
-                                                        style={{
-                                                            padding: "1rem",
-                                                            textAlign: "center",
-                                                            fontWeight: 700,
-                                                            fontSize: "1rem",
-                                                            color:
+                                                                        .totalExpense ??
+                                                                        (
+                                                                            closure as any
+                                                                        )
+                                                                            .total_expense ??
+                                                                        0,
+                                                                ),
+                                                            )}
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: "1rem",
+                                                                textAlign:
+                                                                    "center",
+                                                                fontWeight: 700,
+                                                                fontSize:
+                                                                    "1rem",
+                                                                color:
+                                                                    Number(
+                                                                        (
+                                                                            closure as any
+                                                                        )
+                                                                            .netTotal ??
+                                                                            (
+                                                                                closure as any
+                                                                            )
+                                                                                .net_total ??
+                                                                            0,
+                                                                    ) >= 0
+                                                                        ? "#16a34a"
+                                                                        : "#dc2626",
+                                                            }}
+                                                        >
+                                                            {currencyFormatter.format(
                                                                 Number(
                                                                     (
                                                                         closure as any
@@ -3377,107 +3669,234 @@ const Cashs: React.FC = () => {
                                                                         )
                                                                             .net_total ??
                                                                         0,
-                                                                ) >= 0
-                                                                    ? "#16a34a"
-                                                                    : "#dc2626",
-                                                        }}
-                                                    >
-                                                        {currencyFormatter.format(
-                                                            Number(
-                                                                (closure as any)
-                                                                    .netTotal ??
-                                                                    (
-                                                                        closure as any
-                                                                    )
-                                                                        .net_total ??
-                                                                    0,
-                                                            ),
-                                                        )}
-                                                    </td>
-                                                    <td
-                                                        style={{
-                                                            padding: "1rem",
-                                                            textAlign: "center",
-                                                            verticalAlign:
-                                                                "middle",
-                                                        }}
-                                                        onClick={(e) =>
-                                                            e.stopPropagation()
-                                                        }
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                handleReprintClosure(
-                                                                    closure,
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                reprintingClosureId ===
-                                                                    closure.id ||
-                                                                reprintingClosure
-                                                            }
-                                                            title="Reimprimir este cierre"
+                                                                ),
+                                                            )}
+                                                        </td>
+                                                        <td
                                                             style={{
-                                                                padding:
-                                                                    "0.4rem 0.75rem",
-                                                                borderRadius:
-                                                                    "8px",
-                                                                border: "none",
-                                                                backgroundColor:
+                                                                padding: "1rem",
+                                                                textAlign:
+                                                                    "center",
+                                                                verticalAlign:
+                                                                    "middle",
+                                                            }}
+                                                            onClick={(e) =>
+                                                                e.stopPropagation()
+                                                            }
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    handleReprintClosure(
+                                                                        closure,
+                                                                    )
+                                                                }
+                                                                disabled={
                                                                     reprintingClosureId ===
-                                                                    closure.id
-                                                                        ? "#94a3b8"
-                                                                        : "#2563eb",
-                                                                color: "white",
-                                                                fontSize:
-                                                                    "0.75rem",
-                                                                fontWeight: 600,
-                                                                cursor:
-                                                                    reprintingClosureId ===
-                                                                    closure.id
-                                                                        ? "not-allowed"
-                                                                        : "pointer",
-                                                                opacity:
-                                                                    reprintingClosureId ===
-                                                                    closure.id
-                                                                        ? 0.8
-                                                                        : 1,
+                                                                        closure.id ||
+                                                                    reprintingClosure
+                                                                }
+                                                                title="Reimprimir este cierre"
+                                                                style={{
+                                                                    padding:
+                                                                        "0.4rem 0.75rem",
+                                                                    borderRadius:
+                                                                        "8px",
+                                                                    border: "none",
+                                                                    backgroundColor:
+                                                                        reprintingClosureId ===
+                                                                        closure.id
+                                                                            ? "#94a3b8"
+                                                                            : "#2563eb",
+                                                                    color: "white",
+                                                                    fontSize:
+                                                                        "0.75rem",
+                                                                    fontWeight: 600,
+                                                                    cursor:
+                                                                        reprintingClosureId ===
+                                                                        closure.id
+                                                                            ? "not-allowed"
+                                                                            : "pointer",
+                                                                    opacity:
+                                                                        reprintingClosureId ===
+                                                                        closure.id
+                                                                            ? 0.8
+                                                                            : 1,
+                                                                }}
+                                                            >
+                                                                {reprintingClosureId ===
+                                                                closure.id
+                                                                    ? "Imprimiendo..."
+                                                                    : "Reimprimir"}
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                ) : (
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            gap: "1rem",
+                                            padding: "0.5rem",
+                                        }}
+                                    >
+                                        {closures.map((closure) => {
+                                            const {
+                                                bg: cashBg,
+                                                color: cashColor,
+                                            } = getCashTypeColor(
+                                                closure.cashRegister.cashType,
+                                            );
+                                            const net = Number(
+                                                (closure as any).netTotal ??
+                                                    (closure as any)
+                                                        .net_total ??
+                                                    0,
+                                            );
+                                            return (
+                                                <div
+                                                    key={closure.id}
+                                                    onClick={() =>
+                                                        setSelectedClosureForDetail(
+                                                            closure as CashClosureForDetail,
+                                                        )
+                                                    }
+                                                    style={{
+                                                        padding: "1rem",
+                                                        borderRadius: "12px",
+                                                        border: "1px solid #e2e8f0",
+                                                        backgroundColor:
+                                                            "white",
+                                                    }}
+                                                >
+                                                    <div
+                                                        style={{
+                                                            display: "flex",
+                                                            justifyContent:
+                                                                "space-between",
+                                                            marginBottom:
+                                                                "0.75rem",
+                                                        }}
+                                                    >
+                                                        <span
+                                                            style={{
+                                                                fontWeight: 800,
+                                                                color: "#2563eb",
                                                             }}
                                                         >
-                                                            {reprintingClosureId ===
-                                                            closure.id
-                                                                ? "Imprimiendo..."
-                                                                : "Reimprimir"}
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                                ) : (
-                                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", padding: "0.5rem" }}>
-                                        {closures.map((closure) => {
-                                            const { bg: cashBg, color: cashColor } = getCashTypeColor(closure.cashRegister.cashType);
-                                            const income = Number((closure as any).totalIncome ?? (closure as any).total_income ?? 0);
-                                            const expense = Number((closure as any).totalExpense ?? (closure as any).total_expense ?? 0);
-                                            const net = Number((closure as any).netTotal ?? (closure as any).net_total ?? 0);
-                                            return (
-                                                <div key={closure.id} onClick={() => setSelectedClosureForDetail(closure as CashClosureForDetail)} style={{ padding: "1rem", borderRadius: "12px", border: "1px solid #e2e8f0", backgroundColor: "white" }}>
-                                                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.75rem" }}>
-                                                        <span style={{ fontWeight: 800, color: "#2563eb" }}>Cierre #{closure.closureNumber}</span>
-                                                        <span style={{ fontSize: "0.75rem", color: "#64748b" }}>{formatDate(closure.closedAt)}</span>
+                                                            Cierre #
+                                                            {
+                                                                closure.closureNumber
+                                                            }
+                                                        </span>
+                                                        <span
+                                                            style={{
+                                                                fontSize:
+                                                                    "0.75rem",
+                                                                color: "#64748b",
+                                                            }}
+                                                        >
+                                                            {formatDate(
+                                                                closure.closedAt,
+                                                            )}
+                                                        </span>
                                                     </div>
-                                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                                                        <span style={{ padding: "0.25rem 0.5rem", borderRadius: "6px", fontSize: "0.8rem", fontWeight: 600, backgroundColor: cashBg, color: cashColor }}>{closure.cashRegister.name}</span>
-                                                        <span style={{ fontWeight: 700, fontSize: "1.1rem", color: net >= 0 ? "#16a34a" : "#dc2626" }}>{currencyFormatter.format(net)}</span>
+                                                    <div
+                                                        style={{
+                                                            display: "flex",
+                                                            justifyContent:
+                                                                "space-between",
+                                                            alignItems:
+                                                                "center",
+                                                            marginBottom:
+                                                                "1rem",
+                                                        }}
+                                                    >
+                                                        <span
+                                                            style={{
+                                                                padding:
+                                                                    "0.25rem 0.5rem",
+                                                                borderRadius:
+                                                                    "6px",
+                                                                fontSize:
+                                                                    "0.8rem",
+                                                                fontWeight: 600,
+                                                                backgroundColor:
+                                                                    cashBg,
+                                                                color: cashColor,
+                                                            }}
+                                                        >
+                                                            {
+                                                                closure
+                                                                    .cashRegister
+                                                                    .name
+                                                            }
+                                                        </span>
+                                                        <span
+                                                            style={{
+                                                                fontWeight: 700,
+                                                                fontSize:
+                                                                    "1.1rem",
+                                                                color:
+                                                                    net >= 0
+                                                                        ? "#16a34a"
+                                                                        : "#dc2626",
+                                                            }}
+                                                        >
+                                                            {currencyFormatter.format(
+                                                                net,
+                                                            )}
+                                                        </span>
                                                     </div>
-                                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem" }}>
-                                                        <div style={{ color: "#475569" }}>
-                                                            <strong>Usuario:</strong> {closure.user.fullName}
+                                                    <div
+                                                        style={{
+                                                            display: "flex",
+                                                            justifyContent:
+                                                                "space-between",
+                                                            alignItems:
+                                                                "center",
+                                                            fontSize: "0.85rem",
+                                                        }}
+                                                    >
+                                                        <div
+                                                            style={{
+                                                                color: "#475569",
+                                                            }}
+                                                        >
+                                                            <strong>
+                                                                Usuario:
+                                                            </strong>{" "}
+                                                            {
+                                                                closure.user
+                                                                    .fullName
+                                                            }
                                                         </div>
-                                                        <button onClick={(e) => { e.stopPropagation(); handleReprintClosure(closure); }} style={{ padding: "0.5rem 1rem", borderRadius: "8px", border: "1px solid #e2e8f0", backgroundColor: "#f8fafc", fontSize: "0.8rem", fontWeight: 600 }}>🖨️ Ticket</button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleReprintClosure(
+                                                                    closure,
+                                                                );
+                                                            }}
+                                                            style={{
+                                                                padding:
+                                                                    "0.5rem 1rem",
+                                                                borderRadius:
+                                                                    "8px",
+                                                                border: "1px solid #e2e8f0",
+                                                                backgroundColor:
+                                                                    "#f8fafc",
+                                                                fontSize:
+                                                                    "0.8rem",
+                                                                fontWeight: 600,
+                                                            }}
+                                                        >
+                                                            🖨️ Ticket
+                                                        </button>
                                                     </div>
                                                 </div>
                                             );
