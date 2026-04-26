@@ -153,35 +153,20 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         // URL del WebSocket según tu backend
         const wSocketUrl = import.meta.env.VITE_WS_URL;
 
-        //const wsUrl = `ws://192.168.1.22:8000/ws/restaurant/${companyData.branch.id}/`;
-        const wsUrl = `${wSocketUrl}${companyData.branch.id}/`;
-
+        // const wsUrl = `ws://192.168.1.22:8000/ws/restaurant/${companyData.branch.id}/`;
+        // const wsUrl = `${wSocketUrl}${companyData.branch.id}/`;
+        // ✅ SOLUCIÓN: Enviar token como query parameter (funciona en navegador y Electron)
+        const wsUrl = `${wSocketUrl}${companyData.branch.id}/?token=${encodeURIComponent(tokenFromStorage)}`;
         console.log(
             "🔌 Intentando conectar WebSocket... (intento",
             reconnectAttemptsRef.current + 1,
             ")",
         );
-        const isElectron = () => {
-            return !!(window as any).electron || !!(window as any).require;
-        };
+        console.log("URL:", wsUrl.replace(tokenFromStorage, "TOKEN_OCULTO")); // Log seguro
         try {
             let ws;
 
-            if (isElectron()) {
-                // Entorno Electron - usar WebSocket con headers
-                const WebSocketNode = (window as any).require("ws");
-                ws = new WebSocketNode(wsUrl, {
-                    headers: {
-                        Authorization: `Bearer ${tokenFromStorage}`,
-                    },
-                });
-            } else {
-                // Navegador web - WebSocket estándar (no soporta headers personalizados)
-                // En este caso, el token debe ir en la URL o usar otro método
-                const urlWithToken = `${wsUrl}?token=${encodeURIComponent(tokenFromStorage)}`;
-                ws = new WebSocket(urlWithToken);
-            }
-
+            ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
             // Manejar eventos de forma compatible con Navegador y Electron (ws)
@@ -203,13 +188,19 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                 try {
                     // En navegador el mensaje viene en event.data, en Node 'ws' puede venir directo o en data
                     const rawData = event.data || event;
-                    const messageString = typeof rawData === 'string' ? rawData : rawData.toString();
+                    const messageString =
+                        typeof rawData === "string"
+                            ? rawData
+                            : rawData.toString();
                     const message = JSON.parse(messageString);
-                    
+
                     console.log("🔄 Mensaje WebSocket recibido:", message);
                     notifySubscribers(message);
                 } catch (error) {
-                    console.error("❌ Error parseando mensaje WebSocket:", error);
+                    console.error(
+                        "❌ Error parseando mensaje WebSocket:",
+                        error,
+                    );
                 }
             };
 
@@ -225,7 +216,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
             ws.onclose = (event: any) => {
                 const code = event.code || event;
                 const reason = event.reason || "Sin razón";
-                
+
                 console.log("🔌 WebSocket desconectado:", code, reason);
                 setIsConnected(false);
 
@@ -235,7 +226,9 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                 }
 
                 if (isManualDisconnectRef.current || code === 1000) {
-                    console.log("✅ Cierre normal del WebSocket, no se reintentará");
+                    console.log(
+                        "✅ Cierre normal del WebSocket, no se reintentará",
+                    );
                     return;
                 }
 
@@ -246,16 +239,21 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                     );
                     reconnectAttemptsRef.current++;
 
-                    console.log(`🔄 Reintentando conexión en ${delay / 1000} segundos... (intento ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+                    console.log(
+                        `🔄 Reintentando conexión en ${delay / 1000} segundos... (intento ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`,
+                    );
 
                     reconnectTimeoutRef.current = setTimeout(() => {
                         connectWebSocket();
                     }, delay);
                 } else {
-                    console.error("❌ Se alcanzó el máximo de intentos de reconexión");
+                    console.error(
+                        "❌ Se alcanzó el máximo de intentos de reconexión",
+                    );
                     notifySubscribers({
                         type: "reconnect_failed",
-                        message: "No se pudo reconectar después de varios intentos",
+                        message:
+                            "No se pudo reconectar después de varios intentos",
                     });
                 }
             };

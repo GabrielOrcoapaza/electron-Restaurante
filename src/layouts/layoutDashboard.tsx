@@ -4,7 +4,7 @@ import { useQuery, useMutation, gql } from "@apollo/client";
 import { useAuth } from "../hooks/useAuth";
 import { useResponsive } from "../hooks/useResponsive";
 import { useSwitchBranch } from "../hooks/useSwitchBranch";
-import { useIntegratedPrinterSyncFromServer } from "../hooks/useIntegratedPrinterSyncFromServer";
+// import { useIntegratedPrinterSyncFromServer } from "../hooks/useIntegratedPrinterSyncFromServer";
 import { useUserPermissions } from "../hooks/useUserPermissions";
 import { WebSocketProvider, useWebSocket } from "../context/WebSocketContext";
 import Floor from "../modules/sales/floor";
@@ -85,7 +85,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 }) => {
     const navigate = useNavigate();
     const { user, companyData, logout, getMacAddress } = useAuth();
-    useIntegratedPrinterSyncFromServer();
+    // useIntegratedPrinterSyncFromServer();
     const [macAddress, setMacAddress] = useState<string>("");
     const { disconnect, subscribe } = useWebSocket();
     const { switchToBranch, loading: switchingBranch } = useSwitchBranch();
@@ -328,10 +328,10 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         notificationsData?.myKitchenNotifications ?? [];
     const unreadKitchenNotifications = useMemo(
         () =>
-            kitchenNotifications.filter(
+            (notificationsData?.myKitchenNotifications ?? []).filter(
                 (notification: any) => !notification?.isRead,
             ),
-        [kitchenNotifications],
+        [notificationsData?.myKitchenNotifications],
     );
 
     // Mensajes broadcast - filtrar solo los que corresponden al rol del usuario
@@ -391,34 +391,40 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 
     useEffect(() => {
         if (!allNotifications.length) {
-            setHiddenNotificationIds([]);
+            setHiddenNotificationIds((prev) => (prev.length === 0 ? prev : []));
             return;
         }
-        setHiddenNotificationIds((prev) =>
-            prev.filter((hiddenId) =>
+        setHiddenNotificationIds((prev) => {
+            const next = prev.filter((hiddenId) =>
                 allNotifications.some(
                     (notification: any) => notification?.id === hiddenId,
                 ),
-            ),
-        );
+            );
+            // Evitar actualización si el array es idéntico en contenido
+            if (next.length === prev.length) return prev;
+            return next;
+        });
     }, [allNotifications]);
-
+    // Usar useRef para evitar el bucle
+    const hasShownNotificationsRef = useRef(false);
     // Abrir al cargar o cuando cambian los pendientes (nuevo aviso o cierre con ×); no forzar reapertura si solo repitió el mismo set tras un refetch
     useEffect(() => {
         if (notificationsLoading || broadcastMessagesLoading) {
             return;
         }
-        if (!visibleNotificationIdsKey) {
+        // Solo abrir notificaciones una vez cuando hay nuevos elementos
+        if (visibleNotificationIdsKey && !hasShownNotificationsRef.current) {
+            setShowNotifications(true);
+            hasShownNotificationsRef.current = true;
+        } else if (!visibleNotificationIdsKey) {
             setShowNotifications(false);
-            return;
+            hasShownNotificationsRef.current = false;
         }
-        setShowNotifications(true);
     }, [
         visibleNotificationIdsKey,
         notificationsLoading,
         broadcastMessagesLoading,
     ]);
-
     useEffect(() => {
         if (!showNotifications && !showUserPopover) {
             return;
