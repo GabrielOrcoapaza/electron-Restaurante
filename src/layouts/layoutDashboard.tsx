@@ -89,7 +89,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     const [macAddress, setMacAddress] = useState<string>("");
     const { disconnect, subscribe } = useWebSocket();
     const { switchToBranch, loading: switchingBranch } = useSwitchBranch();
-    const { breakpoint } = useResponsive();
+    const { breakpoint, isMobile } = useResponsive();
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
     // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
@@ -97,40 +97,54 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     const isMedium = breakpoint === "md"; // 768px - 1023px
     const isSmallDesktop = breakpoint === "lg"; // 1024px - 1279px
     const isMediumDesktop = breakpoint === "xl"; // 1280px - 1535px
+    const isMobileOnly = breakpoint === "xs";
+
+    const isOverlay = ["xs", "sm", "md", "lg", "xl"].includes(breakpoint);
 
     // Tamaños adaptativos
-    const sidebarWidth = sidebarOpen
-        ? isSmall
-            ? "240px"
-            : isMedium
-              ? "260px"
-              : isSmallDesktop
-                ? "260px"
-                : "280px"
-        : "0px";
-    const headerPadding = isSmall
-        ? "0.75rem 1rem"
+    const sidebarWidthValue = isSmall
+        ? "240px"
         : isMedium
-          ? "1rem 1.25rem"
+          ? "260px"
           : isSmallDesktop
-            ? "1rem 1.5rem"
-            : isMediumDesktop
-              ? "1rem 1.75rem"
-              : "1rem 2rem";
-    const headerFontSize = isSmall
+            ? "260px"
+            : "280px";
+
+    const sidebarWidth = sidebarOpen ? sidebarWidthValue : "0px";
+    const displayedSidebarWidth = isOverlay ? sidebarWidthValue : sidebarWidth;
+
+    const headerPadding = isMobileOnly
+        ? "0.5rem 0.75rem"
+        : isSmall
+          ? "0.75rem 1rem"
+          : isMedium
+            ? "1rem 1.25rem"
+            : isSmallDesktop
+              ? "1rem 1.5rem"
+              : isMediumDesktop
+                ? "1rem 1.75rem"
+                : "1rem 2rem";
+
+    const headerFontSize = isMobileOnly
         ? "1.125rem"
-        : isMedium
-          ? "1.25rem"
-          : isSmallDesktop
-            ? "1.375rem"
-            : "1.5rem";
-    const headerSubFontSize = isSmall
-        ? "0.75rem"
-        : isMedium
-          ? "0.8125rem"
-          : isSmallDesktop
+        : isSmall
+          ? "1.125rem"
+          : isMedium
+            ? "1.25rem"
+            : isSmallDesktop
+              ? "1.375rem"
+              : "1.5rem";
+
+    const headerSubFontSize = isMobileOnly
+        ? "0.8rem"
+        : isSmall
+          ? "0.75rem"
+          : isMedium
             ? "0.8125rem"
-            : "0.875rem";
+            : isSmallDesktop
+              ? "0.8125rem"
+              : "0.875rem";
+
     const { hasPermission } = useUserPermissions();
     const [currentView, setCurrentView] = useState<
         | "dashboard"
@@ -188,13 +202,19 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         "floors" | "tables"
     >("floors");
     const [reportType, setReportType] = useState<
-        "sales" | "cancellation" | "productsSold" | "categorySales" | "employees"
+        | "sales"
+        | "cancellation"
+        | "productsSold"
+        | "categorySales"
+        | "employees"
     >("sales");
     const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(
         null,
     );
     const [showNotifications, setShowNotifications] = useState(false);
+    const [showUserPopover, setShowUserPopover] = useState(false);
     const notificationsRef = useRef<HTMLDivElement | null>(null);
+    const userPopoverRef = useRef<HTMLDivElement | null>(null);
     const [hiddenNotificationIds, setHiddenNotificationIds] = useState<
         string[]
     >([]);
@@ -400,7 +420,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     ]);
 
     useEffect(() => {
-        if (!showNotifications) {
+        if (!showNotifications && !showUserPopover) {
             return;
         }
         const handleClickOutside = (event: MouseEvent) => {
@@ -410,12 +430,18 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             ) {
                 setShowNotifications(false);
             }
+            if (
+                userPopoverRef.current &&
+                !userPopoverRef.current.contains(event.target as Node)
+            ) {
+                setShowUserPopover(false);
+            }
         };
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [showNotifications]);
+    }, [showNotifications, showUserPopover]);
 
     const handleDismissNotification = (notificationId: string) => {
         setHiddenNotificationIds((prev) =>
@@ -479,6 +505,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             setFloorsTablesSubTab("floors");
         }
         setSelectedCashTable(null);
+        if (isOverlay) {
+            setSidebarOpen(false);
+        }
     };
 
     const handleOpenCash = (table: Table) => {
@@ -513,9 +542,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             <span className="text-xl">{icon}</span>
             {sidebarOpen && label}
             {isActive && (
-                <div
-                    className="absolute bottom-[20%] left-0 top-[20%] w-1 rounded-r bg-indigo-400"
-                />
+                <div className="absolute bottom-[20%] left-0 top-[20%] w-1 rounded-r bg-indigo-400" />
             )}
         </button>
     );
@@ -692,12 +719,25 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                 display: "flex",
             }}
         >
+            {/* Overlay para móviles/tablets/laptops */}
+            {isOverlay && sidebarOpen && (
+                <div
+                    className="fixed inset-0 z-[999] bg-slate-950/60 backdrop-blur-sm transition-opacity duration-300"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            )}
+
             {/* Sidebar */}
             <div
                 className="fixed z-[1000] flex h-screen flex-col overflow-x-hidden overflow-y-auto border-r border-slate-800/70 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-900 text-white shadow-2xl shadow-slate-950/40"
                 style={{
-                    width: sidebarWidth,
-                    transition: "width 0.3s ease, box-shadow 0.3s ease",
+                    width: displayedSidebarWidth,
+                    transform:
+                        isOverlay && !sidebarOpen
+                            ? `translateX(-${displayedSidebarWidth})`
+                            : "translateX(0)",
+                    transition:
+                        "width 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease",
                     boxShadow: sidebarOpen
                         ? "2px 0 10px rgba(0, 0, 0, 0.1)"
                         : "none",
@@ -707,9 +747,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                 <div className="flex items-center justify-between border-b border-slate-800 p-5">
                     {sidebarOpen && (
                         <div>
-                            <h2
-                                className="m-0 bg-gradient-to-r from-indigo-400 to-fuchsia-400 bg-clip-text text-xl font-bold text-transparent"
-                            >
+                            <h2 className="m-0 bg-gradient-to-r from-indigo-400 to-fuchsia-400 bg-clip-text text-xl font-bold text-transparent">
                                 SumApp
                             </h2>
                             <p className="mt-1 text-sm font-medium text-slate-400">
@@ -744,11 +782,37 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 
                     {sidebarOpen && (
                         <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-slate-300">
-                            <p className="mb-1 font-medium">
-                                <strong>Sucursal:</strong>{" "}
-                                {companyData?.branch.name}
+                            <p className="mb-2 font-medium">
+                                <strong>Sucursal:</strong>
                             </p>
-                            <p className="m-0">
+                            {(companyData?.availableBranches?.length ?? 0) >
+                            1 ? (
+                                <select
+                                    value={companyData?.branch.id ?? ""}
+                                    onChange={(e) => {
+                                        const id = e.target.value;
+                                        if (id) {
+                                            disconnect();
+                                            switchToBranch(id);
+                                        }
+                                    }}
+                                    disabled={switchingBranch}
+                                    className="w-full cursor-pointer rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs font-semibold text-slate-200 focus:border-indigo-500 focus:outline-none"
+                                >
+                                    {companyData?.availableBranches?.map(
+                                        (b: any) => (
+                                            <option key={b.id} value={b.id}>
+                                                {b.name}
+                                            </option>
+                                        ),
+                                    )}
+                                </select>
+                            ) : (
+                                <p className="m-0 font-semibold text-white">
+                                    {companyData?.branch.name}
+                                </p>
+                            )}
+                            <p className="mt-2 m-0 border-t border-white/5 pt-2">
                                 <strong>DNI:</strong> {user?.dni}
                             </p>
                         </div>
@@ -899,9 +963,13 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             {/* Contenido Principal */}
             <div
                 style={{
-                    marginLeft: sidebarWidth,
-                    width: `calc(100vw - ${sidebarWidth})`,
-                    maxWidth: `calc(100vw - ${sidebarWidth})`,
+                    marginLeft: isOverlay ? "0px" : sidebarWidth,
+                    width: isOverlay
+                        ? "100vw"
+                        : `calc(100vw - ${sidebarWidth})`,
+                    maxWidth: isOverlay
+                        ? "100vw"
+                        : `calc(100vw - ${sidebarWidth})`,
                     minWidth: 0,
                     height: "100vh",
                     display: "flex",
@@ -918,15 +986,17 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             >
                 {/* Header Principal: título | sucursal centrada | empleado + notificaciones */}
                 <header
-                    className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-slate-200 bg-white shadow-sm"
+                    className="flex items-center justify-between border-b border-slate-200 bg-white shadow-sm"
                     style={{
                         padding: headerPadding,
+                        gap: isMobile ? "0.5rem" : "1rem",
                     }}
                 >
-                    <div className="flex min-w-0 items-center gap-4 justify-self-start">
+                    {/* Sección Izquierda: Toggle + Título */}
+                    <div className="flex min-w-0 items-center gap-2 md:gap-4 flex-1">
                         <button
                             onClick={toggleSidebar}
-                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-xl text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-xl text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
                         >
                             {sidebarOpen ? "⇤" : "☰"}
                         </button>
@@ -939,56 +1009,195 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                             >
                                 {headerTitle}
                             </h1>
-                            <div
-                                className="mt-1 truncate text-slate-500"
-                                style={{
-                                    fontSize: headerSubFontSize,
-                                }}
-                            >
-                                {headerSubtitle}
-                            </div>
+                            {!isMobile && (
+                                <div
+                                    className="mt-1 truncate text-slate-500"
+                                    style={{
+                                        fontSize: headerSubFontSize,
+                                    }}
+                                >
+                                    {headerSubtitle}
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    <div className="flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 justify-self-center">
-                        <span>🏢</span>
-                        {(companyData?.availableBranches?.length ?? 0) > 1 ? (
-                            <select
-                                value={companyData?.branch.id ?? ""}
-                                onChange={(e) => {
-                                    const id = e.target.value;
-                                    if (id) {
-                                        disconnect();
-                                        switchToBranch(id);
-                                    }
-                                }}
-                                disabled={switchingBranch}
-                                className="min-w-[140px] cursor-pointer rounded-md border border-slate-200 bg-white px-2 py-1 text-sm font-semibold text-slate-700 disabled:cursor-wait disabled:opacity-70"
-                            >
-                                {companyData?.availableBranches?.map(
-                                    (b: any) => (
-                                        <option key={b.id} value={b.id}>
-                                            {b.name}
-                                        </option>
-                                    ),
-                                )}
-                            </select>
-                        ) : (
-                            <span className="font-semibold text-slate-700">
-                                {companyData?.branch.name}
-                            </span>
-                        )}
-                    </div>
+                    {/* Sección Central: Sucursal (Solo Desktop) */}
+                    {!isMobile && (
+                        <div className="hidden md:flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+                            <span>🏢</span>
+                            {(companyData?.availableBranches?.length ?? 0) >
+                            1 ? (
+                                <select
+                                    value={companyData?.branch.id ?? ""}
+                                    onChange={(e) => {
+                                        const id = e.target.value;
+                                        if (id) {
+                                            disconnect();
+                                            switchToBranch(id);
+                                        }
+                                    }}
+                                    disabled={switchingBranch}
+                                    className="min-w-[140px] cursor-pointer rounded-md border border-slate-200 bg-white px-2 py-1 text-sm font-semibold text-slate-700 disabled:cursor-wait disabled:opacity-70"
+                                >
+                                    {companyData?.availableBranches?.map(
+                                        (b: any) => (
+                                            <option key={b.id} value={b.id}>
+                                                {b.name}
+                                            </option>
+                                        ),
+                                    )}
+                                </select>
+                            ) : (
+                                <span className="font-semibold text-slate-700">
+                                    {companyData?.branch.name}
+                                </span>
+                            )}
+                        </div>
+                    )}
 
-                    <div className="flex min-w-0 items-center gap-4 justify-self-end">
-                        <div className="flex max-w-[min(240px,100%)] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
-                            <span>👤</span>
-                            <span
-                                className="truncate font-semibold text-slate-700"
-                                title={user?.fullName ?? user?.firstName ?? ""}
+                    {/* Sección Derecha: Usuario + Notificaciones */}
+                    <div className="flex shrink-0 items-center gap-2 md:gap-4">
+                        <div ref={userPopoverRef} className="relative">
+                            <button
+                                onClick={() =>
+                                    setShowUserPopover((prev) => !prev)
+                                }
+                                className={`flex items-center gap-2 rounded-lg border py-2 text-sm transition-all ${
+                                    isMobile
+                                        ? "px-3 h-10"
+                                        : "px-4 max-w-[240px]"
+                                } ${
+                                    showUserPopover
+                                        ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                        : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100"
+                                }`}
                             >
-                                {user?.fullName ?? user?.firstName}
-                            </span>
+                                <span title={user?.fullName ?? ""}>👤</span>
+                                {!isMobile && (
+                                    <span
+                                        className="truncate font-semibold text-slate-700"
+                                        title={user?.fullName ?? ""}
+                                    >
+                                        {user?.fullName ?? user?.firstName}
+                                    </span>
+                                )}
+                            </button>
+
+                            {showUserPopover && (
+                                <>
+                                    {isMobile && (
+                                        <div
+                                            className="fixed inset-0 z-[1199] bg-slate-950/40 backdrop-blur-[2px]"
+                                            onClick={() =>
+                                                setShowUserPopover(false)
+                                            }
+                                        />
+                                    )}
+                                    <div
+                                        style={{
+                                            position: isMobile
+                                                ? "fixed"
+                                                : "absolute",
+                                            top: isMobile ? "15%" : "110%",
+                                            left: isMobile ? "50%" : "auto",
+                                            right: isMobile ? "auto" : 0,
+                                            transform: isMobile
+                                                ? "translate(-50%, -50%)"
+                                                : "none",
+                                            width: isMobile
+                                                ? "min(340px, calc(100vw - 40px))"
+                                                : "320px",
+                                            backgroundColor: "white",
+                                            borderRadius: "12px",
+                                            border: "1px solid #e2e8f0",
+                                            boxShadow:
+                                                "0 12px 30px rgba(15, 23, 42, 0.18)",
+                                            padding: "1rem",
+                                            zIndex: 1200,
+                                        }}
+                                    >
+                                        <div className="mb-4 flex items-center gap-3">
+                                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-2xl text-indigo-600">
+                                                👤
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="m-0 truncate font-bold text-slate-900">
+                                                    {user?.fullName}
+                                                </p>
+                                                <p className="m-0 text-xs font-medium text-slate-500">
+                                                    {roleDisplay(user?.role)}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3 rounded-lg bg-slate-50 p-3 text-sm">
+                                            <div>
+                                                <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                                    Sucursal Actual
+                                                </p>
+                                                {(companyData?.availableBranches
+                                                    ?.length ?? 0) > 1 ? (
+                                                    <select
+                                                        value={
+                                                            companyData?.branch
+                                                                .id ?? ""
+                                                        }
+                                                        onChange={(e) => {
+                                                            const id =
+                                                                e.target.value;
+                                                            if (id) {
+                                                                disconnect();
+                                                                switchToBranch(
+                                                                    id,
+                                                                );
+                                                                setShowUserPopover(
+                                                                    false,
+                                                                );
+                                                            }
+                                                        }}
+                                                        disabled={
+                                                            switchingBranch
+                                                        }
+                                                        className="w-full cursor-pointer rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
+                                                    >
+                                                        {companyData?.availableBranches?.map(
+                                                            (b: any) => (
+                                                                <option
+                                                                    key={b.id}
+                                                                    value={b.id}
+                                                                >
+                                                                    {b.name}
+                                                                </option>
+                                                            ),
+                                                        )}
+                                                    </select>
+                                                ) : (
+                                                    <p className="m-0 font-semibold text-slate-700">
+                                                        {
+                                                            companyData?.branch
+                                                                .name
+                                                        }
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="border-t border-slate-200 pt-2">
+                                                <p className="m-0 text-xs text-slate-500">
+                                                    <strong>DNI:</strong>{" "}
+                                                    {user?.dni}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            onClick={handleLogout}
+                                            className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-100"
+                                        >
+                                            <span>🚪</span> Cerrar Sesión
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                         <div
                             ref={notificationsRef}
@@ -1000,7 +1209,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 onClick={() =>
                                     setShowNotifications((prev) => !prev)
                                 }
-                                className={`relative flex h-[42px] w-[42px] items-center justify-center rounded-full border text-[1.1rem] text-slate-600 transition ${
+                                className={`relative flex h-10 w-10 items-center justify-center rounded-full border text-[1.1rem] text-slate-600 transition ${
                                     showNotifications
                                         ? "border-slate-300 bg-slate-200"
                                         : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-200"
@@ -1008,333 +1217,360 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                             >
                                 🔔
                                 {unreadCount > 0 && (
-                                    <span
-                                        className="absolute right-1 top-1 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-rose-500 text-[0.7rem] font-bold text-white"
-                                    >
+                                    <span className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[0.6rem] font-bold text-white">
                                         {unreadCount > 9 ? "9+" : unreadCount}
                                     </span>
                                 )}
                             </button>
                             {showNotifications && (
-                                <div
-                                    style={{
-                                        position: "absolute",
-                                        top: "110%",
-                                        right: 0,
-                                        width: "320px",
-                                        maxHeight: "420px",
-                                        overflowY: "auto",
-                                        backgroundColor: "white",
-                                        borderRadius: "12px",
-                                        border: "1px solid #e2e8f0",
-                                        boxShadow:
-                                            "0 12px 30px rgba(15, 23, 42, 0.18)",
-                                        padding: "0.75rem",
-                                        zIndex: 1200,
-                                    }}
-                                >
+                                <>
+                                    {isMobile && (
+                                        <div
+                                            className="fixed inset-0 z-[1199] bg-slate-950/40 backdrop-blur-[2px]"
+                                            onClick={() =>
+                                                setShowNotifications(false)
+                                            }
+                                        />
+                                    )}
                                     <div
                                         style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                            marginBottom: "0.5rem",
+                                            position: isMobile
+                                                ? "fixed"
+                                                : "absolute",
+                                            top: isMobile ? "15%" : "110%",
+                                            left: isMobile ? "50%" : "auto",
+                                            right: isMobile ? "auto" : 0,
+                                            transform: isMobile
+                                                ? "translate(-50%, -50%)"
+                                                : "none",
+                                            width: isMobile
+                                                ? "min(360px, calc(100vw - 40px))"
+                                                : "320px",
+                                            maxHeight: isMobile
+                                                ? "70vh"
+                                                : "420px",
+                                            overflowY: "auto",
+                                            backgroundColor: "white",
+                                            borderRadius: "12px",
+                                            border: "1px solid #e2e8f0",
+                                            boxShadow:
+                                                "0 12px 30px rgba(15, 23, 42, 0.18)",
+                                            padding: "0.75rem",
+                                            zIndex: 1200,
                                         }}
                                     >
-                                        <div>
-                                            <h3
-                                                style={{
-                                                    margin: 0,
-                                                    fontSize: "0.95rem",
-                                                    fontWeight: 600,
-                                                    color: "#2d3748",
-                                                }}
-                                            >
-                                                Notificaciones
-                                            </h3>
-                                            <p
-                                                style={{
-                                                    margin: "0.15rem 0 0",
-                                                    fontSize: "0.75rem",
-                                                    color: "#718096",
-                                                }}
-                                            >
-                                                Mensajes y notificaciones de
-                                                cocina
-                                            </p>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                refetchKitchenNotifications();
-                                                refetchBroadcastMessages();
-                                            }}
-                                            style={{
-                                                border: "none",
-                                                backgroundColor: "transparent",
-                                                color: "#4a5568",
-                                                cursor: "pointer",
-                                                fontSize: "1rem",
-                                            }}
-                                            title="Actualizar"
-                                        >
-                                            ⟳
-                                        </button>
-                                    </div>
-                                    {notificationsLoading ||
-                                    broadcastMessagesLoading ? (
                                         <div
                                             style={{
-                                                padding: "1rem",
-                                                textAlign: "center",
-                                                color: "#4a5568",
-                                                fontSize: "0.85rem",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                marginBottom: "0.5rem",
                                             }}
                                         >
-                                            Cargando notificaciones...
+                                            <div>
+                                                <h3
+                                                    style={{
+                                                        margin: 0,
+                                                        fontSize: "0.95rem",
+                                                        fontWeight: 600,
+                                                        color: "#2d3748",
+                                                    }}
+                                                >
+                                                    Notificaciones
+                                                </h3>
+                                                <p
+                                                    style={{
+                                                        margin: "0.15rem 0 0",
+                                                        fontSize: "0.75rem",
+                                                        color: "#718096",
+                                                    }}
+                                                >
+                                                    Mensajes y notificaciones de
+                                                    cocina
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    refetchKitchenNotifications();
+                                                    refetchBroadcastMessages();
+                                                }}
+                                                style={{
+                                                    border: "none",
+                                                    backgroundColor:
+                                                        "transparent",
+                                                    color: "#4a5568",
+                                                    cursor: "pointer",
+                                                    fontSize: "1rem",
+                                                }}
+                                                title="Actualizar"
+                                            >
+                                                ⟳
+                                            </button>
                                         </div>
-                                    ) : visibleNotifications.length === 0 ? (
-                                        <div
-                                            style={{
-                                                padding: "1rem",
-                                                textAlign: "center",
-                                                color: "#4a5568",
-                                                fontSize: "0.85rem",
-                                                backgroundColor: "#f7fafc",
-                                                borderRadius: "10px",
-                                            }}
-                                        >
-                                            No tienes notificaciones pendientes.
-                                        </div>
-                                    ) : (
-                                        visibleNotifications.map(
-                                            (notification: any) => {
-                                                const isBroadcast =
-                                                    notification.type ===
-                                                    "broadcast";
-                                                const chefName =
-                                                    notification?.preparedBy
-                                                        ?.fullName || "Cocina";
-                                                const tableName =
-                                                    notification?.operation
-                                                        ?.table?.name ||
-                                                    "Sin mesa";
-                                                const productName =
-                                                    notification
-                                                        ?.operationDetail
-                                                        ?.productName;
-                                                const quantity =
-                                                    notification
-                                                        ?.operationDetail
-                                                        ?.quantity;
-                                                const senderName =
-                                                    notification?.sender
-                                                        ?.fullName || "Usuario";
-                                                const recipientsLabel =
-                                                    notification?.recipients ===
-                                                    "ALL"
-                                                        ? "Todos"
-                                                        : notification?.recipients ===
-                                                            "WAITERS"
-                                                          ? "Mozos"
-                                                          : notification?.recipients ===
-                                                              "COOKS"
-                                                            ? "Cocineros"
+                                        {notificationsLoading ||
+                                        broadcastMessagesLoading ? (
+                                            <div
+                                                style={{
+                                                    padding: "1rem",
+                                                    textAlign: "center",
+                                                    color: "#4a5568",
+                                                    fontSize: "0.85rem",
+                                                }}
+                                            >
+                                                Cargando notificaciones...
+                                            </div>
+                                        ) : visibleNotifications.length ===
+                                          0 ? (
+                                            <div
+                                                style={{
+                                                    padding: "1rem",
+                                                    textAlign: "center",
+                                                    color: "#4a5568",
+                                                    fontSize: "0.85rem",
+                                                    backgroundColor: "#f7fafc",
+                                                    borderRadius: "10px",
+                                                }}
+                                            >
+                                                No tienes notificaciones
+                                                pendientes.
+                                            </div>
+                                        ) : (
+                                            visibleNotifications.map(
+                                                (notification: any) => {
+                                                    const isBroadcast =
+                                                        notification.type ===
+                                                        "broadcast";
+                                                    const chefName =
+                                                        notification?.preparedBy
+                                                            ?.fullName ||
+                                                        "Cocina";
+                                                    const tableName =
+                                                        notification?.operation
+                                                            ?.table?.name ||
+                                                        "Sin mesa";
+                                                    const productName =
+                                                        notification
+                                                            ?.operationDetail
+                                                            ?.productName;
+                                                    const quantity =
+                                                        notification
+                                                            ?.operationDetail
+                                                            ?.quantity;
+                                                    const senderName =
+                                                        notification?.sender
+                                                            ?.fullName ||
+                                                        "Usuario";
+                                                    const recipientsLabel =
+                                                        notification?.recipients ===
+                                                        "ALL"
+                                                            ? "Todos"
                                                             : notification?.recipients ===
-                                                                "CASHIERS"
-                                                              ? "Cajeros"
+                                                                "WAITERS"
+                                                              ? "Mozos"
                                                               : notification?.recipients ===
-                                                                  "ADMINS"
-                                                                ? "Administradores"
-                                                                : notification?.recipients;
+                                                                  "COOKS"
+                                                                ? "Cocineros"
+                                                                : notification?.recipients ===
+                                                                    "CASHIERS"
+                                                                  ? "Cajeros"
+                                                                  : notification?.recipients ===
+                                                                      "ADMINS"
+                                                                    ? "Administradores"
+                                                                    : notification?.recipients;
 
-                                                return (
-                                                    <div
-                                                        key={notification.id}
-                                                        style={{
-                                                            border: "1px solid #e2e8f0",
-                                                            borderRadius:
-                                                                "10px",
-                                                            padding: "0.75rem",
-                                                            marginBottom:
-                                                                "0.5rem",
-                                                            backgroundColor:
-                                                                isBroadcast
-                                                                    ? "#eff6ff"
-                                                                    : "#fdf2f8",
-                                                            position:
-                                                                "relative",
-                                                        }}
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                if (
+                                                    return (
+                                                        <div
+                                                            key={
+                                                                notification.id
+                                                            }
+                                                            style={{
+                                                                border: "1px solid #e2e8f0",
+                                                                borderRadius:
+                                                                    "10px",
+                                                                padding:
+                                                                    "0.75rem",
+                                                                marginBottom:
+                                                                    "0.5rem",
+                                                                backgroundColor:
                                                                     isBroadcast
-                                                                ) {
-                                                                    handleMarkMessageRead(
+                                                                        ? "#eff6ff"
+                                                                        : "#fdf2f8",
+                                                                position:
+                                                                    "relative",
+                                                            }}
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (
+                                                                        isBroadcast
+                                                                    ) {
+                                                                        handleMarkMessageRead(
+                                                                            notification.id,
+                                                                        );
+                                                                    }
+                                                                    handleDismissNotification(
                                                                         notification.id,
                                                                     );
+                                                                }}
+                                                                style={{
+                                                                    position:
+                                                                        "absolute",
+                                                                    top: "8px",
+                                                                    right: "8px",
+                                                                    border: "none",
+                                                                    backgroundColor:
+                                                                        "transparent",
+                                                                    color: "#a0aec0",
+                                                                    cursor: "pointer",
+                                                                    fontSize:
+                                                                        "1rem",
+                                                                    fontWeight: 700,
+                                                                    lineHeight: 1,
+                                                                }}
+                                                                aria-label={
+                                                                    isBroadcast
+                                                                        ? "Marcar como leído y ocultar"
+                                                                        : "Ocultar notificación"
                                                                 }
-                                                                handleDismissNotification(
-                                                                    notification.id,
-                                                                );
-                                                            }}
-                                                            style={{
-                                                                position:
-                                                                    "absolute",
-                                                                top: "8px",
-                                                                right: "8px",
-                                                                border: "none",
-                                                                backgroundColor:
-                                                                    "transparent",
-                                                                color: "#a0aec0",
-                                                                cursor: "pointer",
-                                                                fontSize:
-                                                                    "1rem",
-                                                                fontWeight: 700,
-                                                                lineHeight: 1,
-                                                            }}
-                                                            aria-label={
-                                                                isBroadcast
-                                                                    ? "Marcar como leído y ocultar"
-                                                                    : "Ocultar notificación"
-                                                            }
-                                                            title={
-                                                                isBroadcast
-                                                                    ? "Marcar como leído y ocultar"
-                                                                    : "Ocultar notificación"
-                                                            }
-                                                        >
-                                                            ×
-                                                        </button>
-                                                        <div
-                                                            style={{
-                                                                display: "flex",
-                                                                alignItems:
-                                                                    "flex-start",
-                                                                gap: "0.75rem",
-                                                            }}
-                                                        >
+                                                                title={
+                                                                    isBroadcast
+                                                                        ? "Marcar como leído y ocultar"
+                                                                        : "Ocultar notificación"
+                                                                }
+                                                            >
+                                                                ×
+                                                            </button>
                                                             <div
                                                                 style={{
-                                                                    width: "36px",
-                                                                    height: "36px",
-                                                                    borderRadius:
-                                                                        "9999px",
-                                                                    backgroundColor:
-                                                                        isBroadcast
-                                                                            ? "#bfdbfe"
-                                                                            : "#fbb6ce",
                                                                     display:
                                                                         "flex",
                                                                     alignItems:
-                                                                        "center",
-                                                                    justifyContent:
-                                                                        "center",
-                                                                    fontSize:
-                                                                        "1.1rem",
+                                                                        "flex-start",
+                                                                    gap: "0.75rem",
                                                                 }}
                                                             >
-                                                                {isBroadcast
-                                                                    ? "💬"
-                                                                    : "🍽️"}
-                                                            </div>
-                                                            <div
-                                                                style={{
-                                                                    flex: 1,
-                                                                }}
-                                                            >
-                                                                <p
-                                                                    style={{
-                                                                        margin: 0,
-                                                                        fontSize:
-                                                                            "0.9rem",
-                                                                        fontWeight: 600,
-                                                                        color: "#2d3748",
-                                                                    }}
-                                                                >
-                                                                    {
-                                                                        notification.message
-                                                                    }
-                                                                </p>
                                                                 <div
                                                                     style={{
-                                                                        marginTop:
-                                                                            "0.35rem",
+                                                                        width: "36px",
+                                                                        height: "36px",
+                                                                        borderRadius:
+                                                                            "9999px",
+                                                                        backgroundColor:
+                                                                            isBroadcast
+                                                                                ? "#bfdbfe"
+                                                                                : "#fbb6ce",
                                                                         display:
                                                                             "flex",
-                                                                        flexDirection:
-                                                                            "column",
-                                                                        gap: "0.25rem",
+                                                                        alignItems:
+                                                                            "center",
+                                                                        justifyContent:
+                                                                            "center",
                                                                         fontSize:
-                                                                            "0.75rem",
-                                                                        color: "#4a5568",
+                                                                            "1.1rem",
                                                                     }}
                                                                 >
-                                                                    {isBroadcast ? (
-                                                                        <>
-                                                                            <span>
-                                                                                👤
-                                                                                De:{" "}
-                                                                                {
-                                                                                    senderName
-                                                                                }
-                                                                            </span>
-                                                                            <span>
-                                                                                📢
-                                                                                Para:{" "}
-                                                                                {
-                                                                                    recipientsLabel
-                                                                                }
-                                                                            </span>
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            <span>
-                                                                                👨‍🍳{" "}
-                                                                                {
-                                                                                    chefName
-                                                                                }
-                                                                            </span>
-                                                                            <span>
-                                                                                🪑
-                                                                                Mesa{" "}
-                                                                                {
-                                                                                    tableName
-                                                                                }
-                                                                            </span>
-                                                                            {productName && (
-                                                                                <span>
-                                                                                    🧾{" "}
-                                                                                    {quantity
-                                                                                        ? `${quantity}× `
-                                                                                        : ""}
-                                                                                    {
-                                                                                        productName
-                                                                                    }
-                                                                                </span>
-                                                                            )}
-                                                                        </>
-                                                                    )}
-                                                                    <span
+                                                                    {isBroadcast
+                                                                        ? "💬"
+                                                                        : "🍽️"}
+                                                                </div>
+                                                                <div
+                                                                    style={{
+                                                                        flex: 1,
+                                                                    }}
+                                                                >
+                                                                    <p
                                                                         style={{
-                                                                            color: "#a0aec0",
+                                                                            margin: 0,
+                                                                            fontSize:
+                                                                                "0.9rem",
+                                                                            fontWeight: 600,
+                                                                            color: "#2d3748",
                                                                         }}
                                                                     >
-                                                                        {formatRelativeTime(
-                                                                            notification?.createdAt,
+                                                                        {
+                                                                            notification.message
+                                                                        }
+                                                                    </p>
+                                                                    <div
+                                                                        style={{
+                                                                            marginTop:
+                                                                                "0.35rem",
+                                                                            display:
+                                                                                "flex",
+                                                                            flexDirection:
+                                                                                "column",
+                                                                            gap: "0.25rem",
+                                                                            fontSize:
+                                                                                "0.75rem",
+                                                                            color: "#4a5568",
+                                                                        }}
+                                                                    >
+                                                                        {isBroadcast ? (
+                                                                            <>
+                                                                                <span>
+                                                                                    👤
+                                                                                    De:{" "}
+                                                                                    {
+                                                                                        senderName
+                                                                                    }
+                                                                                </span>
+                                                                                <span>
+                                                                                    📢
+                                                                                    Para:{" "}
+                                                                                    {
+                                                                                        recipientsLabel
+                                                                                    }
+                                                                                </span>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <span>
+                                                                                    👨‍🍳{" "}
+                                                                                    {
+                                                                                        chefName
+                                                                                    }
+                                                                                </span>
+                                                                                <span>
+                                                                                    🪑
+                                                                                    Mesa{" "}
+                                                                                    {
+                                                                                        tableName
+                                                                                    }
+                                                                                </span>
+                                                                                {productName && (
+                                                                                    <span>
+                                                                                        🧾{" "}
+                                                                                        {quantity
+                                                                                            ? `${quantity}× `
+                                                                                            : ""}
+                                                                                        {
+                                                                                            productName
+                                                                                        }
+                                                                                    </span>
+                                                                                )}
+                                                                            </>
                                                                         )}
-                                                                    </span>
+                                                                        <span
+                                                                            style={{
+                                                                                color: "#a0aec0",
+                                                                            }}
+                                                                        >
+                                                                            {formatRelativeTime(
+                                                                                notification?.createdAt,
+                                                                            )}
+                                                                        </span>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                );
-                                            },
-                                        )
-                                    )}
-                                </div>
+                                                    );
+                                                },
+                                            )
+                                        )}
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>
@@ -1808,11 +2044,13 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                         borderRadius: "8px",
                                         border: "none",
                                         background:
-                                            configurationTab === "local_printers"
+                                            configurationTab ===
+                                            "local_printers"
                                                 ? "#0369a1"
                                                 : "transparent",
                                         color:
-                                            configurationTab === "local_printers"
+                                            configurationTab ===
+                                            "local_printers"
                                                 ? "white"
                                                 : "#64748b",
                                         cursor: "pointer",

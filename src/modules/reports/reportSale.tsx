@@ -114,22 +114,21 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 
 const ReportSale: React.FC = () => {
   const { companyData } = useAuth();
-  const { breakpoint } = useResponsive();
+  const { breakpoint, isMobile, isXs } = useResponsive();
   const branchId = companyData?.branch?.id;
 
-  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl)
-  const isSmall = breakpoint === 'sm';
+  // Adaptar según tamaño de pantalla
+  const isSmall = breakpoint === 'sm' || isMobile;
   const isMedium = breakpoint === 'md';
   const isSmallDesktop = breakpoint === 'lg';
-  const isMediumDesktop = breakpoint === 'xl';
 
-  const containerPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-  const containerGap = isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2rem';
-  const titleFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-  const subtitleFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const containerPadding = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
+  const containerGap = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
+  const titleFontSize = isXs ? '1.1rem' : isSmall ? '1.25rem' : '1.5rem';
+  const subtitleFontSize = isXs ? '0.7rem' : isSmall ? '0.75rem' : '0.875rem';
+  const cardPadding = isXs ? '0.85rem' : isSmall ? '1rem' : '1.5rem';
+  const inputFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
+  const buttonFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
 
   // Estado para los filtros: por defecto fecha actual (hoy); el usuario puede cambiar si desea otro rango
   const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
@@ -437,18 +436,14 @@ const ReportSale: React.FC = () => {
 
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: isSmall
-                    ? '1fr'
-                    : isMedium
-                      ? '1fr 1fr'
-                      : 'repeat(2, 1fr)',
-                  gap: '1rem',
+                  gridTemplateColumns: isXs ? '1fr' : isSmall ? '1fr 1fr' : 'repeat(2, 1fr)',
+                  gap: isXs ? '0.75rem' : '1rem',
                   marginBottom: '1.5rem'
                 }}>
                   <div style={{
                     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                     borderRadius: '8px',
-                    padding: '1rem',
+                    padding: isXs ? '0.75rem' : '1rem',
                     color: 'white',
                     boxShadow: '0 4px 6px -1px rgba(102, 126, 234, 0.2)'
                   }}>
@@ -463,7 +458,7 @@ const ReportSale: React.FC = () => {
                   <div style={{
                     background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
                     borderRadius: '8px',
-                    padding: '1rem',
+                    padding: isXs ? '0.75rem' : '1rem',
                     color: 'white',
                     boxShadow: '0 4px 6px -1px rgba(245, 87, 108, 0.2)'
                   }}>
@@ -489,8 +484,8 @@ const ReportSale: React.FC = () => {
 
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-                  gap: '0.75rem'
+                  gridTemplateColumns: isXs ? '1fr 1fr' : 'repeat(auto-fit, minmax(110px, 1fr))',
+                  gap: isXs ? '0.5rem' : '0.75rem'
                 }}>
                   {[
                     { label: 'Efectivo', amount: summary.totalCash, color: '#0369a1', bg: '#f0f9ff', border: '#0ea5e9' },
@@ -504,15 +499,15 @@ const ReportSale: React.FC = () => {
                       background: item.bg,
                       border: `1px solid ${item.border}`,
                       borderRadius: '8px',
-                      padding: '0.75rem',
+                      padding: isXs ? '0.5rem' : '0.75rem',
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'center'
                     }}>
-                      <div style={{ fontSize: '0.75rem', color: item.color, opacity: 0.8, marginBottom: '0.25rem' }}>
+                      <div style={{ fontSize: '0.7rem', color: item.color, opacity: 0.8, marginBottom: '0.2rem' }}>
                         {item.label}
                       </div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: item.color }}>
+                      <div style={{ fontSize: isXs ? '0.8rem' : '0.9rem', fontWeight: 700, color: item.color }}>
                         {currencyFormatter.format(item.amount)}
                       </div>
                     </div>
@@ -587,6 +582,7 @@ const ReportSale: React.FC = () => {
                 isSmallDesktop={isSmallDesktop}
                 isSmall={isSmall}
                 isMedium={isMedium}
+                isXs={isXs}
               />
             </div>
           </div>

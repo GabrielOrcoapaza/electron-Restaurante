@@ -68,22 +68,23 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
   const branchId = companyData?.branch?.id;
 
   // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+  const isXs = breakpoint === 'xs'; // < 640px
   const isSmall = breakpoint === 'sm'; // 640px - 767px
   const isMedium = breakpoint === 'md'; // 768px - 1023px
   const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
   const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
 
   // Tamaños adaptativos
-  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-  const gapSize = isSmall ? '0.75rem' : isMedium ? '0.875rem' : isSmallDesktop ? '0.875rem' : isMediumDesktop ? '1rem' : '1rem';
-  const titleFontSize = isSmall ? '0.9375rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : isMediumDesktop ? '1.1rem' : '1.1rem';
-  const labelFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : isMediumDesktop ? '0.625rem 0.875rem' : '0.625rem 0.875rem';
-  const tableFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const buttonPadding = isSmall ? '0.4375rem 0.75rem' : isMedium ? '0.5rem 0.875rem' : isSmallDesktop ? '0.5rem 0.875rem' : isMediumDesktop ? '0.5rem 1rem' : '0.5rem 1rem';
-  const buttonFontSize = isSmall ? '0.6875rem' : isMedium ? '0.75rem' : isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
-  const badgeFontSize = isSmall ? '0.625rem' : isMedium ? '0.6875rem' : isSmallDesktop ? '0.6875rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
+  const cardPadding = isXs ? '0.75rem' : isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem';
+  const gapSize = isXs ? '0.5rem' : isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem';
+  const titleFontSize = isXs ? '0.875rem' : isSmall ? '0.9375rem' : isMedium ? '1rem' : '1.1rem';
+  const labelFontSize = isXs ? '0.7rem' : isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem';
+  const inputFontSize = isXs ? '0.75rem' : isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem';
+  const inputPadding = isXs ? '0.45rem 0.625rem' : isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : '0.625rem 0.875rem';
+  const tableFontSize = isXs ? '0.7rem' : isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem';
+  const buttonPadding = isXs ? '0.4rem 0.625rem' : isSmall ? '0.4375rem 0.75rem' : isMedium ? '0.5rem 0.875rem' : '0.5rem 1rem';
+  const buttonFontSize = isXs ? '0.65rem' : isSmall ? '0.6875rem' : isMedium ? '0.75rem' : '0.75rem';
+  const badgeFontSize = isXs ? '0.6rem' : isSmall ? '0.625rem' : isMedium ? '0.6875rem' : '0.75rem';
 
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedProductType, setSelectedProductType] = useState<string>('');
@@ -219,7 +220,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
           border: '1px solid #e2e8f0',
           flex: '1',
-          minWidth: isSmall ? '100%' : isMedium ? '250px' : isSmallDesktop ? '300px' : '350px'
+          minWidth: isXs || isSmall ? '100%' : isMedium ? '250px' : '350px'
         }}>
           <label style={{
             display: 'block',
@@ -276,7 +277,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
             border: '1px solid #e2e8f0',
             flex: '1',
-            minWidth: isSmall ? '100%' : isMedium ? '200px' : isSmallDesktop ? '200px' : '250px'
+            minWidth: isXs || isSmall ? '100%' : isMedium ? '200px' : '250px'
           }}>
             <label style={{
               display: 'block',
@@ -320,7 +321,7 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
           border: '1px solid #e2e8f0',
           flex: '1',
-          minWidth: isSmall ? '100%' : isMedium ? '200px' : isSmallDesktop ? '200px' : '250px'
+          minWidth: isXs || isSmall ? '100%' : isMedium ? '200px' : '250px'
         }}>
           <label style={{
             display: 'block',
@@ -377,15 +378,115 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
         {products.length === 0 ? (
           <div style={{
             textAlign: 'center',
-            padding: isSmall ? '2rem' : isMedium ? '2.5rem' : '3rem',
+            padding: isXs ? '1.5rem' : isSmall ? '2rem' : '3rem',
             color: '#64748b'
           }}>
-            <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem', margin: 0 }}>No hay productos registrados</p>
+            <p style={{ fontSize: isXs ? '0.8rem' : isSmall ? '0.875rem' : '1rem', margin: 0 }}>No hay productos registrados</p>
             <p style={{ fontSize: labelFontSize, margin: '0.5rem 0 0' }}>
               Haz clic en "Nuevo Producto" para agregar uno
             </p>
           </div>
+        ) : isXs ? (
+          /* Vista de tarjetas para móviles */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {paginatedProducts.map((product) => (
+              <div 
+                key={product.id}
+                style={{
+                  padding: '1rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  backgroundColor: '#f8fafc'
+                }}
+              >
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem' }}>
+                  {product.imageBase64 ? (
+                    <img
+                      src={`data:image/jpeg;base64,${product.imageBase64}`}
+                      alt={product.name}
+                      style={{
+                        width: '60px',
+                        height: '60px',
+                        objectFit: 'cover',
+                        borderRadius: '8px'
+                      }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: '60px',
+                      height: '60px',
+                      backgroundColor: '#f1f5f9',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#94a3b8',
+                      fontSize: '1.5rem'
+                    }}>
+                      🖼️
+                    </div>
+                  )}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
+                      {product.name}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>
+                      {product.code} • {getProductCategoryName(product)}
+                    </div>
+                    <div style={{ fontWeight: 700, color: '#3b82f6', fontSize: '1rem' }}>
+                      {currencyFormatter.format(product.salePrice)}
+                    </div>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0' }}>
+                  <span style={{
+                    padding: '0.25rem 0.625rem',
+                    borderRadius: '9999px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    backgroundColor: product.isActive ? '#dcfce7' : '#fee2e2',
+                    color: product.isActive ? '#166534' : '#991b1b'
+                  }}>
+                    {product.isActive ? 'Activo' : 'Inactivo'}
+                  </span>
+                  
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => onEdit(product)}
+                      style={{
+                        padding: '0.4rem 0.75rem',
+                        background: '#3b82f6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600
+                      }}
+                    >
+                      ✏️ Editar
+                    </button>
+                    <button
+                      onClick={() => setSelectedProductForRecipe({ id: product.id, name: product.name, productType: product.productType })}
+                      style={{
+                        padding: '0.4rem 0.75rem',
+                        background: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600
+                      }}
+                    >
+                      🍳 Receta
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
+          /* Vista de tabla para desktop/tablet */
           <div style={{
             overflow: 'auto',
             width: '100%',
@@ -623,11 +724,11 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            gap: isSmall ? '0.25rem' : '0.5rem',
-            marginTop: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem',
-            paddingTop: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem',
+            gap: isXs ? '0.35rem' : isSmall ? '0.5rem' : '0.75rem',
+            marginTop: isXs ? '0.75rem' : '1.5rem',
+            paddingTop: isXs ? '0.75rem' : '1.5rem',
             borderTop: '1px solid #e2e8f0',
-            flexWrap: isSmall ? 'wrap' : 'nowrap'
+            flexWrap: 'wrap'
           }}>
             <button
               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
@@ -638,40 +739,35 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                 color: currentPage === 1 ? '#94a3b8' : 'white',
                 border: 'none',
                 borderRadius: '8px',
-                fontWeight: 500,
+                fontWeight: 600,
                 cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
                 fontSize: buttonFontSize,
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                if (currentPage !== 1) e.currentTarget.style.backgroundColor = '#5568d3';
-              }}
-              onMouseLeave={(e) => {
-                if (currentPage !== 1) e.currentTarget.style.backgroundColor = '#667eea';
+                transition: 'all 0.2s',
+                minHeight: isXs ? '36px' : 'auto'
               }}
             >
-              ← Anterior
+              {isXs ? '←' : '← Anterior'}
             </button>
 
             {/* Números de página */}
             <div style={{
               display: 'flex',
-              gap: isSmall ? '0.125rem' : '0.25rem',
+              gap: isXs ? '0.15rem' : '0.25rem',
               alignItems: 'center',
-              flexWrap: isSmall ? 'wrap' : 'nowrap'
+              flexWrap: 'wrap',
+              justifyContent: 'center'
             }}>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
                 // Mostrar solo algunas páginas alrededor de la actual
                 const showPage =
                   page === 1 ||
                   page === totalPages ||
-                  (page >= currentPage - 2 && page <= currentPage + 2);
+                  (page >= currentPage - (isXs ? 1 : 2) && page <= currentPage + (isXs ? 1 : 2));
 
                 if (!showPage) {
-                  // Mostrar puntos suspensivos
-                  if (page === currentPage - 3 || page === currentPage + 3) {
+                  if (page === currentPage - (isXs ? 2 : 3) || page === currentPage + (isXs ? 2 : 3)) {
                     return (
-                      <span key={page} style={{ padding: isSmall ? '0 0.25rem' : '0 0.5rem', color: '#94a3b8' }}>
+                      <span key={page} style={{ padding: '0 0.25rem', color: '#94a3b8', fontSize: buttonFontSize }}>
                         ...
                       </span>
                     );
@@ -684,28 +780,20 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                     key={page}
                     onClick={() => setCurrentPage(page)}
                     style={{
-                      minWidth: isSmall ? '1.75rem' : isMedium ? '2rem' : isSmallDesktop ? '2rem' : '2.5rem',
-                      padding: isSmall ? '0.25rem' : isMedium ? '0.375rem' : isSmallDesktop ? '0.375rem' : '0.5rem',
+                      minWidth: isXs ? '1.85rem' : '2.25rem',
+                      height: isXs ? '1.85rem' : '2.25rem',
+                      padding: '0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       backgroundColor: page === currentPage ? '#667eea' : 'white',
                       color: page === currentPage ? 'white' : '#374151',
                       border: `1px solid ${page === currentPage ? '#667eea' : '#e2e8f0'}`,
                       borderRadius: '8px',
-                      fontWeight: page === currentPage ? 600 : 500,
+                      fontWeight: page === currentPage ? 700 : 500,
                       cursor: 'pointer',
                       fontSize: buttonFontSize,
                       transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (page !== currentPage) {
-                        e.currentTarget.style.backgroundColor = '#f1f5f9';
-                        e.currentTarget.style.borderColor = '#cbd5e1';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (page !== currentPage) {
-                        e.currentTarget.style.backgroundColor = 'white';
-                        e.currentTarget.style.borderColor = '#e2e8f0';
-                      }
                     }}
                   >
                     {page}
@@ -723,19 +811,14 @@ const ListProduct: React.FC<ListProductProps> = ({ onEdit, refreshKey = 0 }) => 
                 color: currentPage === totalPages ? '#94a3b8' : 'white',
                 border: 'none',
                 borderRadius: '8px',
-                fontWeight: 500,
+                fontWeight: 600,
                 cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
                 fontSize: buttonFontSize,
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                if (currentPage !== totalPages) e.currentTarget.style.backgroundColor = '#5568d3';
-              }}
-              onMouseLeave={(e) => {
-                if (currentPage !== totalPages) e.currentTarget.style.backgroundColor = '#667eea';
+                transition: 'all 0.2s',
+                minHeight: isXs ? '36px' : 'auto'
               }}
             >
-              Siguiente →
+              {isXs ? '→' : 'Siguiente →'}
             </button>
           </div>
         )}

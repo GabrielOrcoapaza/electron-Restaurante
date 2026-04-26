@@ -79,18 +79,69 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
   const isNarrowScreen = isXs || isSmall;
 
   // Columnas del grid: pocas columnas = mesas más grandes (hay espacio bajo la fila)
-  const tablesGridColumns =
-    isNarrowScreen ? 'repeat(4, 1fr)' : isMedium ? 'repeat(6, 1fr)' : isSmallDesktop ? 'repeat(7, 1fr)' : 'repeat(8, 1fr)';
-  const floorsGridColumns = isNarrowScreen ? 'repeat(5, 1fr)' : 'repeat(10, 1fr)';
+  const tablesGridColumns = isXs
+    ? "repeat(2, 1fr)"
+    : isSmall
+      ? "repeat(3, 1fr)"
+      : isMedium
+        ? "repeat(5, 1fr)"
+        : isSmallDesktop
+          ? "repeat(7, 1fr)"
+          : "repeat(8, 1fr)";
 
-  
+  const floorsGridColumns = isXs
+    ? "repeat(3, 1fr)"
+    : isSmall
+      ? "repeat(4, 1fr)"
+      : isMedium
+        ? "repeat(6, 1fr)"
+        : "repeat(10, 1fr)";
+
   // Tipografía y tamaño táctil dentro de cada mesa
-  const tableNameFont = isNarrowScreen ? '1.155rem' : isMedium ? '1.0925rem' : isSmallDesktop ? '1.0925rem' : '1.4rem';
-  const tableWaiterFont = isNarrowScreen ? '0.985rem' : isMedium ? '0.9125rem' : isSmallDesktop ? '0.9125rem' : '1.2rem';
-  const tableCellPadding = isNarrowScreen ? '0.55rem' : isMedium ? '0.55rem' : isSmallDesktop ? '0.65rem' : '0.75rem';
-  const tablesGridGap = isNarrowScreen ? '0.5rem' : isMedium ? '0.55rem' : isSmallDesktop ? '0.6rem' : '0.7rem';
+  const tableNameFont = isXs
+    ? "1.4rem"
+    : isSmall
+      ? "1.25rem"
+      : isMedium
+        ? "1.1rem"
+        : isSmallDesktop
+          ? "1.15rem"
+          : "1.4rem";
+
+  const tableWaiterFont = isXs
+    ? "1.1rem"
+    : isSmall
+      ? "1.0rem"
+      : isMedium
+        ? "0.95rem"
+        : isSmallDesktop
+          ? "0.95rem"
+          : "1.2rem";
+
+  const tableCellPadding = isXs
+    ? "0.85rem"
+    : isSmall
+      ? "0.75rem"
+      : isMedium
+        ? "0.6rem"
+        : "0.75rem";
+
+  const tablesGridGap = isXs
+    ? "1rem"
+    : isSmall
+      ? "0.75rem"
+      : isMedium
+        ? "0.6rem"
+        : "0.7rem";
+
   /** Altura mínima mesas rectangulares (las redondas usan aspect-ratio 1:1) */
-  const tableRectMinHeight = isNarrowScreen ? '5.5rem' : isMedium ? '6rem' : isSmallDesktop ? '6.25rem' : '6.75rem';
+  const tableRectMinHeight = isXs
+    ? "7.5rem"
+    : isSmall
+      ? "6.5rem"
+      : isMedium
+        ? "6rem"
+        : "6.75rem";
 
   // CSS para animación de pulso (adaptable a diferentes colores)
   const pulseKeyframes = `
@@ -555,7 +606,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                       🏢
                     </div>
                     <h3 style={{
-                      fontSize: isNarrowScreen ? '0.75rem' : isMedium ? '0.68rem' : isSmallDesktop ? '0.72rem' : '0.8rem',
+                      fontSize: isXs ? '0.9rem' : isSmall ? '0.8rem' : isMedium ? '0.68rem' : isSmallDesktop ? '0.72rem' : '0.8rem',
                       fontWeight: '700',
                       color: isFloorSelected ? '#ffffff' : '#1e40af',
                       margin: '0 0 0.125rem 0',

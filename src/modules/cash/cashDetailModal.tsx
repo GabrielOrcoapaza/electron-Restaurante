@@ -131,41 +131,48 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: '#f8fafc',
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: isSmall ? 'flex-end' : 'center',
         justifyContent: 'center',
         zIndex: 10000,
-        padding: 0,
-        margin: 0
+        backdropFilter: 'blur(4px)'
       }}
+      onClick={onClose}
     >
       <div
         style={{
-          backgroundColor: 'white',
-          width: '100vw',
-          height: '100vh',
+          backgroundColor: '#f8fafc',
+          width: '100%',
+          maxWidth: isSmall ? '100%' : '1000px',
+          height: isSmall ? '95vh' : '85vh',
+          borderRadius: isSmall ? '20px 20px 0 0' : '20px',
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          animation: isSmall ? 'slideUp 0.3s ease-out' : 'fadeIn 0.2s ease-out'
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{
-          background: 'linear-gradient(135deg, #667eea, #764ba2)',
+          background: 'linear-gradient(135deg, #1e293b, #334155)',
           padding: headerPadding,
           color: 'white',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '0.75rem',
           flexShrink: 0
         }}>
-          <h3 style={{ margin: 0, fontSize: titleFontSize, fontWeight: 700 }}>
-            Detalle del Cierre de Caja #{closure?.closureNumber ?? '—'}
-          </h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: titleFontSize, fontWeight: 700 }}>
+              📄 Detalle de Cierre #{closure?.closureNumber ?? '—'}
+            </h3>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: '#cbd5e1' }}>
+              Historial de movimientos y resumen final
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             {onReprint && closure && (
               <button
                 type="button"
@@ -173,32 +180,36 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
                 disabled={reprintingClosureId === closure.id}
                 style={{
                   padding: btnPadding,
-                  borderRadius: isSmall ? '8px' : '10px',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  backgroundColor: reprintingClosureId === closure.id ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: '#3b82f6',
                   color: 'white',
                   cursor: reprintingClosureId === closure.id ? 'not-allowed' : 'pointer',
-                  fontWeight: 600,
-                  fontSize: btnFontSize
+                  fontWeight: 700,
+                  fontSize: btnFontSize,
+                  display: isSmall ? 'none' : 'block'
                 }}
               >
-                {reprintingClosureId === closure.id ? 'Imprimiendo...' : '🖨️ Reimprimir'}
+                {reprintingClosureId === closure.id ? '...' : '🖨️ Ticket'}
               </button>
             )}
             <button
               onClick={onClose}
               style={{
-                padding: btnPadding,
-                borderRadius: isSmall ? '8px' : '10px',
-                border: '1px solid rgba(255,255,255,0.3)',
-                backgroundColor: 'rgba(255,255,255,0.15)',
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                border: 'none',
+                backgroundColor: 'rgba(255,255,255,0.1)',
                 color: 'white',
                 cursor: 'pointer',
-                fontWeight: 600,
-                fontSize: btnFontSize
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.25rem'
               }}
             >
-              ✕ Cerrar
+              &times;
             </button>
           </div>
         </div>
@@ -206,84 +217,61 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
         <div style={{
           flex: 1,
           overflowY: 'auto',
-          padding: contentPadding,
-          backgroundColor: '#f8fafc'
+          padding: contentPadding
         }}>
-          <div style={{ maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+          <div style={{ maxWidth: '100%', margin: '0 auto' }}>
             {closure && (
               <>
                 <div style={{
-                  padding: '1rem',
-                  borderRadius: '12px',
-                  backgroundColor: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  marginBottom: '1.5rem',
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: '1rem'
+                  gridTemplateColumns: isSmall ? '1fr' : 'repeat(auto-fit, minmax(240px, 1fr))',
+                  gap: '1rem',
+                  marginBottom: '1.5rem'
                 }}>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Caja</div>
-                    <div style={{ fontWeight: 600, color: '#334155' }}>{closure.cashRegister.name}</div>
-                    <span style={{
-                      padding: '0.2rem 0.5rem',
-                      borderRadius: '6px',
-                      fontSize: '0.7rem',
-                      backgroundColor: '#eff6ff',
-                      color: '#2563eb'
-                    }}>
-                      {getCashTypeLabel(closure.cashRegister.cashType)}
-                    </span>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Usuario</div>
-                    <div style={{ fontWeight: 600, color: '#334155' }}>{closure.user.fullName}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{closure.user.role}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Fecha y hora</div>
-                    <div style={{ fontWeight: 600, color: '#334155' }}>{formatDate(closure.closedAt)}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Total Ingresos</div>
-                    <div style={{ fontWeight: 700, color: '#16a34a', fontSize: '1.125rem' }}>
-                      {currencyFormatter.format(totalIncome)}
+                  {/* Cards de resumen superior */}
+                  <div style={{ padding: '1.25rem', borderRadius: '16px', backgroundColor: 'white', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600, marginBottom: '0.5rem' }}>INFORMACIÓN</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <span style={{ color: '#64748b' }}>Caja:</span>
+                      <span style={{ fontWeight: 700, color: '#1e293b' }}>{closure.cashRegister.name}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <span style={{ color: '#64748b' }}>Usuario:</span>
+                      <span style={{ fontWeight: 600, color: '#1e293b' }}>{closure.user.fullName}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#64748b' }}>Fecha:</span>
+                      <span style={{ fontSize: '0.85rem', color: '#1e293b' }}>{formatDate(closure.closedAt)}</span>
                     </div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Total Egresos</div>
-                    <div style={{ fontWeight: 700, color: '#dc2626', fontSize: '1.125rem' }}>
-                      {currencyFormatter.format(totalExpense)}
+
+                  <div style={{ padding: '1.25rem', borderRadius: '16px', backgroundColor: 'white', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600, marginBottom: '0.5rem' }}>TOTALES</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <span style={{ color: '#16a34a', fontWeight: 600 }}>Ingresos:</span>
+                      <span style={{ fontWeight: 800, color: '#16a34a' }}>{currencyFormatter.format(totalIncome)}</span>
                     </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Neto Total</div>
-                    <div style={{
-                      fontWeight: 700,
-                      fontSize: '1.25rem',
-                      color: netTotal >= 0 ? '#16a34a' : '#dc2626'
-                    }}>
-                      {currencyFormatter.format(netTotal)}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <span style={{ color: '#dc2626', fontWeight: 600 }}>Egresos:</span>
+                      <span style={{ fontWeight: 800, color: '#dc2626' }}>{currencyFormatter.format(totalExpense)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '2px dashed #f1f5f9' }}>
+                      <span style={{ fontWeight: 700, color: '#1e293b' }}>Neto Final:</span>
+                      <span style={{ fontWeight: 900, fontSize: '1.1rem', color: netTotal >= 0 ? '#16a34a' : '#dc2626' }}>{currencyFormatter.format(netTotal)}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Resumen por método de pago */}
                 {!loading && payments.length > 0 && (
-                  <div style={{
-                    marginBottom: '1.5rem',
-                    padding: '1rem',
-                    borderRadius: '12px',
-                    backgroundColor: '#f1f5f9',
-                    border: '1px solid #e2e8f0',
-                  }}>
-                    <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>
-                      Resumen por Método de Pago
+                  <div style={{ marginBottom: '2rem' }}>
+                    <h4 style={{ margin: '0 0 1rem', fontSize: '0.9rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      💳 Resumen por Método
                     </h4>
                     <div style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                      gap: '1rem'
+                      gridTemplateColumns: isSmall ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(150px, 1fr))',
+                      gap: '0.75rem'
                     }}>
                       {(['CASH', 'CARD', 'YAPE', 'PLIN', 'TRANSFER', 'OTROS'] as const).map(method => {
                         const total = payments.reduce((acc, mov) => {
@@ -293,23 +281,11 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
                           const type = mov.transactionType ?? mov.transaction_type ?? '';
                           return type === 'INCOME' ? acc + amount : acc - amount;
                         }, 0);
-
                         if (total === 0) return null;
-
                         return (
-                          <div key={method} style={{
-                            padding: '0.75rem',
-                            backgroundColor: 'white',
-                            borderRadius: '8px',
-                            border: '1px solid #e2e8f0',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                          }}>
-                            <div style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: '0.2rem', fontWeight: 500 }}>
-                              {getPaymentMethodLabel(method)}
-                            </div>
-                            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1rem' }}>
-                              {currencyFormatter.format(total)}
-                            </div>
+                          <div key={method} style={{ padding: '1rem', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem', fontWeight: 600 }}>{getPaymentMethodLabel(method)}</div>
+                            <div style={{ fontWeight: 800, color: total >= 0 ? '#16a34a' : '#dc2626', fontSize: '1.05rem' }}>{currencyFormatter.format(total)}</div>
                           </div>
                         );
                       })}
@@ -317,97 +293,77 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
                   </div>
                 )}
 
-                <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600, color: '#475569' }}>
-                  Movimientos ({payments.length})
-                </h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#334155' }}>
+                    📊 Movimientos ({payments.length})
+                  </h4>
+                  {isSmall && onReprint && closure && (
+                    <button onClick={() => onReprint(closure)} style={{ padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontSize: '0.8rem', fontWeight: 600 }}>🖨️ Reimprimir</button>
+                  )}
+                </div>
 
                 {loading ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
-                    Cargando movimientos...
-                  </div>
+                  <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Cargando movimientos...</div>
                 ) : payments.length === 0 ? (
-                  <div style={{ padding: '1.5rem', textAlign: 'center', color: '#64748b', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
-                    No hay movimientos en este cierre
-                  </div>
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' }}>No hay movimientos en este cierre</div>
                 ) : (
-                  <div style={{
-                    overflowX: 'auto',
-                    overflowY: 'auto',
-                    maxHeight: 'min(400px, 50vh)',
-                    borderRadius: '8px',
-                    border: '1px solid #e2e8f0'
-                  }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
-                      <thead>
-                        <tr style={{
-                          borderBottom: '2px solid #e2e8f0',
-                          backgroundColor: '#f1f5f9',
-                          position: 'sticky',
-                          top: 0,
-                          zIndex: 1,
-                          boxShadow: '0 1px 0 0 #e2e8f0'
-                        }}>
-                          <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Fecha / Hora</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Tipo</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Método</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Monto</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Usuario</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Referencia / Documento</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {payments.map((mov) => {
-                          const dateStr = mov.paymentDate ?? mov.payment_date ?? '';
-                          const amount = Number(mov.paidAmount ?? mov.paid_amount ?? 0);
-                          const type = mov.transactionType ?? mov.transaction_type ?? '';
-                          const method = mov.paymentMethod ?? mov.payment_method ?? '';
-                          const doc = mov.issuedDocument ?? mov.issued_document;
-                          const docLabel = doc ? `${doc.serial ?? ''}-${doc.number ?? ''}`.replace(/^-|-$/g, '') || '—' : (mov.notes || '—');
-                          const userName = mov.user?.fullName ?? (mov.user as any)?.full_name ?? '—';
-
-                          return (
-                            <tr key={mov.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                              <td style={{ padding: '0.75rem', color: '#334155' }}>
-                                {dateStr ? formatDate(dateStr) : '—'}
-                              </td>
-                              <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                                <span style={{
-                                  padding: '0.2rem 0.5rem',
-                                  borderRadius: '6px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 600,
-                                  backgroundColor: type === 'INCOME' ? '#dcfce7' : '#fee2e2',
-                                  color: type === 'INCOME' ? '#166534' : '#991b1b'
-                                }}>
-                                  {getTransactionTypeLabel(type)}
-                                </span>
-                              </td>
-                              <td style={{ padding: '0.75rem', textAlign: 'center', color: '#475569' }}>
-                                {getPaymentMethodLabel(method)}
-                              </td>
-                              <td style={{
-                                padding: '0.75rem',
-                                textAlign: 'right',
-                                fontWeight: 600,
-                                color: type === 'INCOME' ? '#16a34a' : '#dc2626'
-                              }}>
-                                {type === 'EXPENSE' ? '-' : ''}{currencyFormatter.format(amount)}
-                              </td>
-                              <td style={{ padding: '0.75rem', color: '#64748b' }}>{userName}</td>
-                              <td style={{ padding: '0.75rem', color: '#64748b', fontSize: '0.75rem' }}>
-                                {mov.operation?.order ? `Op: ${mov.operation.order} — ` : ''}{docLabel}
-                              </td>
+                  <div style={{ overflow: 'hidden', borderRadius: '16px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}>
+                    {!isSmall ? (
+                      <div style={{ overflowX: 'auto', maxHeight: '400px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                          <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', zIndex: 1 }}>
+                            <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                              <th style={{ padding: '1rem', textAlign: 'left', color: '#64748b' }}>Fecha/Hora</th>
+                              <th style={{ padding: '1rem', textAlign: 'center', color: '#64748b' }}>Tipo</th>
+                              <th style={{ padding: '1rem', textAlign: 'center', color: '#64748b' }}>Método</th>
+                              <th style={{ padding: '1rem', textAlign: 'right', color: '#64748b' }}>Monto</th>
+                              <th style={{ padding: '1rem', textAlign: 'left', color: '#64748b' }}>Referencia</th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                          </thead>
+                          <tbody>
+                            {payments.map((mov) => (
+                              <tr key={mov.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '1rem' }}>{mov.paymentDate ? formatDate(mov.paymentDate) : '—'}</td>
+                                <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                  <span style={{ padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: (mov.transactionType || mov.transaction_type) === 'INCOME' ? '#dcfce7' : '#fee2e2', color: (mov.transactionType || mov.transaction_type) === 'INCOME' ? '#166534' : '#991b1b' }}>
+                                    {getTransactionTypeLabel(mov.transactionType || mov.transaction_type || '')}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '1rem', textAlign: 'center' }}>{getPaymentMethodLabel(mov.paymentMethod || mov.payment_method || '')}</td>
+                                <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 700, color: (mov.transactionType || mov.transaction_type) === 'INCOME' ? '#16a34a' : '#dc2626' }}>{currencyFormatter.format(mov.paidAmount || mov.paid_amount || 0)}</td>
+                                <td style={{ padding: '1rem', color: '#64748b', fontSize: '0.75rem' }}>{mov.issuedDocument?.number || mov.notes || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '50vh', overflowY: 'auto' }}>
+                        {payments.map((mov) => (
+                          <div key={mov.id} style={{ padding: '1rem', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid #f1f5f9' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{mov.paymentDate ? formatDate(mov.paymentDate) : '—'}</span>
+                              <span style={{ padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, backgroundColor: (mov.transactionType || mov.transaction_type) === 'INCOME' ? '#dcfce7' : '#fee2e2', color: (mov.transactionType || mov.transaction_type) === 'INCOME' ? '#166534' : '#991b1b' }}>{getTransactionTypeLabel(mov.transactionType || mov.transaction_type || '')}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ fontWeight: 600, color: '#334155' }}>{getPaymentMethodLabel(mov.paymentMethod || mov.payment_method || '')}</div>
+                              <div style={{ fontWeight: 800, color: (mov.transactionType || mov.transaction_type) === 'INCOME' ? '#16a34a' : '#dc2626' }}>{currencyFormatter.format(mov.paidAmount || mov.paid_amount || 0)}</div>
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.5rem' }}>{mov.issuedDocument?.number || mov.notes || 'Sin referencia'}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
             )}
           </div>
         </div>
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+          @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        `}} />
       </div>
     </div>
   );

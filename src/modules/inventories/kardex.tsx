@@ -48,29 +48,28 @@ const dateFormatter = new Intl.DateTimeFormat('es-PE', {
 
 const Kardex: React.FC = () => {
   const { companyData } = useAuth();
-  const { breakpoint } = useResponsive();
+  const { breakpoint, isMobile, isXs } = useResponsive();
   const branchId = companyData?.branch?.id;
 
-  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
-  const isSmall = breakpoint === 'sm'; // 640px - 767px
-  const isMedium = breakpoint === 'md'; // 768px - 1023px
-  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
-  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
+  // Adaptar según tamaño de pantalla
+  const isSmall = breakpoint === 'sm' || isMobile; 
+  const isMedium = breakpoint === 'md';
+  const isSmallDesktop = breakpoint === 'lg';
 
   // Tamaños adaptativos
-  const containerPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-  const containerGap = isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2rem';
-  const titleFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-  const subtitleFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-  const tableFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const tableCellPadding = isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
-  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : isMediumDesktop ? '0.625rem 0.875rem' : '0.625rem 0.875rem';
-  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const buttonPadding = isSmall ? '0.5625rem 0.875rem' : isMedium ? '0.625rem 1rem' : isSmallDesktop ? '0.625rem 1rem' : isMediumDesktop ? '0.75rem 1.25rem' : '0.75rem 1.25rem';
-  const badgeFontSize = isSmall ? '0.625rem' : isMedium ? '0.6875rem' : isSmallDesktop ? '0.6875rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
-  const badgePadding = isSmall ? '0.25rem 0.5rem' : isMedium ? '0.25rem 0.625rem' : isSmallDesktop ? '0.25rem 0.625rem' : '0.25rem 0.75rem';
+  const containerPadding = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
+  const containerGap = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
+  const titleFontSize = isXs ? '1.1rem' : isSmall ? '1.25rem' : '1.5rem';
+  const subtitleFontSize = isXs ? '0.7rem' : isSmall ? '0.75rem' : '0.875rem';
+  const cardPadding = isXs ? '0.85rem' : isSmall ? '1rem' : '1.5rem';
+  const tableFontSize = isXs ? '0.8rem' : isSmall ? '0.85rem' : '0.875rem';
+  const tableCellPadding = isXs ? '0.4rem' : isSmall ? '0.6rem' : '0.75rem';
+  const inputFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '1rem';
+  const inputPadding = isXs ? '0.6rem' : isSmall ? '0.7rem' : '0.8rem';
+  const buttonFontSize = isXs ? '0.8rem' : isSmall ? '0.85rem' : '0.875rem';
+  const buttonPadding = isXs ? '0.6rem 1rem' : isSmall ? '0.75rem 1.25rem' : '0.8rem 1.5rem';
+  const badgeFontSize = isXs ? '0.65rem' : isSmall ? '0.7rem' : '0.75rem';
+  const badgePadding = isXs ? '0.2rem 0.5rem' : isSmall ? '0.25rem 0.625rem' : '0.25rem 0.75rem';
 
   // Estado para los filtros
   const [startDate, setStartDate] = useState<string>(() => {
@@ -622,282 +621,146 @@ const Kardex: React.FC = () => {
                 boxSizing: 'border-box',
                 WebkitOverflowScrolling: 'touch',
                 borderRadius: '8px',
-                border: '1px solid #e2e8f0',
+                border: !isSmall ? '1px solid #e2e8f0' : 'none',
               }}>
-                <table style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  fontSize: tableFontSize,
-                  tableLayout: 'auto'
-                }}>
-                  <thead>
-                    <tr style={{
-                      backgroundColor: '#f8fafc',
-                      borderBottom: '2px solid #e2e8f0'
-                    }}>
-                      <th style={{
-                        padding: tableCellPadding,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: '#374151',
-                        fontSize: tableFontSize,
-                        whiteSpace: 'nowrap',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 2,
+                {!isSmall ? (
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: tableFontSize,
+                    tableLayout: 'auto'
+                  }}>
+                    <thead>
+                      <tr style={{
                         backgroundColor: '#f8fafc',
-                        boxShadow: '0 1px 0 #e2e8f0',
+                        borderBottom: '2px solid #e2e8f0'
                       }}>
-                        Fecha
-                      </th>
-                      <th style={{
-                        padding: tableCellPadding,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: '#374151',
-                        fontSize: tableFontSize,
-                        whiteSpace: 'nowrap',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 2,
-                        backgroundColor: '#f8fafc',
-                        boxShadow: '0 1px 0 #e2e8f0',
-                      }}>
-                        Producto
-                      </th>
-                      <th style={{
-                        padding: tableCellPadding,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: '#374151',
-                        fontSize: tableFontSize,
-                        whiteSpace: 'nowrap',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 2,
-                        backgroundColor: '#f8fafc',
-                        boxShadow: '0 1px 0 #e2e8f0',
-                      }}>
-                        Tipo
-                      </th>
-                      <th style={{
-                        padding: tableCellPadding,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: '#374151',
-                        fontSize: tableFontSize,
-                        whiteSpace: 'nowrap',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 2,
-                        backgroundColor: '#f8fafc',
-                        boxShadow: '0 1px 0 #e2e8f0',
-                      }}>
-                        Movimiento
-                      </th>
-                      <th style={{
-                        padding: tableCellPadding,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: '#374151',
-                        fontSize: tableFontSize,
-                        whiteSpace: 'nowrap',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 2,
-                        backgroundColor: '#f8fafc',
-                        boxShadow: '0 1px 0 #e2e8f0',
-                      }}>
-                        Costo Unit.
-                      </th>
-                      <th style={{
-                        padding: tableCellPadding,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: '#374151',
-                        fontSize: tableFontSize,
-                        whiteSpace: 'nowrap',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 2,
-                        backgroundColor: '#f8fafc',
-                        boxShadow: '0 1px 0 #e2e8f0',
-                      }}>
-                        Costo Total
-                      </th>
-                      <th style={{
-                        padding: tableCellPadding,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: '#374151',
-                        fontSize: tableFontSize,
-                        whiteSpace: 'nowrap',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 2,
-                        backgroundColor: '#f8fafc',
-                        boxShadow: '0 1px 0 #e2e8f0',
-                      }}>
-                        Stock Actual
-                      </th>
-                      <th style={{
-                        padding: tableCellPadding,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: '#374151',
-                        fontSize: tableFontSize,
-                        whiteSpace: 'nowrap',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 2,
-                        backgroundColor: '#f8fafc',
-                        boxShadow: '0 1px 0 #e2e8f0',
-                      }}>
-                        Usuario
-                      </th>
-                      <th style={{
-                        padding: tableCellPadding,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: '#374151',
-                        fontSize: tableFontSize,
-                        whiteSpace: 'nowrap',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 2,
-                        backgroundColor: '#f8fafc',
-                        boxShadow: '0 1px 0 #e2e8f0',
-                      }}>
-                        Motivo
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                        <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', fontSize: tableFontSize, whiteSpace: 'nowrap' }}>Fecha</th>
+                        <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', fontSize: tableFontSize, whiteSpace: 'nowrap' }}>Producto</th>
+                        <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', fontSize: tableFontSize, whiteSpace: 'nowrap' }}>Tipo</th>
+                        <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', fontSize: tableFontSize, whiteSpace: 'nowrap' }}>Movimiento</th>
+                        <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', fontSize: tableFontSize, whiteSpace: 'nowrap' }}>Costo Unit.</th>
+                        <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', fontSize: tableFontSize, whiteSpace: 'nowrap' }}>Costo Total</th>
+                        <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', fontSize: tableFontSize, whiteSpace: 'nowrap' }}>Stock Actual</th>
+                        <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', fontSize: tableFontSize, whiteSpace: 'nowrap' }}>Usuario</th>
+                        <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', fontSize: tableFontSize, whiteSpace: 'nowrap' }}>Motivo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {movements.map((movement) => {
+                        const typeColor = getMovementTypeColor(movement.movementType);
+                        return (
+                          <tr
+                            key={movement.id}
+                            style={{ borderBottom: '1px solid #e2e8f0', transition: 'background-color 0.2s' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                          >
+                            <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize }}>
+                              {dateFormatter.format(new Date(movement.createdAt))}
+                            </td>
+                            <td style={{ padding: tableCellPadding, textAlign: 'center', fontSize: tableFontSize }}>
+                              <div style={{ display: 'inline-block', textAlign: 'left' }}>
+                                <div style={{ fontWeight: 500, color: '#1e293b', fontSize: tableFontSize }}>{movement.productName}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{movement.productCode}</div>
+                              </div>
+                            </td>
+                            <td style={{ padding: tableCellPadding, textAlign: 'center', fontSize: tableFontSize }}>
+                              <span style={{ display: 'inline-block', padding: badgePadding, borderRadius: '6px', fontSize: badgeFontSize, fontWeight: 500, backgroundColor: typeColor.bg, color: typeColor.text, border: `1px solid ${typeColor.border}` }}>
+                                {movement.movementTypeDisplay}
+                              </span>
+                            </td>
+                            <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#1e293b', fontWeight: 500, fontSize: tableFontSize }}>
+                              {formatNumber((movement.movementType || '').toUpperCase() === 'OUT' ? -(Math.abs(Number(movement.quantity)) || 0) : Number(movement.quantity) || 0)}
+                            </td>
+                            <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize }}>
+                              {currencyFormatter.format(movement.unitCost)}
+                            </td>
+                            <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#1e293b', fontWeight: 500, fontSize: tableFontSize }}>
+                              {currencyFormatter.format(movement.totalCost)}
+                            </td>
+                            <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize }}>
+                              {formatNumber(balanceAfterMovementId[movement.id] ?? movement.currentQuantity ?? currentStockFromServer[movement.productId] ?? 0)}
+                            </td>
+                            <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize }}>
+                              {movement.userName || 'N/A'}
+                            </td>
+                            <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize, wordBreak: 'break-word', maxWidth: '200px' }}>
+                              {movement.reason || '-'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {movements.map((movement) => {
                       const typeColor = getMovementTypeColor(movement.movementType);
+                      const qty = (movement.movementType || '').toUpperCase() === 'OUT' ? -(Math.abs(Number(movement.quantity)) || 0) : Number(movement.quantity) || 0;
                       return (
-                        <tr
-                          key={movement.id}
-                          style={{
-                            borderBottom: '1px solid #e2e8f0',
-                            transition: 'background-color 0.2s'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                        >
-                          <td style={{
-                            padding: tableCellPadding,
-                            textAlign: 'center',
-                            color: '#64748b',
-                            fontSize: tableFontSize
-                          }}>
-                            {dateFormatter.format(new Date(movement.createdAt))}
-                          </td>
-                          <td style={{
-                            padding: tableCellPadding,
-                            textAlign: 'center',
-                            fontSize: tableFontSize
-                          }}>
-                            <div style={{ display: 'inline-block', textAlign: 'left' }}>
-                              <div style={{
-                                fontWeight: 500,
-                                color: '#1e293b',
-                                fontSize: tableFontSize
-                              }}>
-                                {movement.productName}
-                              </div>
-                              <div style={{
-                                fontSize: isSmallDesktop ? '0.6875rem' : '0.75rem',
-                                color: '#64748b'
-                              }}>
-                                {movement.productCode}
-                              </div>
+                        <div key={movement.id} style={{ 
+                          padding: '1rem', 
+                          borderRadius: '12px', 
+                          border: '1px solid #e2e8f0', 
+                          backgroundColor: 'white',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                              {dateFormatter.format(new Date(movement.createdAt))}
                             </div>
-                          </td>
-                          <td style={{
-                            padding: tableCellPadding,
-                            textAlign: 'center',
-                            fontSize: tableFontSize
-                          }}>
-                            <span style={{
-                              display: 'inline-block',
-                              padding: badgePadding,
-                              borderRadius: '6px',
-                              fontSize: badgeFontSize,
-                              fontWeight: 500,
-                              backgroundColor: typeColor.bg,
+                            <span style={{ 
+                              padding: '0.2rem 0.5rem', 
+                              borderRadius: '6px', 
+                              fontSize: '0.7rem', 
+                              fontWeight: 600, 
+                              backgroundColor: typeColor.bg, 
                               color: typeColor.text,
                               border: `1px solid ${typeColor.border}`
                             }}>
                               {movement.movementTypeDisplay}
                             </span>
-                          </td>
-                          <td style={{
-                            padding: tableCellPadding,
-                            textAlign: 'center',
-                            color: '#1e293b',
-                            fontWeight: 500,
-                            fontSize: tableFontSize
+                          </div>
+
+                          <div style={{ marginBottom: '0.75rem' }}>
+                            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.95rem' }}>{movement.productName}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>{movement.productCode}</div>
+                          </div>
+
+                          <div style={{ 
+                            display: 'grid', 
+                            gridTemplateColumns: 'repeat(2, 1fr)', 
+                            gap: '0.5rem', 
+                            padding: '0.75rem', 
+                            backgroundColor: '#f8fafc', 
+                            borderRadius: '8px',
+                            fontSize: '0.85rem'
                           }}>
-                            {formatNumber(
-                              (movement.movementType || '').toUpperCase() === 'OUT'
-                                ? -(Math.abs(Number(movement.quantity)) || 0)
-                                : Number(movement.quantity) || 0
-                            )}
-                          </td>
-                          <td style={{
-                            padding: tableCellPadding,
-                            textAlign: 'center',
-                            color: '#64748b',
-                            fontSize: tableFontSize
-                          }}>
-                            {currencyFormatter.format(movement.unitCost)}
-                          </td>
-                          <td style={{
-                            padding: tableCellPadding,
-                            textAlign: 'center',
-                            color: '#1e293b',
-                            fontWeight: 500,
-                            fontSize: tableFontSize
-                          }}>
-                            {currencyFormatter.format(movement.totalCost)}
-                          </td>
-                          <td style={{
-                            padding: tableCellPadding,
-                            textAlign: 'center',
-                            color: '#64748b',
-                            fontSize: tableFontSize
-                          }}>
-                            {formatNumber(
-                              balanceAfterMovementId[movement.id] ??
-                              movement.currentQuantity ??
-                              currentStockFromServer[movement.productId] ??
-                              0
-                            )}
-                          </td>
-                          <td style={{
-                            padding: tableCellPadding,
-                            textAlign: 'center',
-                            color: '#64748b',
-                            fontSize: tableFontSize
-                          }}>
-                            {movement.userName || 'N/A'}
-                          </td>
-                          <td style={{
-                            padding: tableCellPadding,
-                            textAlign: 'center',
-                            color: '#64748b',
-                            maxWidth: isSmall ? '120px' : isMedium ? '150px' : isSmallDesktop ? '150px' : '200px',
-                            fontSize: tableFontSize,
-                            wordBreak: 'break-word'
-                          }}>
-                            {movement.reason || '-'}
-                          </td>
-                        </tr>
+                            <div>
+                              <div style={{ color: '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>MOVIMIENTO</div>
+                              <div style={{ fontWeight: 700, color: qty < 0 ? '#dc2626' : '#059669', fontSize: '1rem' }}>
+                                {qty > 0 ? '+' : ''}{formatNumber(qty, 2)}
+                              </div>
+                            </div>
+                            <div>
+                              <div style={{ color: '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>STOCK FINAL</div>
+                              <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1rem' }}>
+                                {formatNumber(balanceAfterMovementId[movement.id] ?? 0, 2)}
+                              </div>
+                            </div>
+                            <div style={{ gridColumn: 'span 2', marginTop: '0.25rem', paddingTop: '0.25rem', borderTop: '1px solid #e2e8f0' }}>
+                              <div style={{ color: '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>MOTIVO / USUARIO</div>
+                              <div style={{ fontSize: '0.8rem', color: '#475569' }}>
+                                {movement.reason || 'Sin motivo'} • <span style={{ fontWeight: 500 }}>{movement.userName}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </div>
+                )}
               </div>
             </>
           )}

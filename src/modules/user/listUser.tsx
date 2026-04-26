@@ -23,21 +23,20 @@ interface User {
 const ListUser: React.FC = () => {
   const { companyData, user: currentUser } = useAuth();
   const isAdmin = (currentUser?.role || '').toUpperCase() === 'ADMIN';
-  const { breakpoint } = useResponsive();
+  const { breakpoint, isMobile, isXs } = useResponsive();
   const branchId = companyData?.branch?.id;
   
-  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
-  const isSmall = breakpoint === 'sm'; // 640px - 767px
-  const isMedium = breakpoint === 'md'; // 768px - 1023px
-  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
-  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
+  // Adaptar según tamaño de pantalla
+  const isSmall = breakpoint === 'sm' || isMobile; 
+  const isMedium = breakpoint === 'md';
+  const isSmallDesktop = breakpoint === 'lg';
   
   // Tamaños adaptativos
-  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-  const tableFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const tableCellPadding = isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
-  const titleFontSize = isSmall ? '1rem' : isMedium ? '1.05rem' : isSmallDesktop ? '1.05rem' : '1.1rem';
-  const badgeFontSize = isSmall ? '0.625rem' : isMedium ? '0.6875rem' : isSmallDesktop ? '0.6875rem' : isMediumDesktop ? '0.75rem' : '0.75rem';
+  const cardPadding = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
+  const tableFontSize = isXs ? '0.8rem' : isSmall ? '0.85rem' : '0.875rem';
+  const tableCellPadding = isXs ? '0.4rem' : isSmall ? '0.6rem' : '0.75rem';
+  const titleFontSize = isXs ? '1rem' : isSmall ? '1.1rem' : '1.25rem';
+  const badgeFontSize = isXs ? '0.65rem' : isSmall ? '0.7rem' : '0.75rem';
 
   const { data, loading, error, refetch } = useQuery(GET_USERS_BY_BRANCH, {
     variables: { branchId: branchId!, includeInactive: isAdmin },
@@ -189,136 +188,152 @@ const ListUser: React.FC = () => {
       {users.length === 0 ? (
         <div style={{ 
           textAlign: 'center', 
-          padding: isSmall ? '2rem' : isMedium ? '2.5rem' : '3rem', 
+          padding: isSmall ? '2rem' : '3rem', 
           color: '#64748b' 
         }}>
-          <p style={{ fontSize: isSmall ? '0.875rem' : isMedium ? '0.9375rem' : '1rem', margin: 0 }}>No hay empleados registrados</p>
-          <p style={{ fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem', margin: '0.5rem 0 0' }}>
+          <p style={{ fontSize: isSmall ? '0.875rem' : '1rem', margin: 0 }}>No hay empleados registrados</p>
+          <p style={{ fontSize: isSmall ? '0.75rem' : '0.875rem', margin: '0.5rem 0 0' }}>
             Haz clic en "Nuevo Empleado" para agregar uno
           </p>
         </div>
       ) : (
-        <div style={{ 
-          overflowX: 'auto',
-          overflowY: 'auto',
-          maxHeight: 'min(60vh, 520px)',
-          width: '100%',
-          maxWidth: '100%',
-          boxSizing: 'border-box',
-          borderRadius: '8px',
-          border: '1px solid #f1f5f9',
-        }}>
-          <table style={{ 
-            width: '100%', 
-            borderCollapse: 'collapse',
-            fontSize: tableFontSize,
-            tableLayout: 'auto'
-          }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>DNI</th>
-                <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Nombre</th>
-                <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Email</th>
-                <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Teléfono</th>
-                <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Rol</th>
-                <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Estado</th>
-                {isAdmin && (
-                  <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600, fontSize: tableFontSize }}>Acciones</th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
+        <div style={{ width: '100%' }}>
+          {!isSmall ? (
+            <div style={{ 
+              overflowX: 'auto',
+              width: '100%',
+              borderRadius: '8px',
+              border: '1px solid #f1f5f9',
+            }}>
+              <table style={{ 
+                width: '100%', 
+                borderCollapse: 'collapse',
+                fontSize: tableFontSize,
+              }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>DNI</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Nombre</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Email</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Teléfono</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Rol</th>
+                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Estado</th>
+                    {isAdmin && (
+                      <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Acciones</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => {
+                    const badgeColors = getRoleBadgeColor(user.role);
+                    return (
+                      <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155' }}>{user.dni}</td>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155', fontWeight: 500 }}>{user.fullName}</td>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b' }}>{user.email}</td>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b' }}>{user.phone || '-'}</td>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
+                          <span style={{
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '9999px',
+                            fontSize: badgeFontSize,
+                            fontWeight: 600,
+                            backgroundColor: badgeColors.bg,
+                            color: badgeColors.color
+                          }}>
+                            {getRoleLabel(user.role)}
+                          </span>
+                        </td>
+                        <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
+                          <span style={{
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '9999px',
+                            fontSize: badgeFontSize,
+                            fontWeight: 600,
+                            backgroundColor: user.isActive ? '#dcfce7' : '#fee2e2',
+                            color: user.isActive ? '#166534' : '#991b1b'
+                          }}>
+                            {user.isActive ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        {isAdmin && (
+                          <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                              <button onClick={() => setSelectedUserForEdit(user)} style={{ padding: '0.375rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, fontSize: badgeFontSize, cursor: 'pointer' }}>✏️ Editar</button>
+                              <button onClick={() => openPermissionsModal(user)} style={{ padding: '0.375rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, fontSize: badgeFontSize, cursor: 'pointer' }}>🔐 Permisos</button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {users.map((user) => {
                 const badgeColors = getRoleBadgeColor(user.role);
                 return (
-                  <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155', fontSize: tableFontSize }}>{user.dni}</td>
-                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155', fontWeight: 500, fontSize: tableFontSize }}>{user.fullName}</td>
-                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize }}>{user.email}</td>
-                    <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontSize: tableFontSize }}>{user.phone || '-'}</td>
-                    <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
+                  <div key={user.id} style={{ 
+                    padding: '1rem', 
+                    borderRadius: '12px', 
+                    border: '1px solid #e2e8f0', 
+                    backgroundColor: 'white',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                      <div>
+                        <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1rem' }}>{user.fullName}</div>
+                        <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.1rem' }}>DNI: {user.dni}</div>
+                      </div>
                       <span style={{
-                        padding: isSmall ? '0.25rem 0.5rem' : isMedium ? '0.25rem 0.625rem' : '0.25rem 0.75rem',
+                        padding: '0.25rem 0.6rem',
                         borderRadius: '9999px',
-                        fontSize: badgeFontSize,
-                        fontWeight: 600,
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
                         backgroundColor: badgeColors.bg,
                         color: badgeColors.color
                       }}>
                         {getRoleLabel(user.role)}
                       </span>
-                    </td>
-                    <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
+                    </div>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem', fontSize: '0.85rem' }}>
+                      <div style={{ color: '#64748b' }}>
+                        <strong>Email:</strong><br/>
+                        <span style={{ fontSize: '0.75rem', wordBreak: 'break-all' }}>{user.email}</span>
+                      </div>
+                      <div style={{ color: '#64748b' }}>
+                        <strong>Teléfono:</strong><br/>
+                        {user.phone || '-'}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{
-                        padding: isSmall ? '0.25rem 0.5rem' : isMedium ? '0.25rem 0.625rem' : '0.25rem 0.75rem',
-                        borderRadius: '9999px',
-                        fontSize: badgeFontSize,
-                        fontWeight: 600,
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '6px',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
                         backgroundColor: user.isActive ? '#dcfce7' : '#fee2e2',
                         color: user.isActive ? '#166534' : '#991b1b'
                       }}>
-                        {user.isActive ? 'Activo' : 'Inactivo'}
+                        {user.isActive ? 'ACTIVO' : 'INACTIVO'}
                       </span>
-                    </td>
-                    {isAdmin && (
-                      <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedUserForEdit(user)}
-                            style={{
-                              padding: isSmall ? '0.25rem 0.5rem' : '0.375rem 0.75rem',
-                              borderRadius: '8px',
-                              border: '1px solid #e2e8f0',
-                              backgroundColor: '#f1f5f9',
-                              color: '#475569',
-                              fontWeight: 600,
-                              fontSize: badgeFontSize,
-                              cursor: 'pointer'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#e2e8f0';
-                              e.currentTarget.style.color = '#334155';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = '#f1f5f9';
-                              e.currentTarget.style.color = '#475569';
-                            }}
-                          >
-                            ✏️ Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openPermissionsModal(user)}
-                            style={{
-                              padding: isSmall ? '0.25rem 0.5rem' : '0.375rem 0.75rem',
-                              borderRadius: '8px',
-                              border: '1px solid #e2e8f0',
-                              backgroundColor: '#f1f5f9',
-                              color: '#475569',
-                              fontWeight: 600,
-                              fontSize: badgeFontSize,
-                              cursor: 'pointer'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#e2e8f0';
-                              e.currentTarget.style.color = '#334155';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = '#f1f5f9';
-                              e.currentTarget.style.color = '#475569';
-                            }}
-                          >
-                            🔐 Permisos
-                          </button>
+                      
+                      {isAdmin && (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button onClick={() => setSelectedUserForEdit(user)} style={{ padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer' }}>✏️</button>
+                          <button onClick={() => openPermissionsModal(user)} style={{ padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer' }}>🔐</button>
                         </div>
-                      </td>
-                    )}
-                  </tr>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
+            </div>
+          )}
         </div>
       )}
 

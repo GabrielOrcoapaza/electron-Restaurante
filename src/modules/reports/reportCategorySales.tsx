@@ -40,21 +40,21 @@ function mapReport(
 
 const ReportCategorySales: React.FC = () => {
   const { companyData } = useAuth();
-  const { breakpoint } = useResponsive();
+  const { breakpoint, isMobile, isXs } = useResponsive();
   const branchId = companyData?.branch?.id;
 
-  const isSmall = breakpoint === 'sm';
+  // Adaptar según tamaño de pantalla
+  const isSmall = breakpoint === 'sm' || isMobile;
   const isMedium = breakpoint === 'md';
   const isSmallDesktop = breakpoint === 'lg';
-  const isMediumDesktop = breakpoint === 'xl';
 
-  const containerPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-  const containerGap = isSmall ? '1rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '2rem' : '2rem';
-  const titleFontSize = isSmall ? '1.125rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-  const subtitleFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
+  const containerPadding = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
+  const containerGap = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
+  const titleFontSize = isXs ? '1.1rem' : isSmall ? '1.25rem' : '1.5rem';
+  const subtitleFontSize = isXs ? '0.7rem' : isSmall ? '0.75rem' : '0.875rem';
+  const cardPadding = isXs ? '0.85rem' : isSmall ? '1rem' : '1.5rem';
+  const inputFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
+  const buttonFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
 
   const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
@@ -285,6 +285,7 @@ const ReportCategorySales: React.FC = () => {
           isSmallDesktop={isSmallDesktop}
           isSmall={isSmall}
           isMedium={isMedium}
+          isXs={isXs}
         />
       </div>
     </div>

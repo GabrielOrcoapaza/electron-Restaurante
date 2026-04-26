@@ -31,22 +31,20 @@ type EditUserProps = {
 
 const EditUser: React.FC<EditUserProps> = ({ user, onSuccess, onClose }) => {
   const { companyData } = useAuth();
-  const { breakpoint } = useResponsive();
+  const { breakpoint, isMobile, isXs } = useResponsive();
 
-  const isSmall = breakpoint === 'sm';
+  const isSmall = breakpoint === 'sm' || isMobile;
   const isMedium = breakpoint === 'md';
-  const isSmallDesktop = breakpoint === 'lg';
-  const isMediumDesktop = breakpoint === 'xl';
 
-  const modalPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '1.75rem' : '2rem';
-  const modalMaxWidth = isSmall ? '95%' : isMedium ? '500px' : isSmallDesktop ? '550px' : isMediumDesktop ? '600px' : '650px';
-  const titleFontSize = isSmall ? '1.25rem' : isMedium ? '1.375rem' : '1.375rem';
-  const labelFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem';
-  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem';
-  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : '0.625rem 0.875rem';
-  const buttonPadding = isSmall ? '0.5625rem 1rem' : isMedium ? '0.625rem 1.25rem' : '0.75rem 1.5rem';
-  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem';
-  const gapSize = isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem';
+  const modalPadding = isXs ? '1rem' : isSmall ? '1.25rem' : '2rem';
+  const modalMaxWidth = isSmall ? '100%' : isMedium ? '500px' : '650px';
+  const titleFontSize = isXs ? '1.1rem' : isSmall ? '1.25rem' : '1.5rem';
+  const labelFontSize = isXs ? '0.7rem' : isSmall ? '0.75rem' : '0.875rem';
+  const inputFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '1rem';
+  const inputPadding = isXs ? '0.6rem' : isSmall ? '0.75rem' : '0.875rem';
+  const buttonPadding = isXs ? '0.6rem 1rem' : isSmall ? '0.75rem 1.25rem' : '0.8rem 1.5rem';
+  const buttonFontSize = isXs ? '0.8rem' : isSmall ? '0.85rem' : '0.9rem';
+  const gapSize = isXs ? '0.6rem' : isSmall ? '0.75rem' : '1rem';
 
   const [formData, setFormData] = useState({
     email: user.email || '',
@@ -155,25 +153,40 @@ const EditUser: React.FC<EditUserProps> = ({ user, onSuccess, onClose }) => {
         bottom: 0,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: isSmall ? 'flex-end' : 'center',
         justifyContent: 'center',
         zIndex: 1000,
-        padding: '1rem',
+        padding: isSmall ? 0 : '1rem',
+        backdropFilter: 'blur(4px)',
+        animation: 'fadeIn 0.3s ease'
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
+      <style>
+        {`
+          @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}
+      </style>
       <div
         style={{
           backgroundColor: 'white',
-          borderRadius: '16px',
+          borderRadius: isSmall ? '24px 24px 0 0' : '16px',
           padding: modalPadding,
           maxWidth: modalMaxWidth,
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: isSmall ? '92vh' : '90vh',
           overflow: 'auto',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          boxShadow: '0 -10px 25px -5px rgba(0, 0, 0, 0.1), 0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          animation: isSmall ? 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)' : 'fadeIn 0.3s ease'
         }}
         onClick={(e) => e.stopPropagation()}
       >

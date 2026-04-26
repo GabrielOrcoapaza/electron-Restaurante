@@ -90,6 +90,7 @@ interface ReportSaleListProps {
   isSmallDesktop: boolean;
   isSmall?: boolean;
   isMedium?: boolean;
+  isXs?: boolean;
   onRefetch?: () => void;
 }
 
@@ -129,16 +130,18 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
   isSmallDesktop: propIsSmallDesktop,
   isSmall: propIsSmall,
   isMedium: propIsMedium,
+  isXs: propIsXs,
   onRefetch
 }) => {
   const { user, deviceId, getMacAddress, getDeviceId } = useAuth();
   const { hasPermission } = useUserPermissions();
-  const { breakpoint } = useResponsive();
+  const { breakpoint, isMobile, isXs: isXsHook } = useResponsive();
 
-  const isSmall = propIsSmall ?? breakpoint === 'sm';
+  const isSmall = propIsSmall ?? (breakpoint === 'sm' || isMobile);
   const isMedium = propIsMedium ?? breakpoint === 'md';
   const isSmallDesktop = propIsSmallDesktop !== undefined ? propIsSmallDesktop : breakpoint === 'lg';
   const isMediumDesktop = breakpoint === 'xl';
+  const isXs = propIsXs ?? isXsHook;
   const [expandedDocument, setExpandedDocument] = useState<string | null>(null);
   const [searchTerm] = useState<string>('');
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -264,12 +267,12 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     },
   });
 
-  // Tamaños adaptativos (sm, md, lg, xl, 2xl)
-  const cardPadding = isSmall ? '0.75rem' : isMedium ? '1rem' : isSmallDesktop ? '1rem' : isMediumDesktop ? '1.25rem' : '1.5rem';
-  const tableFontSize = isSmall ? '0.6875rem' : isMedium ? '0.75rem' : isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
-  const tableCellPadding = isSmall ? '0.375rem' : isMedium ? '0.5rem' : isSmallDesktop ? '0.5rem' : isMediumDesktop ? '0.625rem' : '0.75rem';
-  const badgeFontSize = isSmall ? '0.5625rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : isMediumDesktop ? '0.6875rem' : '0.75rem';
-  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.75rem' : isMediumDesktop ? '0.8125rem' : '0.875rem';
+  // Tamaños adaptativos
+  const cardPadding = isXs ? '0.6rem' : isSmall ? '0.75rem' : '1rem';
+  const tableFontSize = isXs ? '0.8rem' : isSmall ? '0.85rem' : '0.875rem';
+  const tableCellPadding = isXs ? '0.5rem' : isSmall ? '0.6rem' : '0.75rem';
+  const badgeFontSize = isXs ? '0.65rem' : isSmall ? '0.7rem' : '0.75rem';
+  const inputFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
 
   // Función para obtener el nombre del método de pago
   const getPaymentMethodName = (method: string) => {
@@ -607,148 +610,90 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
               onClick={() => setExpandedDocument(isExpanded ? null : doc.id)}
             >
               {/* Header del documento */}
-              <div
-                style={{
-                  padding: tableCellPadding,
-                  background: isExpanded ? '#f8fafc' : 'white',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignItems: 'flex-start',
-                  gap: '1rem',
-                  minWidth: 0
-                }}
-              >
-                {/* Bloque izquierdo: tipo, número, estado, fecha y datos */}
-                <div style={{ flex: '1 1 0', minWidth: 0, maxWidth: '100%' }}>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                    <span
-                      style={{
-                        fontSize: badgeFontSize,
-                        fontWeight: 600,
-                        padding: '0.25rem 0.625rem',
-                        borderRadius: '6px',
-                        background: '#667eea',
-                        color: 'white'
-                      }}
-                    >
-                      {doc.document.code} - {doc.document.description}
-                    </span>
-                    <span style={{ fontSize: tableFontSize, color: '#64748b' }}>
-                      {doc.serial}-{doc.number}
-                    </span>
-                    {doc.billingStatus && (
-                      <span
-                        style={{
-                          fontSize: badgeFontSize,
-                          fontWeight: 600,
-                          padding: '0.25rem 0.625rem',
-                          borderRadius: '6px',
-                          background: getBillingStatusColor(doc.billingStatus).bg,
-                          color: getBillingStatusColor(doc.billingStatus).text,
-                          border: `1px solid ${getBillingStatusColor(doc.billingStatus).border}`
-                        }}
-                      >
-                        {getBillingStatusName(doc.billingStatus)}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: tableFontSize, color: '#64748b' }}>
-                    {dateFormatter.format(parseLocalEmissionDateTime(doc.emissionDate, doc.emissionTime))}
-                  </div>
-                  {doc.person && (
-                    <div style={{ fontSize: tableFontSize, color: '#64748b', marginTop: '0.25rem' }}>
-                      Cliente: {doc.person.name} ({doc.person.documentNumber})
-                    </div>
-                  )}
-                  <div
-                    style={{
-                      fontSize: tableFontSize,
-                      color: '#64748b',
-                      marginTop: '0.25rem',
-                      lineHeight: 1.5
-                    }}
-                  >
-                    {(doc.operation?.table?.floor?.name || doc.operation?.table?.name) ? (
-                      <div style={{ color: '#475569' }}>
-                        {doc.operation?.table?.floor?.name ? (
-                          <span>Piso: {doc.operation.table.floor.name}</span>
-                        ) : null}
-                        {doc.operation?.table?.floor?.name && doc.operation?.table?.name ? (
-                          <span style={{ color: '#94a3b8' }}> · </span>
-                        ) : null}
-                        {doc.operation?.table?.name ? (
-                          <span>Mesa: {doc.operation.table.name}</span>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {doc.operation?.user?.fullName ? (
-                      <div>
-                        <span style={{ fontWeight: 600, color: '#64748b' }}>Orden (mozo):</span>{' '}
-                        {doc.operation.user.fullName}
-                      </div>
-                    ) : null}
-                    <div>
-                      <span style={{ fontWeight: 600, color: '#64748b' }}>Pago (caja):</span>{' '}
-                      {paymentRegistrarLabel(doc)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bloque derecho: monto, métodos de pago y acciones (siempre visible, no se corta) */}
                 <div
                   style={{
-                    flex: '0 0 auto',
+                    padding: cardPadding,
+                    background: isExpanded ? '#f8fafc' : 'white',
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    flexWrap: 'wrap',
+                    flexDirection: isXs ? 'column' : 'row',
+                    alignItems: isXs ? 'stretch' : 'flex-start',
+                    gap: isXs ? '0.75rem' : '1rem',
                     minWidth: 0
                   }}
                 >
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{
-                      fontSize: isSmallDesktop ? '1rem' : isMediumDesktop ? '1.125rem' : '1.25rem',
-                      fontWeight: 700,
-                      color: '#1e293b',
-                      marginBottom: '0.25rem'
-                    }}>
-                      {currencyFormatter.format(doc.totalAmount)}
-                    </div>
-                    {discountSummary && (
-                      <div
+                  {/* Bloque izquierdo: tipo, número, estado, fecha y datos */}
+                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
+                      <span
                         style={{
                           fontSize: badgeFontSize,
-                          fontWeight: 600,
-                          color: '#b45309',
-                          marginBottom: '0.35rem',
-                          textAlign: 'right'
+                          fontWeight: 700,
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '6px',
+                          background: '#667eea',
+                          color: 'white'
                         }}
                       >
-                        Descuento: {discountSummary}
+                        {doc.document.code}
+                      </span>
+                      <span style={{ fontSize: tableFontSize, fontWeight: 600, color: '#1e293b' }}>
+                        {doc.serial}-{doc.number}
+                      </span>
+                      {doc.billingStatus && (
+                        <span
+                          style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            padding: '0.15rem 0.4rem',
+                            borderRadius: '4px',
+                            background: getBillingStatusColor(doc.billingStatus).bg,
+                            color: getBillingStatusColor(doc.billingStatus).text,
+                            border: `1px solid ${getBillingStatusColor(doc.billingStatus).border}`
+                          }}
+                        >
+                          {getBillingStatusName(doc.billingStatus)}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>
+                      {dateFormatter.format(parseLocalEmissionDateTime(doc.emissionDate, doc.emissionTime))}
+                    </div>
+                    {doc.person && (
+                      <div style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500 }}>
+                        👤 {doc.person.name}
                       </div>
                     )}
-                    <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      {Array.from(paymentMethodsMap.entries()).map(([method, amount]) => {
-                        const color = getPaymentMethodColor(method);
-                        return (
-                          <span
-                            key={method}
-                            style={{
-                              fontSize: badgeFontSize,
-                              padding: '0.125rem 0.5rem',
-                              borderRadius: '4px',
-                              background: color.bg,
-                              color: color.text,
-                              fontWeight: 500
-                            }}
-                          >
-                            {getPaymentMethodName(method)}: {currencyFormatter.format(amount)}
-                          </span>
-                        );
-                      })}
-                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+
+                  {/* Bloque derecho: monto, métodos de pago y acciones */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: isXs ? 'row' : 'column',
+                      justifyContent: 'space-between',
+                      alignItems: isXs ? 'center' : 'flex-end',
+                      gap: '0.75rem',
+                      minWidth: 0,
+                      borderTop: isXs ? '1px solid #f1f5f9' : 'none',
+                      paddingTop: isXs ? '0.75rem' : '0'
+                    }}
+                  >
+                    <div style={{ textAlign: isXs ? 'left' : 'right' }}>
+                      <div style={{
+                        fontSize: isXs ? '1.1rem' : '1.25rem',
+                        fontWeight: 800,
+                        color: '#1e293b'
+                      }}>
+                        {currencyFormatter.format(doc.totalAmount)}
+                      </div>
+                      {!isXs && discountSummary && (
+                        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#b45309' }}>
+                          Desc: {discountSummary}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
                     <button
                       onClick={(e) => handleReprint(doc, e)}
                       disabled={reprinting && printingDocId === doc.id}
@@ -909,89 +854,88 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                       overflow: 'hidden',
                       border: '1px solid #e5e7eb'
                     }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: tableFontSize }}>
-                        <thead>
-                          <tr style={{ background: '#f9fafb' }}>
-                            <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                              Código
-                            </th>
-                            <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                              Producto
-                            </th>
-                            <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                              Cantidad
-                            </th>
-                            <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                              Precio Unit.
-                            </th>
-                            <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                              Total
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {doc.items.map((item) => (
-                            <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                              <td style={{ padding: tableCellPadding, color: '#64748b' }}>
-                                {item.operationDetail?.product?.code || '-'}
-                              </td>
-                              <td style={{ padding: tableCellPadding, color: '#1e293b' }}>
-                                {item.operationDetail?.product?.name || '-'}
-                                {item.notes && (
-                                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-                                    {item.notes}
-                                  </div>
-                                )}
-                              </td>
-                              <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>
-                                {item.quantity}
-                              </td>
-                              <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>
-                                {currencyFormatter.format(item.unitPrice)}
-                              </td>
-                              <td style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>
-                                {currencyFormatter.format(item.total)}
-                              </td>
+                      {!isXs ? (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: tableFontSize }}>
+                          <thead>
+                            <tr style={{ background: '#f9fafb' }}>
+                              <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Código</th>
+                              <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Producto</th>
+                              <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Cantidad</th>
+                              <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Precio Unit.</th>
+                              <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Total</th>
                             </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr style={{ background: '#f9fafb', borderTop: '2px solid #e5e7eb' }}>
-                            <td colSpan={4} style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#374151' }}>
-                              Subtotal:
-                            </td>
-                            <td style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>
-                              {currencyFormatter.format(doc.totalAmount - doc.igvAmount)}
-                            </td>
-                          </tr>
-                          {doc.totalDiscount > 0 && (
+                          </thead>
+                          <tbody>
+                            {doc.items.map((item) => (
+                              <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                <td style={{ padding: tableCellPadding, color: '#64748b' }}>{item.operationDetail?.product?.code || '-'}</td>
+                                <td style={{ padding: tableCellPadding, color: '#1e293b' }}>
+                                  {item.operationDetail?.product?.name || '-'}
+                                  {item.notes && <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>{item.notes}</div>}
+                                </td>
+                                <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>{item.quantity}</td>
+                                <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>{currencyFormatter.format(item.unitPrice)}</td>
+                                <td style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>{currencyFormatter.format(item.total)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr style={{ background: '#f9fafb', borderTop: '2px solid #e5e7eb' }}>
+                              <td colSpan={4} style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#374151' }}>Subtotal:</td>
+                              <td style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>{currencyFormatter.format(doc.totalAmount - doc.igvAmount)}</td>
+                            </tr>
+                            {doc.totalDiscount > 0 && (
+                              <tr>
+                                <td colSpan={4} style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>Descuento:</td>
+                                <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>{discountSummary ?? currencyFormatter.format(doc.totalDiscount)}</td>
+                              </tr>
+                            )}
                             <tr>
-                              <td colSpan={4} style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>
-                                Descuento:
-                              </td>
-                              <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>
-                                {discountSummary ?? currencyFormatter.format(doc.totalDiscount)}
-                              </td>
+                              <td colSpan={4} style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>IGV:</td>
+                              <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>{currencyFormatter.format(doc.igvAmount)}</td>
                             </tr>
-                          )}
-                          <tr>
-                            <td colSpan={4} style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>
-                              IGV:
-                            </td>
-                            <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>
-                              {currencyFormatter.format(doc.igvAmount)}
-                            </td>
-                          </tr>
-                          <tr style={{ background: '#f9fafb', borderTop: '2px solid #e5e7eb' }}>
-                            <td colSpan={4} style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#374151' }}>
-                              Total:
-                            </td>
-                            <td style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 700, color: '#1e293b', fontSize: '1.125rem' }}>
-                              {currencyFormatter.format(doc.totalAmount)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
+                            <tr style={{ background: '#f9fafb', borderTop: '2px solid #e5e7eb' }}>
+                              <td colSpan={4} style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#374151' }}>Total:</td>
+                              <td style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 700, color: '#1e293b', fontSize: '1.125rem' }}>{currencyFormatter.format(doc.totalAmount)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          {doc.items.map((item) => (
+                            <div key={item.id} style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                                <span style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.85rem' }}>{item.operationDetail?.product?.name}</span>
+                                <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.85rem' }}>{currencyFormatter.format(item.total)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b' }}>
+                                <span>{item.quantity} x {currencyFormatter.format(item.unitPrice)}</span>
+                                <span>{item.operationDetail?.product?.code}</span>
+                              </div>
+                            </div>
+                          ))}
+                          <div style={{ padding: '0.75rem', backgroundColor: '#f9fafb', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b' }}>
+                              <span>Subtotal:</span>
+                              <span>{currencyFormatter.format(doc.totalAmount - doc.igvAmount)}</span>
+                            </div>
+                            {doc.totalDiscount > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#b45309' }}>
+                                <span>Descuento:</span>
+                                <span>{discountSummary ?? currencyFormatter.format(doc.totalDiscount)}</span>
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b' }}>
+                              <span>IGV:</span>
+                              <span>{currencyFormatter.format(doc.igvAmount)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 800, color: '#1e293b', marginTop: '0.25rem', paddingTop: '0.25rem', borderTop: '1px solid #e2e8f0' }}>
+                              <span>TOTAL:</span>
+                              <span>{currencyFormatter.format(doc.totalAmount)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1012,67 +956,100 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                         overflow: 'hidden',
                         border: '1px solid #e5e7eb'
                       }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: tableFontSize }}>
-                          <thead>
-                            <tr style={{ background: '#f9fafb' }}>
-                              <th style={{ padding: tableCellPadding, textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                                Método
-                              </th>
-                              <th style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                                Monto
-                              </th>
-                              <th style={{ padding: tableCellPadding, textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                                Fecha
-                              </th>
-                              <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                                Estado
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
+                        {!isXs ? (
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: tableFontSize }}>
+                            <thead>
+                              <tr style={{ background: '#f9fafb' }}>
+                                <th style={{ padding: tableCellPadding, textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
+                                  Método
+                                </th>
+                                <th style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
+                                  Monto
+                                </th>
+                                <th style={{ padding: tableCellPadding, textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
+                                  Fecha
+                                </th>
+                                <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
+                                  Estado
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {doc.payments.map((payment) => {
+                                const color = getPaymentMethodColor(payment.paymentMethod);
+                                return (
+                                  <tr key={payment.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                    <td style={{ padding: tableCellPadding }}>
+                                      <span
+                                        style={{
+                                          fontSize: badgeFontSize,
+                                          padding: '0.25rem 0.5rem',
+                                          borderRadius: '4px',
+                                          background: color.bg,
+                                          color: color.text,
+                                          fontWeight: 500
+                                        }}
+                                      >
+                                        {getPaymentMethodName(payment.paymentMethod)}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>
+                                      {currencyFormatter.format(payment.paidAmount)}
+                                    </td>
+                                    <td style={{ padding: tableCellPadding, color: '#64748b' }}>
+                                      {dateFormatter.format(new Date(payment.paymentDate))}
+                                    </td>
+                                    <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
+                                      <span
+                                        style={{
+                                          fontSize: badgeFontSize,
+                                          padding: '0.25rem 0.5rem',
+                                          borderRadius: '4px',
+                                          background: payment.status === 'PAID' ? '#dcfce7' : '#fee2e2',
+                                          color: payment.status === 'PAID' ? '#166534' : '#991b1b',
+                                          fontWeight: 500
+                                        }}
+                                      >
+                                        {payment.status === 'PAID' ? 'Pagado' : payment.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
                             {doc.payments.map((payment) => {
                               const color = getPaymentMethodColor(payment.paymentMethod);
                               return (
-                                <tr key={payment.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                  <td style={{ padding: tableCellPadding }}>
+                                <div key={payment.id} style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <span
                                       style={{
-                                        fontSize: badgeFontSize,
-                                        padding: '0.25rem 0.5rem',
+                                        fontSize: '0.7rem',
+                                        padding: '0.125rem 0.4rem',
                                         borderRadius: '4px',
                                         background: color.bg,
                                         color: color.text,
-                                        fontWeight: 500
+                                        fontWeight: 600,
+                                        width: 'fit-content'
                                       }}
                                     >
                                       {getPaymentMethodName(payment.paymentMethod)}
                                     </span>
-                                  </td>
-                                  <td style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>
-                                    {currencyFormatter.format(payment.paidAmount)}
-                                  </td>
-                                  <td style={{ padding: tableCellPadding, color: '#64748b' }}>
-                                    {dateFormatter.format(new Date(payment.paymentDate))}
-                                  </td>
-                                  <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
-                                    <span
-                                      style={{
-                                        fontSize: badgeFontSize,
-                                        padding: '0.25rem 0.5rem',
-                                        borderRadius: '4px',
-                                        background: payment.status === 'PAID' ? '#dcfce7' : '#fee2e2',
-                                        color: payment.status === 'PAID' ? '#166534' : '#991b1b',
-                                        fontWeight: 500
-                                      }}
-                                    >
-                                      {payment.status === 'PAID' ? 'Pagado' : payment.status}
+                                    <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                                      {dateFormatter.format(new Date(payment.paymentDate))}
                                     </span>
-                                  </td>
-                                </tr>
+                                  </div>
+                                  <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.85rem' }}>
+                                    {currencyFormatter.format(payment.paidAmount)}
+                                  </div>
+                                </div>
                               );
                             })}
-                          </tbody>
-                        </table>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

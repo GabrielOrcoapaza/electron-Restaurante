@@ -8,6 +8,7 @@ interface UseResponsiveReturn {
   isMobile: boolean;
   isTablet: boolean;
   isDesktop: boolean;
+  isXs: boolean;
   breakpoint: Breakpoint;
 }
 
@@ -59,6 +60,7 @@ export const useResponsive = (): UseResponsiveReturn => {
   };
 
   const breakpoint = getBreakpoint(dimensions.width);
+  const isXs = dimensions.width < 640;
   const isMobile = dimensions.width < 768;
   const isTablet = dimensions.width >= 768 && dimensions.width < 1024;
   const isDesktop = dimensions.width >= 1024;
@@ -69,6 +71,7 @@ export const useResponsive = (): UseResponsiveReturn => {
     isMobile,
     isTablet,
     isDesktop,
+    isXs,
     breakpoint,
   };
 };

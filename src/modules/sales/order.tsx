@@ -76,18 +76,19 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 	const keyboardTight = viewportWidth < 480;
 
 	// Valores para grid y breadcrumb (como en delivery.tsx)
-	const gridMinCol = isSmall ? '110px' : isMedium ? '125px' : '150px';
-	const gridGap = isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem';
-	const gridPadding = isSmall ? '0.6rem' : isMedium ? '0.8rem' : '1.25rem';
-	const breadcrumbFontSize = isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem';
+	// Valores para grid y breadcrumb
+	const gridMinCol = isXs ? '100px' : isSmall ? '110px' : isMedium ? '125px' : '150px';
+	const gridGap = isXs ? '0.4rem' : isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem';
+	const gridPadding = isXs ? '0.5rem' : isSmall ? '0.6rem' : isMedium ? '0.8rem' : '1.25rem';
+	const breadcrumbFontSize = isXs ? '0.7rem' : isSmall ? '0.75rem' : isMedium ? '0.875rem' : '1rem';
 	/** Encabezado de navegación categorías: botones grandes para uso táctil en salón */
-	const breadcrumbBtnMinH = isSmall ? 48 : 52;
-	const breadcrumbBtnFont = isSmall ? '0.9375rem' : isMedium ? '1.0625rem' : '1.125rem';
-	const breadcrumbBtnPadX = isSmall ? '1rem' : '1.25rem';
-	const breadcrumbBtnPadY = isSmall ? '0.625rem' : '0.75rem';
-	const breadcrumbBtnRadius = isSmall ? '10px' : '12px';
+	const breadcrumbBtnMinH = isXs ? 44 : isSmall ? 48 : 52;
+	const breadcrumbBtnFont = isXs ? '0.85rem' : isSmall ? '0.9375rem' : isMedium ? '1.0625rem' : '1.125rem';
+	const breadcrumbBtnPadX = isXs ? '0.75rem' : isSmall ? '1rem' : '1.25rem';
+	const breadcrumbBtnPadY = isXs ? '0.5rem' : isSmall ? '0.625rem' : '0.75rem';
+	const breadcrumbBtnRadius = isXs ? '8px' : isSmall ? '10px' : '12px';
 	/** Ancho máximo en migas de pan: nombre largo con puntos suspensivos (ver título al hover) */
-	const breadcrumbLabelMaxWidth = isSmall ? '7.5rem' : '11rem';
+	const breadcrumbLabelMaxWidth = isXs ? '6rem' : isSmall ? '7.5rem' : '11rem';
 
 	// Función para verificar si el usuario puede acceder a esta mesa (por permisos)
 	const canAccessTable = (): { canAccess: boolean; reason?: string } => {
@@ -1311,23 +1312,18 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 				{/* Body */}
 				<div style={{
 					display: 'grid',
-					gridTemplateColumns: isSmall || isMedium ? '1fr' : '1.5fr 1fr', // Ajustado a 1.5fr y 1fr para mejor balance
-					gap: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1.25rem',
-					padding: isSmall
-						? '0.2rem 0.5rem 0.5rem 0.5rem'
-						: isMedium
-							? '0.3rem 0.75rem 0.75rem 0.75rem'
-							: '0.2rem 1.25rem 1.25rem 1.25rem',
+					gridTemplateColumns: isXs || isSmall || isMedium ? '1fr' : '1.5fr 1fr',
+					gap: isXs ? '0.5rem' : isSmall ? '0.75rem' : isMedium ? '1rem' : '1.5rem',
 					flex: 1,
+					minHeight: 0,
 					overflow: 'hidden'
 				}}>
 					{/* Col izquierda: búsqueda y catálogo (como en delivery.tsx) */}
 					<div style={{
 						display: 'flex',
 						flexDirection: 'column',
-						gap: isSmall ? '0.3rem' : isMedium ? '0.4rem' : '0.5rem',
 						overflow: 'hidden',
-						order: isSmall || isMedium ? 2 : 1
+						order: isXs || isSmall || isMedium ? 2 : 1
 					}}>
 						{/* Búsqueda */}
 						<div style={{
@@ -1606,10 +1602,10 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 														e.currentTarget.style.borderColor = '#e2e8f0';
 													}}
 												>
-													<div style={{ fontSize: isSmall ? '2rem' : '2.5rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-														<CategoryIcon iconId={category.icon} type="category" size={isSmall ? '2rem' : '2.5rem'} />
+													<div style={{ fontSize: isXs ? '1.75rem' : isSmall ? '2rem' : '2.5rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+														<CategoryIcon iconId={category.icon} type="category" size={isXs ? '1.75rem' : isSmall ? '2rem' : '2.5rem'} />
 													</div>
-													<div style={{ fontSize: isSmall ? '0.75rem' : breadcrumbFontSize, fontWeight: '700', color: '#1e293b', textAlign: 'center', lineHeight: 1.25, wordBreak: 'break-word' }}>
+													<div style={{ fontSize: isXs ? '0.7rem' : isSmall ? '0.75rem' : breadcrumbFontSize, fontWeight: '700', color: '#1e293b', textAlign: 'center', lineHeight: 1.25, wordBreak: 'break-word' }}>
 														{category.name}
 													</div>
 												</div>
@@ -1758,8 +1754,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 					<div style={{
 						display: 'flex',
 						flexDirection: 'column',
-						gap: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
-						order: isSmall || isMedium ? 1 : 2,
+						gap: isXs ? '0.4rem' : isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
+						order: isXs || isSmall || isMedium ? 1 : 2,
 						overflow: 'hidden',
 						minHeight: 0
 					}}>
@@ -1768,16 +1764,16 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 							style={{
 								background: 'white',
 								border: '1px solid #e2e8f0',
-								borderRadius: isSmall ? '10px' : isMedium ? '12px' : '14px',
-								padding: isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
+								borderRadius: isXs ? '8px' : isSmall ? '10px' : isMedium ? '12px' : '14px',
+								padding: isXs ? '0.4rem' : isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem',
 								flex: '1 1 auto',
 								overflowY: 'auto',
 								minHeight: 0
 							}}>
 							<h4 style={{
-								margin: `0 0 ${isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem'} 0`,
+								margin: `0 0 ${isXs ? '0.4rem' : isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem'} 0`,
 								color: '#2d3748',
-								fontSize: isSmall ? '0.875rem' : isMedium ? '1rem' : '1.25rem'
+								fontSize: isXs ? '0.8rem' : isSmall ? '0.875rem' : isMedium ? '1rem' : '1.25rem'
 							}}>Detalle</h4>
 							{isLoadingExistingOrder ? (
 								<div style={{
@@ -1821,26 +1817,26 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 												}}
 												style={{
 													border: '1px solid #e2e8f0',
-													borderRadius: isSmall ? '6px' : isMedium ? '8px' : '10px',
-													padding: isSmall ? '0.2rem' : isMedium ? '0.3rem' : '0.35rem',
+													borderRadius: isXs ? '8px' : isSmall ? '6px' : isMedium ? '8px' : '10px',
+													padding: isXs ? '0.5rem' : isSmall ? '0.2rem' : isMedium ? '0.3rem' : '0.35rem',
 													background: isExistingOrder && !item.isNew ? '#d4edda' : '#f7fafc'
 												}}>
 												{/* Una sola fila: Cantidad, Producto, Precio + Tachito, Botón notas */}
 												<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.2rem' : isMedium ? '0.3rem' : '0.35rem', justifyContent: 'flex-start', flexWrap: 'nowrap', width: '100%', overflow: 'hidden' }}>
 													{/* Controles de cantidad */}
 													{/* Controles de cantidad */}
-													<div style={{ display: 'flex', alignItems: 'center', gap: isSmall ? '0.1rem' : isMedium ? '0.15rem' : '0.2rem', flexShrink: 0 }}>
+													<div style={{ display: 'flex', alignItems: 'center', gap: isXs ? '0.4rem' : isSmall ? '0.1rem' : isMedium ? '0.15rem' : '0.2rem', flexShrink: 0 }}>
 														<button
 															onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
 															disabled={!isEditable}
 															style={{
-																width: isSmall ? '16px' : isMedium ? '18px' : '20px',
-																height: isSmall ? '16px' : isMedium ? '18px' : '20px',
-																borderRadius: isSmall ? '4px' : '6px',
+																width: isXs ? '32px' : isSmall ? '16px' : isMedium ? '18px' : '20px',
+																height: isXs ? '32px' : isSmall ? '16px' : isMedium ? '18px' : '20px',
+																borderRadius: isXs ? '6px' : isSmall ? '4px' : '6px',
 																border: '1px solid #cbd5e0',
 																background: isEditable ? 'white' : '#edf2f7',
 																cursor: isEditable ? 'pointer' : 'not-allowed',
-																fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8rem',
+																fontSize: isXs ? '1rem' : isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8rem',
 																display: 'flex',
 																alignItems: 'center',
 																justifyContent: 'center',
@@ -1857,15 +1853,15 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 															disabled={!isEditable}
 															min="0"
 															style={{
-																width: isSmall ? '28px' : isMedium ? '32px' : '36px',
+																width: isXs ? '44px' : isSmall ? '28px' : isMedium ? '32px' : '36px',
 																textAlign: 'center',
 																border: '1px solid #cbd5e0',
-																borderRadius: isSmall ? '4px' : '6px',
-																padding: isSmall ? '0.1rem' : isMedium ? '0.15rem' : '0.2rem',
-																fontWeight: 600,
+																borderRadius: isXs ? '6px' : isSmall ? '4px' : '6px',
+																padding: isXs ? '0.4rem' : isSmall ? '0.1rem' : isMedium ? '0.15rem' : '0.2rem',
+																fontWeight: 700,
 																background: isEditable ? 'white' : '#edf2f7',
 																color: isEditable ? '#1a202c' : '#a0aec0',
-																fontSize: isSmall ? '0.6rem' : isMedium ? '0.65rem' : '0.7rem',
+																fontSize: isXs ? '1rem' : isSmall ? '0.6rem' : isMedium ? '0.65rem' : '0.7rem',
 																flexShrink: 0
 															}}
 														/>
@@ -1873,13 +1869,13 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 															onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
 															disabled={!isEditable}
 															style={{
-																width: isSmall ? '16px' : isMedium ? '18px' : '20px',
-																height: isSmall ? '16px' : isMedium ? '18px' : '20px',
-																borderRadius: isSmall ? '4px' : '6px',
+																width: isXs ? '32px' : isSmall ? '16px' : isMedium ? '18px' : '20px',
+																height: isXs ? '32px' : isSmall ? '16px' : isMedium ? '18px' : '20px',
+																borderRadius: isXs ? '6px' : isSmall ? '4px' : '6px',
 																border: '1px solid #cbd5e0',
 																background: isEditable ? 'white' : '#edf2f7',
 																cursor: isEditable ? 'pointer' : 'not-allowed',
-																fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8rem',
+																fontSize: isXs ? '1rem' : isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8rem',
 																display: 'flex',
 																alignItems: 'center',
 																justifyContent: 'center',
@@ -1913,15 +1909,15 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 													<div style={{
 														display: 'flex',
 														alignItems: 'center',
-														gap: isSmall ? '0.2rem' : isMedium ? '0.3rem' : '0.35rem',
+														gap: isXs ? '0.5rem' : isSmall ? '0.2rem' : isMedium ? '0.3rem' : '0.35rem',
 														flexShrink: 0,
-														minWidth: isSmall ? '55px' : isMedium ? '65px' : '75px',
+														minWidth: isXs ? '70px' : isSmall ? '55px' : isMedium ? '65px' : '75px',
 														marginLeft: 'auto'
 													}}>
 														<div style={{
 															fontWeight: 700,
 															color: '#2d3748',
-															fontSize: isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8125rem',
+															fontSize: isXs ? '0.85rem' : isSmall ? '0.7rem' : isMedium ? '0.75rem' : '0.8125rem',
 															textAlign: 'right'
 														}}>
 															S/ {item.total.toFixed(2)}
@@ -1934,8 +1930,8 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 																border: 'none',
 																color: isEditable ? '#dc2626' : '#cbd5e0',
 																cursor: isEditable ? 'pointer' : 'not-allowed',
-																fontSize: isSmall ? '0.75rem' : isMedium ? '0.8rem' : '0.875rem',
-																padding: '0.1rem',
+																fontSize: isXs ? '1.25rem' : isSmall ? '0.75rem' : isMedium ? '0.8rem' : '0.875rem',
+																padding: isXs ? '0.4rem' : '0.1rem',
 																flexShrink: 0,
 																display: 'flex',
 																alignItems: 'center',
