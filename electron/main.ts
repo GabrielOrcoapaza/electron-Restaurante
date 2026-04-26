@@ -518,6 +518,20 @@ function registerIpcHandlers(): void {
 app.whenReady().then(() => {
     registerIpcHandlers();
 
+    // Configurar CSP para seguridad y permitir medios externos
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        const responseHeaders = { ...details.responseHeaders };
+
+        // Cabecera de seguridad CSP (Elimina el aviso de Electron y permite imágenes externas)
+        const csp = isDev
+            ? "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: gap: http://localhost:5173 https://api.sumapp.pe wss://api.sumapp.pe; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:5173 https://api.sumapp.pe wss://api.sumapp.pe; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:;"
+            : "default-src 'self' 'unsafe-inline' data: https://api.sumapp.pe wss://api.sumapp.pe; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.sumapp.pe wss://api.sumapp.pe; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:;";
+
+        responseHeaders["Content-Security-Policy"] = [csp];
+
+        callback({ responseHeaders });
+    });
+
     // Desactivar caché en producción para asegurar que se carguen los últimos cambios
     if (!isDev) {
         // Limpiar solo el caché (NO el localStorage para mantener datos de autenticación)

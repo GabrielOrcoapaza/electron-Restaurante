@@ -1,423 +1,610 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery } from '@apollo/client';
-import { USER_LOGIN } from '../graphql/mutations';
-import { GET_USERS_BY_BRANCH } from '../graphql/queries';
-import { useAuth } from '../hooks/useAuth';
-import { useResponsive } from '../hooks/useResponsive';
-import { useToast } from '../context/ToastContext';
-import VirtualKeyboard from '../components/VirtualKeyboard';
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery } from "@apollo/client";
+import { USER_LOGIN } from "../graphql/mutations";
+import { GET_USERS_BY_BRANCH } from "../graphql/queries";
+import { useAuth } from "../hooks/useAuth";
+import { useResponsive } from "../hooks/useResponsive";
+import { useToast } from "../context/ToastContext";
+import VirtualKeyboard from "../components/VirtualKeyboard";
 
 const Login: React.FC = () => {
-  const navigate = useNavigate();
-  const { loginUser, companyData, getMacAddress, clearCompanyData } = useAuth();
-  const { isMobile, isTablet } = useResponsive();
-  const { showToast } = useToast();
+    const navigate = useNavigate();
+    const { loginUser, companyData, getMacAddress, clearCompanyData } =
+        useAuth();
+    const { isMobile, isTablet } = useResponsive();
+    const { showToast } = useToast();
 
-  const [formData, setFormData] = useState({
-    selectedEmployee: '',
-    password: ''
-  });
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [focusedInput, setFocusedInput] = useState<'search' | 'password' | null>(null);
-  /** Teclado mostrado explícitamente con el botón (además del foco en buscar/contraseña) */
-  const [virtualKeyboardOpen, setVirtualKeyboardOpen] = useState(false);
-  const keyboardActive = focusedInput !== null || virtualKeyboardOpen;
-  const keyboardRef = useRef<HTMLDivElement>(null);
-  const passwordFormRef = useRef<HTMLFormElement>(null);
-  const passwordInputRef = useRef<HTMLInputElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const [showConfirmExit, setShowConfirmExit] = useState(false);
-
-  const [userLoginMutation, { loading }] = useMutation(USER_LOGIN);
-
-  const { data: usersData, loading: employeesLoading, refetch: refetchEmployees } = useQuery(GET_USERS_BY_BRANCH, {
-    variables: { branchId: companyData?.branch?.id, includeInactive: false },
-    skip: !companyData?.branch?.id,
-    fetchPolicy: 'network-only'
-  });
-
-  const allEmployees = usersData?.usersByBranch || companyData?.branch?.users || [];
-
-  const filteredEmployees = allEmployees
-    .filter((employee: any) => employee.isActive !== false)
-    .filter((employee: any) => {
-      const fullName = `${employee.firstName || ''} ${employee.lastName || ''}`.toLowerCase();
-      const dni = (employee.dni || '').toLowerCase();
-      const search = searchTerm.toLowerCase();
-      return fullName.includes(search) || dni.includes(search);
+    const [formData, setFormData] = useState({
+        selectedEmployee: "",
+        password: "",
     });
 
-  const selectedEmployeeObj = allEmployees.find((e: any) => e.dni === formData.selectedEmployee);
-  const needsPassword = selectedEmployeeObj
-    ? (selectedEmployeeObj.role === 'WAITER'
-      ? (selectedEmployeeObj.customPermissions || []).includes('users.manage')
-      : true)
-    : true;
+    const [searchTerm, setSearchTerm] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
+    const [focusedInput, setFocusedInput] = useState<
+        "search" | "password" | null
+    >(null);
+    /** Teclado mostrado explícitamente con el botón (además del foco en buscar/contraseña) */
+    const [virtualKeyboardOpen, setVirtualKeyboardOpen] = useState(false);
+    const keyboardActive = focusedInput !== null || virtualKeyboardOpen;
+    const keyboardRef = useRef<HTMLDivElement>(null);
+    const passwordFormRef = useRef<HTMLFormElement>(null);
+    const passwordInputRef = useRef<HTMLInputElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const [showConfirmExit, setShowConfirmExit] = useState(false);
+    const [macAddress, setMacAddress] = useState<string>("");
 
-  useEffect(() => {
-    if (!companyData) {
-      showToast('Primero debes iniciar sesión con los datos de la empresa', 'warning');
-      navigate('/login-company');
-    }
-  }, [companyData, navigate, showToast]);
+    const roleDisplay = (role?: string): string => {
+        const r = role?.toUpperCase();
+        if (r === "CASHIER") return "Cajero";
+        if (r === "WAITER") return "Mozo";
+        if (r === "COOK") return "Cocinero";
+        if (r === "ADMIN") return "Administrador";
+        return role || "";
+    };
 
-  useEffect(() => {
-    if (companyData?.branch?.id && refetchEmployees) {
-      refetchEmployees();
-    }
-  }, [companyData?.branch?.id, refetchEmployees]);
+    const [userLoginMutation, { loading }] = useMutation(USER_LOGIN);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!companyData) {
-      showToast('No hay datos de empresa. Redirigiendo...', 'error');
-      navigate('/login-company');
-      return;
-    }
-
-    if (!formData.selectedEmployee) {
-      showToast('Por favor selecciona un empleado', 'warning');
-      return;
-    }
-
-    if (needsPassword && !formData.password) {
-      showToast('Por favor ingresa tu contraseña', 'warning');
-      return;
-    }
-
-    await performLogin(formData.selectedEmployee, formData.password || '');
-  };
-
-  const performLogin = async (dni: string, password: string) => {
-    if (!companyData) {
-      showToast('No hay datos de empresa. Redirigiendo...', 'error');
-      navigate('/login-company');
-      return false;
-    }
-    try {
-      const deviceId = await getMacAddress();
-      const { data } = await userLoginMutation({
+    const {
+        data: usersData,
+        loading: employeesLoading,
+        refetch: refetchEmployees,
+    } = useQuery(GET_USERS_BY_BRANCH, {
         variables: {
-          dni,
-          password: password || '',
-          branchId: companyData.branch.id,
-          deviceId
+            branchId: companyData?.branch?.id,
+            includeInactive: false,
+        },
+        skip: !companyData?.branch?.id,
+        fetchPolicy: "network-only",
+    });
+
+    const allEmployees =
+        usersData?.usersByBranch || companyData?.branch?.users || [];
+
+    useEffect(() => {
+        getMacAddress().then((mac) => setMacAddress(mac));
+    }, [getMacAddress]);
+
+    const filteredEmployees = allEmployees
+        .filter((employee: any) => employee.isActive !== false)
+        .filter((employee: any) => {
+            const fullName =
+                `${employee.firstName || ""} ${employee.lastName || ""}`.toLowerCase();
+            const dni = (employee.dni || "").toLowerCase();
+            const search = searchTerm.toLowerCase();
+            return fullName.includes(search) || dni.includes(search);
+        });
+
+    const selectedEmployeeObj = allEmployees.find(
+        (e: any) => e.dni === formData.selectedEmployee,
+    );
+    const needsPassword = selectedEmployeeObj
+        ? selectedEmployeeObj.role === "WAITER"
+            ? (selectedEmployeeObj.customPermissions || []).includes(
+                  "users.manage",
+              )
+            : true
+        : true;
+
+    useEffect(() => {
+        if (!companyData) {
+            showToast(
+                "Primero debes iniciar sesión con los datos de la empresa",
+                "warning",
+            );
+            navigate("/login-company");
         }
-      });
-      if (data?.userLogin?.success) {
-        const loggedUser = data.userLogin.user;
-        if (loggedUser.role === 'WAITER' && password) {
-          try {
-            const cachedPasswords = JSON.parse(localStorage.getItem('cached_waiter_passwords') || '{}');
-            cachedPasswords[loggedUser.dni] = password;
-            localStorage.setItem('cached_waiter_passwords', JSON.stringify(cachedPasswords));
-          } catch (e) {
-            console.error('Error guardando contraseña en caché:', e);
-          }
+    }, [companyData, navigate, showToast]);
+
+    useEffect(() => {
+        if (companyData?.branch?.id && refetchEmployees) {
+            refetchEmployees();
         }
-        loginUser(
-          data.userLogin.token,
-          data.userLogin.refreshToken,
-          data.userLogin.user,
-          data.userLogin.userPhotoBase64
-        );
-        showToast(`¡Bienvenido, ${loggedUser.firstName || 'usuario'}!`, 'success');
+    }, [companyData?.branch?.id, refetchEmployees]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!companyData) {
+            showToast("No hay datos de empresa. Redirigiendo...", "error");
+            navigate("/login-company");
+            return;
+        }
+
+        if (!formData.selectedEmployee) {
+            showToast("Por favor selecciona un empleado", "warning");
+            return;
+        }
+
+        if (needsPassword && !formData.password) {
+            showToast("Por favor ingresa tu contraseña", "warning");
+            return;
+        }
+
+        await performLogin(formData.selectedEmployee, formData.password || "");
+    };
+
+    const performLogin = async (dni: string, password: string) => {
+        if (!companyData) {
+            showToast("No hay datos de empresa. Redirigiendo...", "error");
+            navigate("/login-company");
+            return false;
+        }
         try {
-          sessionStorage.setItem('postLoginOpenFloors', '1');
-          localStorage.setItem('currentDashboardView', 'floors');
-        } catch {
-          /* ignorar si no hay storage */
-        }
-        navigate('/dashboard');
-        return true;
-      }
-      showToast(data?.userLogin?.message || 'Contraseña incorrecta', 'error');
-      return false;
-    } catch (err: any) {
-      let errorMessage = 'Contraseña incorrecta';
-      if (err.graphQLErrors && err.graphQLErrors.length > 0) {
-        const firstMsg = err.graphQLErrors[0]?.message;
-        if (firstMsg) errorMessage = firstMsg;
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      showToast(errorMessage, 'error');
-      return false;
-    }
-  };
-
-  const handleBackToCompany = () => {
-    setShowConfirmExit(true);
-  };
-
-  const confirmExit = () => {
-    clearCompanyData();
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('userData');
-    localStorage.removeItem('userPhoto');
-    navigate('/login-company', { replace: true });
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleVirtualKeyPress = (key: string) => {
-    if (focusedInput === 'search') setSearchTerm(prev => prev + key);
-    if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password + key }));
-  };
-  const handleVirtualBackspace = () => {
-    if (focusedInput === 'search') setSearchTerm(prev => prev.slice(0, -1));
-    if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password.slice(0, -1) }));
-  };
-
-  const closeVirtualKeyboard = () => {
-    setVirtualKeyboardOpen(false);
-    setFocusedInput(null);
-    searchInputRef.current?.blur();
-    passwordInputRef.current?.blur();
-  };
-
-  const activateVirtualKeyboard = () => {
-    setVirtualKeyboardOpen(true);
-    if (formData.selectedEmployee) {
-      setFocusedInput('password');
-      setTimeout(() => passwordInputRef.current?.focus(), 100);
-    } else {
-      setFocusedInput('search');
-      setTimeout(() => searchInputRef.current?.focus(), 100);
-    }
-  };
-
-  return (
-    <div className="login-user-wrapper">
-      <div className="login-bg-image"></div>
-      <div className="login-overlay"></div>
-
-      <div className={`fullscreen-glass-card ${keyboardActive ? 'keyboard-active' : ''}`}>
-
-        {/* CABECERA: Ahora integra el buscador de empleados */}
-        <div className="card-header">
-          <div className="header-top-row">
-            <div className="header-info">
-              <div className="user-icon-ring">
-                <span className="user-icon">👤</span>
-              </div>
-              {/* SEARCH BOX integrado al lado del usuario */}
-              <div className="search-container">
-                <span className="search-icon">🔍</span>
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscar empleado por nombre o DNI..."
-                  className={`search-input ${focusedInput === 'search' ? 'focused' : ''}`}
-                  onFocus={() => {
-                    setFocusedInput('search');
-                    setTimeout(() => {
-                      searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-                    }, 300);
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="header-actions">
-              <button type="button" className="btn-back" onClick={handleBackToCompany}>
-                🔙 <span className="action-text">Cambiar Local</span>
-              </button>
-            </div>
-          </div>
-
-
-        </div>
-
-        <div className="card-body">
-
-          <div className="left-column">
-            {/* EMPLOYEES GRID */}
-            <div className="employees-scroll-area employees-scroll-area-content">
-              {employeesLoading ? (
-                <div className="loading-state">
-                  <span className="spinner">⏳</span>
-                  <p>Cargando personal...</p>
-                </div>
-              ) : filteredEmployees.length === 0 ? (
-                <div className="empty-state">
-                  <span>😟</span>
-                  <p>{searchTerm ? `No se encontró a "${searchTerm}"` : 'El local está vacío.'}</p>
-                </div>
-              ) : (
-                <div className="employees-grid">
-                  {filteredEmployees.map((employee: any) => {
-                    const selected = formData.selectedEmployee === employee.dni;
-                    return (
-                      <button
-                        key={employee.id}
-                        type="button"
-                        className={`employee-card ${selected ? 'selected' : ''}`}
-                        onClick={async () => {
-                          const isWaiter = employee.role === 'WAITER';
-
-                          if (isWaiter) {
-                            let password = '';
-                            try {
-                              const cachedPasswords = JSON.parse(localStorage.getItem('cached_waiter_passwords') || '{}');
-                              password = cachedPasswords[employee.dni] || '';
-                            } catch (e) { }
-                            const ok = await performLogin(employee.dni, password);
-                            if (!ok) {
-                              setFormData({ ...formData, selectedEmployee: employee.dni, password: '' });
-                              setFocusedInput('password');
-                              setTimeout(() => passwordInputRef.current?.focus(), 0);
-                            }
-                            return;
-                          }
-
-                          setFormData({
-                            ...formData,
-                            selectedEmployee: employee.dni,
-                            password: ''
-
-                          });
-                          showToast(`Has seleccionado a ${employee.firstName}`, 'success');
-                          setFocusedInput('password');
-                          setTimeout(() => passwordInputRef.current?.focus(), 0);
-                        }}
-                      >
-                        <div className="employee-avatar">
-                          {employee.photoBase64 ? (
-                            <img
-                              src={employee.photoBase64.startsWith('data:')
-                                ? employee.photoBase64
-                                : `data:image/jpeg;base64,${employee.photoBase64}`}
-                              alt={employee.firstName}
-                              onError={(e) => {
-                                const el = e.currentTarget;
-                                el.style.display = 'none';
-                                el.nextElementSibling?.classList.remove('hidden');
-                              }}
-                            />
-                          ) : null}
-                          <span className={`fallback-avatar ${employee.photoBase64 ? 'hidden' : ''}`}>👤</span>
-                        </div>
-                        <div className="employee-info">
-                          <span className="employee-name">{employee.firstName} {employee.lastName}</span>
-                          <span className="employee-role">{employee.dni}</span>
-                        </div>
-                        {selected && <div className="selected-badge">✓</div>}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Teclado solo sobre la columna de mozos / empleados (no invade contraseña) */}
-            <div
-              ref={keyboardRef}
-              className={`keyboard-overlay ${keyboardActive ? 'visible' : ''}`}
-              onMouseDown={(e) => e.preventDefault()}
-            >
-              <div className="keyboard-container">
-                <VirtualKeyboard
-                  onKeyPress={handleVirtualKeyPress}
-                  onBackspace={handleVirtualBackspace}
-                  compact
-                  tight={isMobile || isTablet}
-                  onClose={closeVirtualKeyboard}
-                  onEnter={() => {
-                    if (focusedInput === 'password') {
-                      passwordFormRef.current?.requestSubmit();
+            const deviceId = await getMacAddress();
+            const { data } = await userLoginMutation({
+                variables: {
+                    dni,
+                    password: password || "",
+                    branchId: companyData.branch.id,
+                    deviceId,
+                },
+            });
+            if (data?.userLogin?.success) {
+                const loggedUser = data.userLogin.user;
+                if (loggedUser.role === "WAITER" && password) {
+                    try {
+                        const cachedPasswords = JSON.parse(
+                            localStorage.getItem("cached_waiter_passwords") ||
+                                "{}",
+                        );
+                        cachedPasswords[loggedUser.dni] = password;
+                        localStorage.setItem(
+                            "cached_waiter_passwords",
+                            JSON.stringify(cachedPasswords),
+                        );
+                    } catch (e) {
+                        console.error(
+                            "Error guardando contraseña en caché:",
+                            e,
+                        );
                     }
-                  }}
-                />
-              </div>
+                }
+                loginUser(
+                    data.userLogin.token,
+                    data.userLogin.refreshToken,
+                    data.userLogin.user,
+                    data.userLogin.userPhotoBase64,
+                );
+                showToast(
+                    `¡Bienvenido, ${loggedUser.firstName || "usuario"}!`,
+                    "success",
+                );
+                try {
+                    sessionStorage.setItem("postLoginOpenFloors", "1");
+                    localStorage.setItem("currentDashboardView", "floors");
+                } catch {
+                    /* ignorar si no hay storage */
+                }
+                navigate("/dashboard");
+                return true;
+            }
+            showToast(
+                data?.userLogin?.message || "Contraseña incorrecta",
+                "error",
+            );
+            return false;
+        } catch (err: any) {
+            let errorMessage = "Contraseña incorrecta";
+            if (err.graphQLErrors && err.graphQLErrors.length > 0) {
+                const firstMsg = err.graphQLErrors[0]?.message;
+                if (firstMsg) errorMessage = firstMsg;
+            } else if (err.message) {
+                errorMessage = err.message;
+            }
+            showToast(errorMessage, "error");
+            return false;
+        }
+    };
+
+    const handleBackToCompany = () => {
+        setShowConfirmExit(true);
+    };
+
+    const confirmExit = () => {
+        clearCompanyData();
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("userData");
+        localStorage.removeItem("userPhoto");
+        navigate("/login-company", { replace: true });
+    };
+
+    const handleChange = (
+        e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+    ) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleVirtualKeyPress = (key: string) => {
+        if (focusedInput === "search") setSearchTerm((prev) => prev + key);
+        if (focusedInput === "password")
+            setFormData((prev) => ({ ...prev, password: prev.password + key }));
+    };
+    const handleVirtualBackspace = () => {
+        if (focusedInput === "search")
+            setSearchTerm((prev) => prev.slice(0, -1));
+        if (focusedInput === "password")
+            setFormData((prev) => ({
+                ...prev,
+                password: prev.password.slice(0, -1),
+            }));
+    };
+
+    const closeVirtualKeyboard = () => {
+        setVirtualKeyboardOpen(false);
+        setFocusedInput(null);
+        searchInputRef.current?.blur();
+        passwordInputRef.current?.blur();
+    };
+
+    const activateVirtualKeyboard = () => {
+        setVirtualKeyboardOpen(true);
+        if (formData.selectedEmployee) {
+            setFocusedInput("password");
+            setTimeout(() => passwordInputRef.current?.focus(), 100);
+        } else {
+            setFocusedInput("search");
+            setTimeout(() => searchInputRef.current?.focus(), 100);
+        }
+    };
+
+    return (
+        <div className="login-user-wrapper">
+            <div className="login-bg-image"></div>
+            <div className="login-overlay"></div>
+
+            <div
+                className={`fullscreen-glass-card ${keyboardActive ? "keyboard-active" : ""}`}
+            >
+                {/* CABECERA: Ahora integra el buscador de empleados */}
+                <div className="card-header">
+                    <div className="header-top-row">
+                        <div className="header-info">
+                            <div className="user-icon-ring">
+                                <span className="user-icon">👤</span>
+                            </div>
+                            {/* SEARCH BOX integrado al lado del usuario */}
+                            <div className="search-container">
+                                <span className="search-icon">🔍</span>
+                                <input
+                                    ref={searchInputRef}
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) =>
+                                        setSearchTerm(e.target.value)
+                                    }
+                                    placeholder="Buscar empleado por nombre o DNI..."
+                                    className={`search-input ${focusedInput === "search" ? "focused" : ""}`}
+                                    onFocus={() => {
+                                        setFocusedInput("search");
+                                        setTimeout(() => {
+                                            searchInputRef.current?.scrollIntoView(
+                                                {
+                                                    behavior: "smooth",
+                                                    block: "nearest",
+                                                    inline: "nearest",
+                                                },
+                                            );
+                                        }, 300);
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="header-actions">
+                            {macAddress && (
+                                <div className="mac-badge">
+                                    <span className="mac-icon">💻</span>
+                                    <div className="mac-details">
+                                        <span className="mac-label">
+                                            MAC del Equipo
+                                        </span>
+                                        <span className="mac-value">
+                                            {macAddress}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                            <button
+                                type="button"
+                                className="btn-back"
+                                onClick={handleBackToCompany}
+                            >
+                                🔙{" "}
+                                <span className="action-text">
+                                    Cambiar Local
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="card-body">
+                    <div className="left-column">
+                        {/* EMPLOYEES GRID */}
+                        <div className="employees-scroll-area employees-scroll-area-content">
+                            {employeesLoading ? (
+                                <div className="loading-state">
+                                    <span className="spinner">⏳</span>
+                                    <p>Cargando personal...</p>
+                                </div>
+                            ) : filteredEmployees.length === 0 ? (
+                                <div className="empty-state">
+                                    <span>😟</span>
+                                    <p>
+                                        {searchTerm
+                                            ? `No se encontró a "${searchTerm}"`
+                                            : "El local está vacío."}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="employees-grid">
+                                    {filteredEmployees.map((employee: any) => {
+                                        const selected =
+                                            formData.selectedEmployee ===
+                                            employee.dni;
+                                        return (
+                                            <button
+                                                key={employee.id}
+                                                type="button"
+                                                className={`employee-card ${selected ? "selected" : ""}`}
+                                                onClick={async () => {
+                                                    const isWaiter =
+                                                        employee.role ===
+                                                        "WAITER";
+
+                                                    if (isWaiter) {
+                                                        let password = "";
+                                                        try {
+                                                            const cachedPasswords =
+                                                                JSON.parse(
+                                                                    localStorage.getItem(
+                                                                        "cached_waiter_passwords",
+                                                                    ) || "{}",
+                                                                );
+                                                            password =
+                                                                cachedPasswords[
+                                                                    employee.dni
+                                                                ] || "";
+                                                        } catch (e) {}
+                                                        const ok =
+                                                            await performLogin(
+                                                                employee.dni,
+                                                                password,
+                                                            );
+                                                        if (!ok) {
+                                                            setFormData({
+                                                                ...formData,
+                                                                selectedEmployee:
+                                                                    employee.dni,
+                                                                password: "",
+                                                            });
+                                                            setFocusedInput(
+                                                                "password",
+                                                            );
+                                                            setTimeout(
+                                                                () =>
+                                                                    passwordInputRef.current?.focus(),
+                                                                0,
+                                                            );
+                                                        }
+                                                        return;
+                                                    }
+
+                                                    setFormData({
+                                                        ...formData,
+                                                        selectedEmployee:
+                                                            employee.dni,
+                                                        password: "",
+                                                    });
+                                                    showToast(
+                                                        `Has seleccionado a ${employee.firstName}`,
+                                                        "success",
+                                                    );
+                                                    setFocusedInput("password");
+                                                    setTimeout(
+                                                        () =>
+                                                            passwordInputRef.current?.focus(),
+                                                        0,
+                                                    );
+                                                }}
+                                            >
+                                                <div className="employee-avatar">
+                                                    {employee.photoBase64 ? (
+                                                        <img
+                                                            src={
+                                                                employee.photoBase64.startsWith(
+                                                                    "data:",
+                                                                )
+                                                                    ? employee.photoBase64
+                                                                    : `data:image/jpeg;base64,${employee.photoBase64}`
+                                                            }
+                                                            alt={
+                                                                employee.firstName
+                                                            }
+                                                            onError={(e) => {
+                                                                const el =
+                                                                    e.currentTarget;
+                                                                el.style.display =
+                                                                    "none";
+                                                                el.nextElementSibling?.classList.remove(
+                                                                    "hidden",
+                                                                );
+                                                            }}
+                                                        />
+                                                    ) : null}
+                                                    <span
+                                                        className={`fallback-avatar ${employee.photoBase64 ? "hidden" : ""}`}
+                                                    >
+                                                        👤
+                                                    </span>
+                                                </div>
+                                                <div className="employee-info">
+                                                    <span className="employee-name">
+                                                        {employee.firstName}{" "}
+                                                        {employee.lastName}
+                                                    </span>
+                                                    <div className="employee-meta">
+                                                        <span className="role-tag">
+                                                            {roleDisplay(
+                                                                employee.role,
+                                                            )}
+                                                        </span>
+                                                        <span className="dni-tag">
+                                                            ID: {employee.dni}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {selected && (
+                                                    <div className="selected-badge">
+                                                        ✓
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Teclado solo sobre la columna de mozos / empleados (no invade contraseña) */}
+                        <div
+                            ref={keyboardRef}
+                            className={`keyboard-overlay ${keyboardActive ? "visible" : ""}`}
+                            onMouseDown={(e) => e.preventDefault()}
+                        >
+                            <div className="keyboard-container">
+                                <VirtualKeyboard
+                                    onKeyPress={handleVirtualKeyPress}
+                                    onBackspace={handleVirtualBackspace}
+                                    compact
+                                    tight={isMobile || isTablet}
+                                    onClose={closeVirtualKeyboard}
+                                    onEnter={() => {
+                                        if (focusedInput === "password") {
+                                            passwordFormRef.current?.requestSubmit();
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="right-column">
+                        {/* PASSWORD AREA */}
+                        <form
+                            ref={passwordFormRef}
+                            className="password-area"
+                            onSubmit={handleSubmit}
+                        >
+                            <div className="password-header">
+                                <h2>Contraseña</h2>
+                                <p>
+                                    {formData.selectedEmployee
+                                        ? "Ingresa tu llave privada"
+                                        : "Selecciona tu usuario primero"}
+                                </p>
+                            </div>
+
+                            <div
+                                className={`password-input-group ${focusedInput === "password" ? "focused" : ""}`}
+                            >
+                                <span className="pass-icon">🔒</span>
+                                <input
+                                    ref={passwordInputRef}
+                                    type={showPassword ? "text" : "password"}
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    className="pass-input"
+                                    onFocus={() => {
+                                        setFocusedInput("password");
+                                        setTimeout(() => {
+                                            passwordInputRef.current?.scrollIntoView(
+                                                {
+                                                    behavior: "smooth",
+                                                    block: "nearest",
+                                                    inline: "nearest",
+                                                },
+                                            );
+                                        }, 300);
+                                    }}
+                                    disabled={!formData.selectedEmployee}
+                                />
+                                <button
+                                    type="button"
+                                    className="pass-toggle"
+                                    onClick={() =>
+                                        setShowPassword(!showPassword)
+                                    }
+                                    disabled={!formData.selectedEmployee}
+                                >
+                                    {showPassword ? "🙈" : "👁️"}
+                                </button>
+                            </div>
+
+                            <div className="action-buttons">
+                                <button
+                                    type="submit"
+                                    disabled={
+                                        loading || !formData.selectedEmployee
+                                    }
+                                    className="btn-submit"
+                                >
+                                    {loading ? "⏳" : "🚀 Iniciar Sesión"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                {!keyboardActive && (
+                    <button
+                        type="button"
+                        className="btn-float-virtual-keyboard"
+                        onClick={activateVirtualKeyboard}
+                        title="Teclado virtual"
+                        aria-label="Teclado virtual"
+                    >
+                        <span className="float-kb-icon" aria-hidden>
+                            ⌨️
+                        </span>
+                    </button>
+                )}
             </div>
-          </div>
 
-          <div className="right-column">
-            {/* PASSWORD AREA */}
-            <form ref={passwordFormRef} className="password-area" onSubmit={handleSubmit}>
-              <div className="password-header">
-                <h2>Contraseña</h2>
-                <p>{formData.selectedEmployee ? 'Ingresa tu llave privada' : 'Selecciona tu usuario primero'}</p>
-              </div>
+            {/* MODAL CONFIRM EXIT */}
+            {showConfirmExit && (
+                <div className="modal-overlay">
+                    <div className="modal-content">
+                        <span className="modal-emoji">👋</span>
+                        <h3>¿Cambiar sucursal/empresa?</h3>
+                        <p>
+                            Se cerrará la conexión actual. Deberás volver a
+                            colocar el RUC para acceder.
+                        </p>
+                        <div className="modal-actions">
+                            <button
+                                className="btn-cancel"
+                                onClick={() => setShowConfirmExit(false)}
+                            >
+                                Mejor No
+                            </button>
+                            <button
+                                className="btn-confirm"
+                                onClick={confirmExit}
+                            >
+                                Sí, Cambiar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
-              <div className={`password-input-group ${focusedInput === 'password' ? 'focused' : ''}`}>
-                <span className="pass-icon">🔒</span>
-                <input
-                  ref={passwordInputRef}
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="••••••••"
-                  className="pass-input"
-                  onFocus={() => {
-                    setFocusedInput('password');
-                    setTimeout(() => {
-                      passwordInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-                    }, 300);
-                  }}
-                  disabled={!formData.selectedEmployee}
-                />
-                <button
-                  type="button"
-                  className="pass-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
-                  disabled={!formData.selectedEmployee}
-                >
-                  {showPassword ? '🙈' : '👁️'}
-                </button>
-              </div>
-
-              <div className="action-buttons">
-                <button type="submit" disabled={loading || !formData.selectedEmployee} className="btn-submit">
-                  {loading ? '⏳' : '🚀 Iniciar Sesión'}
-                </button>
-              </div>
-            </form>
-          </div>
-
-        </div>
-
-        {!keyboardActive && (
-          <button
-            type="button"
-            className="btn-float-virtual-keyboard"
-            onClick={activateVirtualKeyboard}
-            title="Teclado virtual"
-            aria-label="Teclado virtual"
-          >
-            <span className="float-kb-icon" aria-hidden>⌨️</span>
-          </button>
-        )}
-
-      </div>
-
-      {/* MODAL CONFIRM EXIT */}
-      {showConfirmExit && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <span className="modal-emoji">👋</span>
-            <h3>¿Cambiar sucursal/empresa?</h3>
-            <p>Se cerrará la conexión actual. Deberás volver a colocar el RUC para acceder.</p>
-            <div className="modal-actions">
-              <button className="btn-cancel" onClick={() => setShowConfirmExit(false)}>Mejor No</button>
-              <button className="btn-confirm" onClick={confirmExit}>Sí, Cambiar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style>{`
+            <style>{`
         * {
           box-sizing: border-box;
           margin: 0;
@@ -562,11 +749,26 @@ const Login: React.FC = () => {
 
 
         .header-actions {
-           display: flex;
-           gap: 0.75rem;
-           flex-wrap: wrap;
-           align-items: center;
+          display: flex;
+          align-items: center;
+          gap: 1.25rem;
         }
+
+        .mac-badge {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          background: white;
+          border: 1px solid var(--border-color);
+          padding: 0.5rem 0.85rem;
+          border-radius: 0.85rem;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+
+        .mac-icon { font-size: 1.1rem; }
+        .mac-details { display: flex; flex-direction: column; }
+        .mac-label { font-size: 0.55rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; margin-bottom: 2px; }
+        .mac-value { font-size: 0.75rem; font-weight: 600; color: var(--text-dark); font-family: 'JetBrains Mono', monospace; line-height: 1; }
 
         .btn-float-virtual-keyboard {
           position: absolute;
@@ -761,26 +963,34 @@ const Login: React.FC = () => {
           min-width: 0;
           display: flex;
           flex-direction: column;
-          overflow: visible;
-          padding-right: 1.5rem;
+          justify-content: center;
         }
         .employee-name {
           font-weight: 800;
           color: var(--text-dark);
-          font-size: 0.95rem;
-          line-height: 1.32;
-          margin-bottom: 0.15rem;
-          white-space: normal;
-          overflow-wrap: anywhere;
-          word-break: break-word;
-        }
-        .employee-role {
-          font-weight: 600;
-          color: var(--text-muted);
-          font-size: 0.76rem;
+          font-size: 0.9rem;
+          line-height: 1.2;
+          margin-bottom: 0.35rem;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+        .employee-meta {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .role-tag {
+          font-weight: 700;
+          color: var(--primary);
+          font-size: 0.75rem;
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+        }
+        .dni-tag {
+          font-size: 0.75rem;
+          color: var(--text-muted);
+          font-weight: 500;
         }
 
         .selected-badge {
@@ -926,8 +1136,8 @@ const Login: React.FC = () => {
            .pass-input { padding: 1rem 3rem; font-size: 1rem; }
         }
       `}</style>
-    </div>
-  );
+        </div>
+    );
 };
 
 export default Login;

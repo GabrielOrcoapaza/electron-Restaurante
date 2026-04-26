@@ -2440,16 +2440,18 @@ const CashPay: React.FC<CashPayProps> = ({
                                         </div>
                                     )}
                                 </div>
-                                <div
-                                    style={{
-                                        textAlign: "right",
-                                        fontWeight: 700,
-                                    }}
-                                >
-                                    {currencyFormatter.format(
-                                        d.quantity * d.unitPrice,
-                                    )}
-                                </div>
+                                {isNarrow && (
+                                    <div
+                                        style={{
+                                            textAlign: "right",
+                                            fontWeight: 700,
+                                        }}
+                                    >
+                                        {currencyFormatter.format(
+                                            d.quantity * d.unitPrice,
+                                        )}
+                                    </div>
+                                )}
                                 {!isNarrow && (
                                     <>
                                         <div style={{ textAlign: "right" }}>
