@@ -324,8 +324,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     };
 
     // Notificaciones de cocina
-    const kitchenNotifications =
-        notificationsData?.myKitchenNotifications ?? [];
     const unreadKitchenNotifications = useMemo(
         () =>
             (notificationsData?.myKitchenNotifications ?? []).filter(
