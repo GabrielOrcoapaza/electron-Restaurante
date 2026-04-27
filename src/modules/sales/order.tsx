@@ -601,26 +601,33 @@ const Order: React.FC<OrderProps> = ({ table, onClose, onSuccess, onOpenCash }) 
 		}));
 
 		// Obtener las observaciones seleccionadas
-		const selectedNotes = Array.from(selectedIds)
+		const selectedNotesArray = Array.from(selectedIds)
 			.map(id => {
 				const obs = productObservations[itemId]?.find((o: any) => o.id === id);
 				return obs?.note || '';
 			})
-			.filter(note => note !== '')
-			.join(', ');
+			.filter(note => note !== '');
 
 		// Limpiar las notas manuales (eliminar espacios extra)
-		const cleanManualNotes = manualNotes.trim();
+		let cleanManualNotes = manualNotes.trim();
+		cleanManualNotes = cleanManualNotes.replace(/(\d+[.)]?)\s*,\s*(?=\p{L})/gu, '$1 ');
+		cleanManualNotes = cleanManualNotes.replace(/(\p{L})\s*(\d+[.)]?\s+)/gu, '$1, $2');
+		const manualSegments = cleanManualNotes
+			.split(',')
+			.map(segment => segment.trim())
+			.filter(segment => segment !== '');
 
-		// Combinar: primero observaciones seleccionadas, luego notas manuales
+		// Evitar duplicar etiquetas rápidas si el texto manual ya las contiene literalmente
+		const selectedNotes = selectedNotesArray.filter(
+			note => !manualSegments.includes(note)
+		);
+
+		// Combinar respetando el orden manual: primero notas escritas, luego etiquetas rápidas adicionales
 		let finalNotes = '';
-		if (selectedNotes && cleanManualNotes) {
-			finalNotes = `${selectedNotes}, ${cleanManualNotes}`;
-		} else if (selectedNotes) {
-			finalNotes = selectedNotes;
-		} else if (cleanManualNotes) {
-			finalNotes = cleanManualNotes;
-		}
+		const combinedParts: string[] = [];
+		if (cleanManualNotes) combinedParts.push(cleanManualNotes);
+		if (selectedNotes.length > 0) combinedParts.push(selectedNotes.join(', '));
+		finalNotes = combinedParts.join(', ');
 
 		setOrderItems(items =>
 			items.map(i => {
