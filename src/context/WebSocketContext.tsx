@@ -56,9 +56,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     const isManualDisconnectRef = useRef(false);
     const authVariantIndexRef = useRef(0);
     const authVariants = [
-        { name: "raw", prefix: "" },
-        { name: "jwt", prefix: "JWT " },
-        { name: "bearer", prefix: "Bearer " },
+        { name: "token-raw", param: "token", prefix: "" },
+        { name: "token-jwt", param: "token", prefix: "JWT " },
+        { name: "token-bearer", param: "token", prefix: "Bearer " },
+        { name: "auth-raw", param: "Authorization", prefix: "" },
+        { name: "jwt-raw", param: "jwt", prefix: "" },
+        { name: "proto-raw", param: null, prefix: "" }, // Usará subprotocolo
     ] as const;
     const subscribersRef = useRef<
         Map<string, Set<(message: WebSocketMessage) => void>>
@@ -154,7 +157,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         const useTrailingSlash = authVariantIndexRef.current % 2 === 0;
 
         const variant = authVariants[variantIndex];
-        tokenToUse = `${variant.prefix}${rawToken}`;
+        const tokenValue = `${variant.prefix}${rawToken}`;
 
         let baseUrl = import.meta.env.VITE_WS_URL || "";
         // Normalizar quitando slashes al final
@@ -162,7 +165,11 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // Aplicar la variante de trailing slash
         const normalizedBaseUrl = useTrailingSlash ? `${baseUrl}/` : baseUrl;
-        const wsUrl = `${normalizedBaseUrl}?token=${encodeURIComponent(tokenToUse)}`;
+
+        // Construir URL con o sin parámetro de token
+        const wsUrl = variant.param
+            ? `${normalizedBaseUrl}?${variant.param}=${encodeURIComponent(tokenValue)}`
+            : normalizedBaseUrl;
 
         // Si ya hay una conexión a la MISMA URL, no hacer nada
         if (
@@ -195,13 +202,13 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         );
         console.log(
             "URL:",
-            wsUrl.replace(encodeURIComponent(tokenToUse), "TOKEN_OCULTO"),
+            wsUrl.replace(encodeURIComponent(tokenValue), "TOKEN_OCULTO"),
         );
 
         try {
-            // Intentamos pasar el token también en el protocolo por si el backend lo requiere
-            // Algunos servidores (Django Channels) pueden configurarse para leer el token de aquí
-            const ws = new WebSocket(wsUrl);
+            // Si la variante es 'proto-raw', pasamos el token en el protocolo
+            const protocols = variant.param === null ? [tokenValue] : undefined;
+            const ws = new WebSocket(wsUrl, protocols);
             wsRef.current = ws;
 
             // Manejar eventos de forma compatible con Navegador y Electron (ws)
