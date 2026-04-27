@@ -55,7 +55,11 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     const maxReconnectAttempts = 10;
     const isManualDisconnectRef = useRef(false);
     const authVariantIndexRef = useRef(0);
-    const authVariants = ["raw", "jwt", "bearer"] as const;
+    const authVariants = [
+        { name: "raw", prefix: "" },
+        { name: "jwt", prefix: "JWT " },
+        { name: "bearer", prefix: "Bearer " },
+    ] as const;
     const subscribersRef = useRef<
         Map<string, Set<(message: WebSocketMessage) => void>>
     >(new Map());
@@ -142,40 +146,61 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         if (!tokenToUse) return;
 
         const rawToken = tokenToUse.replace(/^(JWT|Bearer)\s+/i, "");
-        const variant = authVariants[authVariantIndexRef.current] ?? "raw";
-        tokenToUse =
-            variant === "jwt"
-                ? `JWT ${rawToken}`
-                : variant === "bearer"
-                  ? `Bearer ${rawToken}`
-                  : rawToken;
 
-        let wSocketBaseUrl = import.meta.env.VITE_WS_URL || "";
-        if (wSocketBaseUrl && !wSocketBaseUrl.endsWith('/')) {
-            wSocketBaseUrl += '/';
-        }
+        // Calculamos la variante de auth y de URL según el índice actual
+        // Probaremos combinaciones de (raw, jwt, bearer) x (con slash, sin slash)
+        const variantIndex =
+            Math.floor(authVariantIndexRef.current / 2) % authVariants.length;
+        const useTrailingSlash = authVariantIndexRef.current % 2 === 0;
 
-        const wsUrl = `${wSocketBaseUrl}?token=${encodeURIComponent(tokenToUse)}`;
+        const variant = authVariants[variantIndex];
+        tokenToUse = `${variant.prefix}${rawToken}`;
+
+        let baseUrl = import.meta.env.VITE_WS_URL || "";
+        // Normalizar quitando slashes al final
+        baseUrl = baseUrl.replace(/\/+$/, "");
+
+        // Aplicar la variante de trailing slash
+        const normalizedBaseUrl = useTrailingSlash ? `${baseUrl}/` : baseUrl;
+        const wsUrl = `${normalizedBaseUrl}?token=${encodeURIComponent(tokenToUse)}`;
 
         // Si ya hay una conexión a la MISMA URL, no hacer nada
-        if (wsRef.current && (wsRef.current.readyState === 0 || wsRef.current.readyState === 1)) {
+        if (
+            wsRef.current &&
+            (wsRef.current.readyState === 0 || wsRef.current.readyState === 1)
+        ) {
             if (lastWsUrlRef.current === wsUrl) {
-                console.log("ℹ️ WebSocket ya está conectado/conectando a la misma URL");
+                console.log(
+                    "ℹ️ WebSocket ya está conectado/conectando a la misma URL",
+                );
                 return;
             }
             // Si la URL cambió (ej. nuevo token), cerramos la anterior
-            console.log("🔄 URL de WebSocket cambió, cerrando conexión anterior...");
+            console.log(
+                "🔄 URL de WebSocket cambió, cerrando conexión anterior...",
+            );
             wsRef.current.close(1000, "URL changed");
         }
 
         lastWsUrlRef.current = wsUrl;
         isManualDisconnectRef.current = false;
-        
-        console.log("🔌 Intentando conectar WebSocket... (intento", reconnectAttemptsRef.current + 1, ")");
-        console.log("🔐 Variante auth WS:", variant);
-        console.log("URL:", wsUrl.replace(encodeURIComponent(tokenToUse), "TOKEN_OCULTO")); 
-        
+
+        console.log(
+            "🔌 Intentando conectar WebSocket... (intento",
+            reconnectAttemptsRef.current + 1,
+            ")",
+        );
+        console.log(
+            `🔐 Variante auth: ${variant.name}, Slash: ${useTrailingSlash ? "SÍ" : "NO"}`,
+        );
+        console.log(
+            "URL:",
+            wsUrl.replace(encodeURIComponent(tokenToUse), "TOKEN_OCULTO"),
+        );
+
         try {
+            // Intentamos pasar el token también en el protocolo por si el backend lo requiere
+            // Algunos servidores (Django Channels) pueden configurarse para leer el token de aquí
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
@@ -243,15 +268,29 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                     return;
                 }
 
-                const isAuthLikeClose = code === 1006 || code === 4401 || code === 4403;
-                if (isAuthLikeClose && authVariantIndexRef.current < authVariants.length - 1) {
+                const isAuthLikeClose =
+                    code === 1006 || code === 4401 || code === 4403;
+                const maxVariants = authVariants.length * 2; // 3 prefijos * 2 formatos de URL
+
+                if (
+                    isAuthLikeClose &&
+                    authVariantIndexRef.current < maxVariants - 1
+                ) {
                     authVariantIndexRef.current += 1;
+
+                    const nextVariantIndex =
+                        Math.floor(authVariantIndexRef.current / 2) %
+                        authVariants.length;
+                    const nextUseSlash = authVariantIndexRef.current % 2 === 0;
+                    const nextVariant = authVariants[nextVariantIndex];
+
                     console.warn(
-                        `⚠️ Falló auth WS, probando variante: ${authVariants[authVariantIndexRef.current]}`
+                        `⚠️ Falló conexión (posible auth), probando variante ${authVariantIndexRef.current + 1}/${maxVariants}: ${nextVariant.name} (${nextUseSlash ? "con slash" : "sin slash"})`,
                     );
+
                     reconnectTimeoutRef.current = setTimeout(() => {
                         connectWebSocket();
-                    }, 600);
+                    }, 800);
                     return;
                 }
                 authVariantIndexRef.current = 0;
@@ -313,7 +352,9 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [companyData?.branch.id, user?.id, token, notifySubscribers]);
 
     // Ref para manejar el cierre diferido (evita ruidos en React 18 Dev mode)
-    const unmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const unmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null,
+    );
 
     // Efecto para manejar la conexión del WebSocket
     useEffect(() => {
@@ -325,7 +366,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // Solo conectar si tenemos los datos necesarios
         if (companyData?.branch.id && user?.id && token) {
-             connectWebSocket();
+            connectWebSocket();
         }
 
         // Cleanup
@@ -344,7 +385,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                 if (wsRef.current) {
                     const ws = wsRef.current;
                     // Solo cerrar si no se ha vuelto a marcar como activo por otro renderizado
-                    if (ws.readyState === 1) { 
+                    if (ws.readyState === 1) {
                         console.log("🔌 Cerrando WebSocket por desmontaje...");
                         ws.close(1000, "Component unmount");
                     } else if (ws.readyState === 0) {
@@ -359,12 +400,15 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         };
     }, [connectWebSocket, companyData?.branch.id, user?.id, token]);
 
-    const value: WebSocketContextType = useMemo(() => ({
-        isConnected,
-        subscribe,
-        sendMessage,
-        disconnect,
-    }), [isConnected, subscribe, sendMessage, disconnect]);
+    const value: WebSocketContextType = useMemo(
+        () => ({
+            isConnected,
+            subscribe,
+            sendMessage,
+            disconnect,
+        }),
+        [isConnected, subscribe, sendMessage, disconnect],
+    );
 
     return (
         <WebSocketContext.Provider value={value}>
