@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useMemo, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { Table } from '../types/table';
 
@@ -368,7 +368,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsAuthenticated(false);
   };
 
-  const value: AuthContextType = {
+  const authValue = useMemo(() => ({
     isAuthenticated,
     token,
     user,
@@ -382,7 +382,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     updateTableInContext,
     getDeviceId,
     getMacAddress,
-  };
+  }), [
+    isAuthenticated, 
+    token, 
+    user, 
+    companyData, 
+    deviceId, 
+    loginCompany, 
+    loginUser, 
+    logout, 
+    clearCompanyData, 
+    switchBranch, 
+    updateTableInContext, 
+    getDeviceId, 
+    getMacAddress
+  ]);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={authValue}>{children}</AuthContext.Provider>;
 };

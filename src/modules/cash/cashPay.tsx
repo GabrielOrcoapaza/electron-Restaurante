@@ -102,6 +102,8 @@ const CashPay: React.FC<CashPayProps> = ({
     const isSmall = breakpoint === "sm";
     const isMedium = breakpoint === "md";
     const isNarrow = isXs || isSmall || isMedium;
+    const isElectron = navigator.userAgent.toLowerCase().includes("electron");
+
 
     // Solo para diferentes tamaños de pantalla de PC (desktop)
     // lg: 1024px-1279px, xl: 1280px-1535px, 2xl: >=1536px
@@ -2893,8 +2895,24 @@ const CashPay: React.FC<CashPayProps> = ({
                                     color: "#64748b",
                                 }}
                             >
-                                Cobrar e imprimir
+                                {isElectron ? "Cobrar e imprimir" : "Cobrar"}
                             </div>
+                            {!isElectron && (
+                                <div
+                                    style={{
+                                        fontSize: "0.6rem",
+                                        color: "#d97706",
+                                        marginBottom: "0.2rem",
+                                        fontWeight: 600,
+                                        backgroundColor: "#fef3c7",
+                                        padding: "0.3rem",
+                                        borderRadius: "4px",
+                                        border: "1px solid #fcd34d",
+                                    }}
+                                >
+                                    ⚠️ La impresión física directa solo está disponible en la versión de escritorio.
+                                </div>
+                            )}
                             {payDocumentsOrdered.length === 0 ? (
                                 <div
                                     style={{
