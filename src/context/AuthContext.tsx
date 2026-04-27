@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useMemo, } from 'react';
+import React, { createContext, useState, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import type { Table } from '../types/table';
 
