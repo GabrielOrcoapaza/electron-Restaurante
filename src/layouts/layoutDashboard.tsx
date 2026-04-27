@@ -281,12 +281,16 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             "broadcast_message",
             (message: any) => {
                 // Actualizar notificaciones inmediatamente cuando llegue un mensaje broadcast
-                // El servidor ya filtra los mensajes según los recipients, así que actualizamos directamente
                 console.log(
                     "📬 Mensaje broadcast recibido por WebSocket:",
                     message,
                 );
                 refetchBroadcastMessages();
+                
+                // Abrir automáticamente el modal de notificaciones si el mensaje no es del propio usuario
+                if (message?.sender_id !== user?.id) {
+                    setShowNotifications(true);
+                }
             },
         );
         return () => {

@@ -5,6 +5,7 @@ import React, {
     useRef,
     useState,
     useCallback,
+    useMemo,
 } from "react";
 import { useAuth } from "../hooks/useAuth";
 
@@ -125,48 +126,47 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     }, []);
 
     // Función para crear y conectar el WebSocket
+    const { token } = useAuth(); // Obtener el token del contexto de autenticación
+
+    // Guardar la URL actual para evitar reconexiones innecesarias
+    const lastWsUrlRef = useRef<string>("");
+
     const connectWebSocket = useCallback(() => {
         if (!companyData?.branch.id || !user?.id) {
-            console.log("⚠️ Faltan datos para WebSocket:", {
-                branchId: companyData?.branch.id,
-                userId: user?.id,
-            });
             return;
         }
 
-        // Obtener token del localStorage
-        const tokenFromStorage = localStorage.getItem("token");
-        if (!tokenFromStorage) {
-            console.warn("⚠️ No hay token disponible para WebSocket");
-            return;
+        let tokenToUse = token || localStorage.getItem("token");
+        if (!tokenToUse) return;
+
+        tokenToUse = tokenToUse.replace(/^(JWT|Bearer)\s+/i, "");
+
+        let wSocketBaseUrl = import.meta.env.VITE_WS_URL || "";
+        if (wSocketBaseUrl && !wSocketBaseUrl.endsWith('/')) {
+            wSocketBaseUrl += '/';
         }
 
-        // Si ya hay una conexión activa, no crear otra
-        if (wsRef.current && wsRef.current.readyState === 1) {
-            console.log("ℹ️ WebSocket ya está conectado");
-            return;
+        const wsUrl = `${wSocketBaseUrl}?token=${encodeURIComponent(tokenToUse)}`;
+
+        // Si ya hay una conexión a la MISMA URL, no hacer nada
+        if (wsRef.current && (wsRef.current.readyState === 0 || wsRef.current.readyState === 1)) {
+            if (lastWsUrlRef.current === wsUrl) {
+                console.log("ℹ️ WebSocket ya está conectado/conectando a la misma URL");
+                return;
+            }
+            // Si la URL cambió (ej. nuevo token), cerramos la anterior
+            console.log("🔄 URL de WebSocket cambió, cerrando conexión anterior...");
+            wsRef.current.close(1000, "URL changed");
         }
 
-        // Resetear flag de desconexión manual al intentar conectar
+        lastWsUrlRef.current = wsUrl;
         isManualDisconnectRef.current = false;
-
-        // URL del WebSocket según tu backend
-        const wSocketUrl = import.meta.env.VITE_WS_URL;
-
-        // const wsUrl = `ws://192.168.1.22:8000/ws/restaurant/${companyData.branch.id}/`;
-        // const wsUrl = `${wSocketUrl}${companyData.branch.id}/`;
-        // ✅ SOLUCIÓN: Enviar token como query parameter (funciona en navegador y Electron)
-        const wsUrl = `${wSocketUrl}${companyData.branch.id}/?token=${encodeURIComponent(tokenFromStorage)}`;
-        console.log(
-            "🔌 Intentando conectar WebSocket... (intento",
-            reconnectAttemptsRef.current + 1,
-            ")",
-        );
-        console.log("URL:", wsUrl.replace(tokenFromStorage, "TOKEN_OCULTO")); // Log seguro
+        
+        console.log("🔌 Intentando conectar WebSocket... (intento", reconnectAttemptsRef.current + 1, ")");
+        console.log("URL:", wsUrl.replace(encodeURIComponent(tokenToUse), "TOKEN_OCULTO")); 
+        
         try {
-            let ws;
-
-            ws = new WebSocket(wsUrl);
+            const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
             // Manejar eventos de forma compatible con Navegador y Electron (ws)
@@ -265,7 +265,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                     ws.send(JSON.stringify({ type: "ping" }));
                     console.log("🏓 Ping enviado");
                 }
-            }, 25000); // Cada 25 segundos (un poco más frecuente para mayor seguridad)
+            }, 25000); // Cada 25 segundos
         } catch (error) {
             console.error("❌ Error creando WebSocket:", error);
 
@@ -286,37 +286,61 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                 }, delay);
             }
         }
-    }, [companyData?.branch.id, user?.id, notifySubscribers]);
+    }, [companyData?.branch.id, user?.id, token, notifySubscribers]);
+
+    // Ref para manejar el cierre diferido (evita ruidos en React 18 Dev mode)
+    const unmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Efecto para manejar la conexión del WebSocket
     useEffect(() => {
-        connectWebSocket();
+        // Si había un cierre programado por un re-render rápido, lo cancelamos
+        if (unmountTimeoutRef.current) {
+            clearTimeout(unmountTimeoutRef.current);
+            unmountTimeoutRef.current = null;
+        }
+
+        // Solo conectar si tenemos los datos necesarios
+        if (companyData?.branch.id && user?.id && token) {
+             connectWebSocket();
+        }
 
         // Cleanup
         return () => {
-            if (reconnectTimeoutRef.current) {
-                clearTimeout(reconnectTimeoutRef.current);
-                reconnectTimeoutRef.current = null;
-            }
-            if (pingIntervalRef.current) {
-                clearInterval(pingIntervalRef.current);
-                pingIntervalRef.current = null;
-            }
-            if (wsRef.current && wsRef.current.readyState === 1) {
-                // OPEN = 1
-                wsRef.current.close(1000, "Component unmount");
-            }
-            wsRef.current = null;
-            setIsConnected(false);
+            // No cerramos inmediatamente. Esperamos un breve momento por si es un re-render de React 18.
+            // Si el componente se desmonta de verdad, este timeout se ejecutará.
+            unmountTimeoutRef.current = setTimeout(() => {
+                if (reconnectTimeoutRef.current) {
+                    clearTimeout(reconnectTimeoutRef.current);
+                    reconnectTimeoutRef.current = null;
+                }
+                if (pingIntervalRef.current) {
+                    clearInterval(pingIntervalRef.current);
+                    pingIntervalRef.current = null;
+                }
+                if (wsRef.current) {
+                    const ws = wsRef.current;
+                    // Solo cerrar si no se ha vuelto a marcar como activo por otro renderizado
+                    if (ws.readyState === 1) { 
+                        console.log("🔌 Cerrando WebSocket por desmontaje...");
+                        ws.close(1000, "Component unmount");
+                    } else if (ws.readyState === 0) {
+                        ws.onopen = null;
+                        ws.close();
+                    }
+                    wsRef.current = null;
+                    setIsConnected(false);
+                    lastWsUrlRef.current = "";
+                }
+            }, 100); // 100ms es suficiente para cubrir el doble mount de React 18
         };
-    }, [connectWebSocket]);
+    }, [connectWebSocket, companyData?.branch.id, user?.id, token]);
 
-    const value: WebSocketContextType = {
+    const value: WebSocketContextType = useMemo(() => ({
         isConnected,
         subscribe,
         sendMessage,
         disconnect,
-    };
+    }), [isConnected, subscribe, sendMessage, disconnect]);
 
     return (
         <WebSocketContext.Provider value={value}>
