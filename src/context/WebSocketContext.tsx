@@ -54,6 +54,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     const reconnectAttemptsRef = useRef(0);
     const maxReconnectAttempts = 10;
     const isManualDisconnectRef = useRef(false);
+    const authVariantIndexRef = useRef(0);
+    const authVariants = ["raw", "jwt", "bearer"] as const;
     const subscribersRef = useRef<
         Map<string, Set<(message: WebSocketMessage) => void>>
     >(new Map());
@@ -139,7 +141,14 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         let tokenToUse = token || localStorage.getItem("token");
         if (!tokenToUse) return;
 
-        tokenToUse = tokenToUse.replace(/^(JWT|Bearer)\s+/i, "");
+        const rawToken = tokenToUse.replace(/^(JWT|Bearer)\s+/i, "");
+        const variant = authVariants[authVariantIndexRef.current] ?? "raw";
+        tokenToUse =
+            variant === "jwt"
+                ? `JWT ${rawToken}`
+                : variant === "bearer"
+                  ? `Bearer ${rawToken}`
+                  : rawToken;
 
         let wSocketBaseUrl = import.meta.env.VITE_WS_URL || "";
         if (wSocketBaseUrl && !wSocketBaseUrl.endsWith('/')) {
@@ -163,6 +172,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         isManualDisconnectRef.current = false;
         
         console.log("🔌 Intentando conectar WebSocket... (intento", reconnectAttemptsRef.current + 1, ")");
+        console.log("🔐 Variante auth WS:", variant);
         console.log("URL:", wsUrl.replace(encodeURIComponent(tokenToUse), "TOKEN_OCULTO")); 
         
         try {
@@ -177,6 +187,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                 );
                 setIsConnected(true);
                 reconnectAttemptsRef.current = 0;
+                authVariantIndexRef.current = 0;
 
                 notifySubscribers({
                     type: "connected",
@@ -231,6 +242,19 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                     );
                     return;
                 }
+
+                const isAuthLikeClose = code === 1006 || code === 4401 || code === 4403;
+                if (isAuthLikeClose && authVariantIndexRef.current < authVariants.length - 1) {
+                    authVariantIndexRef.current += 1;
+                    console.warn(
+                        `⚠️ Falló auth WS, probando variante: ${authVariants[authVariantIndexRef.current]}`
+                    );
+                    reconnectTimeoutRef.current = setTimeout(() => {
+                        connectWebSocket();
+                    }, 600);
+                    return;
+                }
+                authVariantIndexRef.current = 0;
 
                 if (reconnectAttemptsRef.current < maxReconnectAttempts) {
                     const delay = Math.min(
