@@ -522,10 +522,15 @@ app.whenReady().then(() => {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
         const responseHeaders = { ...details.responseHeaders };
 
-        // Cabecera de seguridad CSP (Elimina el aviso de Electron y permite imágenes externas)
-        const csp = isDev
-            ? "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: gap: http://localhost:5173 https://api.sumapp.pe wss://api.sumapp.pe; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:5173 https://api.sumapp.pe wss://api.sumapp.pe; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:;"
-            : "default-src 'self' 'unsafe-inline' data: https://api.sumapp.pe wss://api.sumapp.pe; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.sumapp.pe wss://api.sumapp.pe; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:;";
+        if (isDev) {
+            // En desarrollo, desactivamos el CSP que estamos inyectando para evitar bloqueos de fuentes/estilos
+            // Electron mostrará una advertencia de seguridad en la consola, lo cual es normal en dev.
+            callback({ responseHeaders });
+            return;
+        }
+
+        // Cabecera de seguridad CSP para PRODUCCIÓN
+        const csp = "default-src 'self' 'unsafe-inline' data: https://api.sumapp.pe wss://api.sumapp.pe; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.sumapp.pe wss://api.sumapp.pe; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:;";
 
         responseHeaders["Content-Security-Policy"] = [csp];
 
