@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useResponsive } from '../../hooks/useResponsive';
 import VirtualKeyboard from '../../components/VirtualKeyboard';
 
@@ -35,30 +35,101 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 
 	const [localSelected, setLocalSelected] = useState<Set<string>>(new Set());
 	const [manualNotes, setManualNotes] = useState<string>('');
+	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+	const shouldMoveCursorToEndRef = useRef(false);
+
+	const moveCursorToEnd = () => {
+		const textarea = textareaRef.current;
+		if (!textarea) return;
+		const end = textarea.value.length;
+		textarea.focus();
+		textarea.setSelectionRange(end, end);
+	};
+
+	const normalizeEnumeratedManualNotes = (text: string): string => {
+		if (!text) return '';
+		let normalized = text;
+		// "1, Con arroz" -> "1 Con arroz"
+		normalized = normalized.replace(/(\d+[.)]?)\s*,\s*(?=\p{L})/gu, '$1 ');
+		// "Con arroz2 Con ensalada" -> "Con arroz, 2 Con ensalada"
+		normalized = normalized.replace(/(\p{L})\s*(\d+[.)]?\s+)/gu, '$1, $2');
+		return normalized;
+	};
 
 	// Función para obtener el texto completo de las notas (observaciones seleccionadas + notas manuales)
 	const getFullNotesText = (selectedIds: Set<string>, manual: string): string => {
+		const manualSegments = (manual ?? '')
+			.split(', ')
+			.map(part => part.trim())
+			.filter(part => part !== '');
+
 		const selectedObservationNotes = Array.from(selectedIds)
 			.map(id => {
 				const obs = observations.find(o => o.id === id);
 				return obs?.note || '';
 			})
-			.filter(note => note !== '');
-		const parts: string[] = [];
+			.filter(note => note !== '')
+			.filter(note => !manualSegments.includes(note));
+		let fullText = manual ?? '';
+		const trimmedManual = fullText.trim();
+
+		// Caso teclado virtual: si escriben "123" y luego seleccionan 3 etiquetas,
+		// convertir automáticamente a "1 etiqueta1, 2 etiqueta2, 3 etiqueta3, ".
+		if (/^\d+$/u.test(trimmedManual) && selectedObservationNotes.length > 0) {
+			const digits = trimmedManual.split('');
+			const numberedSegments: string[] = [];
+			const matchedCount = Math.min(digits.length, selectedObservationNotes.length);
+
+			for (let i = 0; i < matchedCount; i += 1) {
+				const indexLabel = digits[i] ?? String(i + 1);
+				numberedSegments.push(`${indexLabel} ${selectedObservationNotes[i]}`);
+			}
+
+			// Si ya escribieron más números que etiquetas seleccionadas,
+			// mantener el/los índices pendientes visibles (ej: "1 Con arroz, 2")
+			const pendingDigits = digits.slice(matchedCount);
+			if (pendingDigits.length > 0) {
+				numberedSegments.push(...pendingDigits);
+				return numberedSegments.join(', ');
+			}
+
+			return `${numberedSegments.join(', ')}, `;
+		}
+
+		// Si el mozo va enumerando y queda en "1" o "2." al tocar una etiqueta,
+		// completamos la frase sin meter coma: "1 Con arroz".
+		if (selectedObservationNotes.length > 0 && /(^|,\s*)\d+[.)]?\s*$/u.test(trimmedManual)) {
+			const [first, ...rest] = selectedObservationNotes;
+			fullText = fullText.trimEnd() + ` ${first}`;
+			if (rest.length > 0) {
+				fullText += `, ${rest.join(', ')}`;
+			}
+			const normalized = normalizeEnumeratedManualNotes(fullText).trimEnd();
+			return normalized.endsWith(',') || normalized.endsWith(', ')
+				? normalized.replace(/,\s*$/u, ', ')
+				: `${normalized}, `;
+		}
+
 		if (selectedObservationNotes.length > 0) {
-			parts.push(...selectedObservationNotes);
+			fullText =
+				fullText && fullText.trim() !== ''
+					? `${fullText}, ${selectedObservationNotes.join(', ')}`
+					: selectedObservationNotes.join(', ');
 		}
-		// Mostrar manualNotes tal cual (sin trim) para que se vean espacios al escribir
-		if (manual != null && manual !== '') {
-			parts.push(manual);
-		}
-		return parts.join(', ');
+
+		return normalizeEnumeratedManualNotes(fullText);
 	};
 
 	// El teclado virtual solo edita la parte de notas manuales, así se conservan comas y cualquier carácter
 	const handleVirtualKeyPress = (key: string) => {
 		if (!canEdit) return;
-		setManualNotes(prev => prev + key);
+		setManualNotes(prev => {
+			// Si escribe un nuevo índice ("2", "3", etc.) justo después de texto, agregamos separador.
+			if (/^\d$/.test(key) && /[\p{L})]$/u.test(prev.trimEnd())) {
+				return `${prev}, ${key}`;
+			}
+			return prev + key;
+		});
 	};
 
 	const handleVirtualBackspace = () => {
@@ -80,6 +151,14 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- props de apertura; incluir deps haría re-sync y borraría chips al elegir
 	}, [isOpen]);
 
+	useEffect(() => {
+		if (!shouldMoveCursorToEndRef.current) return;
+		shouldMoveCursorToEndRef.current = false;
+		requestAnimationFrame(() => {
+			moveCursorToEnd();
+		});
+	}, [localSelected, manualNotes]);
+
 	if (!isOpen) return null;
 
 	const modalPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.5rem' : '2rem';
@@ -88,6 +167,7 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 
 	const handleToggle = (observationId: string) => {
 		if (!canEdit) return;
+		shouldMoveCursorToEndRef.current = true;
 		
 		setLocalSelected(prev => {
 			const updated = new Set(prev);
@@ -268,6 +348,7 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 						{observations.length > 0 ? '📝 Notas adicionales:' : '📝 Escribe la observación al plato:'}
 					</label>
 					<textarea
+						ref={textareaRef}
 						value={getFullNotesText(localSelected, manualNotes)}
 						onChange={(e) => {
 							const newValue = e.target.value;
