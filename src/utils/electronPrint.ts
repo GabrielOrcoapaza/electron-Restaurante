@@ -7,7 +7,8 @@ export const PRINT_JSON_DOCUMENT_CHANNEL = "print-json-document" as const;
 
 export type PrintJsonDocumentResult = { ok: boolean; message?: string };
 
-function isElectronRenderer(): boolean {
+/** True en SumApp escritorio. No usar `userAgent.includes("electron")`: Chromium ya no lo incluye por defecto. */
+export function isElectronRenderer(): boolean {
 	return (
 		typeof window !== "undefined" &&
 		Boolean((window as unknown as { process?: { versions?: { electron?: string } } }).process?.versions?.electron)

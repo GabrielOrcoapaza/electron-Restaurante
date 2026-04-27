@@ -326,155 +326,128 @@ function registerIpcHandlers(): void {
     ipcMain.removeHandler("print-json-document");
     ipcMain.handle(
         "print-json-document",
-        async (
-            _event,
-            payload: { documentJson: string; deviceName?: string | null }
-        ): Promise<{ ok: boolean; message?: string }> => {
+        async (_event, payload: { documentJson: string; deviceName?: string | null }) => {
             const { documentJson, deviceName } = payload;
-            if (!documentJson || !String(documentJson).trim()) {
-                return { ok: false, message: "documentJson vacío" };
-            }
+
             let html: string;
             try {
                 html = documentDataJsonToHtml(String(documentJson));
             } catch (e: any) {
-                log.error("documentDataJsonToHtml:", e);
                 return { ok: false, message: e?.message || String(e) };
             }
-            const tmp = path.join(
-                os.tmpdir(),
-                `sumapp-print-${Date.now()}-${Math.random().toString(36).slice(2, 9)}.html`
-            );
+
+            const tmp = path.join(os.tmpdir(), `sumapp-print-${Date.now()}.html`);
             try {
                 fs.writeFileSync(tmp, html, "utf8");
             } catch (e: any) {
-                return { ok: false, message: `No se pudo escribir temporal: ${e?.message || e}` };
+                return { ok: false, message: `No se pudo escribir temporal: ${e?.message}` };
             }
 
-            /** Térmica 80×80 mm; viewport ~igual a 96dpi para alinear con pageSize. */
-            const THERMAL_MM = 70;
-            const receiptViewportPx = Math.round((THERMAL_MM * 96) / 25.4);
+            const PAPER_WIDTH_MM = 72;
+            const receiptViewportPx = Math.round((PAPER_WIDTH_MM * 96) / 25.4);
+
             const printWin = new BrowserWindow({
                 show: false,
                 width: receiptViewportPx,
-                height: receiptViewportPx,
+                height: 4000, // alto generoso para renderizar todo
                 backgroundColor: "#ffffff",
-                webPreferences: {
-                    nodeIntegration: false,
-                    contextIsolation: true,
-                },
+                webPreferences: { nodeIntegration: false, contextIsolation: true },
             });
 
             const cleanup = () => {
-                try {
-                    fs.unlinkSync(tmp);
-                } catch {
-                    /* */
-                }
-                if (!printWin.isDestroyed()) {
-                    printWin.destroy();
-                }
+                try { fs.unlinkSync(tmp); } catch {}
+                if (!printWin.isDestroyed()) printWin.destroy();
             };
 
             try {
                 await new Promise<void>((resolve, reject) => {
-                    const t = setTimeout(() => reject(new Error("Timeout cargando HTML para imprimir")), 60000);
-                    printWin.webContents.once("did-fail-load", (_e, code, desc) => {
-                        clearTimeout(t);
-                        reject(new Error(desc || `Error de carga ${code}`));
-                    });
-                    printWin.webContents.once("did-finish-load", () => {
-                        clearTimeout(t);
-                        resolve();
-                    });
-                    printWin.loadFile(tmp).catch((err) => {
-                        clearTimeout(t);
-                        reject(err);
+                    const t = setTimeout(() => reject(new Error("Timeout cargando HTML")), 60000);
+                    printWin.webContents.once("did-finish-load", () => { clearTimeout(t); resolve(); });
+                    printWin.webContents.once("did-fail-load", (_e, code, desc) => { clearTimeout(t); reject(new Error(desc)); });
+                    printWin.loadFile(tmp).catch(reject);
+                });
+
+                // Esperar fonts + layout
+                await new Promise(r => setTimeout(r, 300));
+                await printWin.webContents.executeJavaScript(`
+                    new Promise(resolve => {
+                        const ready = () => requestAnimationFrame(() => requestAnimationFrame(resolve));
+                        document.fonts?.ready ? document.fonts.ready.then(ready) : ready();
+                    })
+                `);
+
+                // ← CLAVE: medir altura real del contenido renderizado
+                const contentHeightPx: number = await printWin.webContents.executeJavaScript(`
+                    document.documentElement.scrollHeight || document.body.scrollHeight
+                `);
+
+                // Convertir px a micrones (96dpi → mm → micrones)
+                const contentHeightMM = (contentHeightPx * 25.4) / 96;
+                const contentHeightMicrons = Math.ceil(contentHeightMM * 1000) + 5000; // +5mm de margen
+
+                log.info(`[print] Altura contenido: ${contentHeightPx}px → ${contentHeightMM.toFixed(1)}mm`);
+
+                const dn = deviceName?.trim() || undefined;
+
+                // printToPDF con la altura EXACTA del contenido
+                const pdfBuffer = await printWin.webContents.printToPDF({
+                    printBackground: false,
+                    landscape: false,
+                    pageSize: {
+                        width: PAPER_WIDTH_MM * 1000,
+                        height: contentHeightMicrons, // altura dinámica real
+                    },
+                    margins: { marginType: "none" },
+                });
+
+                // Ahora imprimir el PDF — UNA sola página con todo el contenido
+                const printPdfWin = new BrowserWindow({
+                    show: false,
+                    width: receiptViewportPx,
+                    height: 800,
+                    backgroundColor: "#ffffff",
+                    webPreferences: { nodeIntegration: false, contextIsolation: true },
+                });
+
+                const tmpPdf = tmp.replace(".html", ".pdf");
+                fs.writeFileSync(tmpPdf, pdfBuffer);
+
+                await new Promise<void>((resolve, reject) => {
+                    const t = setTimeout(() => reject(new Error("Timeout cargando PDF")), 30000);
+                    printPdfWin.webContents.once("did-finish-load", () => { clearTimeout(t); resolve(); });
+                    printPdfWin.loadFile(tmpPdf).catch(reject);
+                });
+
+                await new Promise(r => setTimeout(r, 500));
+
+                const printed = await new Promise<boolean>(resolve => {
+                    printPdfWin.webContents.print({
+                        silent: true,
+                        printBackground: false,
+                        deviceName: dn,
+                        pageSize: {
+                            width: PAPER_WIDTH_MM * 1000,
+                            height: contentHeightMicrons,
+                        },
+                        margins: { marginType: "none" },
+                    }, (success, reason) => {
+                        if (!success) log.warn("[print] webContents.print falló:", reason);
+                        resolve(success);
                     });
                 });
 
-                /** Después de load, forzar layout + 2 rAF (térmicas: imprimir demasiado pronto = ticket en blanco). */
-                await new Promise((r) => setTimeout(r, 120));
-                try {
-                    await printWin.webContents.executeJavaScript(`
-            new Promise((resolve) => {
-              const raf2 = () => {
-                requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
-              };
-              if (document.fonts && document.fonts.ready) {
-                document.fonts.ready.then(raf2).catch(raf2);
-              } else {
-                raf2();
-              }
-            });
-          `);
-                } catch (e) {
-                    log.warn("[print-json-document] reflow/ fonts:", e);
-                }
-                await new Promise((r) => setTimeout(r, 750));
+                try { fs.unlinkSync(tmpPdf); } catch {}
+                if (!printPdfWin.isDestroyed()) printPdfWin.destroy();
 
-                const dn =
-                    deviceName && String(deviceName).trim() ? String(deviceName).trim() : undefined;
-                /**
-                 * Papel térmico 80×80 mm (micrones: 1 mm = 1000).
-                 * @see https://www.electronjs.org/docs/latest/api/web-contents#contentsprintoptions
-                 */
-                const pageSize80x80: { width: number; height: number } = {
-                    width: THERMAL_MM * 1000,
-                    height: THERMAL_MM * 1000,
-                };
-                /* Térmicas: printBackground true suele rasterizar "fantasma" con muchos drivers; A4 acepta ambos. */
-                const baseOpts: WebContentsPrintOptions = {
-                    silent: true,
-                    printBackground: false,
-                    landscape: false,
-                    pageSize: pageSize80x80,
-                    margins: { marginType: "none" },
-                };
-
-                const printSilent = (opts: WebContentsPrintOptions): Promise<boolean> =>
-                    new Promise((resolve) => {
-                        printWin.webContents.print(opts, (success, failureReason) => {
-                            if (!success) log.warn("webContents.print:", failureReason);
-                            resolve(success);
-                        });
-                    });
-
-                let printed = false;
-                if (dn) {
-                    printed = await printSilent({ ...baseOpts, deviceName: dn });
-                } else {
-                    printed = await printSilent(baseOpts);
-                }
-
-                if (!printed && dn) {
-                    printed = await printSilent(baseOpts);
-                    log.info("[print-json-document] Reintento sin deviceName");
-                }
-                if (!printed && dn) {
-                    log.info("[print-json-document] Reintento con printBackground (algunos controladores A4/instalado)");
-                    printed = await printSilent({
-                        ...baseOpts,
-                        printBackground: true,
-                        deviceName: dn,
-                    });
-                }
-                if (!printed) {
-                    printed = await printSilent({ ...baseOpts, printBackground: true });
-                }
-
-                if (!printed) {
-                    cleanup();
-                    return {
-                        ok: false,
-                        message:
-                            "No se pudo imprimir (silent). Compruebe el nombre de la impresora o la impresora predeterminada de Windows.",
-                    };
-                }
-
-                log.info(`[print-json-document] Impreso device=${dn || "predeterminada"}`);
                 cleanup();
+
+                if (!printed) {
+                    return { ok: false, message: "La impresora no aceptó el trabajo. Verifica que esté encendida y conectada." };
+                }
+
+                log.info(`[print] OK → ${dn || "impresora predeterminada"}`);
                 return { ok: true };
+
             } catch (e: any) {
                 log.error("print-json-document:", e);
                 cleanup();

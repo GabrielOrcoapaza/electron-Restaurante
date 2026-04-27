@@ -214,11 +214,7 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 				zIndex: 10000,
 				padding: '1rem'
 			}}
-			onClick={(e) => {
-				if (e.target === e.currentTarget) {
-					handleCancel();
-				}
-			}}
+			
 		>
 			<div
 				style={{

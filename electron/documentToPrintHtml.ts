@@ -179,19 +179,20 @@ function renderThermalDocumentStyle(doc: Record<string, unknown>): string {
 
 /** Estilos ticket 80mm alineados al layout del cliente térmico (columna única, totales a la derecha). */
 const thermalDocumentCss = `
-    @page { margin: 1.5mm; size: 80mm auto; }
+    @page { margin: 0; size: 72mm auto; }
     *, *::before, *::after { box-sizing: border-box; }
-    html { width: 100%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { width: 72mm; margin: 0; padding: 2px 4px; }
     body.ticket {
       font-family: "Consolas", "Courier New", monospace;
+      font-size: 9px;
+      line-height: 1.25;
+      color: #000;
+      background: #fff;
       width: 100%;
       max-width: 72mm;
       margin: 0 auto;
       padding: 2px 4px;
-      font-size: 9px;
-      line-height: 1.25;
-      color: #000;
-      background: #fff !important;
+      
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -328,7 +329,7 @@ export function documentDataJsonToHtml(jsonString: string): string {
     /* Térmicas 1-bit: grises y fondos suaves a veces salen en blanco con drivers GDI. Monocromo sólido y print-color-adjust. */
     /* Papel térmico 80×80 mm (mismo criterio que pageSize en main process). */
     const css = `
-    @page { margin: 1.5mm; size: 80mm 80mm; }
+    @page { margin: 1.5mm; size: 80mm auto; }
     *, *::before, *::after { box-sizing: border-box; }
     html {
       width: 100%;

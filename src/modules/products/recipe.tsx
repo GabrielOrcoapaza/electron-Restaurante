@@ -192,7 +192,6 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
         zIndex: 1000,
         padding: '1rem'
       }}
-      onClick={onClose}
     >
       <div
         style={{

@@ -36,6 +36,7 @@ import {
     formatInstantISO,
 } from "../../utils/localDateTime";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
+import { isElectronRenderer } from "../../utils/electronPrint";
 import {
     fetchSystemPrinters,
     type SystemPrinterInfo,
@@ -102,7 +103,7 @@ const CashPay: React.FC<CashPayProps> = ({
     const isSmall = breakpoint === "sm";
     const isMedium = breakpoint === "md";
     const isNarrow = isXs || isSmall || isMedium;
-    const isElectron = navigator.userAgent.toLowerCase().includes("electron");
+    const isElectron = isElectronRenderer();
 
 
     // Solo para diferentes tamaños de pantalla de PC (desktop)
