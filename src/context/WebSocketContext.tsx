@@ -142,35 +142,85 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         tokenToUse = tokenToUse.replace(/^(JWT|Bearer)\s+/i, "");
 
         let wSocketBaseUrl = import.meta.env.VITE_WS_URL || "";
-        if (wSocketBaseUrl && !wSocketBaseUrl.endsWith('/')) {
-            wSocketBaseUrl += '/';
+        if (wSocketBaseUrl && !wSocketBaseUrl.endsWith("/")) {
+            wSocketBaseUrl += "/";
         }
 
         const wsUrl = `${wSocketBaseUrl}?token=${encodeURIComponent(tokenToUse)}`;
 
         // Si ya hay una conexión a la MISMA URL, no hacer nada
-        if (wsRef.current && (wsRef.current.readyState === 0 || wsRef.current.readyState === 1)) {
+        if (
+            wsRef.current &&
+            (wsRef.current.readyState === 0 || wsRef.current.readyState === 1)
+        ) {
             if (lastWsUrlRef.current === wsUrl) {
-                console.log("ℹ️ WebSocket ya está conectado/conectando a la misma URL");
+                console.log(
+                    "ℹ️ WebSocket ya está conectado/conectando a la misma URL",
+                );
                 return;
             }
             // Si la URL cambió (ej. nuevo token), cerramos la anterior
-            console.log("🔄 URL de WebSocket cambió, cerrando conexión anterior...");
+            console.log(
+                "🔄 URL de WebSocket cambió, cerrando conexión anterior...",
+            );
             wsRef.current.close(1000, "URL changed");
         }
 
         lastWsUrlRef.current = wsUrl;
         isManualDisconnectRef.current = false;
-        
-        console.log("🔌 Intentando conectar WebSocket... (intento", reconnectAttemptsRef.current + 1, ")");
-        console.log("URL:", wsUrl.replace(encodeURIComponent(tokenToUse), "TOKEN_OCULTO")); 
-        
+
+        console.log(
+            "🔌 Intentando conectar WebSocket... (intento",
+            reconnectAttemptsRef.current + 1,
+            ")",
+        );
+        console.log(
+            "URL:",
+            wsUrl.replace(encodeURIComponent(tokenToUse), "TOKEN_OCULTO"),
+        );
+        // En connectWebSocket(), antes de new WebSocket()
+        console.log("=== WS DEBUG ===");
+        console.log("URL:", wsUrl);
+        console.log("Token length:", tokenToUse.length);
+        console.log("Token first 50 chars:", tokenToUse.substring(0, 50));
+        console.log("Electron version:", navigator.userAgent);
+        console.log("================");
         try {
-            const ws = new WebSocket(wsUrl);
+            let ws: any;
+
+            // En Electron (con nodeIntegration), preferimos usar el módulo 'ws' de Node
+            // porque nos permite forzar el Origin y saltar restricciones de Chromium
+            if (
+                window.navigator.userAgent.toLowerCase().includes("electron") &&
+                (window as any).require
+            ) {
+                try {
+                    console.log("🚀 Usando módulo 'ws' de Node.js en Electron");
+                    const NodeWS = (window as any).require("ws");
+                    ws = new NodeWS(wsUrl, {
+                        headers: {
+                            Origin: "https://sumapp.pe",
+                            Referer: "https://sumapp.pe/",
+                            "User-Agent":
+                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        },
+                    });
+                } catch (e) {
+                    console.error(
+                        "❌ Error al cargar módulo 'ws', usando WebSocket nativo:",
+                        e,
+                    );
+                    ws = new WebSocket(wsUrl);
+                }
+            } else {
+                ws = new WebSocket(wsUrl);
+            }
+
             wsRef.current = ws;
 
             // Manejar eventos de forma compatible con Navegador y Electron (ws)
             ws.onopen = () => {
+                console.log("✅ WebSocket OPEN", ws.url);
                 console.log(
                     "✅ WebSocket conectado para branch:",
                     companyData.branch.id,
@@ -205,7 +255,11 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
             };
 
             ws.onerror = (error: any) => {
-                console.error("❌ Error WebSocket:", error);
+                console.error("❌ WebSocket ERROR DETAILS:", {
+                    url: ws.url,
+                    readyState: ws.readyState,
+                    error: error,
+                });
                 setIsConnected(false);
                 notifySubscribers({
                     type: "error",
@@ -217,7 +271,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                 const code = event.code || event;
                 const reason = event.reason || "Sin razón";
 
-                console.log("🔌 WebSocket desconectado:", code, reason);
+                console.log("🔌 WebSocket CLOSED:", {
+                    code,
+                    reason,
+                    wasClean: event.wasClean,
+                    url: ws.url,
+                });
                 setIsConnected(false);
 
                 if (pingIntervalRef.current) {
@@ -289,7 +348,9 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [companyData?.branch.id, user?.id, token, notifySubscribers]);
 
     // Ref para manejar el cierre diferido (evita ruidos en React 18 Dev mode)
-    const unmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const unmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null,
+    );
 
     // Efecto para manejar la conexión del WebSocket
     useEffect(() => {
@@ -301,7 +362,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // Solo conectar si tenemos los datos necesarios
         if (companyData?.branch.id && user?.id && token) {
-             connectWebSocket();
+            connectWebSocket();
         }
 
         // Cleanup
@@ -320,7 +381,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                 if (wsRef.current) {
                     const ws = wsRef.current;
                     // Solo cerrar si no se ha vuelto a marcar como activo por otro renderizado
-                    if (ws.readyState === 1) { 
+                    if (ws.readyState === 1) {
                         console.log("🔌 Cerrando WebSocket por desmontaje...");
                         ws.close(1000, "Component unmount");
                     } else if (ws.readyState === 0) {
@@ -335,12 +396,15 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         };
     }, [connectWebSocket, companyData?.branch.id, user?.id, token]);
 
-    const value: WebSocketContextType = useMemo(() => ({
-        isConnected,
-        subscribe,
-        sendMessage,
-        disconnect,
-    }), [isConnected, subscribe, sendMessage, disconnect]);
+    const value: WebSocketContextType = useMemo(
+        () => ({
+            isConnected,
+            subscribe,
+            sendMessage,
+            disconnect,
+        }),
+        [isConnected, subscribe, sendMessage, disconnect],
+    );
 
     return (
         <WebSocketContext.Provider value={value}>

@@ -7,6 +7,16 @@ import { autoUpdater } from "electron-updater";
 import log from "electron-log";
 import * as path from "path";
 import { documentDataJsonToHtml } from "./documentToPrintHtml";
+import { net } from "electron";
+// Configurar switches de línea de comandos antes de que la app esté lista
+app.commandLine.appendSwitch("ignore-certificate-errors");
+app.commandLine.appendSwitch("disable-web-security");
+app.commandLine.appendSwitch("disable-site-isolation-trials");
+app.commandLine.appendSwitch("no-proxy-server");
+
+// Configurar logging más detallado
+log.transports.file.level = "debug";
+log.transports.console.level = "debug";
 
 const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
 
@@ -24,6 +34,68 @@ if (!isDev) {
     });
 }
 
+// Capturar todas las solicitudes de red
+app.on("ready", () => {
+    session.defaultSession.webRequest.onBeforeSendHeaders(
+        { urls: ["*://api.sumapp.pe/*"] },
+        (details, callback) => {
+            log.info(`🛠️ [MODIFY HEADERS] ${details.url}`);
+            log.info(`   Old Origin: ${details.requestHeaders["Origin"]}`);
+
+            // Forzar Origin y Referer para que el servidor de producción acepte la conexión
+            details.requestHeaders["Origin"] = "https://sumapp.pe";
+            details.requestHeaders["Referer"] = "https://sumapp.pe/";
+            details.requestHeaders["User-Agent"] =
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+            log.info(`   New Origin: ${details.requestHeaders["Origin"]}`);
+            callback({ requestHeaders: details.requestHeaders });
+        },
+    );
+
+    // Log detallado de cada solicitud
+    session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+        if (
+            details.url.includes("websocket") ||
+            details.url.includes("ws://") ||
+            details.url.includes("wss://")
+        ) {
+            log.info(`🌐 [REQUEST] ${details.method} ${details.url}`);
+            log.info(
+                `   Headers: ${JSON.stringify((details as any).requestHeaders ?? {}, null, 2)}`,
+            );
+        }
+        callback({});
+    });
+
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        if (
+            details.url.includes("websocket") ||
+            details.url.includes("ws://") ||
+            details.url.includes("wss://")
+        ) {
+            log.info(`📡 [RESPONSE] ${details.url}`);
+            log.info(`   Status: ${details.statusLine}`);
+            log.info(
+                `   Headers: ${JSON.stringify(details.responseHeaders, null, 2)}`,
+            );
+        }
+        callback({});
+    });
+
+    session.defaultSession.webRequest.onErrorOccurred((details) => {
+        if (
+            details.url.includes("websocket") ||
+            details.url.includes("ws://") ||
+            details.url.includes("wss://")
+        ) {
+            log.error(`❌ [ERROR] ${details.url}`);
+            log.error(`   Error: ${details.error}`);
+        }
+        // no callback() needed here; onErrorOccurred does not provide one
+    });
+});
+
 function createWindow() {
     const mainWindow = new BrowserWindow({
         width: 1000,
@@ -36,6 +108,8 @@ function createWindow() {
         webPreferences: {
             contextIsolation: false,
             nodeIntegration: true,
+            webSecurity: false,
+            allowRunningInsecureContent: true,
         },
         autoHideMenuBar: true, // Ocultar barra de menú (File, Edit, etc)
     });
@@ -111,7 +185,11 @@ function stripPrinterNoise(s: string): string {
  * ¿Coincide el nombre de la impresora predeterminada del SO con la fila de Chromium?
  * Windows suele devolver "Brother X" y Chromium "Brother X Printer".
  */
-function printerNamesMatch(osDefault: string, chromiumName: string, chromiumDisplay: string): boolean {
+function printerNamesMatch(
+    osDefault: string,
+    chromiumName: string,
+    chromiumDisplay: string,
+): boolean {
     const a = normalizePrinterKey(stripPrinterNoise(osDefault));
     if (!a) return false;
     const candidates = [
@@ -121,7 +199,11 @@ function printerNamesMatch(osDefault: string, chromiumName: string, chromiumDisp
     for (const b of candidates) {
         if (!b) continue;
         if (a === b) return true;
-        if (a.length >= 6 && b.length >= 6 && (a.includes(b) || b.includes(a))) {
+        if (
+            a.length >= 6 &&
+            b.length >= 6 &&
+            (a.includes(b) || b.includes(a))
+        ) {
             return true;
         }
     }
@@ -135,7 +217,9 @@ function parsePowerShellPrinterName(out: string): string | null {
         .filter(
             (l) =>
                 l.length > 0 &&
-                !/^Get-CimInstance|^CategoryInfo|^FullyQualifiedErrorId|^\+/i.test(l)
+                !/^Get-CimInstance|^CategoryInfo|^FullyQualifiedErrorId|^\+/i.test(
+                    l,
+                ),
         );
     if (lines.length === 0) return null;
     return lines[0] ?? null;
@@ -156,15 +240,25 @@ function getDefaultSystemPrinterName(): string | null {
                         "-Command",
                         'Get-CimInstance -ClassName Win32_Printer -Filter "Default=True" | Select-Object -ExpandProperty Name',
                     ],
-                    { encoding: "utf-8", windowsHide: true, timeout: 25000, maxBuffer: 1024 * 1024 }
+                    {
+                        encoding: "utf-8",
+                        windowsHide: true,
+                        timeout: 25000,
+                        maxBuffer: 1024 * 1024,
+                    },
                 );
                 const name = parsePowerShellPrinterName(out);
                 if (name) {
-                    log.info(`[get-system-printers] Predeterminada Windows (CIM): "${name}"`);
+                    log.info(
+                        `[get-system-printers] Predeterminada Windows (CIM): "${name}"`,
+                    );
                     return name;
                 }
             } catch (e: any) {
-                log.warn("getDefaultSystemPrinterName PowerShell CIM:", e?.message || e);
+                log.warn(
+                    "getDefaultSystemPrinterName PowerShell CIM:",
+                    e?.message || e,
+                );
             }
 
             try {
@@ -178,34 +272,58 @@ function getDefaultSystemPrinterName(): string | null {
                         "-Command",
                         "(Get-CimInstance Win32_Printer | Where-Object { $_.Default -eq $true } | Select-Object -First 1 -ExpandProperty Name)",
                     ],
-                    { encoding: "utf-8", windowsHide: true, timeout: 25000, maxBuffer: 1024 * 1024 }
+                    {
+                        encoding: "utf-8",
+                        windowsHide: true,
+                        timeout: 25000,
+                        maxBuffer: 1024 * 1024,
+                    },
                 );
                 const name = parsePowerShellPrinterName(out);
                 if (name) {
-                    log.info(`[get-system-printers] Predeterminada Windows (Where-Object): "${name}"`);
+                    log.info(
+                        `[get-system-printers] Predeterminada Windows (Where-Object): "${name}"`,
+                    );
                     return name;
                 }
             } catch (e: any) {
-                log.warn("getDefaultSystemPrinterName PowerShell Where:", e?.message || e);
+                log.warn(
+                    "getDefaultSystemPrinterName PowerShell Where:",
+                    e?.message || e,
+                );
             }
 
             try {
                 const out = execFileSync(
                     "cmd.exe",
-                    ["/d", "/s", "/c", "wmic printer where Default=true get Name /value 2>nul"],
-                    { encoding: "utf-8", windowsHide: true, timeout: 20000, maxBuffer: 1024 * 1024 }
+                    [
+                        "/d",
+                        "/s",
+                        "/c",
+                        "wmic printer where Default=true get Name /value 2>nul",
+                    ],
+                    {
+                        encoding: "utf-8",
+                        windowsHide: true,
+                        timeout: 20000,
+                        maxBuffer: 1024 * 1024,
+                    },
                 );
                 const m = out.match(/Name=([^\r\n]+)/i);
                 const name = m?.[1]?.trim();
                 if (name) {
-                    log.info(`[get-system-printers] Predeterminada Windows (wmic): "${name}"`);
+                    log.info(
+                        `[get-system-printers] Predeterminada Windows (wmic): "${name}"`,
+                    );
                     return name;
                 }
             } catch (e: any) {
                 log.warn("getDefaultSystemPrinterName wmic:", e?.message || e);
             }
 
-            log.warn("[get-system-printers] No se pudo obtener impresora predeterminada en Windows.");
+            log.warn(
+                "[get-system-printers] No se pudo obtener impresora predeterminada en Windows.",
+            );
             return null;
         }
         if (process.platform === "darwin" || process.platform === "linux") {
@@ -216,7 +334,9 @@ function getDefaultSystemPrinterName(): string | null {
             const line = out
                 .split(/\r?\n/)
                 .find((l) =>
-                    /default destination|destino predeterminado|predeterminad/i.test(l)
+                    /default destination|destino predeterminado|predeterminad/i.test(
+                        l,
+                    ),
                 );
             if (!line) return null;
             const m = line.match(/:\s*(.+?)\s*$/);
@@ -257,14 +377,15 @@ function registerIpcHandlers(): void {
                         ok: false,
                         printers: [],
                         defaultPrinterName: null,
-                        message: "No hay ventana activa para consultar impresoras.",
+                        message:
+                            "No hay ventana activa para consultar impresoras.",
                     };
                 }
                 const osDefaultName = getDefaultSystemPrinterName();
 
                 const list = await win.webContents.getPrintersAsync();
                 const chromiumDefaultRaw = list.find(
-                    (p) => (p as { isDefault?: boolean }).isDefault === true
+                    (p) => (p as { isDefault?: boolean }).isDefault === true,
                 );
                 const chromiumDefaultLabel =
                     chromiumDefaultRaw?.displayName ||
@@ -297,12 +418,12 @@ function registerIpcHandlers(): void {
                 const marked = printers.some((x) => x.isSystemDefault);
                 if (osDefaultName && !marked) {
                     log.info(
-                        `[get-system-printers] Predeterminada SO "${osDefaultName}" no coincide con ninguna fila; cabecera igual muestra el nombre de Windows.`
+                        `[get-system-printers] Predeterminada SO "${osDefaultName}" no coincide con ninguna fila; cabecera igual muestra el nombre de Windows.`,
                     );
                 }
                 if (!osDefaultName && chromiumDefaultLabel) {
                     log.info(
-                        `[get-system-printers] Predeterminada vía Chromium isDefault: "${chromiumDefaultLabel}"`
+                        `[get-system-printers] Predeterminada vía Chromium isDefault: "${chromiumDefaultLabel}"`,
                     );
                 }
 
@@ -320,13 +441,16 @@ function registerIpcHandlers(): void {
                     message: err?.message || String(err),
                 };
             }
-        }
+        },
     );
 
     ipcMain.removeHandler("print-json-document");
     ipcMain.handle(
         "print-json-document",
-        async (_event, payload: { documentJson: string; deviceName?: string | null }) => {
+        async (
+            _event,
+            payload: { documentJson: string; deviceName?: string | null },
+        ) => {
             const { documentJson, deviceName } = payload;
 
             let html: string;
@@ -336,11 +460,17 @@ function registerIpcHandlers(): void {
                 return { ok: false, message: e?.message || String(e) };
             }
 
-            const tmp = path.join(os.tmpdir(), `sumapp-print-${Date.now()}.html`);
+            const tmp = path.join(
+                os.tmpdir(),
+                `sumapp-print-${Date.now()}.html`,
+            );
             try {
                 fs.writeFileSync(tmp, html, "utf8");
             } catch (e: any) {
-                return { ok: false, message: `No se pudo escribir temporal: ${e?.message}` };
+                return {
+                    ok: false,
+                    message: `No se pudo escribir temporal: ${e?.message}`,
+                };
             }
 
             const PAPER_WIDTH_MM = 72;
@@ -351,24 +481,41 @@ function registerIpcHandlers(): void {
                 width: receiptViewportPx,
                 height: 4000, // alto generoso para renderizar todo
                 backgroundColor: "#ffffff",
-                webPreferences: { nodeIntegration: false, contextIsolation: true },
+                webPreferences: {
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                },
             });
 
             const cleanup = () => {
-                try { fs.unlinkSync(tmp); } catch {}
+                try {
+                    fs.unlinkSync(tmp);
+                } catch {}
                 if (!printWin.isDestroyed()) printWin.destroy();
             };
 
             try {
                 await new Promise<void>((resolve, reject) => {
-                    const t = setTimeout(() => reject(new Error("Timeout cargando HTML")), 60000);
-                    printWin.webContents.once("did-finish-load", () => { clearTimeout(t); resolve(); });
-                    printWin.webContents.once("did-fail-load", (_e, code, desc) => { clearTimeout(t); reject(new Error(desc)); });
+                    const t = setTimeout(
+                        () => reject(new Error("Timeout cargando HTML")),
+                        60000,
+                    );
+                    printWin.webContents.once("did-finish-load", () => {
+                        clearTimeout(t);
+                        resolve();
+                    });
+                    printWin.webContents.once(
+                        "did-fail-load",
+                        (_e, code, desc) => {
+                            clearTimeout(t);
+                            reject(new Error(desc));
+                        },
+                    );
                     printWin.loadFile(tmp).catch(reject);
                 });
 
                 // Esperar fonts + layout
-                await new Promise(r => setTimeout(r, 300));
+                await new Promise((r) => setTimeout(r, 300));
                 await printWin.webContents.executeJavaScript(`
                     new Promise(resolve => {
                         const ready = () => requestAnimationFrame(() => requestAnimationFrame(resolve));
@@ -377,15 +524,19 @@ function registerIpcHandlers(): void {
                 `);
 
                 // ← CLAVE: medir altura real del contenido renderizado
-                const contentHeightPx: number = await printWin.webContents.executeJavaScript(`
+                const contentHeightPx: number = await printWin.webContents
+                    .executeJavaScript(`
                     document.documentElement.scrollHeight || document.body.scrollHeight
                 `);
 
                 // Convertir px a micrones (96dpi → mm → micrones)
                 const contentHeightMM = (contentHeightPx * 25.4) / 96;
-                const contentHeightMicrons = Math.ceil(contentHeightMM * 1000) + 5000; // +5mm de margen
+                const contentHeightMicrons =
+                    Math.ceil(contentHeightMM * 1000) + 5000; // +5mm de margen
 
-                log.info(`[print] Altura contenido: ${contentHeightPx}px → ${contentHeightMM.toFixed(1)}mm`);
+                log.info(
+                    `[print] Altura contenido: ${contentHeightPx}px → ${contentHeightMM.toFixed(1)}mm`,
+                );
 
                 const dn = deviceName?.trim() || undefined;
 
@@ -406,54 +557,75 @@ function registerIpcHandlers(): void {
                     width: receiptViewportPx,
                     height: 800,
                     backgroundColor: "#ffffff",
-                    webPreferences: { nodeIntegration: false, contextIsolation: true },
+                    webPreferences: {
+                        nodeIntegration: false,
+                        contextIsolation: true,
+                    },
                 });
 
                 const tmpPdf = tmp.replace(".html", ".pdf");
                 fs.writeFileSync(tmpPdf, pdfBuffer);
 
                 await new Promise<void>((resolve, reject) => {
-                    const t = setTimeout(() => reject(new Error("Timeout cargando PDF")), 30000);
-                    printPdfWin.webContents.once("did-finish-load", () => { clearTimeout(t); resolve(); });
+                    const t = setTimeout(
+                        () => reject(new Error("Timeout cargando PDF")),
+                        30000,
+                    );
+                    printPdfWin.webContents.once("did-finish-load", () => {
+                        clearTimeout(t);
+                        resolve();
+                    });
                     printPdfWin.loadFile(tmpPdf).catch(reject);
                 });
 
-                await new Promise(r => setTimeout(r, 500));
+                await new Promise((r) => setTimeout(r, 500));
 
-                const printed = await new Promise<boolean>(resolve => {
-                    printPdfWin.webContents.print({
-                        silent: true,
-                        printBackground: false,
-                        deviceName: dn,
-                        pageSize: {
-                            width: PAPER_WIDTH_MM * 1000,
-                            height: contentHeightMicrons,
+                const printed = await new Promise<boolean>((resolve) => {
+                    printPdfWin.webContents.print(
+                        {
+                            silent: true,
+                            printBackground: false,
+                            deviceName: dn,
+                            pageSize: {
+                                width: PAPER_WIDTH_MM * 1000,
+                                height: contentHeightMicrons,
+                            },
+                            margins: { marginType: "none" },
                         },
-                        margins: { marginType: "none" },
-                    }, (success, reason) => {
-                        if (!success) log.warn("[print] webContents.print falló:", reason);
-                        resolve(success);
-                    });
+                        (success, reason) => {
+                            if (!success)
+                                log.warn(
+                                    "[print] webContents.print falló:",
+                                    reason,
+                                );
+                            resolve(success);
+                        },
+                    );
                 });
 
-                try { fs.unlinkSync(tmpPdf); } catch {}
+                try {
+                    fs.unlinkSync(tmpPdf);
+                } catch {}
                 if (!printPdfWin.isDestroyed()) printPdfWin.destroy();
 
                 cleanup();
 
                 if (!printed) {
-                    return { ok: false, message: "La impresora no aceptó el trabajo. Verifica que esté encendida y conectada." };
+                    return {
+                        ok: false,
+                        message:
+                            "La impresora no aceptó el trabajo. Verifica que esté encendida y conectada.",
+                    };
                 }
 
                 log.info(`[print] OK → ${dn || "impresora predeterminada"}`);
                 return { ok: true };
-
             } catch (e: any) {
                 log.error("print-json-document:", e);
                 cleanup();
                 return { ok: false, message: e?.message || String(e) };
             }
-        }
+        },
     );
 
     ipcMain.removeHandler("check-for-updates");
@@ -484,10 +656,27 @@ function registerIpcHandlers(): void {
     });
 
     log.info(
-        "[main] Handlers IPC registrados: get-system-printers, print-json-document, check-for-updates"
+        "[main] Handlers IPC registrados: get-system-printers, print-json-document, check-for-updates",
     );
 }
+if (isDev) {
+    // Ignorar errores de certificado en desarrollo
+    app.commandLine.appendSwitch("ignore-certificate-errors");
+}
 
+// También puedes agregar un handler para errores de certificado
+app.on(
+    "certificate-error",
+    (event, webContents, url, error, certificate, callback) => {
+        log.error(`❌ Certificate Error: ${url} - ${error}`);
+        if (isDev) {
+            event.preventDefault();
+            callback(true); // Continuar con la conexión
+        } else {
+            callback(false);
+        }
+    },
+);
 app.whenReady().then(() => {
     registerIpcHandlers();
 
@@ -503,8 +692,8 @@ app.whenReady().then(() => {
         }
 
         // Cabecera de seguridad CSP para PRODUCCIÓN
-        const csp = "default-src 'self' 'unsafe-inline' data: https://api.sumapp.pe wss://api.sumapp.pe; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.sumapp.pe wss://api.sumapp.pe; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:;";
-
+        const csp =
+            "default-src 'self' 'unsafe-inline' data: https://api.sumapp.pe https://sumapp.pe wss://api.sumapp.pe wss://sumapp.pe; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.sumapp.pe https://sumapp.pe wss://api.sumapp.pe wss://sumapp.pe; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:;";
         responseHeaders["Content-Security-Policy"] = [csp];
 
         callback({ responseHeaders });
