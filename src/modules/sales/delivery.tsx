@@ -374,16 +374,11 @@ const Delivery: React.FC = () => {
         const item = cartItems.find(i => i.id === itemId);
         if (!item) return;
         setSelectedObservations(prev => ({ ...prev, [itemId]: selectedIds }));
-        const selectedNotes = (productObservations[itemId] || [])
-            .filter((o: any) => selectedIds.has(o.id))
-            .map((o: any) => o.note)
-            .filter(Boolean)
-            .join(', ');
-        const cleanManual = (manualNotes || '').trim();
-        let finalNotes = '';
-        if (selectedNotes && cleanManual) finalNotes = `${selectedNotes}, ${cleanManual}`;
-        else if (selectedNotes) finalNotes = selectedNotes;
-        else if (cleanManual) finalNotes = cleanManual;
+        
+        // En el nuevo flujo de ModalObservation, manualNotes ya contiene el texto completo 
+        // (incluyendo las etiquetas seleccionadas y notas manuales) debidamente formateado.
+        const finalNotes = manualNotes.trim();
+
         setCartItems(prev =>
             prev.map(i => (i.id !== itemId ? i : { ...i, notes: finalNotes }))
         );

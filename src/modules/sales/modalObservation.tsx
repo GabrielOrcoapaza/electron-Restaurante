@@ -56,14 +56,6 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
         return normalized;
     };
 
-    // Función para obtener el texto completo de las notas
-    const getFullNotesText = (
-        _selectedIds: Set<string>,
-        manual: string,
-    ): string => {
-        return normalizeEnumeratedManualNotes(manual);
-    };
-
     // El teclado virtual solo edita la parte de notas manuales, así se conservan comas y cualquier carácter
     const handleVirtualKeyPress = (key: string) => {
         if (!canEdit) return;
@@ -215,6 +207,7 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
         const obs = observations.find((o) => o.id === observationId);
         if (!obs) return;
 
+        // Comportamiento de "Sello": Solo agregar, no borrar.
         const textarea = textareaRef.current;
         if (!textarea) return;
 
@@ -244,17 +237,16 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
             textToInsert +
             currentText.substring(end);
 
-        // Aseguramos que después de una etiqueta siempre haya una coma y espacio para lo que siga
+        // Aseguramos que después de una etiqueta siempre haya una coma y espacio
         let finalizedText = newText;
         if (!finalizedText.trimEnd().endsWith(",")) {
             finalizedText = finalizedText.trimEnd() + ", ";
         }
 
         setManualNotes(finalizedText);
-        setLocalSelected((prev) => new Set(prev).add(observationId));
 
         // Reposicionar el cursor al final de lo insertado
-        const newPos = start + textToInsert.length + 2; // +2 por la coma y espacio añadidos
+        const newPos = start + textToInsert.length + 2;
         setTimeout(() => {
             if (textareaRef.current) {
                 textareaRef.current.focus();
@@ -264,21 +256,15 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
     };
 
     const handleApply = () => {
-        onApply(localSelected, manualNotes.trim());
+        // Aplicamos la normalización final antes de guardar
+        const finalNotes = normalizeEnumeratedManualNotes(manualNotes.trim());
+        onApply(localSelected, finalNotes);
         onClose();
     };
 
     const handleCancel = () => {
         setLocalSelected(new Set(selectedObservationIds));
-        // Restaurar las notas manuales originales
-        const allObservationNotes = observations.map((obs) => obs.note);
-        const currentNotesArray = currentNotes
-            ? currentNotes.split(", ").map((n) => n.trim())
-            : [];
-        const manualNotesArray = currentNotesArray
-            .filter((note) => !allObservationNotes.includes(note))
-            .filter((note) => note !== "");
-        setManualNotes(manualNotesArray.join(", "));
+        setManualNotes(currentNotes || "");
         onClose();
     };
 
@@ -468,31 +454,9 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
                     </label>
                     <textarea
                         ref={textareaRef}
-                        value={getFullNotesText(localSelected, manualNotes)}
+                        value={manualNotes}
                         onChange={(e) => {
-                            const newValue = e.target.value;
-                            // Separar por ", " (coma+espacio) como en getFullNotesText; así las comas sueltas se conservan
-                            const segments = newValue.split(", ");
-                            const foundObservationIds = new Set<string>();
-                            const manualNotesArray: string[] = [];
-                            segments.forEach((segment) => {
-                                const trimmed = segment.trim();
-                                if (trimmed === "") {
-                                    // Incluir también segmentos vacíos para no perder la ", " (ej: "algo," + espacio)
-                                    manualNotesArray.push(segment);
-                                    return;
-                                }
-                                const observation = observations.find(
-                                    (obs) => obs.note === trimmed,
-                                );
-                                if (observation) {
-                                    foundObservationIds.add(observation.id);
-                                } else {
-                                    manualNotesArray.push(segment);
-                                }
-                            });
-                            setLocalSelected(foundObservationIds);
-                            setManualNotes(manualNotesArray.join(", "));
+                            setManualNotes(e.target.value);
                         }}
                         disabled={!canEdit}
                         placeholder={
