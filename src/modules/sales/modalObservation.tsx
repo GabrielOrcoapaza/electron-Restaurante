@@ -56,92 +56,94 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
         return normalized;
     };
 
-    // Función para obtener el texto completo de las notas (observaciones seleccionadas + notas manuales)
+    // Función para obtener el texto completo de las notas
     const getFullNotesText = (
-        selectedIds: Set<string>,
+        _selectedIds: Set<string>,
         manual: string,
     ): string => {
-        const trimmedManual = (manual ?? "").trim();
-
-        const selectedObservationNotes = Array.from(selectedIds)
-            .map((id) => {
-                const obs = observations.find((o) => o.id === id);
-                return obs?.note || "";
-            })
-            .filter((note) => note !== "")
-            .filter((note) => {
-                // Si la nota ya está presente en manualNotes (incluso con número ej: "1 Al punto"),
-                // no la duplicamos al final.
-                const escapedNote = note.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-                const regex = new RegExp(
-                    `(^|,\\s*)\\d*[.)]?\\s*${escapedNote}(\\s*,|$)`,
-                    "u",
-                );
-                return !regex.test(manual ?? "");
-            });
-
-        let fullText = manual ?? "";
-
-        // Si el mozo va enumerando y queda en "1" o "2." al tocar una etiqueta
-        if (
-            selectedObservationNotes.length > 0 &&
-            /(^|,\s*)\d+[.)]?\s*$/u.test(trimmedManual)
-        ) {
-            const [first, ...rest] = selectedObservationNotes;
-            fullText = fullText.trimEnd() + ` ${first}`;
-            if (rest.length > 0) {
-                // Limpiamos comas finales antes de añadir el resto
-                const cleanBase = fullText.replace(/[,,\s]+$/, "");
-                fullText = `${cleanBase}, ${rest.join(", ")}`;
-            }
-        } else if (selectedObservationNotes.length > 0) {
-            // Limpiamos comas finales antes de añadir las notas seleccionadas
-            const cleanManual = fullText.replace(/[,,\s]+$/, "");
-            fullText =
-                cleanManual && cleanManual.trim() !== ""
-                    ? `${cleanManual}, ${selectedObservationNotes.join(", ")}`
-                    : selectedObservationNotes.join(", ");
-        }
-
-        // Aseguramos que si termina en letra, tenga una coma y espacio para el siguiente número
-        let result = normalizeEnumeratedManualNotes(fullText);
-        if (/[\p{L})]$/u.test(result.trim())) {
-            result = result.trimEnd() + ", ";
-        }
-
-        return result;
+        return normalizeEnumeratedManualNotes(manual);
     };
 
     // El teclado virtual solo edita la parte de notas manuales, así se conservan comas y cualquier carácter
     const handleVirtualKeyPress = (key: string) => {
         if (!canEdit) return;
-        setManualNotes((prev) => {
-            // Si escribe un nuevo índice ("2", "3", etc.) justo después de texto, agregamos separador.
-            if (/^\d$/.test(key) && /[\p{L})]$/u.test(prev.trimEnd())) {
-                return `${prev}, ${key}`;
+
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const currentText = manualNotes;
+
+        let textToInsert = key;
+        // Si escribe un nuevo índice ("2", "3", etc.) justo después de texto, agregamos separador.
+        if (/^\d$/.test(key)) {
+            const textBefore = currentText.substring(0, start).trimEnd();
+            if (/[\p{L})]$/u.test(textBefore)) {
+                textToInsert = `, ${key}`;
             }
-            return prev + key;
-        });
+        }
+
+        const newText =
+            currentText.substring(0, start) +
+            textToInsert +
+            currentText.substring(end);
+        setManualNotes(newText);
+
+        // Reposicionar el cursor después del renderizado
+        const newPos = start + textToInsert.length;
+        setTimeout(() => {
+            if (textareaRef.current) {
+                textareaRef.current.focus();
+                textareaRef.current.setSelectionRange(newPos, newPos);
+            }
+        }, 0);
     };
 
     const handleVirtualBackspace = () => {
         if (!canEdit) return;
-        setManualNotes((prev) => prev.slice(0, -1));
+
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const currentText = manualNotes;
+
+        if (start === 0 && end === 0) return;
+
+        let newText = "";
+        let newPos = 0;
+
+        if (start !== end) {
+            // Borrar selección
+            newText =
+                currentText.substring(0, start) + currentText.substring(end);
+            newPos = start;
+        } else {
+            // Borrar un carácter atrás
+            newText =
+                currentText.substring(0, start - 1) +
+                currentText.substring(start);
+            newPos = start - 1;
+        }
+
+        setManualNotes(newText);
+
+        // Reposicionar el cursor después del renderizado
+        setTimeout(() => {
+            if (textareaRef.current) {
+                textareaRef.current.focus();
+                textareaRef.current.setSelectionRange(newPos, newPos);
+            }
+        }, 0);
     };
 
-    // Semilla inicial al abrir: solo al montar / cuando isOpen pasa a true. No repetir cuando el padre re-renderiza
-    // con `|| []` o `new Set()` nuevos en las props, porque eso pisaba la selección al instante.
+    // Semilla inicial al abrir
     useEffect(() => {
         if (!isOpen) return;
         setLocalSelected(new Set(selectedObservationIds));
-        const allObservationNotes = observations.map((obs) => obs.note);
-        const currentNotesArray = currentNotes
-            ? currentNotes.split(", ").map((n) => n.trim())
-            : [];
-        const manualNotesArray = currentNotesArray
-            .filter((note) => !allObservationNotes.includes(note))
-            .filter((note) => note !== "");
-        setManualNotes(manualNotesArray.join(", "));
+        setManualNotes(currentNotes || "");
 
         // Auto-enfocar el textarea al abrir y mover el cursor al final
         setTimeout(() => {
@@ -151,8 +153,35 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
                 textareaRef.current.setSelectionRange(length, length);
             }
         }, 50);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- props de apertura; incluir deps haría re-sync y borraría chips al elegir
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
+
+    // Sincronizar los chips (localSelected) con el contenido del texto
+    useEffect(() => {
+        if (!isOpen) return;
+        const newSelected = new Set<string>();
+        observations.forEach((obs) => {
+            const escapedNote = obs.note.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const regex = new RegExp(
+                `(^|,\\s*)\\d*[.)]?\\s*${escapedNote}(\\s*,|$)`,
+                "u",
+            );
+            if (regex.test(manualNotes)) {
+                newSelected.add(obs.id);
+            }
+        });
+
+        // Solo actualizar si hay cambios reales para evitar re-renders infinitos
+        setLocalSelected((prev) => {
+            if (
+                prev.size === newSelected.size &&
+                Array.from(prev).every((id) => newSelected.has(id))
+            ) {
+                return prev;
+            }
+            return newSelected;
+        });
+    }, [manualNotes, observations, isOpen]);
 
     useEffect(() => {
         if (!shouldMoveCursorToEndRef.current) return;
@@ -182,29 +211,56 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 
     const handleToggle = (observationId: string) => {
         if (!canEdit) return;
-        shouldMoveCursorToEndRef.current = true;
 
         const obs = observations.find((o) => o.id === observationId);
         if (!obs) return;
 
-        // Si hay un número pendiente al final de las notas manuales (ej: "1 Al punto, 2"),
-        // agregamos la nota directamente al texto manual para permitir repeticiones.
-        if (/(^|,\s*)\d+[.)]?\s*$/u.test(manualNotes.trim())) {
-            setManualNotes((prev) => {
-                const trimmed = prev.trimEnd();
-                return `${trimmed} ${obs.note}`;
-            });
-            // Aseguramos que esté en la selección local para que el chip se vea activo
-            setLocalSelected((prev) => new Set(prev).add(observationId));
-            return;
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const currentText = manualNotes;
+
+        let textToInsert = obs.note;
+        const textBefore = currentText.substring(0, start).trimEnd();
+
+        // Lógica de separador inteligente
+        if (textBefore !== "") {
+            if (/(^|,\s*)\d+[.)]?$/u.test(textBefore)) {
+                // Si lo anterior es un número (ej: "1"), solo un espacio
+                textToInsert = ` ${obs.note}`;
+            } else if (!textBefore.endsWith(",")) {
+                // Si no hay coma, la ponemos
+                textToInsert = `, ${obs.note}`;
+            } else {
+                // Si ya hay coma, solo espacio
+                textToInsert = ` ${obs.note}`;
+            }
         }
 
-        setLocalSelected((prev) => {
-            const updated = new Set(prev);
-            // Al presionar la etiqueta solo permitimos agregar, no borrar (evita comportamiento errático con teclado digital)
-            updated.add(observationId);
-            return updated;
-        });
+        const newText =
+            currentText.substring(0, start) +
+            textToInsert +
+            currentText.substring(end);
+
+        // Aseguramos que después de una etiqueta siempre haya una coma y espacio para lo que siga
+        let finalizedText = newText;
+        if (!finalizedText.trimEnd().endsWith(",")) {
+            finalizedText = finalizedText.trimEnd() + ", ";
+        }
+
+        setManualNotes(finalizedText);
+        setLocalSelected((prev) => new Set(prev).add(observationId));
+
+        // Reposicionar el cursor al final de lo insertado
+        const newPos = start + textToInsert.length + 2; // +2 por la coma y espacio añadidos
+        setTimeout(() => {
+            if (textareaRef.current) {
+                textareaRef.current.focus();
+                textareaRef.current.setSelectionRange(newPos, newPos);
+            }
+        }, 0);
     };
 
     const handleApply = () => {
@@ -478,6 +534,11 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
                         <VirtualKeyboard
                             onKeyPress={handleVirtualKeyPress}
                             onBackspace={handleVirtualBackspace}
+                            onClear={() => {
+                                if (!canEdit) return;
+                                setManualNotes("");
+                                setLocalSelected(new Set());
+                            }}
                             disabled={!canEdit}
                             compact={true}
                         />
