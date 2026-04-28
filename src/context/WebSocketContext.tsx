@@ -174,17 +174,21 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
             reconnectAttemptsRef.current + 1,
             ")",
         );
+        /* 
         console.log(
             "URL:",
             wsUrl.replace(encodeURIComponent(tokenToUse), "TOKEN_OCULTO"),
         );
+        */
         // En connectWebSocket(), antes de new WebSocket()
+        /* 
         console.log("=== WS DEBUG ===");
         console.log("URL:", wsUrl);
         console.log("Token length:", tokenToUse.length);
         console.log("Token first 50 chars:", tokenToUse.substring(0, 50));
         console.log("Electron version:", navigator.userAgent);
         console.log("================");
+        */
         try {
             let ws: any;
 
@@ -220,7 +224,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
             // Manejar eventos de forma compatible con Navegador y Electron (ws)
             ws.onopen = () => {
-                console.log("✅ WebSocket OPEN", ws.url);
+                console.log("✅ WebSocket OPEN");
                 console.log(
                     "✅ WebSocket conectado para branch:",
                     companyData.branch.id,

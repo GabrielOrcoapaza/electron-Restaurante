@@ -39,61 +39,15 @@ app.on("ready", () => {
     session.defaultSession.webRequest.onBeforeSendHeaders(
         { urls: ["*://api.sumapp.pe/*"] },
         (details, callback) => {
-            log.info(`🛠️ [MODIFY HEADERS] ${details.url}`);
-            log.info(`   Old Origin: ${details.requestHeaders["Origin"]}`);
-
             // Forzar Origin y Referer para que el servidor de producción acepte la conexión
             details.requestHeaders["Origin"] = "https://sumapp.pe";
             details.requestHeaders["Referer"] = "https://sumapp.pe/";
             details.requestHeaders["User-Agent"] =
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-            log.info(`   New Origin: ${details.requestHeaders["Origin"]}`);
             callback({ requestHeaders: details.requestHeaders });
         },
     );
-
-    // Log detallado de cada solicitud
-    session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-        if (
-            details.url.includes("websocket") ||
-            details.url.includes("ws://") ||
-            details.url.includes("wss://")
-        ) {
-            log.info(`🌐 [REQUEST] ${details.method} ${details.url}`);
-            log.info(
-                `   Headers: ${JSON.stringify((details as any).requestHeaders ?? {}, null, 2)}`,
-            );
-        }
-        callback({});
-    });
-
-    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-        if (
-            details.url.includes("websocket") ||
-            details.url.includes("ws://") ||
-            details.url.includes("wss://")
-        ) {
-            log.info(`📡 [RESPONSE] ${details.url}`);
-            log.info(`   Status: ${details.statusLine}`);
-            log.info(
-                `   Headers: ${JSON.stringify(details.responseHeaders, null, 2)}`,
-            );
-        }
-        callback({});
-    });
-
-    session.defaultSession.webRequest.onErrorOccurred((details) => {
-        if (
-            details.url.includes("websocket") ||
-            details.url.includes("ws://") ||
-            details.url.includes("wss://")
-        ) {
-            log.error(`❌ [ERROR] ${details.url}`);
-            log.error(`   Error: ${details.error}`);
-        }
-        // no callback() needed here; onErrorOccurred does not provide one
-    });
 });
 
 function createWindow() {
