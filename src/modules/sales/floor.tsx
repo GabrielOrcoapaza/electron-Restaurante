@@ -1020,9 +1020,9 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
           onSuccess={async (payload) => {
             if (payload && companyData?.branch?.id) {
               persistOrderStart(companyData.branch.id, payload);
+              showToast(`Orden guardada exitosamente. La mesa ${selectedTable.name} ha sido actualizada.`, 'success');
             }
-            showToast(`Orden guardada exitosamente. La mesa ${selectedTable.name} ha sido actualizada.`, 'success');
-            // Refetch inmediato de las mesas para actualizar colores
+            // Refetch inmediato de las mesas para actualizar colores (también tras precuenta, sin payload)
             console.log('🔄 Refetch inmediato de mesas después de guardar orden');
             try {
               await refetchTablesFromServer();

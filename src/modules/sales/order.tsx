@@ -1517,6 +1517,9 @@ const Order: React.FC<OrderProps> = ({
                     "Precuenta enviada a imprimir exitosamente. Estado de mesa actualizado a TO_PAY",
                     "success",
                 );
+                setTimeout(() => {
+                    onClose();
+                }, 500);
             } else {
                 showToast(
                     result.data?.printAccount?.message ||
