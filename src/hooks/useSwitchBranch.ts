@@ -5,7 +5,7 @@ import { GET_BRANCH_FULL } from '../graphql/queries';
 import {
   GET_FLOORS_BY_BRANCH,
   GET_CATEGORIES_BY_BRANCH,
-  GET_USERS_BY_BRANCH,
+  GET_USERS_BY_BRANCH_LIGHT,
   GET_TABLES_BY_FLOOR,
 } from '../graphql/queries';
 
@@ -55,7 +55,7 @@ export const useSwitchBranch = () => {
             fetchPolicy: 'network-only',
           }),
           client.query({
-            query: GET_USERS_BY_BRANCH,
+            query: GET_USERS_BY_BRANCH_LIGHT,
             variables: { branchId, includeInactive: false },
             fetchPolicy: 'network-only',
           }),

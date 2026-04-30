@@ -634,8 +634,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                       marginTop: '0.25rem',
                       lineHeight: 1.2
                     }}>
-                      <span>{floor.capacity}</span>
-                      <span>#{floor.order}</span>
+                     
                     </div>
                     <div style={{
                       position: 'absolute',

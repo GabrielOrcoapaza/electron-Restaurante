@@ -248,7 +248,6 @@ export const GET_FLOORS_BY_BRANCH = gql`
             capacity
             order
             isActive
-            floorImageBase64
         }
     }
 `;
@@ -299,6 +298,23 @@ export const GET_CATEGORIES_BY_BRANCH = gql`
                 order
                 isActive
             }
+        }
+    }
+`;
+
+/** Solo categorías (sin subcategorías anidadas): menos peso al abrir mesa / pedido. */
+export const GET_CATEGORIES_BY_BRANCH_LIGHT = gql`
+    query GetCategoriesByBranchLight($branchId: ID!) {
+        categoriesByBranch(branchId: $branchId) {
+            id
+            name
+            description
+            icon
+            color
+            order
+            isActive
+            alias
+            showInMenu
         }
     }
 `;
@@ -595,6 +611,24 @@ export const GET_USERS_BY_BRANCH = gql`
             phone
             isActive
             photoBase64
+            customPermissions
+        }
+    }
+`;
+
+/** Mismos campos que GET_USERS_BY_BRANCH salvo foto — menos peso en red (permisos, caja, listas). Usar GET_USERS_BY_BRANCH donde se muestre la foto (login). */
+export const GET_USERS_BY_BRANCH_LIGHT = gql`
+    query GetUsersByBranchLight($branchId: ID!, $includeInactive: Boolean) {
+        usersByBranch(branchId: $branchId, includeInactive: $includeInactive) {
+            id
+            dni
+            email
+            firstName
+            lastName
+            fullName
+            role
+            phone
+            isActive
             customPermissions
         }
     }

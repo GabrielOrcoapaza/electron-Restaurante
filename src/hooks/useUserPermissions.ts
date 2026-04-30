@@ -1,6 +1,6 @@
 import { useQuery } from '@apollo/client';
 import { useAuth } from './useAuth';
-import { GET_USERS_BY_BRANCH } from '../graphql/queries';
+import { GET_USERS_BY_BRANCH_LIGHT } from '../graphql/queries';
 import { ROLE_DEFAULT_PERMISSIONS } from '../constants/rolePermissions';
 
 /**
@@ -11,7 +11,7 @@ export function useUserPermissions() {
   const { user, companyData } = useAuth();
   const branchId = companyData?.branch?.id;
 
-  const { data: usersData } = useQuery(GET_USERS_BY_BRANCH, {
+  const { data: usersData } = useQuery(GET_USERS_BY_BRANCH_LIGHT, {
     variables: { branchId: branchId!, includeInactive: false },
     skip: !branchId || !user?.id,
     fetchPolicy: 'network-only',

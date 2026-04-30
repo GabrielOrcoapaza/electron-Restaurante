@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_USERS_BY_BRANCH } from '../../graphql/queries';
+import { GET_USERS_BY_BRANCH_LIGHT } from '../../graphql/queries';
 import { SET_USER_PERMISSIONS } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -36,7 +36,7 @@ const ListUser: React.FC = () => {
   const titleFontSize = isXs ? '1rem' : isSmall ? '1.1rem' : '1.25rem';
   const badgeFontSize = isXs ? '0.65rem' : isSmall ? '0.7rem' : '0.75rem';
 
-  const { data, loading, error, refetch } = useQuery(GET_USERS_BY_BRANCH, {
+  const { data, loading, error, refetch } = useQuery(GET_USERS_BY_BRANCH_LIGHT, {
     variables: { branchId: branchId!, includeInactive: isAdmin },
     skip: !branchId,
     fetchPolicy: 'network-only',

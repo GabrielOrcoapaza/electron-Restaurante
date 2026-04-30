@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_USERS_BY_BRANCH } from '../../graphql/queries';
+import { GET_USERS_BY_BRANCH_LIGHT } from '../../graphql/queries';
 import { SET_USER_PERMISSIONS } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -31,7 +31,7 @@ const UserPermissions: React.FC = () => {
   const tableFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem';
   const titleFontSize = isSmall ? '1rem' : isMedium ? '1.05rem' : '1.1rem';
 
-  const { data: usersData, loading: usersLoading, error: usersError, refetch } = useQuery(GET_USERS_BY_BRANCH, {
+  const { data: usersData, loading: usersLoading, error: usersError, refetch } = useQuery(GET_USERS_BY_BRANCH_LIGHT, {
     variables: { branchId: branchId!, includeInactive: true },
     skip: !branchId || !isAdmin,
     fetchPolicy: 'network-only'

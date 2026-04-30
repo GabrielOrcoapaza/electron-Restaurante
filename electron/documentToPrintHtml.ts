@@ -1,7 +1,9 @@
 /**
- * Convierte el JSON de document_data (backend) en HTML imprimible (80mm típico).
- * Estructura flexible: acepta distintas claves de ítems y objetos anidados comunes.
+ * Convierte el JSON de document_data (backend) en HTML imprimible (72–80 mm típico).
+ * Estilo alineado al ticket ESC/POS del cliente Raspberry (jerarquía, total destacado, QR).
  */
+
+import QRCode from "qrcode";
 
 export function escapeHtml(s: string): string {
     return String(s)
@@ -53,7 +55,7 @@ function num2(v: unknown): string {
 /**
  * HTML que imita el layout del ticket térmico (logo, sucursal, documento, ítems alineados, totales).
  */
-function renderThermalDocumentStyle(doc: Record<string, unknown>): string {
+async function renderThermalDocumentStyle(doc: Record<string, unknown>): Promise<string> {
     const parts: string[] = [];
 
     const logo = typeof doc.logo_base64 === "string" ? doc.logo_base64 : "";
@@ -66,11 +68,11 @@ function renderThermalDocumentStyle(doc: Record<string, unknown>): string {
     const branch = (doc.branch ?? {}) as Record<string, unknown>;
     const bCompany = String(branch.company ?? branch.name ?? "");
     const bName = String(branch.name ?? "");
-    if (bCompany) parts.push(`<div class="t-center t-bold">${n(bCompany)}</div>`);
-    if (bName && bName !== bCompany) parts.push(`<div class="t-center t-bold">${n(bName)}</div>`);
-    if (branch.ruc) parts.push(`<div class="t-center">RUC: ${n(branch.ruc)}</div>`);
-    if (branch.address) parts.push(`<div class="t-center t-small">${n(branch.address)}</div>`);
-    if (branch.phone) parts.push(`<div class="t-center t-small">Tel: ${n(branch.phone)}</div>`);
+    if (bCompany) parts.push(`<div class="t-center t-branch t-bold">${n(bCompany)}</div>`);
+    if (bName && bName !== bCompany) parts.push(`<div class="t-center t-branch t-bold">${n(bName)}</div>`);
+    if (branch.ruc) parts.push(`<div class="t-center t-meta">RUC: ${n(branch.ruc)}</div>`);
+    if (branch.address) parts.push(`<div class="t-center t-meta">${n(branch.address)}</div>`);
+    if (branch.phone) parts.push(`<div class="t-center t-meta">Tel: ${n(branch.phone)}</div>`);
 
     parts.push(`<div class="t-sep">================================================</div>`);
 
@@ -78,28 +80,28 @@ function renderThermalDocumentStyle(doc: Record<string, unknown>): string {
     parts.push(`<div class="t-title">${n(title)}</div>`);
 
     const d = (doc.document ?? {}) as Record<string, unknown>;
-    if (d.invoice) parts.push(`<div class="t-center t-bold">${n(d.invoice)}</div>`);
-    if (d.number) parts.push(`<div class="t-center t-bold">${n(d.number)}</div>`);
+    if (d.invoice) parts.push(`<div class="t-center t-docline t-bold">${n(d.invoice)}</div>`);
+    if (d.number) parts.push(`<div class="t-center t-docline t-bold">${n(d.number)}</div>`);
     const dt = [d.date, d.time].filter(Boolean).join(" ");
-    if (dt) parts.push(`<div class="t-center">${n(dt)}</div>`);
+    if (dt) parts.push(`<div class="t-center t-meta">${n(dt)}</div>`);
 
     const customer = (doc.customer ?? doc.cliente) as Record<string, unknown> | undefined;
     if (customer && typeof customer === "object" && (customer.name || customer.document)) {
-        parts.push(`<div class="t-sep t-small">------------------------------------------------</div>`);
-        if (customer.name) parts.push(`<div>Cliente: ${n(customer.name)}</div>`);
+        parts.push(`<div class="t-sep2">------------------------------------------------</div>`);
+        if (customer.name) parts.push(`<div class="t-bodyline">Cliente: ${n(customer.name)}</div>`);
         if (customer.document) {
             const dt2 = String(customer.document_type ?? "Doc");
-            parts.push(`<div>${n(dt2)}: ${n(customer.document)}</div>`);
+            parts.push(`<div class="t-bodyline">${n(dt2)}: ${n(customer.document)}</div>`);
         }
-        if (customer.address) parts.push(`<div class="t-small">${n(customer.address)}</div>`);
+        if (customer.address) parts.push(`<div class="t-meta">${n(customer.address)}</div>`);
     }
 
-    if (doc.table) parts.push(`<div>Mesa: ${n(doc.table)}</div>`);
-    if (doc.waiter) parts.push(`<div>Atendido por: ${n(doc.waiter)}</div>`);
+    if (doc.table) parts.push(`<div class="t-bodyline">Mesa: ${n(doc.table)}</div>`);
+    if (doc.waiter) parts.push(`<div class="t-bodyline">Atendido por: ${n(doc.waiter)}</div>`);
 
     parts.push(`<div class="t-sep">================================================</div>`);
     parts.push(
-        `<div class="t-rowline t-small"><span>CANT</span><span>DESCRIPCION</span><span class="n">P.UNIT</span><span class="n">TOTAL</span></div>`
+        `<div class="t-rowline"><span>CANT</span><span>DESCRIPCION</span><span class="n">P.UNIT</span><span class="n">TOTAL</span></div>`
     );
     parts.push(`<div class="t-sep2">------------------------------------------------</div>`);
 
@@ -119,12 +121,12 @@ function renderThermalDocumentStyle(doc: Record<string, unknown>): string {
             const pStr = price != null && price !== "" && Number.isFinite(Number(price)) ? num2(price) : n(price);
             const tStr = total != null && total !== "" && Number.isFinite(Number(total)) ? num2(total) : n(total);
             parts.push(
-                `<div class="t-itemline t-small"><span class="q">${n(qtyS)}</span><span class="d">${n(
+                `<div class="t-itemline"><span class="q">${n(qtyS)}</span><span class="d">${n(
                     namePad
                 )}</span><span class="n p">${pStr}</span><span class="n t">${tStr}</span></div>`
             );
             if (r.notes) {
-                parts.push(`<div class="t-note t-small"> &gt; ${n(String(r.notes))}</div>`);
+                parts.push(`<div class="t-note"> &gt; ${n(String(r.notes))}</div>`);
             }
         }
     }
@@ -164,69 +166,111 @@ function renderThermalDocumentStyle(doc: Record<string, unknown>): string {
     }
 
     if (doc.qr_data) {
-        const q = escapeHtml(String(doc.qr_data));
-        parts.push(`<div class="t-qr t-small t-center">QR: ${q}</div>`);
+        const rawQr = String(doc.qr_data).trim();
+        if (rawQr) {
+            try {
+                const dataUrl = await QRCode.toDataURL(rawQr, {
+                    errorCorrectionLevel: "M",
+                    margin: 1,
+                    width: 180,
+                });
+                parts.push(
+                    `<div class="t-qr-wrap"><img class="t-qr-img" src="${dataUrl}" alt=""/></div>`
+                );
+            } catch {
+                parts.push(`<div class="t-qr-fallback t-meta t-center">${escapeHtml(rawQr)}</div>`);
+            }
+        }
     }
 
     const now = new Date();
-    const foot = now.toLocaleString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" });
-    parts.push(`<div class="t-center t-small t-pad">Gracias por su preferencia!</div>`);
-    parts.push(`<div class="t-center t-small">Impreso: ${n(foot)}</div>`);
-    parts.push(`<div class="t-center t-small">https://sumapp.pe</div>`);
+    const foot = now.toLocaleString("es-PE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+    });
+    parts.push(`<div class="t-center t-footer t-pad">Gracias por su preferencia!</div>`);
+    parts.push(`<div class="t-center t-footer">Impreso: ${n(foot)}</div>`);
+    parts.push(`<div class="t-center t-footer">https://sumapp.pe</div>`);
 
     return parts.join("");
 }
 
-/** Estilos ticket 80mm alineados al layout del cliente térmico (columna única, totales a la derecha). */
+/** Estilos ticket: jerarquía similar a ESC/POS del cliente Raspberry (título y total grandes, QR centrado). */
 const thermalDocumentCss = `
     @page { margin: 0; size: 72mm auto; }
     *, *::before, *::after { box-sizing: border-box; }
     html, body { width: 72mm; margin: 0; padding: 2px 4px; }
     body.ticket {
       font-family: "Consolas", "Courier New", monospace;
-      font-size: 9px;
-      line-height: 1.25;
+      font-size: 11px;
+      line-height: 1.35;
       color: #000;
       background: #fff;
       width: 100%;
       max-width: 72mm;
       margin: 0 auto;
-      padding: 2px 4px;
-      
+      padding: 3px 5px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .logo-wrap { text-align: center; margin-bottom: 2px; }
-    .logo { max-width: 100%; max-height: 36px; object-fit: contain; }
+    .logo-wrap { text-align: center; margin-bottom: 4px; }
+    .logo { max-width: 100%; max-height: 52px; object-fit: contain; }
     .t-center { text-align: center; }
-    .t-small { font-size: 8px; }
-    .t-bold { font-weight: 700; }
-    .t-title { font-size: 11px; font-weight: 800; text-align: center; margin: 2px 0; }
-    .t-sep, .t-sep2 { text-align: center; letter-spacing: -0.5px; margin: 2px 0; font-size: 8px; }
-    .t-sep2 { margin: 1px 0; }
+    .t-bold { font-weight: 800; }
+    .t-branch { font-size: 12px; line-height: 1.3; margin: 2px 0; }
+    .t-meta { font-size: 10px; line-height: 1.3; }
+    .t-bodyline { font-size: 11px; margin: 2px 0; }
+    .t-docline { font-size: 11px; margin: 2px 0; }
+    .t-title {
+      font-size: 15px;
+      font-weight: 900;
+      text-align: center;
+      margin: 6px 0 4px;
+      letter-spacing: 0.02em;
+    }
+    .t-sep, .t-sep2 { text-align: center; letter-spacing: -0.5px; margin: 4px 0; font-size: 9px; }
+    .t-sep2 { margin: 3px 0; }
     .t-rowline {
       display: flex;
       justify-content: space-between;
-      gap: 2px;
-      font-weight: 700;
+      gap: 3px;
+      font-weight: 800;
+      font-size: 10px;
+      margin: 4px 0 2px;
     }
     .t-rowline .n { text-align: right; flex: 0 0 auto; min-width: 2.2em; }
     .t-itemline {
       display: flex;
       justify-content: flex-start;
-      gap: 3px;
+      gap: 4px;
       flex-wrap: nowrap;
+      font-size: 10px;
+      line-height: 1.45;
+      margin: 2px 0;
     }
-    .t-itemline .q { flex: 0 0 1.1em; }
+    .t-itemline .q { flex: 0 0 1.2em; }
     .t-itemline .d { flex: 1 1 auto; min-width: 0; word-break: break-word; }
-    .t-itemline .n.p { flex: 0 0 2.5em; text-align: right; }
-    .t-itemline .n.t { flex: 0 0 2.8em; text-align: right; }
-    .t-note { padding-left: 1.4em; color: #000; }
-    .t-totrow { display: flex; justify-content: space-between; margin: 1px 0; font-size: 8px; }
-    .t-totrow .n { text-align: right; font-weight: 600; }
-    .t-grand { text-align: right; font-size: 12px; font-weight: 800; margin: 4px 0; }
-    .t-qr { margin-top: 4px; word-break: break-all; }
-    .t-pad { margin-top: 4px; }
+    .t-itemline .n.p { flex: 0 0 2.6em; text-align: right; }
+    .t-itemline .n.t { flex: 0 0 2.9em; text-align: right; font-weight: 700; }
+    .t-note { padding-left: 1.4em; color: #000; font-size: 9px; line-height: 1.35; }
+    .t-totrow { display: flex; justify-content: space-between; margin: 3px 0; font-size: 10px; }
+    .t-totrow .n { text-align: right; font-weight: 700; }
+    .t-grand {
+      text-align: right;
+      font-size: 19px;
+      font-weight: 900;
+      margin: 8px 0 6px;
+      letter-spacing: -0.02em;
+    }
+    .t-qr-wrap { text-align: center; margin: 8px 0 4px; }
+    .t-qr-img { width: 46mm; max-width: 100%; height: auto; image-rendering: pixelated; }
+    .t-qr-fallback { margin-top: 6px; word-break: break-all; }
+    .t-footer { font-size: 9px; line-height: 1.35; }
+    .t-pad { margin-top: 6px; }
 `;
 
 function renderItemsTable(items: unknown): string {
@@ -260,7 +304,7 @@ function renderItemsTable(items: unknown): string {
     return rows.join("");
 }
 
-export function documentDataJsonToHtml(jsonString: string): string {
+export async function documentDataJsonToHtml(jsonString: string): Promise<string> {
     let doc: Record<string, unknown>;
     try {
         doc = JSON.parse(jsonString) as Record<string, unknown>;
@@ -271,7 +315,7 @@ export function documentDataJsonToHtml(jsonString: string): string {
     }
 
     if (looksLikeThermalDocumentPayload(doc)) {
-        const body = renderThermalDocumentStyle(doc);
+        const body = await renderThermalDocumentStyle(doc);
         const title = String(doc.type ?? doc.document_type ?? doc.tipo ?? "Documento");
         const css = thermalDocumentCss;
         return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(

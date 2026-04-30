@@ -13,9 +13,9 @@ import {
     PRINT_PRECUENTA,
 } from "../../graphql/mutations";
 import {
-    GET_CATEGORIES_BY_BRANCH,
+    GET_CATEGORIES_BY_BRANCH_LIGHT,
+    GET_SUBCATEGORIES_BY_CATEGORY,
     GET_PRODUCTS_BY_CATEGORY,
-    GET_PRODUCTS_BY_BRANCH,
     GET_OPERATION_BY_TABLE,
     GET_OPERATION_BY_ID,
     SEARCH_PRODUCTS,
@@ -264,9 +264,9 @@ const Order: React.FC<OrderProps> = ({
     const [updateTableStatusMutation] = useMutation(UPDATE_TABLE_STATUS);
     const [printPrecuentaMutation] = useMutation(PRINT_PRECUENTA);
 
-    // Obtener categorías de la sucursal (siempre del servidor para ver cambios)
+    // Categorías sin subcategorías anidadas (menos peso al abrir mesa)
     const { data: categoriesData, loading: categoriesLoading } = useQuery(
-        GET_CATEGORIES_BY_BRANCH,
+        GET_CATEGORIES_BY_BRANCH_LIGHT,
         {
             variables: { branchId: companyData?.branch.id },
             skip: !companyData?.branch.id,
@@ -275,6 +275,28 @@ const Order: React.FC<OrderProps> = ({
     );
 
     const categories = categoriesData?.categoriesByBranch || [];
+
+    const { data: subcategoriesData, loading: subcategoriesLoading } = useQuery(
+        GET_SUBCATEGORIES_BY_CATEGORY,
+        {
+            variables: { categoryId: selectedCategory || "" },
+            skip: !companyData?.branch.id || !selectedCategory,
+            fetchPolicy: "network-only",
+        },
+    );
+
+    const subcategoriesOfCategory = selectedCategory
+        ? (subcategoriesData?.subcategoriesByCategory || []).filter(
+              (s: any) => s.isActive !== false,
+          )
+        : [];
+
+    /** Hay subs pero el usuario aún no eligió una: mostrar grid de subs, no productos. */
+    const awaitingSubcategoryPick =
+        Boolean(selectedCategory) &&
+        !subcategoriesLoading &&
+        subcategoriesOfCategory.length > 0 &&
+        !selectedSubcategory;
 
     // Búsqueda de productos (si hay término de búsqueda) - siempre del servidor
     // Cuando searchByCodeOnly: usar product_by_code (backend). Si no: searchProducts con 3+ caracteres.
@@ -318,15 +340,11 @@ const Order: React.FC<OrderProps> = ({
         useQuery(GET_PRODUCTS_BY_CATEGORY, {
             variables: { categoryId: selectedCategory },
             skip:
-                !selectedCategory || searchByCodeOnly || searchTerm.length >= 3,
-            fetchPolicy: "network-only",
-        });
-
-    // Obtener todos los productos de la sucursal (siempre del servidor para precios y productos nuevos)
-    const { data: productsByBranchData, loading: productsByBranchLoading } =
-        useQuery(GET_PRODUCTS_BY_BRANCH, {
-            variables: { branchId: companyData?.branch.id },
-            skip: !companyData?.branch.id,
+                !selectedCategory ||
+                searchByCodeOnly ||
+                searchTerm.length >= 3 ||
+                subcategoriesLoading ||
+                awaitingSubcategoryPick,
             fetchPolicy: "network-only",
         });
 
@@ -375,28 +393,18 @@ const Order: React.FC<OrderProps> = ({
         const raw = searchData?.searchProducts;
         products = Array.isArray(raw) ? raw.filter(isOrderSearchProduct) : raw;
         productsLoading = searchLoading;
-
-        // Fallback: Si la búsqueda del servidor falla, hacer búsqueda local simple
-        if (!products || products.length === 0) {
-            const allProducts = (
-                productsByBranchData?.productsByBranch || []
-            ).filter(isOrderSearchProduct);
-            const searchLower = searchTerm.toLowerCase();
-            products = allProducts.filter(
-                (p: any) =>
-                    p.name?.toLowerCase().includes(searchLower) ||
-                    p.code?.toLowerCase().includes(searchLower) ||
-                    p.description?.toLowerCase().includes(searchLower),
-            );
-        }
     } else if (selectedCategory) {
-        // Prioridad 2: Categoría seleccionada
-        products = productsByCategoryData?.productsByCategory;
-        productsLoading = productsByCategoryLoading;
+        if (subcategoriesLoading || awaitingSubcategoryPick) {
+            products = [];
+            productsLoading =
+                subcategoriesLoading || productsByCategoryLoading;
+        } else {
+            products = productsByCategoryData?.productsByCategory;
+            productsLoading = productsByCategoryLoading;
+        }
     } else {
-        // Prioridad 3: Todos los productos
-        products = productsByBranchData?.productsByBranch;
-        productsLoading = productsByBranchLoading;
+        products = [];
+        productsLoading = false;
     }
 
     // Misma regla que en búsqueda: solo platos/bebidas activos (navegación por categoría antes no filtraba isActive)
@@ -413,12 +421,7 @@ const Order: React.FC<OrderProps> = ({
         );
     }
 
-    // Subcategorías de la categoría seleccionada (solo activas)
-    const subcategoriesOfCategory = selectedCategory
-        ? categories
-              .find((c: any) => c.id === selectedCategory)
-              ?.subcategories?.filter((s: any) => s.isActive) || []
-        : [];
+    // Subcategorías ya vienen de GET_SUBCATEGORIES_BY_CATEGORY (subcategoriesOfCategory arriba)
 
     // Navegación como en delivery: mostrar categorías, subcategorías o productos en el grid
     const isSearching = searchByCodeOnly
@@ -429,11 +432,28 @@ const Order: React.FC<OrderProps> = ({
         !isSearching &&
         selectedCategory &&
         !selectedSubcategory &&
-        subcategoriesOfCategory.length > 0;
+        (subcategoriesLoading || subcategoriesOfCategory.length > 0);
     const showProductsInGrid =
         isSearching ||
         (selectedCategory &&
+            !subcategoriesLoading &&
+            !awaitingSubcategoryPick &&
             (selectedSubcategory || subcategoriesOfCategory.length === 0));
+
+    /** Una sola sub activa → pasar directo a productos filtrados por esa sub */
+    useEffect(() => {
+        if (!selectedCategory || subcategoriesLoading) return;
+        const subs = (
+            subcategoriesData?.subcategoriesByCategory || []
+        ).filter((s: any) => s.isActive !== false);
+        if (subs.length === 1) {
+            setSelectedSubcategory(String(subs[0].id));
+        }
+    }, [
+        selectedCategory,
+        subcategoriesLoading,
+        subcategoriesData?.subcategoriesByCategory,
+    ]);
 
     useEffect(() => {
         // Solo resetear si realmente es una mesa diferente
@@ -2246,27 +2266,9 @@ const Order: React.FC<OrderProps> = ({
                                                                 setSelectedCategory(
                                                                     category.id,
                                                                 );
-                                                                const activeSubcategories =
-                                                                    category.subcategories?.filter(
-                                                                        (
-                                                                            s: any,
-                                                                        ) =>
-                                                                            s.isActive,
-                                                                    ) || [];
-                                                                // Una sola sub activa → ir directo a productos; varias (o ninguna con subs) → elegir sub o ver productos sin sub
-                                                                if (
-                                                                    activeSubcategories.length ===
-                                                                    1
-                                                                ) {
-                                                                    setSelectedSubcategory(
-                                                                        activeSubcategories[0]
-                                                                            .id,
-                                                                    );
-                                                                } else {
-                                                                    setSelectedSubcategory(
-                                                                        null,
-                                                                    );
-                                                                }
+                                                                setSelectedSubcategory(
+                                                                    null,
+                                                                );
                                                             }}
                                                             style={{
                                                                 backgroundColor:
@@ -2376,15 +2378,32 @@ const Order: React.FC<OrderProps> = ({
 
                                         {/* Subcategorías */}
                                         {showSubcategoriesInGrid &&
-                                            subcategoriesOfCategory.map(
-                                                (sub: any) => (
-                                                    <div
-                                                        key={sub.id}
-                                                        onClick={() =>
-                                                            setSelectedSubcategory(
-                                                                sub.id,
-                                                            )
-                                                        }
+                                            (subcategoriesLoading &&
+                                            subcategoriesOfCategory.length ===
+                                                0 ? (
+                                                <div
+                                                    style={{
+                                                        gridColumn: "1 / -1",
+                                                        textAlign: "center",
+                                                        padding: "2rem",
+                                                        color: "#718096",
+                                                        fontSize: isSmall
+                                                            ? "0.8125rem"
+                                                            : "0.875rem",
+                                                    }}
+                                                >
+                                                    Cargando subcategorías...
+                                                </div>
+                                            ) : (
+                                                subcategoriesOfCategory.map(
+                                                    (sub: any) => (
+                                                        <div
+                                                            key={sub.id}
+                                                            onClick={() =>
+                                                                setSelectedSubcategory(
+                                                                    sub.id,
+                                                                )
+                                                            }
                                                         style={{
                                                             backgroundColor:
                                                                 "#ffffff",
@@ -2473,8 +2492,9 @@ const Order: React.FC<OrderProps> = ({
                                                             {sub.name}
                                                         </div>
                                                     </div>
-                                                ),
-                                            )}
+                                                    ),
+                                                )
+                                            ))}
 
                                         {/* Productos */}
                                         {showProductsInGrid &&

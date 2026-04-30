@@ -5,7 +5,8 @@ import { useResponsive } from '../../hooks/useResponsive';
 import { useToast } from '../../context/ToastContext';
 import { CREATE_SALE_CARRY_OUT } from '../../graphql/mutations';
 import {
-    GET_CATEGORIES_BY_BRANCH,
+    GET_CATEGORIES_BY_BRANCH_LIGHT,
+    GET_SUBCATEGORIES_BY_CATEGORY,
     GET_PRODUCTS_BY_CATEGORY,
     GET_PRODUCTS_BY_BRANCH,
     SEARCH_PRODUCTS,
@@ -110,14 +111,20 @@ const Delivery: React.FC = () => {
     // Mutación para crear venta
     const [createSaleCarryOutMutation] = useMutation(CREATE_SALE_CARRY_OUT);
 
-    // Obtener categorías (siempre del servidor para ver cambios)
-    const { data: categoriesData } = useQuery(GET_CATEGORIES_BY_BRANCH, {
+    // Categorías sin subcategorías anidadas (menos peso al abrir delivery)
+    const { data: categoriesData, loading: categoriesLoading } = useQuery(GET_CATEGORIES_BY_BRANCH_LIGHT, {
         variables: { branchId: companyData?.branch.id },
         skip: !companyData?.branch.id,
         fetchPolicy: 'network-only'
     });
 
     const categories = categoriesData?.categoriesByBranch || [];
+
+    const { data: subcategoriesData, loading: subcategoriesLoading } = useQuery(GET_SUBCATEGORIES_BY_CATEGORY, {
+        variables: { categoryId: selectedCategory || '' },
+        skip: !companyData?.branch.id || !selectedCategory,
+        fetchPolicy: 'network-only'
+    });
 
     // Búsqueda de productos (siempre del servidor)
     // Cuando searchByCodeOnly: usar product_by_code. Si no: searchProducts con 3+ caracteres.
@@ -137,10 +144,26 @@ const Delivery: React.FC = () => {
         fetchPolicy: 'network-only'
     });
 
+    const subcategoriesOfCategory = selectedCategory
+        ? (subcategoriesData?.subcategoriesByCategory || []).filter((s: any) => s.isActive !== false)
+        : [];
+
+    /** Hay subs pero el usuario aún no eligió una: mostrar grid de subs, no productos. */
+    const awaitingSubcategoryPick =
+        Boolean(selectedCategory) &&
+        !subcategoriesLoading &&
+        subcategoriesOfCategory.length > 0 &&
+        !selectedSubcategory;
+
     // Obtener productos por categoría (siempre del servidor para precios actualizados)
     const { data: productsByCategoryData, loading: productsByCategoryLoading } = useQuery(GET_PRODUCTS_BY_CATEGORY, {
         variables: { categoryId: selectedCategory },
-        skip: !selectedCategory || searchByCodeOnly || searchTerm.length >= 3,
+        skip:
+            !selectedCategory ||
+            searchByCodeOnly ||
+            searchTerm.length >= 3 ||
+            subcategoriesLoading ||
+            awaitingSubcategoryPick,
         fetchPolicy: 'network-only'
     });
 
@@ -230,8 +253,13 @@ const Delivery: React.FC = () => {
             );
         }
     } else if (selectedCategory) {
-        products = productsByCategoryData?.productsByCategory;
-        productsLoading = productsByCategoryLoading;
+        if (subcategoriesLoading || awaitingSubcategoryPick) {
+            products = [];
+            productsLoading = subcategoriesLoading || productsByCategoryLoading;
+        } else {
+            products = productsByCategoryData?.productsByCategory;
+            productsLoading = productsByCategoryLoading;
+        }
     } else {
         products = productsByBranchData?.productsByBranch;
         productsLoading = productsByBranchLoading;
@@ -239,15 +267,30 @@ const Delivery: React.FC = () => {
 
     let productsList = products || [];
 
-    // Subcategorías de la categoría seleccionada
-    const subcategoriesOfCategory = selectedCategory
-        ? (categories.find((c: any) => c.id === selectedCategory)?.subcategories?.filter((s: any) => s.isActive) || [])
-        : [];
-
     // Flags de navegación para la grilla
     const showCategoriesInGrid = !isSearching && !selectedCategory;
-    const showSubcategoriesInGrid = !isSearching && selectedCategory && !selectedSubcategory && subcategoriesOfCategory.length > 0;
-    const showProductsInGrid = isSearching || (selectedCategory && (selectedSubcategory || subcategoriesOfCategory.length === 0));
+    const showSubcategoriesInGrid =
+        !isSearching &&
+        selectedCategory &&
+        !selectedSubcategory &&
+        (subcategoriesLoading || subcategoriesOfCategory.length > 0);
+    const showProductsInGrid =
+        isSearching ||
+        (selectedCategory &&
+            !subcategoriesLoading &&
+            !awaitingSubcategoryPick &&
+            (selectedSubcategory || subcategoriesOfCategory.length === 0));
+
+    /** Una sola sub activa → pasar directo a productos filtrados por esa sub */
+    useEffect(() => {
+        if (!selectedCategory || subcategoriesLoading) return;
+        const subs = (subcategoriesData?.subcategoriesByCategory || []).filter(
+            (s: any) => s.isActive !== false
+        );
+        if (subs.length === 1) {
+            setSelectedSubcategory(String(subs[0].id));
+        }
+    }, [selectedCategory, subcategoriesLoading, subcategoriesData?.subcategoriesByCategory]);
 
     // Filtrar productos por subcategoría si no estamos buscando
     if (!isSearching && selectedCategory && selectedSubcategory && productsList.length > 0) {
@@ -855,7 +898,7 @@ const Delivery: React.FC = () => {
                         WebkitOverflowScrolling: 'touch',
                         scrollbarWidth: 'thin'
                     } as React.CSSProperties}>
-                        {productsLoading ? (
+                        {productsLoading && showProductsInGrid ? (
                             <div style={{ textAlign: 'center', padding: '2rem', color: '#718096', fontSize: isSmall ? '0.8125rem' : '0.875rem' }}>
                                 Cargando...
                             </div>
@@ -866,10 +909,26 @@ const Delivery: React.FC = () => {
                                 gap: gridGap
                             }}>
                                 {/* Render Categorías */}
-                                {showCategoriesInGrid && categories.map((category: any) => (
+                                {showCategoriesInGrid &&
+                                    (categoriesLoading ? (
+                                        <div
+                                            style={{
+                                                gridColumn: '1 / -1',
+                                                textAlign: 'center',
+                                                padding: '2rem',
+                                                color: '#718096'
+                                            }}
+                                        >
+                                            Cargando categorías...
+                                        </div>
+                                    ) : (
+                                        categories.map((category: any) => (
                                     <div
                                         key={category.id}
-                                        onClick={() => setSelectedCategory(category.id)}
+                                        onClick={() => {
+                                            setSelectedCategory(category.id);
+                                            setSelectedSubcategory(null);
+                                        }}
                                         style={{
                                             backgroundColor: '#ffffff',
                                             border: '1px solid #e2e8f0',
@@ -907,10 +966,24 @@ const Delivery: React.FC = () => {
                                             {category.name}
                                         </div>
                                     </div>
-                                ))}
+                                ))))}
 
                                 {/* Render Subcategorías */}
-                                {showSubcategoriesInGrid && subcategoriesOfCategory.map((sub: any) => (
+                                {showSubcategoriesInGrid &&
+                                    (subcategoriesLoading ? (
+                                        <div
+                                            style={{
+                                                gridColumn: '1 / -1',
+                                                textAlign: 'center',
+                                                padding: '2rem',
+                                                color: '#718096',
+                                                fontSize: isSmall ? '0.8125rem' : '0.875rem'
+                                            }}
+                                        >
+                                            Cargando subcategorías...
+                                        </div>
+                                    ) : (
+                                        subcategoriesOfCategory.map((sub: any) => (
                                     <div
                                         key={sub.id}
                                         onClick={() => setSelectedSubcategory(sub.id)}
@@ -949,7 +1022,7 @@ const Delivery: React.FC = () => {
                                             {sub.name}
                                         </div>
                                     </div>
-                                ))}
+                                ))))}
 
                                 {/* Render Productos */}
                                 {showProductsInGrid && (

@@ -25,7 +25,7 @@ import {
     GET_FLOORS_BY_BRANCH,
     GET_TABLES_BY_FLOOR,
     GET_PERSONS_BY_BRANCH,
-    GET_USERS_BY_BRANCH,
+    GET_USERS_BY_BRANCH_LIGHT,
     SEARCH_PERSON_BY_DOCUMENT,
 } from "../../graphql/queries";
 import CreateClient from "../user/createClient";
@@ -292,7 +292,7 @@ const CashPay: React.FC<CashPayProps> = ({
         },
     );
 
-    const { data: usersData } = useQuery(GET_USERS_BY_BRANCH, {
+    const { data: usersData } = useQuery(GET_USERS_BY_BRANCH_LIGHT, {
         variables: {
             branchId: companyData?.branch.id || "",
             includeInactive: false,
@@ -985,49 +985,50 @@ const CashPay: React.FC<CashPayProps> = ({
             return;
         }
 
-        let serial: string;
+        // Bloqueo síncrono antes de cualquier await (evita varios createIssuedDocument por doble clic / invocaciones concurrentes)
+        isProcessingRef.current = true;
+        setIsProcessing(true);
+
         try {
-            const { data: serialsFetched } = await fetchSerialsForDocument({
-                variables: { documentId },
-            });
-            const serialList = (serialsFetched?.serialsByDocument || []).filter(
-                (ser: any) => ser.isActive !== false,
-            );
-            if (serialList.length === 0) {
-                showToast("No hay serie activa para este documento", "error");
+            let serial: string;
+            try {
+                const { data: serialsFetched } =
+                    await fetchSerialsForDocument({
+                        variables: { documentId },
+                    });
+                const serialList = (
+                    serialsFetched?.serialsByDocument || []
+                ).filter((ser: any) => ser.isActive !== false);
+                if (serialList.length === 0) {
+                    showToast("No hay serie activa para este documento", "error");
+                    return;
+                }
+                serial = serialList[0].serial || "";
+            } catch {
+                showToast(
+                    "No se pudieron cargar las series del documento",
+                    "error",
+                );
                 return;
             }
-            serial = serialList[0].serial || "";
-        } catch {
-            showToast(
-                "No se pudieron cargar las series del documento",
-                "error",
+
+            // device_id = identificador del equipo cliente (MAC en Electron, getDeviceId en este equipo)
+            const resolvedDeviceId = await getDeviceIdOrMac();
+            const isMacAddress = resolvedDeviceId.includes(":");
+            console.log(
+                "📋 [PAGO] device_id final (equipo cliente) enviado en createIssuedDocument:",
+                resolvedDeviceId,
+                isMacAddress
+                    ? "(MAC PC ✓)"
+                    : "(id local — en Electron debería ser MAC si hay red)",
             );
-            return;
-        }
 
-        // ⚠️ ESTABLECER flags INMEDIATAMENTE para prevenir doble ejecución
-        isProcessingRef.current = true; // Ref se actualiza síncronamente
-        setIsProcessing(true); // Estado puede tener delay
+            if (!isMacAddress) {
+                console.warn(
+                    "⚠️ [PAGO] device_id no tiene formato MAC. En escritorio use SumApp/Electron para que sea la MAC de la PC; impresión Raspberry/local puede depender de este valor.",
+                );
+            }
 
-        // device_id = identificador del equipo cliente (MAC en Electron, getDeviceId en este equipo)
-        const resolvedDeviceId = await getDeviceIdOrMac();
-        const isMacAddress = resolvedDeviceId.includes(":");
-        console.log(
-            "📋 [PAGO] device_id final (equipo cliente) enviado en createIssuedDocument:",
-            resolvedDeviceId,
-            isMacAddress
-                ? "(MAC PC ✓)"
-                : "(id local — en Electron debería ser MAC si hay red)",
-        );
-
-        if (!isMacAddress) {
-            console.warn(
-                "⚠️ [PAGO] device_id no tiene formato MAC. En escritorio use SumApp/Electron para que sea la MAC de la PC; impresión Raspberry/local puede depender de este valor.",
-            );
-        }
-
-        try {
             const now = new Date();
             const emissionDate = formatLocalDateYYYYMMDD(now);
             const emissionTime = formatLocalTimeHHMMSS(now);
@@ -1059,7 +1060,6 @@ const CashPay: React.FC<CashPayProps> = ({
                         "No hay productos seleccionados para pagar",
                         "error",
                     );
-                    setIsProcessing(false);
                     return;
                 }
             }
@@ -1126,8 +1126,6 @@ const CashPay: React.FC<CashPayProps> = ({
                     "Error: No se pudieron validar todos los productos.",
                     "error",
                 );
-                isProcessingRef.current = false;
-                setIsProcessing(false);
                 return;
             }
 
@@ -1197,8 +1195,6 @@ const CashPay: React.FC<CashPayProps> = ({
                     `La suma de los pagos (${currencyFormatter.format(totalPaymentsAmount)}) debe ser al menos el total a pagar (${currencyFormatter.format(paymentTotal)})`,
                     "error",
                 );
-                isProcessingRef.current = false;
-                setIsProcessing(false);
                 return;
             }
 
@@ -1273,8 +1269,6 @@ const CashPay: React.FC<CashPayProps> = ({
                     "Debe agregar al menos un pago con monto mayor a 0",
                     "error",
                 );
-                isProcessingRef.current = false;
-                setIsProcessing(false);
                 return;
             }
 
@@ -1462,14 +1456,6 @@ const CashPay: React.FC<CashPayProps> = ({
                 "═══════════════════════════════════════════════════════════",
             );
             console.log("");
-
-            // ⚠️ VERIFICACIÓN FINAL: Usar ref en lugar de estado (más confiable - actualización síncrona)
-            if (!isProcessingRef.current) {
-                console.warn("⚠️ isProcessingRef cambiado, abortando pago");
-                // Ya se reseteó, solo asegurar estado
-                setIsProcessing(false);
-                return;
-            }
 
             // ⚠️ GUARDAR información de items facturados ANTES de enviar (para usar después del refetch)
             // Esto nos permite calcular remainingQuantity localmente si el backend no lo devuelve
