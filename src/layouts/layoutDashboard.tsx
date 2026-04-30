@@ -92,6 +92,21 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     const { breakpoint, isMobile } = useResponsive();
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
+    // Dark Mode
+    const [isDarkMode, setIsDarkMode] = useState(() => {
+        const saved = localStorage.getItem("darkMode");
+        if (saved !== null) {
+            return saved === "true";
+        }
+        return (
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+        );
+    });
+
+    // Internet Status
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+
     // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
     const isSmall = breakpoint === "sm"; // 640px - 767px
     const isMedium = breakpoint === "md"; // 768px - 1023px
@@ -190,6 +205,30 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         }
     }, [currentView]);
 
+    // Dark Mode Effect
+    useEffect(() => {
+        if (isDarkMode) {
+            document.documentElement.classList.add("dark");
+        } else {
+            document.documentElement.classList.remove("dark");
+        }
+        localStorage.setItem("darkMode", isDarkMode.toString());
+    }, [isDarkMode]);
+
+    // Internet Status Effects
+    useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+
+        window.addEventListener("online", handleOnline);
+        window.addEventListener("offline", handleOffline);
+
+        return () => {
+            window.removeEventListener("online", handleOnline);
+            window.removeEventListener("offline", handleOffline);
+        };
+    }, []);
+
     const [configurationTab, setConfigurationTab] = useState<
         | "category"
         | "subcategory"
@@ -286,7 +325,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                     message,
                 );
                 refetchBroadcastMessages();
-                
+
                 // Abrir automáticamente el modal de notificaciones si el mensaje no es del propio usuario
                 if (message?.sender_id !== user?.id) {
                     setShowNotifications(true);
@@ -788,7 +827,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                         )}
                     </div>
 
-                    {sidebarOpen && (
+                    {sidebarOpen && isAdmin && (
                         <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-slate-300">
                             <p className="mb-2 font-medium">
                                 <strong>Sucursal:</strong>
@@ -970,6 +1009,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 
             {/* Contenido Principal */}
             <div
+                className="bg-slate-50 dark:bg-slate-950"
                 style={{
                     marginLeft: isOverlay ? "0px" : sidebarWidth,
                     width: isOverlay
@@ -994,7 +1034,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             >
                 {/* Header Principal: título | sucursal centrada | empleado + notificaciones */}
                 <header
-                    className="flex items-center justify-between border-b border-slate-200 bg-white shadow-sm"
+                    className="flex items-center justify-between border-b border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
                     style={{
                         padding: headerPadding,
                         gap: isMobile ? "0.5rem" : "1rem",
@@ -1004,13 +1044,13 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                     <div className="flex min-w-0 items-center gap-2 md:gap-4 flex-1">
                         <button
                             onClick={toggleSidebar}
-                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-xl text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-xl text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100"
                         >
                             {sidebarOpen ? "⇤" : "☰"}
                         </button>
                         <div className="min-w-0">
                             <h1
-                                className="m-0 truncate font-bold text-slate-800"
+                                className="m-0 truncate font-bold text-slate-800 dark:text-slate-100"
                                 style={{
                                     fontSize: headerFontSize,
                                 }}
@@ -1019,7 +1059,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                             </h1>
                             {!isMobile && (
                                 <div
-                                    className="mt-1 truncate text-slate-500"
+                                    className="mt-1 truncate text-slate-500 dark:text-slate-400"
                                     style={{
                                         fontSize: headerSubFontSize,
                                     }}
@@ -1030,9 +1070,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                         </div>
                     </div>
 
-                    {/* Sección Central: Sucursal (Solo Desktop) */}
-                    {!isMobile && (
-                        <div className="hidden md:flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+                    {/* Sección Central: Sucursal (Solo Desktop y Solo Administradores) */}
+                    {!isMobile && isAdmin && (
+                        <div className="hidden md:flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
                             <span>🏢</span>
                             {(companyData?.availableBranches?.length ?? 0) >
                             1 ? (
@@ -1046,7 +1086,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                         }
                                     }}
                                     disabled={switchingBranch}
-                                    className="min-w-[140px] cursor-pointer rounded-md border border-slate-200 bg-white px-2 py-1 text-sm font-semibold text-slate-700 disabled:cursor-wait disabled:opacity-70"
+                                    className="min-w-[140px] cursor-pointer rounded-md border border-slate-200 bg-white px-2 py-1 text-sm font-semibold text-slate-700 disabled:cursor-wait disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
                                 >
                                     {companyData?.availableBranches?.map(
                                         (b: any) => (
@@ -1057,15 +1097,48 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     )}
                                 </select>
                             ) : (
-                                <span className="font-semibold text-slate-700">
+                                <span className="font-semibold text-slate-700 dark:text-slate-200">
                                     {companyData?.branch.name}
                                 </span>
                             )}
                         </div>
                     )}
 
-                    {/* Sección Derecha: Usuario + Notificaciones */}
+                    {/* Sección Derecha: Internet Status, Dark Mode, Usuario + Notificaciones */}
                     <div className="flex shrink-0 items-center gap-2 md:gap-4">
+                        {/* Internet Status */}
+                        <div
+                            className="relative"
+                            title={
+                                isOnline
+                                    ? "Conectado a internet"
+                                    : "Sin conexión"
+                            }
+                        >
+                            <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-xl dark:border-slate-600 dark:bg-slate-800">
+                                {isOnline ? (
+                                    <span className="text-green-600">🌐</span>
+                                ) : (
+                                    <span className="text-red-500 animate-pulse">
+                                        ❌
+                                    </span>
+                                )}
+                            </span>
+                        </div>
+
+                        {/* Dark Mode Toggle */}
+                        <button
+                            onClick={() => setIsDarkMode(!isDarkMode)}
+                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-xl text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                            title={
+                                isDarkMode
+                                    ? "Cambiar a modo claro"
+                                    : "Cambiar a modo oscuro"
+                            }
+                        >
+                            {isDarkMode ? "☀️" : "🌙"}
+                        </button>
+
                         <div ref={userPopoverRef} className="relative">
                             <button
                                 onClick={() =>
@@ -1077,14 +1150,14 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                         : "px-4 max-w-[240px]"
                                 } ${
                                     showUserPopover
-                                        ? "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                        : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100"
+                                        ? "border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200"
+                                        : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:bg-slate-700"
                                 }`}
                             >
                                 <span title={user?.fullName ?? ""}>👤</span>
                                 {!isMobile && (
                                     <span
-                                        className="truncate font-semibold text-slate-700"
+                                        className="truncate font-semibold text-slate-700 dark:text-slate-200"
                                         title={user?.fullName ?? ""}
                                     >
                                         {user?.fullName ?? user?.firstName}
