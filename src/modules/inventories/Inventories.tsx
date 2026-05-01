@@ -274,6 +274,8 @@ const Inventories: React.FC = () => {
     return (
         <div
             style={{
+                flexShrink: 0,
+                alignSelf: "flex-start",
                 minHeight: "100%",
                 width: "100%",
                 maxWidth: "100%",
@@ -607,12 +609,15 @@ const Inventories: React.FC = () => {
                             {!isSmall ? (
                                 <div
                                     style={{
-                                        overflowX: "auto",
+                                        overflow: "auto",
                                         width: "100%",
                                         maxWidth: "100%",
+                                        maxHeight: "min(55vh, 620px)",
+                                        minHeight: "200px",
                                         boxSizing: "border-box",
+                                        WebkitOverflowScrolling: "touch",
                                         borderRadius: "8px",
-                                        border: "1px solid #f1f5f9",
+                                        border: "1px solid #e2e8f0",
                                     }}
                                 >
                                     <table
@@ -624,14 +629,14 @@ const Inventories: React.FC = () => {
                                     >
                                         <thead>
                                             <tr style={{ borderBottom: "2px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600 }}>Imagen</th>
-                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600 }}>Código</th>
-                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600 }}>Nombre</th>
-                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600 }}>Stock Actual</th>
-                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600 }}>Stock Mín.</th>
-                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600 }}>Stock Máx.</th>
-                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600 }}>Unidad</th>
-                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600 }}>Estado</th>
+                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600, position: "sticky", top: 0, zIndex: 2, backgroundColor: "#f8fafc", boxShadow: "0 1px 0 #e2e8f0" }}>Imagen</th>
+                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600, position: "sticky", top: 0, zIndex: 2, backgroundColor: "#f8fafc", boxShadow: "0 1px 0 #e2e8f0" }}>Código</th>
+                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600, position: "sticky", top: 0, zIndex: 2, backgroundColor: "#f8fafc", boxShadow: "0 1px 0 #e2e8f0" }}>Nombre</th>
+                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600, position: "sticky", top: 0, zIndex: 2, backgroundColor: "#f8fafc", boxShadow: "0 1px 0 #e2e8f0" }}>Stock Actual</th>
+                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600, position: "sticky", top: 0, zIndex: 2, backgroundColor: "#f8fafc", boxShadow: "0 1px 0 #e2e8f0" }}>Stock Mín.</th>
+                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600, position: "sticky", top: 0, zIndex: 2, backgroundColor: "#f8fafc", boxShadow: "0 1px 0 #e2e8f0" }}>Stock Máx.</th>
+                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600, position: "sticky", top: 0, zIndex: 2, backgroundColor: "#f8fafc", boxShadow: "0 1px 0 #e2e8f0" }}>Unidad</th>
+                                                <th style={{ padding: tableCellPadding, textAlign: "center", color: "#64748b", fontWeight: 600, position: "sticky", top: 0, zIndex: 2, backgroundColor: "#f8fafc", boxShadow: "0 1px 0 #e2e8f0" }}>Estado</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -666,7 +671,18 @@ const Inventories: React.FC = () => {
                                     </table>
                                 </div>
                             ) : (
-                                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "1rem",
+                                        maxHeight: "min(55vh, 620px)",
+                                        minHeight: "120px",
+                                        overflowY: "auto",
+                                        overflowX: "hidden",
+                                        WebkitOverflowScrolling: "touch",
+                                    }}
+                                >
                                     {paginatedProducts.map((product) => {
                                         const stockStatus = getStockStatus(product);
                                         return (

@@ -172,7 +172,7 @@ async function renderThermalDocumentStyle(doc: Record<string, unknown>): Promise
                 const dataUrl = await QRCode.toDataURL(rawQr, {
                     errorCorrectionLevel: "M",
                     margin: 1,
-                    width: 180,
+                    width: 96,
                 });
                 parts.push(
                     `<div class="t-qr-wrap"><img class="t-qr-img" src="${dataUrl}" alt=""/></div>`
@@ -266,8 +266,8 @@ const thermalDocumentCss = `
       margin: 8px 0 6px;
       letter-spacing: -0.02em;
     }
-    .t-qr-wrap { text-align: center; margin: 8px 0 4px; }
-    .t-qr-img { width: 46mm; max-width: 100%; height: auto; image-rendering: pixelated; }
+    .t-qr-wrap { text-align: center; margin: 6px 0 3px; }
+    .t-qr-img { width: 24mm; max-width: 72%; height: auto; image-rendering: pixelated; margin: 0 auto; display: block; }
     .t-qr-fallback { margin-top: 6px; word-break: break-all; }
     .t-footer { font-size: 9px; line-height: 1.35; }
     .t-pad { margin-top: 6px; }

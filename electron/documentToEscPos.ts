@@ -111,38 +111,40 @@ async function logoToEscPos(logo_base64: string, paperWidthMm: number): Promise<
     try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const Jimp = require("jimp");
-        const maxW    = paperWidthMm >= 80 ? 300 : 220;
-        const maxH    = paperWidthMm >= 80 ? 120 : 100;
+        /** Logo más pequeño en datos = menos CPU y menos bytes al puerto (sigue viéndose bien en térmica). */
+        const maxW    = paperWidthMm >= 80 ? 256 : 192;
+        const maxH    = paperWidthMm >= 80 ? 96 : 80;
         const paperPx = paperWidthMm >= 80 ? 576 : 384;
+        const widthBytes = Math.ceil(paperPx / 8);
 
         const buf = Buffer.from(logo_base64, "base64");
         const img = await Jimp.read(buf);
 
-        const ratio = Math.min(maxW / img.getWidth(), maxH / img.getHeight());
-        const newW  = ratio < 1 ? Math.round(img.getWidth()  * ratio) : Math.min(Math.round(img.getWidth()  * 1.2), maxW);
-        const newH  = ratio < 1 ? Math.round(img.getHeight() * ratio) : Math.min(Math.round(img.getHeight() * 1.2), maxH);
-
-        img.resize(newW, newH);
+        let iw = img.getWidth();
+        let ih = img.getHeight();
+        const scale = Math.min(1, maxW / iw, maxH / ih);
+        iw = Math.max(1, Math.round(iw * scale));
+        ih = Math.max(1, Math.round(ih * scale));
+        img.resize(iw, ih);
         img.grayscale();
-        img.contrast(0.3);
+        img.contrast(0.2);
 
-        const canvas  = new Jimp(paperPx, newH, 0xffffffff);
-        const padding = Math.floor((paperPx - newW) / 2);
-        canvas.composite(img, padding, 0);
+        const rgba = img.bitmap.data as Buffer;
+        const stride = iw * 4;
+        const offset = Math.max(0, Math.floor((paperPx - iw) / 2));
 
-        const widthBytes = Math.ceil(paperPx / 8);
         const rows: Buffer[] = [];
-
-        for (let y = 0; y < newH; y++) {
+        for (let y = 0; y < ih; y++) {
+            const rowOff = y * stride;
             const lineData: number[] = [];
             for (let xByte = 0; xByte < widthBytes; xByte++) {
                 let byteVal = 0;
                 for (let bit = 0; bit < 8; bit++) {
                     const x = xByte * 8 + bit;
-                    if (x < paperPx) {
-                        const pixel = canvas.getPixelColor(x, y);
-                        const r = (pixel >> 24) & 0xff;
-                        if (r < 128) byteVal |= (1 << (7 - bit));
+                    if (x >= offset && x < offset + iw) {
+                        const xi = x - offset;
+                        const r = rgba[rowOff + (xi << 2)];
+                        if (r < 128) byteVal |= 1 << (7 - bit);
                     }
                 }
                 lineData.push(byteVal);
@@ -158,9 +160,10 @@ async function logoToEscPos(logo_base64: string, paperWidthMm: number): Promise<
     }
 }
 
-function qrToEscPos(qrData: string, paperWidthMm: number): Buffer {
-    const dataBytes    = Buffer.from(qrData, "utf-8");
-    const qrModuleSize = paperWidthMm >= 80 ? 6 : 4;
+function qrToEscPos(qrData: string, _paperWidthMm: number): Buffer {
+    const dataBytes = Buffer.from(qrData, "utf-8");
+    /** Punto por módulo del QR (1–16). Bajo = QR pequeño; subir a 3 si `qr_data` es muy largo y no escanea bien. */
+    const qrModuleSize = 2;
     const storeLen     = dataBytes.length + 3;
     const storePL      = storeLen & 0xff;
     const storePH      = (storeLen >> 8) & 0xff;

@@ -25,6 +25,38 @@ import { documentJsonToEscPos } from "./documentToEscPos";
 import { documentDataJsonToHtml } from "./documentToPrintHtml";
 import type { WebContentsPrintOptions } from "electron";
 
+/** Puerto USB raw que funcionó la última vez (1–4); reduce intentos fallidos en cada impresión. */
+let lastWindowsUsbIndex: number | null = null;
+
+function writeWindowsUsbDirect(portIndex: number, data: Buffer): boolean {
+    const devicePath = `\\\\.\\USB00${portIndex}`;
+    let fd: number | undefined;
+    try {
+        fd = fs.openSync(devicePath, "w");
+        fs.writeSync(fd, data);
+        return true;
+    } catch {
+        return false;
+    } finally {
+        if (fd !== undefined) {
+            try {
+                fs.closeSync(fd);
+            } catch {
+                /* ignore */
+            }
+        }
+    }
+}
+
+function orderedUsbIndices(): number[] {
+    const all = [1, 2, 3, 4] as const;
+    if (lastWindowsUsbIndex != null && lastWindowsUsbIndex >= 1 && lastWindowsUsbIndex <= 4) {
+        const rest = all.filter((i) => i !== lastWindowsUsbIndex);
+        return [lastWindowsUsbIndex, ...rest];
+    }
+    return [...all];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MÉTODO PRINCIPAL: Puerto raw Windows USB001
 // Escribe los bytes ESC/POS directamente al puerto USB de la impresora.
@@ -44,36 +76,58 @@ async function sendToRawPort(escposBytes: Buffer): Promise<boolean> {
         return false;
     }
 
-    // ── Windows: guardar .bin temporal y copiar al puerto USB ─────────────────
+    // ── Windows: escritura directa al dispositivo (más rápido que cmd copy + tmp) ──
+    for (const i of orderedUsbIndices()) {
+        if (writeWindowsUsbDirect(i, escposBytes)) {
+            lastWindowsUsbIndex = i;
+            log.info(`[escpos] OK → USB00${i} (directo)`);
+            return true;
+        }
+    }
+
+    // Fallback: copy /b por si el driver solo acepta el flujo clásico
     const tmpBin = path.join(os.tmpdir(), `sumapp-escpos-${Date.now()}.bin`);
     try {
         fs.writeFileSync(tmpBin, escposBytes);
-    } catch (e: any) {
-        log.error("[escpos] No se pudo escribir bin temporal:", e?.message);
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        log.error("[escpos] No se pudo escribir bin temporal:", msg);
         return false;
     }
 
-    // Probar USB001 → USB004 (la XP-80C está en USB001 según wmic)
-    for (let i = 1; i <= 4; i++) {
+    const COPY_TIMEOUT_MS = 3500;
+    for (const i of orderedUsbIndices()) {
         const port = `USB00${i}`;
         try {
             await new Promise<void>((resolve, reject) => {
                 execFile(
                     "cmd.exe",
                     ["/d", "/s", "/c", `copy /b "${tmpBin}" \\\\.\\${port}`],
-                    { windowsHide: true, timeout: 10000 },
-                    (err) => { if (err) reject(err); else resolve(); },
+                    { windowsHide: true, timeout: COPY_TIMEOUT_MS },
+                    (err) => {
+                        if (err) reject(err);
+                        else resolve();
+                    },
                 );
             });
-            log.info(`[escpos] OK → puerto ${port}`);
-            try { fs.unlinkSync(tmpBin); } catch {}
+            lastWindowsUsbIndex = i;
+            log.info(`[escpos] OK → ${port} (copy /b)`);
+            try {
+                fs.unlinkSync(tmpBin);
+            } catch {
+                /* ignore */
+            }
             return true;
         } catch {
-            log.debug(`[escpos] Puerto ${port} no disponible`);
+            log.debug(`[escpos] copy falló ${port}`);
         }
     }
 
-    try { fs.unlinkSync(tmpBin); } catch {}
+    try {
+        fs.unlinkSync(tmpBin);
+    } catch {
+        /* ignore */
+    }
     log.warn("[escpos] Ningún puerto USB00x respondió");
     return false;
 }

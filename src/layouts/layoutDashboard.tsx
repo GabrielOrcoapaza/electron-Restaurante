@@ -827,43 +827,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                         )}
                     </div>
 
-                    {sidebarOpen && isAdmin && (
-                        <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-slate-300">
-                            <p className="mb-2 font-medium">
-                                <strong>Sucursal:</strong>
-                            </p>
-                            {(companyData?.availableBranches?.length ?? 0) >
-                            1 ? (
-                                <select
-                                    value={companyData?.branch.id ?? ""}
-                                    onChange={(e) => {
-                                        const id = e.target.value;
-                                        if (id) {
-                                            disconnect();
-                                            switchToBranch(id);
-                                        }
-                                    }}
-                                    disabled={switchingBranch}
-                                    className="w-full cursor-pointer rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs font-semibold text-slate-200 focus:border-indigo-500 focus:outline-none"
-                                >
-                                    {companyData?.availableBranches?.map(
-                                        (b: any) => (
-                                            <option key={b.id} value={b.id}>
-                                                {b.name}
-                                            </option>
-                                        ),
-                                    )}
-                                </select>
-                            ) : (
-                                <p className="m-0 font-semibold text-white">
-                                    {companyData?.branch.name}
-                                </p>
-                            )}
-                            <p className="mt-2 m-0 border-t border-white/5 pt-2">
-                                <strong>DNI:</strong> {user?.dni}
-                            </p>
-                        </div>
-                    )}
+                    
                 </div>
 
                 {/* Menú de Navegación */}
