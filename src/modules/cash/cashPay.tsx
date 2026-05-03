@@ -2784,96 +2784,66 @@ const CashPay: React.FC<CashPayProps> = ({
                             }}
                         >
                             {showLocalPrinterPicker && (
-                                <>
+                                <div
+                                    style={{
+                                        backgroundColor: "#f8fafc",
+                                        padding: "0.75rem",
+                                        borderRadius: "8px",
+                                        border: "1px solid #e2e8f0",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "0.4rem"
+                                    }}
+                                >
                                     <div
                                         style={{
                                             fontSize: "0.65rem",
                                             fontWeight: 700,
                                             color: "#64748b",
+                                            textTransform: "uppercase",
+                                            letterSpacing: "0.025em"
                                         }}
                                     >
-                                        Impresora local (ticket)
+                                        Impresora de tickets (USB)
                                     </div>
                                     <div
                                         style={{
+                                            fontSize: "0.85rem",
+                                            fontWeight: 600,
+                                            color: selectedLocalPrinterName ? "#0f172a" : "#dc2626",
                                             display: "flex",
-                                            gap: "0.35rem",
                                             alignItems: "center",
+                                            gap: "0.4rem"
                                         }}
                                     >
-                                        <select
-                                            value={selectedLocalPrinterName}
-                                            onChange={(e) => {
-                                                const v = e.target.value;
-                                                setSelectedLocalPrinterName(v);
-                                                setLocalTicketPrinterStorage(v);
-                                            }}
-                                            disabled={localPrintersLoading}
-                                            style={{
-                                                flex: 1,
-                                                minWidth: 0,
-                                                fontSize: "0.85rem",
-                                                padding: "0.6rem",
-                                                border: "1px solid #cbd5e1",
-                                                borderRadius: "4px",
-                                                background: "white",
-                                            }}
-                                        >
-                                            <option value="">
+                                        {selectedLocalPrinterName ? (
+                                            <>
+                                                <span style={{ color: "#059669" }}>✓</span>
+                                                {selectedLocalPrinterName}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span style={{ fontSize: "1rem" }}>⚠️</span>
                                                 Predeterminada del sistema
-                                            </option>
-                                            {localPrintersOptions.map((p) => (
-                                                <option
-                                                    key={p.name}
-                                                    value={p.name}
-                                                >
-                                                    {p.isSystemDefault
-                                                        ? "★ "
-                                                        : ""}
-                                                    {p.displayName || p.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                void refreshLocalPrintersForCash()
-                                            }
-                                            disabled={localPrintersLoading}
-                                            style={{
-                                                flexShrink: 0,
-                                                padding: "0.6rem 0.8rem",
-                                                fontSize: "0.85rem",
-                                                border: "1px solid #cbd5e1",
-                                                borderRadius: "4px",
-                                                background: "#f8fafc",
-                                                cursor: localPrintersLoading
-                                                    ? "not-allowed"
-                                                    : "pointer",
-                                            }}
-                                        >
-                                            ↻
-                                        </button>
+                                            </>
+                                        )}
                                     </div>
                                     <div
                                         style={{
-                                            fontSize: "0.58rem",
+                                            fontSize: "0.6rem",
                                             color: "#94a3b8",
-                                            lineHeight: 1.35,
-                                            marginBottom: "0.15rem",
+                                            lineHeight: 1.3
                                         }}
                                     >
-                                        SumApp escritorio: elige la impresora
-                                        física para boleta/ticket cuando el
-                                        servidor indica impresión en este
-                                        equipo. La capa nativa debe aceptar el
-                                        2.º argumento (nombre) en{" "}
-                                        <code style={{ fontSize: "0.55rem" }}>
-                                            LocalPrinter.printDocument
-                                        </code>
-                                        .
+                                        {selectedLocalPrinterName 
+                                            ? "Se imprimirá directamente en esta impresora." 
+                                            : "No hay una impresora seleccionada. Se usará la de Windows."}
+                                        <br />
+                                        <span style={{ fontWeight: 600, color: "#64748b" }}>
+                                            * Sujeto a configuración del servidor por tipo de documento.
+                                        </span>
                                     </div>
-                                </>
+                                </div>
                             )}
                             <div
                                 style={{
