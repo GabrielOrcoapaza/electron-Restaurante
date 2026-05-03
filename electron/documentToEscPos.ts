@@ -109,75 +109,100 @@ class EscPos {
 
 async function logoToEscPos(logo_base64: string, paperWidthMm: number): Promise<Buffer> {
     try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const Jimp = require("jimp");
-        /** Logo más pequeño en datos = menos CPU y menos bytes al puerto (sigue viéndose bien en térmica). */
-        const maxW    = paperWidthMm >= 80 ? 256 : 192;
-        const maxH    = paperWidthMm >= 80 ? 96 : 80;
+        const sharp = require('sharp');
+        
+        // Limpiar base64
+        const cleanBase64 = logo_base64.replace(/^data:image\/\w+;base64,/, "");
+        const buf = Buffer.from(cleanBase64, "base64");
+        
+        // Tamaños máximos para el logo
+        const maxWidth = paperWidthMm >= 80 ? 320 : 240;
+        const maxHeight = paperWidthMm >= 80 ? 160 : 120;
         const paperPx = paperWidthMm >= 80 ? 576 : 384;
-        const widthBytes = Math.ceil(paperPx / 8);
-
-        const buf = Buffer.from(logo_base64, "base64");
-        const img = await Jimp.read(buf);
-
-        let iw = img.getWidth();
-        let ih = img.getHeight();
-        const scale = Math.min(1, maxW / iw, maxH / ih);
-        iw = Math.max(1, Math.round(iw * scale));
-        ih = Math.max(1, Math.round(ih * scale));
-        img.resize(iw, ih);
-        img.grayscale();
-        img.contrast(0.2);
-
-        const rgba = img.bitmap.data as Buffer;
-        const stride = iw * 4;
-        const offset = Math.max(0, Math.floor((paperPx - iw) / 2));
-
-        const rows: Buffer[] = [];
-        for (let y = 0; y < ih; y++) {
-            const rowOff = y * stride;
-            const lineData: number[] = [];
-            for (let xByte = 0; xByte < widthBytes; xByte++) {
-                let byteVal = 0;
-                for (let bit = 0; bit < 8; bit++) {
-                    const x = xByte * 8 + bit;
-                    if (x >= offset && x < offset + iw) {
-                        const xi = x - offset;
-                        const r = rgba[rowOff + (xi << 2)];
-                        if (r < 128) byteVal |= 1 << (7 - bit);
+        const widthBytes = paperPx / 8; // 72 bytes para 80mm (576 dots)
+        
+        // Procesar imagen con sharp: redimensionar, convertir a escala de grises y a raw (1 byte por píxel)
+        const { data, info } = await sharp(buf)
+            .resize(maxWidth, maxHeight, { fit: 'inside' })
+            .greyscale()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+        
+        const width = info.width;
+        const height = info.height;
+        
+        // Calcular offset para centrar horizontalmente (en píxeles)
+        const offsetPx = Math.max(0, Math.floor((paperPx - width) / 2));
+        
+        // Crear el buffer de datos de la imagen (1 bit por píxel)
+        // El ancho debe ser siempre widthBytes (72 para 80mm)
+        const rasterData = Buffer.alloc(widthBytes * height, 0);
+        
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const gray = data[y * width + x];
+                if (gray < 128) { // Píxel negro
+                    const targetX = x + offsetPx;
+                    if (targetX < paperPx) {
+                        const byteIdx = y * widthBytes + Math.floor(targetX / 8);
+                        const bitIdx = 7 - (targetX % 8);
+                        rasterData[byteIdx] |= (1 << bitIdx);
                     }
                 }
-                lineData.push(byteVal);
             }
-            const nL = widthBytes & 0xff;
-            const nH = (widthBytes >> 8) & 0xff;
-            rows.push(Buffer.from([ESC, 0x2a, 0x00, nL, nH, ...lineData, LF]));
         }
-
-        return Buffer.concat([CMD.ALIGN_CENTER, Buffer.from([LF]), ...rows, Buffer.from([LF])]);
-    } catch {
+        
+        // Comando ESC/POS: GS v 0 m xL xH yL yH d1...dk
+        // m = 0 (Normal)
+        // xL, xH = Ancho en bytes (72 para 80mm)
+        // yL, yH = Alto en puntos (height)
+        const xL = widthBytes & 0xFF;
+        const xH = (widthBytes >> 8) & 0xFF;
+        const yL = height & 0xFF;
+        const yH = (height >> 8) & 0xFF;
+        
+        const header = Buffer.from([0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
+        
+        return Buffer.concat([
+            CMD.ALIGN_CENTER,
+            Buffer.from([0x0A]), // Salto de línea antes
+            header,
+            rasterData,
+            Buffer.from([0x0A]), // Salto de línea después
+            CMD.ALIGN_LEFT
+        ]);
+        
+    } catch (error) {
+        console.error("Error en logoToEscPos (sharp):", error);
         return Buffer.alloc(0);
     }
 }
 
-function qrToEscPos(qrData: string, _paperWidthMm: number): Buffer {
+function qrToEscPos(qrData: string, paperWidthMm: number): Buffer {
     const dataBytes = Buffer.from(qrData, "utf-8");
-    /** Punto por módulo del QR (1–16). Bajo = QR pequeño; subir a 3 si `qr_data` es muy largo y no escanea bien. */
-    const qrModuleSize = 2;
-    const storeLen     = dataBytes.length + 3;
-    const storePL      = storeLen & 0xff;
-    const storePH      = (storeLen >> 8) & 0xff;
-
+    
+    // ✅ IGUAL QUE PYTHON: tamaño 6 para 80mm, 4 para 58mm
+    const qrModuleSize = paperWidthMm >= 80 ? 6 : 4;
+    
+    const storeLen = dataBytes.length + 3;
+    const storePL = storeLen & 0xff;
+    const storePH = (storeLen >> 8) & 0xff;
+    
     return Buffer.concat([
         CMD.ALIGN_CENTER,
+        // Modelo QR (Model 2)
         Buffer.from([GS, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]),
+        // Tamaño del módulo
         Buffer.from([GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, qrModuleSize]),
+        // Nivel de corrección (M)
         Buffer.from([GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31]),
+        // Almacenar datos
         Buffer.from([GS, 0x28, 0x6b, storePL, storePH, 0x31, 0x50, 0x30]),
         dataBytes,
+        // Imprimir QR
         Buffer.from([GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30]),
         CMD.ALIGN_LEFT,
-        Buffer.from([LF]),
+        Buffer.from([0x0A]),
     ]);
 }
 
@@ -193,6 +218,10 @@ export async function documentJsonToEscPos(jsonString: string, paperWidthMm = 80
 
     const e = new EscPos();
     e.cmd(CMD.INIT).cmd(CMD.MODE_NORMAL);
+
+    console.log("[ESC/POS] Logo presente:", !!doc.logo_base64);
+    console.log("[ESC/POS] QR data presente:", !!doc.qr_data);
+    console.log("[ESC/POS] Paper width:", paperWidthMm);
 
     // LOGO
     if (typeof doc.logo_base64 === "string" && doc.logo_base64) {
