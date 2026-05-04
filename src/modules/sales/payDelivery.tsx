@@ -91,233 +91,167 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
     };
 
     return (
-        <div
-            style={{
-                position: 'fixed',
-                inset: 0,
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1000,
-                padding: '1rem',
-                boxSizing: 'border-box'
-            }}
+        <div 
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all animate-in fade-in duration-200"
             onClick={onClose}
         >
-            <div
-                style={{
-                    backgroundColor: 'white',
-                    borderRadius: '12px',
-                    padding: isMedium ? '1rem' : '1.25rem',
-                    maxWidth: '420px',
-                    width: '100%',
-                    maxHeight: '90vh',
-                    overflowY: 'auto',
-                    boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)'
-                }}
+            <div 
+                className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl transition-colors duration-200 dark:border-slate-800 dark:bg-slate-950"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <h3 style={{ fontSize: '1rem', fontWeight: '600', color: '#2d3748', margin: 0 }}>
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
                         Información de Pago
                     </h3>
                     <button
                         type="button"
                         onClick={onClose}
-                        style={{
-                            padding: '0.25rem 0.5rem',
-                            border: 'none',
-                            background: 'transparent',
-                            fontSize: '1.25rem',
-                            color: '#64748b',
-                            cursor: 'pointer',
-                            lineHeight: 1
-                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
                         aria-label="Cerrar"
                     >
-                        ×
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
                     </button>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: paymentFormGap }}>
-                    {/* Cliente */}
-                    <div>
-                        <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>
-                            Cliente (opcional)
-                        </label>
-                        <div style={{ position: 'relative' }}>
-                            <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.35rem', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', overflow: 'hidden' }}>
-                                <input
-                                    type="text"
-                                    value={personSearchTerm}
-                                    onChange={(e) => {
-                                        setPersonSearchTerm(e.target.value);
-                                        setSelectedPerson(null);
-                                    }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            handleSearchSunatClick();
-                                        }
-                                    }}
-                                    placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'}
-                                    disabled={clientsLoading || isSaving}
-                                    style={{
-                                        flex: 1,
-                                        padding: inputPadding,
-                                        border: 'none',
-                                        fontSize: '0.75rem',
-                                        backgroundColor: 'transparent',
-                                        outline: 'none',
-                                        boxSizing: 'border-box',
-                                        cursor: clientsLoading || isSaving ? 'not-allowed' : 'text'
-                                    }}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={handleSearchSunatClick}
-                                    disabled={clientsLoading || sunatSearchLoading || isSaving}
-                                    title="Buscar en SUNAT"
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        padding: '0 0.5rem',
-                                        border: 'none',
-                                        background: sunatSearchLoading ? '#e2e8f0' : '#0d9488',
-                                        color: 'white',
-                                        cursor: clientsLoading || sunatSearchLoading || isSaving ? 'not-allowed' : 'pointer',
-                                        opacity: clientsLoading || sunatSearchLoading || isSaving ? 0.7 : 1
-                                    }}
-                                >
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <circle cx="11" cy="11" r="8" />
-                                        <path d="m21 21-4.35-4.35" />
-                                    </svg>
-                                </button>
-                            </div>
-                            {personSearchTerm && !selectedPerson && filteredClients.length > 0 && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '100%',
-                                    left: 0,
-                                    right: 0,
-                                    marginTop: '0.25rem',
-                                    maxHeight: '140px',
-                                    overflowY: 'auto',
-                                    border: '1px solid #e5e7eb',
-                                    borderRadius: '6px',
-                                    backgroundColor: 'white',
-                                    boxShadow: '0 4px 6px rgba(0,0,0,0.07)',
-                                    zIndex: 10
-                                }}>
-                                    {!isFactura && (
-                                        <div
-                                            onClick={() => { setSelectedPerson(null); setPersonSearchTerm(''); }}
-                                            style={{
-                                                padding: '0.4rem 0.6rem',
-                                                cursor: 'pointer',
-                                                borderBottom: '1px solid #f1f5f9',
-                                                fontSize: '0.75rem',
-                                                color: '#64748b'
-                                            }}
-                                        >
-                                            Sin cliente (Consumidor final)
-                                        </div>
-                                    )}
-                                    {filteredClients.map((client: any) => (
-                                        <div
-                                            key={client.id}
-                                            onClick={() => {
-                                                setSelectedPerson({
-                                                    id: client.id,
-                                                    name: client.name || '',
-                                                    documentType: client.documentType || '',
-                                                    documentNumber: client.documentNumber || ''
-                                                });
-                                                setPersonSearchTerm(client.name || '');
-                                            }}
-                                            style={{
-                                                padding: '0.4rem 0.6rem',
-                                                cursor: 'pointer',
-                                                borderBottom: '1px solid #f1f5f9',
-                                                fontSize: '0.75rem'
-                                            }}
-                                            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#f7fafc'; }}
-                                            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
-                                        >
-                                            <div style={{ fontWeight: 600 }}>{client.name}</div>
-                                            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{client.documentType}: {client.documentNumber}</div>
-                                        </div>
-                                    ))}
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+                    <div className="flex flex-col gap-5">
+                        {/* Cliente */}
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                Cliente (opcional)
+                            </label>
+                            <div className="relative">
+                                <div className="flex items-stretch gap-2 overflow-hidden rounded-xl border border-slate-200 bg-white transition-all focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900">
+                                    <input
+                                        type="text"
+                                        value={personSearchTerm}
+                                        onChange={(e) => {
+                                            setPersonSearchTerm(e.target.value);
+                                            setSelectedPerson(null);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleSearchSunatClick();
+                                            }
+                                        }}
+                                        placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'}
+                                        disabled={clientsLoading || isSaving}
+                                        className="w-full bg-transparent px-4 py-2.5 text-sm text-slate-900 outline-none dark:text-slate-100 disabled:cursor-not-allowed"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleSearchSunatClick}
+                                        disabled={clientsLoading || sunatSearchLoading || isSaving}
+                                        title="Buscar en SUNAT"
+                                        className={`flex items-center justify-center px-4 transition-all ${
+                                            sunatSearchLoading || isSaving 
+                                            ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600' 
+                                            : 'bg-teal-600 text-white hover:bg-teal-700 active:scale-95'
+                                        }`}
+                                    >
+                                        {sunatSearchLoading ? (
+                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                        ) : (
+                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                            </svg>
+                                        )}
+                                    </button>
                                 </div>
-                            )}
-                            {personSearchTerm && !selectedPerson && !clientsLoading && filteredClients.length === 0 && (
-                                <div style={{ marginTop: '0.25rem' }}>
-                                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: '0.35rem' }}>
-                                        {isFactura ? 'No hay clientes con RUC' : 'No se encontraron clientes'}
+
+                                {/* Resultados de búsqueda */}
+                                {personSearchTerm && !selectedPerson && filteredClients.length > 0 && (
+                                    <div className="absolute left-0 right-0 top-full z-10 mt-2 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900">
+                                        {!isFactura && (
+                                            <div
+                                                onClick={() => { setSelectedPerson(null); setPersonSearchTerm(''); }}
+                                                className="cursor-pointer border-b border-slate-100 px-4 py-3 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/50"
+                                            >
+                                                Sin cliente (Consumidor final)
+                                            </div>
+                                        )}
+                                        {filteredClients.map((client: any) => (
+                                            <div
+                                                key={client.id}
+                                                onClick={() => {
+                                                    setSelectedPerson({
+                                                        id: client.id,
+                                                        name: client.name || '',
+                                                        documentType: client.documentType || '',
+                                                        documentNumber: client.documentNumber || ''
+                                                    });
+                                                    setPersonSearchTerm(client.name || '');
+                                                }}
+                                                className="cursor-pointer border-b border-slate-100 px-4 py-2.5 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                                            >
+                                                <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{client.name}</div>
+                                                <div className="text-[10px] font-medium text-slate-500 dark:text-slate-500">{client.documentType}: {client.documentNumber}</div>
+                                            </div>
+                                        ))}
                                     </div>
-                                    {(() => {
-                                        const term = (personSearchTerm || '').trim().replace(/\s/g, '');
-                                        const canSearchSunat = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
-                                        return (
-                                            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                                                {canSearchSunat ? (
+                                )}
+
+                                {/* Mensaje no encontrado */}
+                                {personSearchTerm && !selectedPerson && !clientsLoading && filteredClients.length === 0 && (
+                                    <div className="mt-2 flex flex-col gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-900/50">
+                                        <p className="text-[10px] font-medium text-slate-500 dark:text-slate-500">
+                                            {isFactura ? 'No hay clientes con RUC registrados' : 'No se encontraron clientes registrados'}
+                                        </p>
+                                        {(() => {
+                                            const term = (personSearchTerm || '').trim().replace(/\s/g, '');
+                                            const canSearchSunat = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
+                                            if (canSearchSunat) {
+                                                return (
                                                     <button
                                                         type="button"
                                                         onClick={onSearchSunat}
                                                         disabled={sunatSearchLoading || isSaving}
-                                                        style={{
-                                                            padding: '0.35rem 0.6rem',
-                                                            fontSize: '0.7rem',
-                                                            fontWeight: 600,
-                                                            color: '#0f766e',
-                                                            backgroundColor: '#ccfbf1',
-                                                            border: '1px solid #99f6e4',
-                                                            borderRadius: '6px',
-                                                            cursor: sunatSearchLoading || isSaving ? 'not-allowed' : 'pointer',
-                                                            opacity: sunatSearchLoading || isSaving ? 0.7 : 1
-                                                        }}
+                                                        className="flex items-center justify-center gap-2 rounded-lg bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700 transition-all hover:bg-teal-100 dark:bg-teal-900/20 dark:text-teal-400 dark:hover:bg-teal-900/30"
                                                     >
-                                                        {sunatSearchLoading ? 'Buscando en SUNAT...' : '🔍 Buscar en SUNAT'}
+                                                        {sunatSearchLoading ? (
+                                                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-teal-600/30 border-t-teal-600" />
+                                                        ) : '🔍'}
+                                                        <span>Buscar en SUNAT</span>
                                                     </button>
-                                                ) : (
-                                                    <span>Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse el botón de lupa para traer el cliente desde SUNAT.</span>
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-                            )}
+                                                );
+                                            }
+                                            return <p className="text-[10px] leading-tight text-slate-400">Ingrese DNI (8 dígitos) o RUC (11 dígitos) y use la lupa.</p>;
+                                        })()}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Documento y Serie */}
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <div style={{ flex: 2 }}>
-                            <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Tipo Documento *</label>
-                            <select
-                                value={selectedDocument}
-                                onChange={(e) => {
-                                    setSelectedDocument(e.target.value);
-                                    setSelectedSerial('');
-                                }}
-                                style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
-                            >
-                                <option value="..."></option>
-                                {documents.map((doc: any) => (
-                                    <option key={doc.id} value={doc.id}>{doc.description}</option>
-                                ))}
-                            </select>
-                        </div>
-                        {selectedDocument && (
-                            <div style={{ flex: 1 }}>
-                                <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Serie *</label>
+                        {/* Documento y Serie */}
+                        <div className="grid grid-cols-5 gap-3">
+                            <div className="col-span-3 flex flex-col gap-1.5">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 tracking-tight">Tipo Documento *</label>
+                                <select
+                                    value={selectedDocument}
+                                    onChange={(e) => {
+                                        setSelectedDocument(e.target.value);
+                                        setSelectedSerial('');
+                                    }}
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                                >
+                                    <option value="...">...</option>
+                                    {documents.map((doc: any) => (
+                                        <option key={doc.id} value={doc.id}>{doc.description}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="col-span-2 flex flex-col gap-1.5">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 tracking-tight">Serie *</label>
                                 <select
                                     value={selectedSerial}
                                     onChange={(e) => setSelectedSerial(e.target.value)}
-                                    style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
+                                    disabled={!selectedDocument}
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 disabled:opacity-50"
                                 >
                                     <option value="">...</option>
                                     {serials.map((serial: SerialItem) => (
@@ -325,112 +259,91 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
                                     ))}
                                 </select>
                             </div>
-                        )}
-                    </div>
-
-                    {/* Caja y Método */}
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <div style={{ flex: 1 }}>
-                            <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Caja *</label>
-                            <select
-                                value={selectedCashRegister}
-                                onChange={(e) => setSelectedCashRegister(e.target.value)}
-                                style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
-                            >
-                                <option value="">Seleccionar...</option>
-                                {cashRegisters.map((cashRegister: any) => (
-                                    <option key={cashRegister.id} value={cashRegister.id}>{cashRegister.name}</option>
-                                ))}
-                            </select>
                         </div>
-                        <div style={{ flex: 1 }}>
-                            <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Método *</label>
-                            <select
-                                value={paymentMethod}
-                                onChange={(e) => setPaymentMethod(e.target.value)}
-                                style={{ width: '100%', padding: inputPadding, border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
-                            >
-                                <option value="CASH">Efectivo</option>
-                                <option value="CARD">Tarjeta</option>
-                                <option value="TRANSFER">Transferencia</option>
-                                <option value="YAPE">Yape</option>
-                                <option value="PLIN">Plin</option>
-                            </select>
+
+                        {/* Caja y Método */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 tracking-tight">Caja *</label>
+                                <select
+                                    value={selectedCashRegister}
+                                    onChange={(e) => setSelectedCashRegister(e.target.value)}
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                                >
+                                    <option value="">Seleccionar...</option>
+                                    {cashRegisters.map((cashRegister: any) => (
+                                        <option key={cashRegister.id} value={cashRegister.id}>{cashRegister.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 tracking-tight">Método *</label>
+                                <select
+                                    value={paymentMethod}
+                                    onChange={(e) => setPaymentMethod(e.target.value)}
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                                >
+                                    <option value="CASH">Efectivo</option>
+                                    <option value="CARD">Tarjeta</option>
+                                    <option value="TRANSFER">Transferencia</option>
+                                    <option value="YAPE">Yape</option>
+                                    <option value="PLIN">Plin</option>
+                                </select>
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Monto Pagado */}
-                    <div>
-                        <label style={{ fontSize: '0.6875rem', fontWeight: '500', color: '#4a5568', display: 'block', marginBottom: '0.15rem' }}>Monto Pagado *</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={paidAmount}
-                            onChange={(e) => setPaidAmount(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: inputPadding,
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                boxSizing: 'border-box'
-                            }}
-                        />
-                    </div>
+                        {/* Monto Pagado */}
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Monto Pagado *</label>
+                            <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">S/</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    value={paidAmount}
+                                    onChange={(e) => setPaidAmount(e.target.value)}
+                                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-bold text-slate-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                                />
+                            </div>
+                        </div>
 
-                    {/* Total en el modal */}
-                    <div style={{
-                        padding: '0.75rem',
-                        backgroundColor: '#f8fafc',
-                        borderRadius: '8px',
-                        border: '1px solid #e2e8f0'
-                    }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#2d3748' }}>Total a pagar:</span>
-                            <span style={{ fontSize: '1rem', fontWeight: '700', color: '#667eea' }}>S/ {cartTotal.toFixed(2)}</span>
+                        {/* Total Resume */}
+                        <div className="rounded-2xl bg-indigo-50 p-4 transition-colors dark:bg-indigo-900/20">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold uppercase tracking-widest text-indigo-700 dark:text-indigo-300">Total a pagar</span>
+                                <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">S/ {cartTotal.toFixed(2)}</span>
+                            </div>
                         </div>
                     </div>
+                </div>
 
-                    {/* Botones del modal */}
-                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            style={{
-                                flex: 1,
-                                padding: '0.65rem 1rem',
-                                backgroundColor: 'white',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '8px',
-                                fontSize: '0.875rem',
-                                fontWeight: '600',
-                                color: '#475569',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="button"
-                            onClick={onConfirm}
-                            disabled={isSaving}
-                            style={{
-                                flex: 1,
-                                padding: '0.65rem 1rem',
-                                backgroundColor: isSaving ? '#cbd5e0' : '#667eea',
-                                border: 'none',
-                                borderRadius: '8px',
-                                fontSize: '0.875rem',
-                                fontWeight: '600',
-                                color: 'white',
-                                cursor: isSaving ? 'not-allowed' : 'pointer',
-                                boxShadow: '0 2px 4px rgba(102, 126, 234, 0.3)'
-                            }}
-                        >
-                            {isSaving ? 'Procesando...' : 'Confirmar y Procesar'}
-                        </button>
-                    </div>
+                {/* Footer Buttons */}
+                <div className="flex gap-3 border-t border-slate-100 p-6 dark:border-slate-800">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="flex-1 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onConfirm}
+                        disabled={isSaving}
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-black uppercase tracking-widest text-white transition-all shadow-lg ${
+                            isSaving 
+                            ? 'bg-slate-300 dark:bg-slate-800 cursor-not-allowed shadow-none' 
+                            : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-indigo-600/30 active:translate-y-0'
+                        }`}
+                    >
+                        {isSaving ? (
+                            <>
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                <span>Procesando</span>
+                            </>
+                        ) : 'Confirmar'}
+                    </button>
                 </div>
             </div>
         </div>

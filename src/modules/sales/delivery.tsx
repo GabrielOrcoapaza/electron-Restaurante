@@ -51,33 +51,8 @@ const Delivery: React.FC = () => {
     // Responsive: sm 640-767, md 768-1023, lg 1024-1279, xl 1280-1535, 2xl >=1536
     const isSmall = breakpoint === 'sm';
     const isMedium = breakpoint === 'md';
-    const isNarrow = isSmall || isMedium;
-
     // Valores adaptativos
-    const mainGap = isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem';
-    const mainPadding = isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem';
-    const searchPadding = isSmall ? '0.6rem' : isMedium ? '0.7rem' : '1rem';
-    const searchFontSize = isSmall ? '0.8125rem' : '0.875rem';
-    const gridMinCol = isSmall ? '100px' : isMedium ? '115px' : '130px';
-    const gridGap = isSmall ? '0.5rem' : isMedium ? '0.75rem' : '1rem';
-    const gridPadding = isSmall ? '0.6rem' : isMedium ? '0.8rem' : '1rem';
-    const breadcrumbFontSize = isSmall ? '0.75rem' : '0.875rem';
-    const cartMinWidth = isNarrow ? undefined : '320px';
-    const panelLeftFlex = isSmall ? 1 : isMedium ? 1.2 : 1.4;
-    const panelRightFlex = isSmall ? 1 : isMedium ? 1.1 : 1.25;
-    const cardPadding = isSmall ? '0.75rem' : isMedium ? '1rem' : '1.25rem';
-    const cartItemFontSize = isSmall ? '0.8125rem' : '0.875rem';
-    const cartItemPadding = isSmall ? '0.35rem 0.5rem' : isMedium ? '0.45rem 0.55rem' : '0.6rem 0.75rem';
-
-    /** Encabezado de navegación categorías: botones grandes para uso táctil en salón */
-	const breadcrumbBtnMinH = isSmall ? 48 : 52;
-	const breadcrumbBtnFont = isSmall ? '0.9375rem' : isMedium ? '1.0625rem' : '1.125rem';
-	const breadcrumbBtnPadX = isSmall ? '1rem' : '1.25rem';
-	const breadcrumbBtnPadY = isSmall ? '0.625rem' : '0.75rem';
-	const breadcrumbBtnRadius = isSmall ? '10px' : '12px';
-
-    /** Ancho máximo en migas de pan: nombre largo con puntos suspensivos (ver título al hover) */
-	const breadcrumbLabelMaxWidth = isSmall ? '7.5rem' : '11rem';
+    const gridMinCol = isSmall ? '110px' : isMedium ? '125px' : '140px';
 
     // IGV de la sucursal
     const igvPercentageFromBranch = Number(companyData?.branch?.igvPercentage) || 10.5;
@@ -706,149 +681,81 @@ const Delivery: React.FC = () => {
     }, [cashRegisters, selectedCashRegister]);
 
     return (
-        <div style={{
-            height: '100%',
-            minHeight: 0,
-            width: '100%',
-            display: 'flex',
-            flexDirection: isNarrow ? 'column' : 'row',
-            gap: mainGap,
-            padding: mainPadding,
-            boxSizing: 'border-box',
-            overflowY: isNarrow ? 'auto' : 'hidden',
-            overflowX: 'hidden'
-        }}>
+        <div className="flex h-full w-full flex-col overflow-hidden bg-slate-50 p-2 transition-colors duration-200 dark:bg-slate-950 md:flex-row md:gap-4 md:p-4">
             {/* Panel izquierdo - Productos */}
-            <div style={{
-                flex: isNarrow ? '1 1 50%' : panelLeftFlex,
-                minWidth: 0,
-                minHeight: isNarrow ? '200px' : 0,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: mainGap,
-                overflow: 'hidden'
-            }}>
+            <div className="flex min-h-0 flex-1 flex-col gap-3 md:gap-4">
                 {/* Búsqueda */}
-                <div style={{
-                    backgroundColor: 'white',
-                    borderRadius: isSmall ? '10px' : '12px',
-                    padding: searchPadding,
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.5rem'
-                }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        <input
-                            type="text"
-                            placeholder={searchByCodeOnly ? 'Código del producto...' : 'Buscar productos...'}
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && productsList.length > 0) {
-                                    e.preventDefault();
-                                    handleAddProduct(productsList[0].id, 1);
-                                }
-                            }}
-                            style={{
-                                flex: 1,
-                                padding: isSmall ? '0.5rem 0.6rem' : '0.75rem',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '8px',
-                                fontSize: searchFontSize,
-                                boxSizing: 'border-box'
-                            }}
-                        />
+                <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900 md:p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="relative flex-1">
+                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </span>
+                            <input
+                                type="text"
+                                placeholder={searchByCodeOnly ? 'Código del producto...' : 'Buscar productos...'}
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && productsList.length > 0) {
+                                        e.preventDefault();
+                                        handleAddProduct(productsList[0].id, 1);
+                                    }
+                                }}
+                                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none transition-all duration-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 md:text-base"
+                            />
+                        </div>
                         <button
                             type="button"
                             onClick={() => setSearchByCodeOnly((v) => !v)}
-                            style={{
-                                padding: isSmall ? '0.5rem 0.75rem' : '0.6rem 1rem',
-                                borderRadius: '8px',
-                                border: '1px solid #e2e8f0',
-                                backgroundColor: searchByCodeOnly ? '#3b82f6' : 'white',
-                                color: searchByCodeOnly ? 'white' : '#64748b',
-                                fontSize: isSmall ? '0.75rem' : '0.8125rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap'
-                            }}
+                            className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all duration-200 md:px-4 md:text-sm ${
+                                searchByCodeOnly 
+                                ? 'border-indigo-500 bg-indigo-500 text-white shadow-md shadow-indigo-500/20' 
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                            }`}
                         >
-                            Búsqueda solo código
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            </svg>
+                            <span className="hidden sm:inline">Solo código</span>
+                            <span className="sm:hidden">Código</span>
                         </button>
                     </div>
                 </div>
 
                 {/* Área de navegación y Lista de items */}
-                <div style={{
-                    flex: 1,
-                    minHeight: 0,
-                    backgroundColor: 'white',
-                    borderRadius: isSmall ? '10px' : '12px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                    overflow: 'hidden'
-                }}>
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
                     {/* Header de navegación / Breadcrumbs */}
-                    <div style={{
-                        padding: isSmall ? '0.6rem 0.75rem' : '1rem',
-                        borderBottom: '1px solid #f1f5f9',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', minWidth: 0, flex: 1 }}>
+                    <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-3 transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900/50 md:p-4">
+                        <div className="flex flex-1 items-center gap-2 overflow-x-auto overflow-y-hidden whitespace-nowrap pb-1 md:gap-3">
                             {isSearching ? (
-                                <h3 style={{ fontSize: breadcrumbFontSize, fontWeight: '600', color: '#2d3748', margin: 0 }}>
+                                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 md:text-base">
                                     Resultados de búsqueda
                                 </h3>
                             ) : (
                                 <>
                                     <button
                                         onClick={() => { setSelectedCategory(null); setSelectedSubcategory(null); }}
-                                        style={{
-                                            minHeight: breadcrumbBtnMinH,
-                                            padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-                                            background: !selectedCategory ? '#e0e7ff' : '#ffffff',
-                                            border: 'none',
-                                            borderRadius: breadcrumbBtnRadius,
-											fontSize: breadcrumbBtnFont,
-                                            fontWeight: !selectedCategory ? '700' : '600',
-                                            color: !selectedCategory ? '#1e293b' : '#64748b',
-                                            cursor: 'pointer',
-                                            whiteSpace: 'nowrap',
-                                            touchAction: 'manipulation',
-											boxShadow: !selectedCategory ? '0 2px 0 #4f46e5' : '0 1px 2px rgba(0,0,0,.06)',
-											lineHeight: 1.2
-                                        }}
+                                        className={`inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-bold transition-all duration-150 ${
+                                            !selectedCategory
+                                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300'
+                                                : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300'
+                                        }`}
                                     >
                                         Categorías
                                     </button>
                                     {selectedCategory && (
                                         <>
-                                            <span style={{ color: '#94a3b8' }}>/</span>
+                                            <span className="text-slate-300 dark:text-slate-700">/</span>
                                             <button
                                                 onClick={() => setSelectedSubcategory(null)}
-                                                style={{
-                                                    minHeight: breadcrumbBtnMinH,
-													padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-													background: !selectedSubcategory ? '#e0e7ff' : '#ffffff',
-													border: `2px solid ${!selectedSubcategory ? '#6366f1' : '#cbd5e1'}`,
-													borderRadius: breadcrumbBtnRadius,
-													fontSize: breadcrumbBtnFont,
-													fontWeight: !selectedSubcategory ? 700 : 600,
-													color: !selectedSubcategory ? '#312e81' : '#475569',
-													cursor: 'pointer',
-													whiteSpace: 'nowrap',
-													maxWidth: breadcrumbLabelMaxWidth,
-													minWidth: 0,
-													overflow: 'hidden',
-													textOverflow: 'ellipsis',
-													touchAction: 'manipulation',
-													boxShadow: !selectedSubcategory ? '0 2px 0 #4f46e5' : '0 1px 2px rgba(0,0,0,.06)',
-													lineHeight: 1.2
-                                                }}
+                                                className={`inline-flex max-w-[12rem] items-center justify-center truncate rounded-xl border px-4 py-2 text-sm font-bold transition-all duration-150 ${
+                                                    !selectedSubcategory
+                                                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300'
+                                                        : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300'
+                                                }`}
                                             >
                                                 {categories.find((c: any) => c.id === selectedCategory)?.name || 'Categoría'}
                                             </button>
@@ -856,26 +763,8 @@ const Delivery: React.FC = () => {
                                     )}
                                     {selectedSubcategory && (
                                         <>
-                                            <span style={{ color: '#94a3b8' }}>/</span>
-                                            <span style={{
-                                                minHeight: breadcrumbBtnMinH,
-												padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-												display: 'inline-flex',
-												alignItems: 'center',
-												background: '#f1f5f9',
-												border: '2px solid #94a3b8',
-												borderRadius: breadcrumbBtnRadius,
-												fontSize: breadcrumbBtnFont,
-												fontWeight: 700,
-												color: '#0f172a',
-												whiteSpace: 'nowrap',
-												maxWidth: breadcrumbLabelMaxWidth,
-												minWidth: 0,
-												overflow: 'hidden',
-												textOverflow: 'ellipsis',
-												boxSizing: 'border-box',
-												lineHeight: 1.2
-                                            }}>
+                                            <span className="text-slate-300 dark:text-slate-700">/</span>
+                                            <span className="inline-flex max-w-[12rem] items-center justify-center truncate rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
                                                 {subcategoriesOfCategory.find((s: any) => s.id === selectedSubcategory)?.name || 'Subcategoría'}
                                             </span>
                                         </>
@@ -883,43 +772,26 @@ const Delivery: React.FC = () => {
                                 </>
                             )}
                         </div>
-
-                        
                     </div>
 
-                    {/* Grid de items - scroll en pantallas pequeñas */}
-                    <div style={{
-                        flex: 1,
-                        minHeight: 0,
-                        maxHeight: '100%',
-                        padding: gridPadding,
-                        overflowY: 'auto',
-                        overflowX: 'hidden',
-                        WebkitOverflowScrolling: 'touch',
-                        scrollbarWidth: 'thin'
-                    } as React.CSSProperties}>
+                    {/* Grid de items */}
+                    <div className="flex-1 overflow-y-auto p-3 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 md:p-6">
                         {productsLoading && showProductsInGrid ? (
-                            <div style={{ textAlign: 'center', padding: '2rem', color: '#718096', fontSize: isSmall ? '0.8125rem' : '0.875rem' }}>
-                                Cargando...
+                            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                                <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500"></div>
+                                <p className="text-sm">Cargando productos...</p>
                             </div>
                         ) : (
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCol}, 1fr))`,
-                                gap: gridGap
-                            }}>
+                            <div 
+                                className="grid gap-3 md:gap-4"
+                                style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCol}, 1fr))` }}
+                            >
                                 {/* Render Categorías */}
                                 {showCategoriesInGrid &&
                                     (categoriesLoading ? (
-                                        <div
-                                            style={{
-                                                gridColumn: '1 / -1',
-                                                textAlign: 'center',
-                                                padding: '2rem',
-                                                color: '#718096'
-                                            }}
-                                        >
-                                            Cargando categorías...
+                                        <div className="col-span-full flex flex-col items-center justify-center py-12 text-slate-400">
+                                             <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500"></div>
+                                             <p className="text-sm">Cargando categorías...</p>
                                         </div>
                                     ) : (
                                         categories.map((category: any) => (
@@ -929,40 +801,13 @@ const Delivery: React.FC = () => {
                                             setSelectedCategory(category.id);
                                             setSelectedSubcategory(null);
                                         }}
-                                        style={{
-                                            backgroundColor: '#ffffff',
-                                            border: '1px solid #e2e8f0',
-                                            borderRadius: isSmall ? '10px' : '12px',
-                                            padding: gridPadding,
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s ease',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            minHeight: isSmall ? '90px' : isMedium ? '105px' : '120px',
-                                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-                                        }}
-                                        onMouseOver={(e) => {
-                                            e.currentTarget.style.transform = 'translateY(-2px)';
-                                            e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-                                            e.currentTarget.style.borderColor = category.color || '#667eea';
-                                        }}
-                                        onMouseOut={(e) => {
-                                            e.currentTarget.style.transform = 'translateY(0)';
-                                            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
-                                            e.currentTarget.style.borderColor = '#e2e8f0';
-                                        }}
+                                        className="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-center transition-all duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50 dark:hover:bg-slate-800/50"
+                                        style={{ minHeight: isSmall ? '100px' : '130px' }}
                                     >
-                                        <div style={{ fontSize: isSmall ? '2rem' : '2.5rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            <CategoryIcon iconId={category.icon} type="category" size={isSmall ? '2rem' : '2.5rem'} />
+                                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20 md:h-16 md:w-16">
+                                            <CategoryIcon iconId={category.icon} type="category" size={isSmall ? '1.5rem' : '2rem'} />
                                         </div>
-                                        <div style={{
-                                            fontSize: isSmall ? '0.75rem' : breadcrumbFontSize,
-                                            fontWeight: '700',
-                                            color: '#1e293b',
-                                            textAlign: 'center'
-                                        }}>
+                                        <div className="text-xs font-bold text-slate-800 transition-colors duration-200 group-hover:text-indigo-600 dark:text-slate-100 dark:group-hover:text-indigo-400 md:text-sm">
                                             {category.name}
                                         </div>
                                     </div>
@@ -971,54 +816,22 @@ const Delivery: React.FC = () => {
                                 {/* Render Subcategorías */}
                                 {showSubcategoriesInGrid &&
                                     (subcategoriesLoading ? (
-                                        <div
-                                            style={{
-                                                gridColumn: '1 / -1',
-                                                textAlign: 'center',
-                                                padding: '2rem',
-                                                color: '#718096',
-                                                fontSize: isSmall ? '0.8125rem' : '0.875rem'
-                                            }}
-                                        >
-                                            Cargando subcategorías...
+                                        <div className="col-span-full flex flex-col items-center justify-center py-12 text-slate-400">
+                                             <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500"></div>
+                                             <p className="text-sm">Cargando subcategorías...</p>
                                         </div>
                                     ) : (
                                         subcategoriesOfCategory.map((sub: any) => (
                                     <div
                                         key={sub.id}
                                         onClick={() => setSelectedSubcategory(sub.id)}
-                                        style={{
-                                            backgroundColor: '#ffffff',
-                                            border: '1px solid #e2e8f0',
-                                            borderRadius: isSmall ? '10px' : '12px',
-                                            padding: gridPadding,
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s ease',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            minHeight: isSmall ? '80px' : isMedium ? '90px' : '100px',
-                                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                        }}
-                                        onMouseOver={(e) => {
-                                            e.currentTarget.style.borderColor = sub.color || '#667eea';
-                                            e.currentTarget.style.backgroundColor = '#f0f4ff';
-                                        }}
-                                        onMouseOut={(e) => {
-                                            e.currentTarget.style.borderColor = '#e2e8f0';
-                                            e.currentTarget.style.backgroundColor = '#ffffff';
-                                        }}
+                                        className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50 dark:hover:bg-slate-800/50"
+                                        style={{ minHeight: isSmall ? '90px' : '110px' }}
                                     >
-                                        <div style={{ fontSize: isSmall ? '1.5rem' : '2rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            <CategoryIcon iconId={sub.icon} type="subcategory" size={isSmall ? '1.5rem' : '2rem'} />
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20 md:h-12 md:w-12">
+                                            <CategoryIcon iconId={sub.icon} type="subcategory" size={isSmall ? '1.25rem' : '1.5rem'} />
                                         </div>
-                                        <div style={{
-                                            fontSize: isSmall ? '0.75rem' : '0.8125rem',
-                                            fontWeight: '600',
-                                            color: '#334155',
-                                            textAlign: 'center'
-                                        }}>
+                                        <div className="text-xs font-semibold text-slate-700 transition-colors duration-200 group-hover:text-indigo-600 dark:text-slate-200 dark:group-hover:text-indigo-400">
                                             {sub.name}
                                         </div>
                                     </div>
@@ -1027,7 +840,7 @@ const Delivery: React.FC = () => {
                                 {/* Render Productos */}
                                 {showProductsInGrid && (
                                     productsList.length === 0 ? (
-                                        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                                        <div className="col-span-full py-12 text-center text-slate-500 dark:text-slate-400">
                                             No se encontraron productos
                                         </div>
                                     ) : (
@@ -1035,75 +848,35 @@ const Delivery: React.FC = () => {
                                             <div
                                                 key={product.id}
                                                 onClick={() => handleAddProduct(product.id, 1)}
-                                                style={{
-                                                    backgroundColor: '#f8fafc',
-                                                    border: '1px solid #e2e8f0',
-                                                    borderRadius: isSmall ? '8px' : '10px',
-                                                    padding: isSmall ? '0.4rem' : '0.5rem',
-                                                    cursor: 'pointer',
-                                                    transition: 'all 0.2s ease',
-                                                    textAlign: 'center',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    height: '100%'
-                                                }}
-                                                onMouseOver={(e) => {
-                                                    e.currentTarget.style.borderColor = '#667eea';
-                                                    e.currentTarget.style.backgroundColor = '#f0f4ff';
-                                                }}
-                                                onMouseOut={(e) => {
-                                                    e.currentTarget.style.borderColor = '#e2e8f0';
-                                                    e.currentTarget.style.backgroundColor = '#f8fafc';
-                                                }}
+                                                className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-2.5 transition-all duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50"
                                             >
                                                 {product.imageBase64 ? (
-                                                    <img
-                                                        src={`data:image/jpeg;base64,${product.imageBase64}`}
-                                                        alt={product.name}
-                                                        style={{
-                                                            width: '100%',
-                                                            height: isSmall ? '60px' : '80px',
-                                                            objectFit: 'cover',
-                                                            borderRadius: '8px',
-                                                            marginBottom: isSmall ? '0.35rem' : '0.5rem'
-                                                        }}
-                                                    />
+                                                    <div className="aspect-square w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+                                                        <img
+                                                            src={`data:image/jpeg;base64,${product.imageBase64}`}
+                                                            alt={product.name}
+                                                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                                        />
+                                                    </div>
                                                 ) : (
-                                                    <div style={{
-                                                        width: '100%',
-                                                        height: isSmall ? '60px' : '80px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        backgroundColor: '#f1f5f9',
-                                                        borderRadius: '8px',
-                                                        marginBottom: isSmall ? '0.35rem' : '0.5rem',
-                                                        fontSize: isSmall ? '1.5rem' : '2rem'
-                                                    }}>
+                                                    <div className="flex aspect-square w-full items-center justify-center rounded-xl bg-slate-50 text-2xl transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20">
                                                         🍽️
                                                     </div>
                                                 )}
-                                                <div style={{
-                                                    fontSize: isSmall ? '0.7rem' : '0.75rem',
-                                                    fontWeight: '600',
-                                                    color: '#1e293b',
-                                                    marginBottom: '0.25rem',
-                                                    lineHeight: '1.2',
-                                                    flex: 1,
-                                                    display: '-webkit-box',
-                                                    WebkitLineClamp: 2,
-                                                    WebkitBoxOrient: 'vertical' as const,
-                                                    overflow: 'hidden'
-                                                }}>
-                                                    {product.name}
-                                                </div>
-                                                <div style={{
-                                                    fontSize: isSmall ? '0.75rem' : '0.8125rem',
-                                                    fontWeight: '700',
-                                                    color: '#4f46e5',
-                                                    marginTop: 'auto'
-                                                }}>
-                                                    S/ {parseFloat(product.salePrice || 0).toFixed(2)}
+                                                <div className="mt-3 flex flex-1 flex-col gap-1">
+                                                    <h4 className="line-clamp-2 text-xs font-bold leading-tight text-slate-800 dark:text-slate-100 md:text-sm">
+                                                        {product.name}
+                                                    </h4>
+                                                    <div className="mt-auto flex items-center justify-between pt-1">
+                                                        <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 md:text-sm">
+                                                            S/ {parseFloat(product.salePrice || 0).toFixed(2)}
+                                                        </span>
+                                                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-colors duration-200 group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-900/30 dark:text-indigo-400 dark:group-hover:bg-indigo-500 dark:group-hover:text-white">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+                                                            </svg>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))
@@ -1116,214 +889,109 @@ const Delivery: React.FC = () => {
             </div>
 
             {/* Panel derecho - Carrito y Pago */}
-            <div style={{
-                flex: isNarrow ? '0 0 auto' : panelRightFlex,
-                width: isNarrow ? '100%' : 'auto',
-                minWidth: cartMinWidth,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: mainGap,
-                overflow: isNarrow ? 'visible' : 'hidden',
-                maxHeight: isNarrow ? 'none' : '100%',
-                backgroundColor: isNarrow ? 'transparent' : '#f8fafc' // Fondo ligero para separar
-            }}>
+            <div className="flex w-full flex-col gap-4 overflow-hidden md:w-[380px] lg:w-[420px]">
                 {/* Carrito */}
-                <div style={{
-                    flex: isNarrow ? 'none' : '1.5 1 0%', // Aumentar prioridad de espacio al carrito
-                    minHeight: isNarrow ? '300px' : '250px',
-                    maxHeight: isNarrow ? '450px' : 'none',
-                    backgroundColor: 'white',
-                    borderRadius: isSmall ? '10px' : '12px',
-                    padding: cardPadding,
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden'
-                }}>
-                    <div style={{
-                        flex: 1,
-                        minHeight: 0,
-                        overflow: 'auto',
-                        marginBottom: isSmall ? '0.75rem' : '1rem'
-                    }}>
+                <div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800 dark:text-slate-100">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                            </svg>
+                            Pedido
+                        </h3>
+                        <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-bold text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+                            {cartItems.length} ítems
+                        </span>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
                         {cartItems.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: isSmall ? '1.5rem' : '2rem', color: '#718096', fontSize: cartItemFontSize }}>
-                                El carrito está vacío
+                            <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
+                                <div className="rounded-full bg-slate-50 p-4 dark:bg-slate-800/50">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                </div>
+                                <p className="text-sm font-medium">El carrito está vacío</p>
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: isSmall ? '0.35rem' : '0.5rem' }}>
+                            <div className="flex flex-col gap-2.5">
                                 {cartItems.map((item) => (
                                     <div
                                         key={item.id}
-                                        style={{
-                                            backgroundColor: '#f8fafc',
-                                            border: '1px solid #e2e8f0',
-                                            borderRadius: '8px',
-                                            padding: cartItemPadding
-                                        }}
+                                        className="group relative flex flex-col gap-2 rounded-xl border border-slate-100 bg-slate-50/50 p-3 transition-all duration-200 hover:border-slate-200 dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-slate-700"
                                     >
-                                        <div style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.5rem',
-                                            justifyContent: 'flex-start',
-                                            flexWrap: 'nowrap',
-                                            width: '100%',
-                                            overflow: 'hidden'
-                                        }}>
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                                <h5 className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                                                    {item.name}
+                                                </h5>
+                                                {item.notes && (
+                                                    <p className="truncate text-[10px] italic text-slate-500 dark:text-slate-400">
+                                                        {item.notes}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={() => handleRemoveItem(item.id)}
+                                                className="opacity-0 transition-opacity duration-200 group-hover:opacity-100 text-slate-400 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center justify-between mt-1">
                                             {/* Controles de cantidad */}
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
+                                            <div className="flex items-center gap-1 overflow-hidden rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                                                 <button
                                                     onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                                                    style={{
-                                                        width: '20px',
-                                                        height: '20px',
-                                                        borderRadius: '4px',
-                                                        border: '1px solid #cbd5e0',
-                                                        background: 'white',
-                                                        cursor: 'pointer',
-                                                        fontSize: '0.8rem',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        padding: 0
-                                                    }}
+                                                    className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
                                                 >
-                                                    −
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
+                                                    </svg>
                                                 </button>
                                                 <input
                                                     type="number"
                                                     value={item.quantity}
                                                     onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 0)}
-                                                    min="1"
-                                                    style={{
-                                                        width: '28px',
-                                                        textAlign: 'center',
-                                                        border: '1px solid #cbd5e0',
-                                                        borderRadius: '4px',
-                                                        padding: '0.1rem',
-                                                        fontWeight: 700,
-                                                        fontSize: '0.75rem',
-                                                        background: 'white',
-                                                        color: '#1a202c'
-                                                    }}
+                                                    className="w-8 border-none bg-transparent text-center text-xs font-bold text-slate-800 outline-none dark:text-slate-100"
                                                 />
                                                 <button
                                                     onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                                                    style={{
-                                                        width: '20px',
-                                                        height: '20px',
-                                                        borderRadius: '4px',
-                                                        border: '1px solid #cbd5e0',
-                                                        background: 'white',
-                                                        cursor: 'pointer',
-                                                        fontSize: '0.8rem',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        padding: 0
-                                                    }}
+                                                    className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
                                                 >
-                                                    +
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                                                    </svg>
                                                 </button>
                                             </div>
 
-                                            {/* Nombre del producto */}
-                                            <div style={{ flex: '1', minWidth: 0 }}>
-                                                <div style={{
-                                                    fontWeight: 600,
-                                                    color: '#2d3748',
-                                                    fontSize: cartItemFontSize,
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap',
-                                                    lineHeight: '1.2'
-                                                }}>
-                                                    {item.name}
-                                                </div>
-                                                {item.notes && (
-                                                    <div style={{
-                                                        fontSize: '0.625rem',
-                                                        color: '#64748b',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        whiteSpace: 'nowrap'
-                                                    }}>
-                                                        {item.notes}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Total línea editable (S/) */}
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.15rem',
-                                                    flexShrink: 0,
-                                                    fontWeight: 700,
-                                                    color: '#2d3748',
-                                                    fontSize: '0.75rem'
-                                                }}
-                                                title="Importe total de la línea (S/)"
-                                            >
-                                                <span style={{ flexShrink: 0 }}>S/</span>
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                    step={0.01}
-                                                    value={item.total}
-                                                    onChange={(e) => handleUpdateLineTotal(item.id, e.target.value)}
-                                                    style={{
-                                                        width: isSmall ? '64px' : '72px',
-                                                        textAlign: 'right',
-                                                        border: '1px solid #cbd5e0',
-                                                        borderRadius: '4px',
-                                                        padding: '0.12rem 0.25rem',
-                                                        fontWeight: 700,
-                                                        fontSize: '0.75rem',
-                                                        background: 'white',
-                                                        color: '#2d3748',
-                                                        boxSizing: 'border-box'
-                                                    }}
-                                                />
-                                            </div>
-
-                                            {/* Acciones */}
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                                            <div className="flex items-center gap-2">
                                                 <button
-                                                    type="button"
                                                     onClick={() => handleOpenObservationModal(item.id)}
-                                                    style={{
-                                                        padding: '0.2rem 0.4rem',
-                                                        borderRadius: '6px',
-                                                        border: '1px solid #bae6fd',
-                                                        background: item.notes ? '#dbeafe' : '#f0f9ff',
-                                                        color: '#0369a1',
-                                                        fontSize: '0.75rem',
-                                                        cursor: 'pointer',
-                                                        lineHeight: 1
-                                                    }}
-                                                    title="Notas"
+                                                    className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-colors ${
+                                                        item.notes 
+                                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-400' 
+                                                        : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600 dark:hover:text-slate-300'
+                                                    }`}
                                                 >
-                                                    📋
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    </svg>
                                                 </button>
-                                                <button
-                                                    onClick={() => handleRemoveItem(item.id)}
-                                                    style={{
-                                                        padding: '0.2rem 0.4rem',
-                                                        background: 'white',
-                                                        border: '1px solid #fed7d7',
-                                                        borderRadius: '6px',
-                                                        color: '#dc2626',
-                                                        cursor: 'pointer',
-                                                        fontSize: '0.75rem',
-                                                        lineHeight: 1
-                                                    }}
-                                                    title="Eliminar"
-                                                >
-                                                    🗑️
-                                                </button>
+                                                
+                                                <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-0.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                                                    <span className="text-[10px] font-bold text-slate-400">S/</span>
+                                                    <input
+                                                        type="number"
+                                                        value={item.total}
+                                                        onChange={(e) => handleUpdateLineTotal(item.id, e.target.value)}
+                                                        className="w-16 border-none bg-transparent text-right text-xs font-black text-slate-800 outline-none dark:text-slate-100"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1332,141 +1000,101 @@ const Delivery: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Descuento (S/) o (%): solo uno activo */}
-                    <div style={{
-                        display: 'flex',
-                        gap: '0.5rem',
-                        marginTop: '0.5rem',
-                        flexWrap: 'wrap'
-                    }}>
-                        <div style={{ flex: 1, minWidth: '70px' }}>
-                            <label style={{ fontSize: '0.65rem', color: '#718096', display: 'block', marginBottom: '0.15rem' }}>Descuento (S/)</label>
-                            <input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                value={discountAmount || ''}
-                                disabled={pct > 0}
-                                onChange={(e) => {
-                                    const v = Math.max(0, parseFloat(e.target.value) || 0);
-                                    setDiscountAmount(v);
-                                    if (v > 0) setDiscountPercent(0);
-                                }}
-                                placeholder="0"
-                                title={pct > 0 ? 'Quite el descuento (%) para usar monto en soles' : 'Descuento fijo en soles'}
-                                style={{
-                                    width: '100%',
-                                    padding: '0.35rem 0.4rem',
-                                    border: '1px solid #e2e8f0',
-                                    borderRadius: '6px',
-                                    fontSize: '0.75rem',
-                                    boxSizing: 'border-box',
-                                    opacity: pct > 0 ? 0.55 : 1,
-                                    cursor: pct > 0 ? 'not-allowed' : 'text',
-                                    background: pct > 0 ? '#f1f5f9' : 'white'
-                                }}
-                            />
+                    {/* Descuento */}
+                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Dscto (S/)</label>
+                            <div className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-all duration-200 ${pct > 0 ? 'bg-slate-50 opacity-40 dark:bg-slate-800/50' : 'border-slate-200 bg-white focus-within:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-indigo-500'}`}>
+                                <span className="text-xs font-bold text-slate-400">S/</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step={0.01}
+                                    value={discountAmount || ''}
+                                    disabled={pct > 0}
+                                    onChange={(e) => {
+                                        const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                        setDiscountAmount(v);
+                                        if (v > 0) setDiscountPercent(0);
+                                    }}
+                                    placeholder="0.00"
+                                    className="w-full border-none bg-transparent text-xs font-bold text-slate-800 outline-none dark:text-slate-100"
+                                />
+                            </div>
                         </div>
-                        <div style={{ flex: 1, minWidth: '70px' }}>
-                            <label style={{ fontSize: '0.65rem', color: '#718096', display: 'block', marginBottom: '0.15rem' }}>Descuento (%)</label>
-                            <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                step={0.5}
-                                value={discountPercent || ''}
-                                disabled={(Number(discountAmount) || 0) > 0}
-                                onChange={(e) => {
-                                    const v = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
-                                    setDiscountPercent(v);
-                                    if (v > 0) setDiscountAmount(0);
-                                }}
-                                placeholder="0"
-                                title={(Number(discountAmount) || 0) > 0 ? 'Quite el descuento en soles para usar porcentaje' : 'Descuento porcentual sobre el subtotal del carrito'}
-                                style={{
-                                    width: '100%',
-                                    padding: '0.35rem 0.4rem',
-                                    border: '1px solid #e2e8f0',
-                                    borderRadius: '6px',
-                                    fontSize: '0.75rem',
-                                    boxSizing: 'border-box',
-                                    opacity: (Number(discountAmount) || 0) > 0 ? 0.55 : 1,
-                                    cursor: (Number(discountAmount) || 0) > 0 ? 'not-allowed' : 'text',
-                                    background: (Number(discountAmount) || 0) > 0 ? '#f1f5f9' : 'white'
-                                }}
-                            />
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Dscto (%)</label>
+                            <div className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-all duration-200 ${(Number(discountAmount) || 0) > 0 ? 'bg-slate-50 opacity-40 dark:bg-slate-800/50' : 'border-slate-200 bg-white focus-within:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-indigo-500'}`}>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    step={0.5}
+                                    value={discountPercent || ''}
+                                    disabled={(Number(discountAmount) || 0) > 0}
+                                    onChange={(e) => {
+                                        const v = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                                        setDiscountPercent(v);
+                                        if (v > 0) setDiscountAmount(0);
+                                    }}
+                                    placeholder="0"
+                                    className="w-full border-none bg-transparent text-xs font-bold text-slate-800 outline-none dark:text-slate-100"
+                                />
+                                <span className="text-xs font-bold text-slate-400">%</span>
+                            </div>
                         </div>
                     </div>
+
                     {/* Totales */}
-                    <div style={{
-                        borderTop: '1px solid #e2e8f0',
-                        paddingTop: '0.75rem'
-                    }}>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            marginBottom: '0.5rem'
-                        }}>
-                            <span style={{ fontSize: '0.75rem', color: '#718096' }}>Subtotal:</span>
-                            <span style={{ fontSize: '0.75rem', fontWeight: '600' }}>S/ {subtotal.toFixed(2)}</span>
+                    <div className="mt-4 flex flex-col gap-2 rounded-2xl bg-slate-50 p-3 transition-colors duration-200 dark:bg-slate-800/50">
+                        <div className="flex justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
+                            <span>Subtotal</span>
+                            <span className="font-bold text-slate-700 dark:text-slate-200">S/ {subtotal.toFixed(2)}</span>
                         </div>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            marginBottom: '0.5rem'
-                        }}>
-                            <span style={{ fontSize: '0.75rem', color: '#718096' }}>IGV ({igvPercentageFromBranch}%):</span>
-                            <span style={{ fontSize: '0.75rem', fontWeight: '600' }}>S/ {igvAmount.toFixed(2)}</span>
+                        <div className="flex justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
+                            <span>IGV ({igvPercentageFromBranch}%)</span>
+                            <span className="font-bold text-slate-700 dark:text-slate-200">S/ {igvAmount.toFixed(2)}</span>
                         </div>
                         {totalDiscount > 0 && (
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                marginBottom: '0.5rem',
-                                color: '#059669',
-                                fontSize: '0.75rem',
-                                fontWeight: '600'
-                            }}>
+                            <div className="flex justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
                                 <span>Descuento</span>
                                 <span>- S/ {totalDiscount.toFixed(2)}</span>
                             </div>
                         )}
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            paddingTop: '0.5rem',
-                            borderTop: '1px solid #e2e8f0'
-                        }}>
-                            <span style={{ fontSize: '0.875rem', fontWeight: '700', color: '#2d3748' }}>Total:</span>
-                            <span style={{ fontSize: '0.875rem', fontWeight: '700', color: '#667eea' }}>S/ {cartTotal.toFixed(2)}</span>
+                        <div className="mt-1 flex justify-between border-t border-slate-200 pt-2 transition-colors duration-200 dark:border-slate-700">
+                            <span className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">Total a pagar</span>
+                            <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">S/ {cartTotal.toFixed(2)}</span>
                         </div>
                     </div>
                 </div>
 
-                {/* Botón procesar: abre modal de información de pago */}
+                {/* Botón procesar */}
                 <button
                     onClick={() => setShowPaymentModal(true)}
                     disabled={isSaving || cartItems.length === 0}
-                    style={{
-                        width: '100%',
-                        padding: isMedium ? '0.75rem' : '1rem',
-                        backgroundColor: isSaving || cartItems.length === 0 ? '#cbd5e0' : '#667eea',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '10px',
-                        fontSize: isMedium ? '0.875rem' : '1rem',
-                        fontWeight: '700',
-                        cursor: isSaving || cartItems.length === 0 ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.2s ease',
-                        boxShadow: '0 4px 6px rgba(102, 126, 234, 0.25)',
-                        flexShrink: 0
-                    }}
+                    className={`flex items-center justify-center gap-3 rounded-2xl py-4 text-base font-black uppercase tracking-widest transition-all duration-300 shadow-lg ${
+                        isSaving || cartItems.length === 0
+                        ? 'cursor-not-allowed bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 shadow-none'
+                        : 'bg-indigo-600 text-white shadow-indigo-600/30 hover:-translate-y-1 hover:bg-indigo-700 hover:shadow-indigo-600/40 active:translate-y-0'
+                    }`}
                 >
-                    {isSaving ? 'Procesando...' : 'Procesar Venta'}
+                    {isSaving ? (
+                        <>
+                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
+                            <span>Procesando...</span>
+                        </>
+                    ) : (
+                        <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            <span>Procesar Venta</span>
+                        </>
+                    )}
                 </button>
             </div>
 
-            {/* Modal Información de Pago - componente en payDelivery.tsx */}
+            {/* Modal Información de Pago */}
             {showPaymentModal && (
                 <PayDeliveryModal
                     isOpen={showPaymentModal}

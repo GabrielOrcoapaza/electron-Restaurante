@@ -270,219 +270,143 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 
     return (
         <div
-            className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]"
-            style={{
-                zIndex: 10000,
-            }}
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all animate-in fade-in duration-200"
             onClick={handleCancel}
         >
             <div
-                className="relative w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900"
-                style={{
-                    padding: modalPadding,
-                    maxWidth: modalMaxWidth,
-                    width: "100%",
-                    maxHeight: "95vh",
-                    minHeight: "50vh",
-                }}
+                className="relative flex max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl transition-colors duration-200 dark:border-slate-800 dark:bg-slate-950"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Botón cerrar */}
-                <button
-                    onClick={handleCancel}
-                    className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                    style={{
-                        background: "none",
-                        border: "none",
-                        fontSize: "1.5rem",
-                        cursor: "pointer",
-                    }}
-                >
-                    ✕
-                </button>
-
-                <h2
-                    className="text-slate-800 dark:text-slate-100"
-                    style={{
-                        margin: "0 0 1rem",
-                        paddingRight: "2.25rem",
-                        fontSize: titleFontSize,
-                        fontWeight: 700,
-                        lineHeight: 1.3,
-                    }}
-                >
-                    📋{" "}
-                    {productName?.trim()
-                        ? `Observaciones de ${productName.trim()}`
-                        : "Observaciones"}
-                </h2>
-
-                {/* Lista de observaciones guardadas (solo si existen) */}
-                {observations.length > 0 && (
-                    <div
-                        style={{
-                            display: "flex",
-                            flexDirection: "row",
-                            flexWrap: "wrap",
-                            gap: "0.75rem",
-                            marginBottom: "1.5rem",
-                        }}
-                    >
-                        {observations.map((observation) => {
-                            const isSelected = localSelected.has(
-                                observation.id,
-                            );
-                            return (
-                                <button
-                                    key={observation.id}
-                                    type="button"
-                                    onClick={() => handleToggle(observation.id)}
-                                    disabled={!canEdit}
-                                    className={`inline-flex items-center gap-2 rounded-full border text-center transition-all duration-150 ${
-                                        isSelected
-                                            ? "border-blue-400 bg-blue-50 text-blue-700 dark:border-blue-600 dark:bg-blue-900/30 dark:text-blue-300"
-                                            : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-700 dark:hover:bg-blue-900/20"
-                                    } ${canEdit ? "" : "cursor-not-allowed opacity-60"}`}
-                                    style={{
-                                        fontSize: isSmall
-                                            ? "0.875rem"
-                                            : isMedium
-                                              ? "0.9375rem"
-                                              : "1rem",
-                                        padding: "0.5rem 1rem",
-                                        borderRadius: "999px",
-                                        textAlign: "center",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                        whiteSpace: "nowrap",
-                                        fontWeight: isSelected ? 600 : 400,
-                                    }}
-                                >
-                                    <span
-                                        style={{
-                                            fontSize: isSmall
-                                                ? "1rem"
-                                                : "1.125rem",
-                                            fontWeight: 700,
-                                        }}
-                                    >
-                                        {isSelected ? "✓" : "○"}
-                                    </span>
-                                    <span>{observation.note}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* Campo para escribir observaciones - siempre visible (con o sin observaciones guardadas) */}
-                <div
-                    style={{
-                        marginBottom: "1rem",
-                    }}
-                >
-                    <label
-                        className="text-slate-800 dark:text-slate-100"
-                        style={{
-                            display: "block",
-                            fontSize: isSmall ? "0.875rem" : "0.9375rem",
-                            fontWeight: 600,
-                            marginBottom: "0.5rem",
-                        }}
-                    >
-                        {observations.length > 0
-                            ? "📝 Notas adicionales:"
-                            : "📝 Escribe la observación al plato:"}
-                    </label>
-                    <textarea
-                        ref={textareaRef}
-                        value={manualNotes}
-                        onChange={(e) => {
-                            setManualNotes(e.target.value);
-                        }}
-                        disabled={!canEdit}
-                        className="w-full rounded-lg border border-slate-300 bg-white p-3 font-inherit leading-6 text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
-                        placeholder={
-                            observations.length > 0
-                                ? "Las observaciones seleccionadas aparecerán aquí. Puedes agregar notas adicionales..."
-                                : "Ej: Sin cebolla, bien cocido, sin sal..."
-                        }
-                        style={{
-                            minHeight: "80px",
-                            fontSize: isSmall ? "0.875rem" : "0.9375rem",
-                            resize: "vertical",
-                        }}
-                    />
-                    {!canEdit && (
-                        <p
-                            className="text-slate-400 dark:text-slate-500"
-                            style={{
-                                fontSize: "0.75rem",
-                                margin: "0.5rem 0 0 0",
-                                fontStyle: "italic",
-                            }}
-                        >
-                            Las notas no se pueden editar para este producto
-                        </p>
-                    )}
-                </div>
-
-                {/* Teclado virtual (compacto para que se vean bien Cancelar y Aplicar) */}
-                {canEdit && (
-                    <div style={{ marginTop: "0.5rem", maxWidth: "100%" }}>
-                        <VirtualKeyboard
-                            onKeyPress={handleVirtualKeyPress}
-                            onBackspace={handleVirtualBackspace}
-                            onClear={() => {
-                                if (!canEdit) return;
-                                setManualNotes("");
-                                setLocalSelected(new Set());
-                            }}
-                            disabled={!canEdit}
-                            compact={true}
-                        />
-                    </div>
-                )}
-
-                {/* Botones de acción */}
-                <div
-                    className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700"
-                    style={{
-                        display: "flex",
-                        gap: "0.75rem",
-                        justifyContent: "flex-end",
-                    }}
-                >
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+                    <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800 dark:text-slate-100">
+                        <span className="text-xl">📋</span>
+                        {productName?.trim()
+                            ? `Observaciones: ${productName.trim()}`
+                            : "Observaciones"}
+                    </h2>
                     <button
                         onClick={handleCancel}
-                        className="rounded-lg border border-slate-300 bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                        style={{
-                            padding: isSmall
-                                ? "0.5rem 1rem"
-                                : "0.625rem 1.25rem",
-                            borderRadius: "8px",
-                            cursor: "pointer",
-                            fontWeight: 600,
-                            fontSize: isSmall ? "0.875rem" : "0.9375rem",
-                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                        aria-label="Cerrar"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+                    <div className="flex flex-col gap-6">
+                        {/* Lista de observaciones predefinidas */}
+                        {observations.length > 0 && (
+                            <div className="flex flex-col gap-3">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    Opciones Rápidas
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                    {observations.map((observation) => {
+                                        const isSelected = localSelected.has(observation.id);
+                                        return (
+                                            <button
+                                                key={observation.id}
+                                                type="button"
+                                                onClick={() => handleToggle(observation.id)}
+                                                disabled={!canEdit}
+                                                className={`group relative flex items-center gap-2 overflow-hidden rounded-xl border px-4 py-2 text-sm font-bold transition-all ${
+                                                    isSelected
+                                                        ? "border-indigo-200 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500/20 dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300"
+                                                        : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-indigo-900/50 dark:hover:bg-indigo-900/10"
+                                                } ${!canEdit && "cursor-not-allowed opacity-50"}`}
+                                            >
+                                                <span className={`flex h-4 w-4 items-center justify-center rounded-full border-2 transition-colors ${
+                                                    isSelected 
+                                                    ? "border-indigo-500 bg-indigo-500 text-[10px] text-white" 
+                                                    : "border-slate-300 dark:border-slate-700"
+                                                }`}>
+                                                    {isSelected && "✓"}
+                                                </span>
+                                                {observation.note}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Campo de texto */}
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                {observations.length > 0 ? "Notas adicionales" : "Escribe la observación"}
+                            </label>
+                            <textarea
+                                ref={textareaRef}
+                                value={manualNotes}
+                                onChange={(e) => setManualNotes(e.target.value)}
+                                disabled={!canEdit}
+                                className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-800 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-600 disabled:cursor-not-allowed disabled:bg-slate-50 dark:disabled:bg-slate-900/50"
+                                placeholder={
+                                    observations.length > 0
+                                        ? "Las opciones seleccionadas se añadirán aquí..."
+                                        : "Ej: Sin cebolla, bien cocido, sin sal..."
+                                }
+                            />
+                            {!canEdit && (
+                                <p className="text-[10px] italic text-slate-400 dark:text-slate-500">
+                                    Las notas no se pueden editar para este producto
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Teclado Virtual */}
+                        {canEdit && (
+                            <div className="mt-2 flex flex-col gap-3">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                        Teclado Táctil
+                                    </label>
+                                    <button 
+                                        onClick={() => { setManualNotes(""); setLocalSelected(new Set()); }}
+                                        className="text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:text-rose-600"
+                                    >
+                                        Limpiar Todo
+                                    </button>
+                                </div>
+                                <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-2 dark:border-slate-800 dark:bg-slate-900/30">
+                                    <VirtualKeyboard
+                                        onKeyPress={handleVirtualKeyPress}
+                                        onBackspace={handleVirtualBackspace}
+                                        onClear={() => {
+                                            if (!canEdit) return;
+                                            setManualNotes("");
+                                            setLocalSelected(new Set());
+                                        }}
+                                        disabled={!canEdit}
+                                        compact={true}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="flex gap-3 border-t border-slate-100 p-6 dark:border-slate-800">
+                    <button
+                        onClick={handleCancel}
+                        className="flex-1 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50"
                     >
                         Cancelar
                     </button>
                     <button
                         onClick={handleApply}
                         disabled={!canEdit}
-                        className="rounded-lg border border-indigo-300 bg-indigo-600 text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-indigo-500 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-300 dark:border-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:disabled:border-slate-700 dark:disabled:bg-slate-700"
-                        style={{
-                            padding: isSmall
-                                ? "0.5rem 1rem"
-                                : "0.625rem 1.25rem",
-                            borderRadius: "8px",
-                            cursor: canEdit ? "pointer" : "not-allowed",
-                            fontWeight: 700,
-                            fontSize: isSmall ? "0.875rem" : "0.9375rem",
-                            opacity: canEdit ? 1 : 0.6,
-                        }}
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-black uppercase tracking-widest text-white transition-all shadow-lg ${
+                            !canEdit 
+                            ? "bg-slate-300 dark:bg-slate-800 cursor-not-allowed shadow-none" 
+                            : "bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-indigo-600/30 active:translate-y-0"
+                        }`}
                     >
                         Aplicar
                     </button>
