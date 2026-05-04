@@ -97,6 +97,11 @@ const EditProduct: React.FC<EditProductProps> = ({
     const gapSize = isXs ? "0.75rem" : isSmall ? "0.875rem" : "1rem";
     const titleFontSize = isXs ? "1.125rem" : isSmall ? "1.2rem" : "1.25rem";
 
+    const labelClass =
+        "mb-2 block font-medium text-slate-600 dark:text-slate-300";
+    const fieldClass =
+        "w-full rounded-lg border border-slate-300 bg-white text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
+
     const [formData, setFormData] = useState({
         categoryId: "",
         subcategoryId: "",
@@ -285,76 +290,45 @@ const EditProduct: React.FC<EditProductProps> = ({
 
     return (
         <div
-            style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                zIndex: 1000,
-                padding: "1rem",
-            }}
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]"
+            style={{ zIndex: 1000 }}
+            onClick={onClose}
         >
             <div
+                className="relative max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900"
                 style={{
-                    backgroundColor: "white",
-                    borderRadius: "20px",
                     padding: modalPadding,
                     maxWidth: modalMaxWidth,
-                    width: "100%",
-                    maxHeight: "90vh",
-                    overflowY: "auto",
-                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-                    position: "relative",
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Botón cerrar */}
                 <button
+                    type="button"
                     onClick={onClose}
+                    className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     style={{
-                        position: "absolute",
-                        top: "1rem",
-                        right: "1rem",
                         background: "none",
                         border: "none",
                         fontSize: "1.5rem",
                         cursor: "pointer",
-                        color: "#64748b",
-                        width: "32px",
-                        height: "32px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderRadius: "50%",
-                        transition: "background-color 0.2s",
                     }}
-                    onMouseEnter={(e) =>
-                        (e.currentTarget.style.backgroundColor = "#f1f5f9")
-                    }
-                    onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor = "transparent")
-                    }
                 >
                     ✕
                 </button>
 
                 <h2
+                    className="text-slate-800 dark:text-slate-100"
                     style={{
                         margin: "0 0 1rem",
                         fontSize: titleFontSize,
                         fontWeight: 700,
-                        color: "#1e293b",
                     }}
                 >
-                    ✏️ Editar Producto
+                    Editar producto
                 </h2>
 
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} className="text-slate-700 dark:text-slate-200">
                     <div
                         style={{
                             display: "flex",
@@ -373,13 +347,8 @@ const EditProduct: React.FC<EditProductProps> = ({
                         >
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Categoría
                                 </label>
@@ -387,14 +356,11 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     name="categoryId"
                                     value={formData.categoryId}
                                     onChange={handleChange}
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
-                                        backgroundColor: "white",
                                     }}
                                 >
                                     <option value="">
@@ -415,13 +381,8 @@ const EditProduct: React.FC<EditProductProps> = ({
 
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Subcategoría
                                 </label>
@@ -430,16 +391,15 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     value={formData.subcategoryId}
                                     onChange={handleChange}
                                     disabled={!formData.categoryId}
+                                    className={`${fieldClass} disabled:cursor-not-allowed disabled:opacity-70 ${
+                                        formData.categoryId
+                                            ? ""
+                                            : "bg-slate-100 dark:bg-slate-900"
+                                    }`}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
-                                        backgroundColor: formData.categoryId
-                                            ? "white"
-                                            : "#f1f5f9",
                                     }}
                                 >
                                     <option value="">
@@ -462,13 +422,8 @@ const EditProduct: React.FC<EditProductProps> = ({
                         {/* Tipo de Producto */}
                         <div>
                             <label
-                                style={{
-                                    display: "block",
-                                    marginBottom: "0.5rem",
-                                    fontWeight: 500,
-                                    fontSize: labelFontSize,
-                                    color: "#475569",
-                                }}
+                                className={labelClass}
+                                style={{ fontSize: labelFontSize }}
                             >
                                 Tipo de Producto *
                             </label>
@@ -477,14 +432,11 @@ const EditProduct: React.FC<EditProductProps> = ({
                                 value={formData.productType}
                                 onChange={handleChange}
                                 required
+                                className={fieldClass}
                                 style={{
-                                    width: "100%",
                                     padding: inputPadding,
-                                    border: "1px solid #e2e8f0",
-                                    borderRadius: "8px",
                                     fontSize: inputFontSize,
                                     boxSizing: "border-box",
-                                    backgroundColor: "white",
                                 }}
                             >
                                 <option value="DISH">Plato</option>
@@ -504,13 +456,8 @@ const EditProduct: React.FC<EditProductProps> = ({
                         >
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Código *
                                 </label>
@@ -521,11 +468,9 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     onChange={handleChange}
                                     required
                                     placeholder="PROD001"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -534,13 +479,8 @@ const EditProduct: React.FC<EditProductProps> = ({
 
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Nombre *
                                 </label>
@@ -551,11 +491,9 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     onChange={handleChange}
                                     required
                                     placeholder="Nombre del producto"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -566,13 +504,8 @@ const EditProduct: React.FC<EditProductProps> = ({
                         {/* Descripción */}
                         <div>
                             <label
-                                style={{
-                                    display: "block",
-                                    marginBottom: "0.5rem",
-                                    fontWeight: 500,
-                                    fontSize: labelFontSize,
-                                    color: "#475569",
-                                }}
+                                className={labelClass}
+                                style={{ fontSize: labelFontSize }}
                             >
                                 Descripción
                             </label>
@@ -582,15 +515,11 @@ const EditProduct: React.FC<EditProductProps> = ({
                                 onChange={handleChange}
                                 placeholder="Descripción del producto"
                                 rows={2}
+                                className={`${fieldClass} resize-y font-inherit`}
                                 style={{
-                                    width: "100%",
                                     padding: inputPadding,
-                                    border: "1px solid #e2e8f0",
-                                    borderRadius: "8px",
                                     fontSize: inputFontSize,
                                     boxSizing: "border-box",
-                                    resize: "vertical",
-                                    fontFamily: "inherit",
                                 }}
                             />
                         </div>
@@ -598,13 +527,8 @@ const EditProduct: React.FC<EditProductProps> = ({
                         {/* Foto del producto */}
                         <div>
                             <label
-                                style={{
-                                    display: "block",
-                                    marginBottom: "0.5rem",
-                                    fontWeight: 500,
-                                    fontSize: labelFontSize,
-                                    color: "#475569",
-                                }}
+                                className={labelClass}
+                                style={{ fontSize: labelFontSize }}
                             >
                                 Foto del producto
                             </label>
@@ -620,6 +544,7 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     <img
                                         src={displayImageSrc}
                                         alt="Producto"
+                                        className="rounded-[10px] border border-slate-200 dark:border-slate-600"
                                         style={{
                                             width:
                                                 isXs || isSmall
@@ -630,12 +555,11 @@ const EditProduct: React.FC<EditProductProps> = ({
                                                     ? "72px"
                                                     : "88px",
                                             objectFit: "cover",
-                                            borderRadius: "10px",
-                                            border: "1px solid #e2e8f0",
                                         }}
                                     />
                                 ) : (
                                     <div
+                                        className="flex items-center justify-center rounded-[10px] border border-dashed border-slate-300 bg-slate-50 text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-500"
                                         style={{
                                             width:
                                                 isXs || isSmall
@@ -645,13 +569,6 @@ const EditProduct: React.FC<EditProductProps> = ({
                                                 isXs || isSmall
                                                     ? "72px"
                                                     : "88px",
-                                            borderRadius: "10px",
-                                            border: "1px dashed #cbd5e1",
-                                            background: "#f8fafc",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            color: "#94a3b8",
                                             fontSize: "1.5rem",
                                         }}
                                     >
@@ -670,26 +587,17 @@ const EditProduct: React.FC<EditProductProps> = ({
                                         type="file"
                                         accept="image/jpeg,image/png,image/webp,image/gif"
                                         onChange={handleImageChange}
+                                        className={fieldClass}
                                         style={{
-                                            width: "100%",
                                             padding:
                                                 isXs || isSmall
                                                     ? "0.35rem"
                                                     : "0.4rem",
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
                                             fontSize: inputFontSize,
                                             boxSizing: "border-box",
-                                            backgroundColor: "white",
                                         }}
                                     />
-                                    <p
-                                        style={{
-                                            margin: "0.35rem 0 0",
-                                            fontSize: "0.65rem",
-                                            color: "#94a3b8",
-                                        }}
-                                    >
+                                    <p className="mt-1 text-[0.65rem] text-slate-400 dark:text-slate-500">
                                         JPG, PNG, WebP o GIF. Máx. 3 MB. Guardar
                                         envía la nueva imagen o quita la actual.
                                     </p>
@@ -699,15 +607,10 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     <button
                                         type="button"
                                         onClick={handleClearImage}
+                                        className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-1.5 font-medium text-slate-600 transition-colors hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                                         style={{
-                                            padding: "0.4rem 0.65rem",
                                             fontSize: inputFontSize,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            background: "#f8fafc",
-                                            color: "#64748b",
                                             cursor: "pointer",
-                                            fontWeight: 500,
                                             alignSelf: "center",
                                         }}
                                     >
@@ -728,13 +631,8 @@ const EditProduct: React.FC<EditProductProps> = ({
                         >
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Precio de Venta
                                 </label>
@@ -746,11 +644,9 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     min="0"
                                     step="0.01"
                                     placeholder="0.00"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -759,13 +655,8 @@ const EditProduct: React.FC<EditProductProps> = ({
 
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Precio de Compra
                                 </label>
@@ -777,11 +668,9 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     min="0"
                                     step="0.01"
                                     placeholder="0.00"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -800,13 +689,8 @@ const EditProduct: React.FC<EditProductProps> = ({
                         >
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Unidad de Medida
                                 </label>
@@ -814,14 +698,11 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     name="unitMeasure"
                                     value={formData.unitMeasure}
                                     onChange={handleChange}
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
-                                        backgroundColor: "white",
                                     }}
                                 >
                                     <option value="NIU">NIU - Unidad</option>
@@ -833,13 +714,8 @@ const EditProduct: React.FC<EditProductProps> = ({
 
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Tiempo de Preparación (min)
                                 </label>
@@ -850,11 +726,9 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     onChange={handleChange}
                                     min="0"
                                     placeholder="0"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -879,13 +753,8 @@ const EditProduct: React.FC<EditProductProps> = ({
                             >
                                 <div>
                                     <label
-                                        style={{
-                                            display: "block",
-                                            marginBottom: "0.5rem",
-                                            fontWeight: 500,
-                                            fontSize: labelFontSize,
-                                            color: "#475569",
-                                        }}
+                                        className={labelClass}
+                                        style={{ fontSize: labelFontSize }}
                                     >
                                         Stock Mínimo
                                     </label>
@@ -897,11 +766,9 @@ const EditProduct: React.FC<EditProductProps> = ({
                                         min="0"
                                         step="0.01"
                                         placeholder="0"
+                                        className={fieldClass}
                                         style={{
-                                            width: "100%",
                                             padding: inputPadding,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
                                             fontSize: inputFontSize,
                                             boxSizing: "border-box",
                                         }}
@@ -910,13 +777,8 @@ const EditProduct: React.FC<EditProductProps> = ({
 
                                 <div>
                                     <label
-                                        style={{
-                                            display: "block",
-                                            marginBottom: "0.5rem",
-                                            fontWeight: 500,
-                                            fontSize: labelFontSize,
-                                            color: "#475569",
-                                        }}
+                                        className={labelClass}
+                                        style={{ fontSize: labelFontSize }}
                                     >
                                         Stock Máximo
                                     </label>
@@ -928,11 +790,9 @@ const EditProduct: React.FC<EditProductProps> = ({
                                         min="0"
                                         step="0.01"
                                         placeholder="0"
+                                        className={fieldClass}
                                         style={{
-                                            width: "100%",
                                             padding: inputPadding,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
                                             fontSize: inputFontSize,
                                             boxSizing: "border-box",
                                         }}
@@ -941,15 +801,8 @@ const EditProduct: React.FC<EditProductProps> = ({
 
                                 <div>
                                     <label
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: "0.4rem",
-                                            marginBottom: "0.5rem",
-                                            fontWeight: 500,
-                                            fontSize: labelFontSize,
-                                            color: "#475569",
-                                        }}
+                                        className="mb-2 flex items-center gap-2 font-medium text-slate-600 dark:text-slate-300"
+                                        style={{ fontSize: labelFontSize }}
                                     >
                                         Stock Actual
                                         <input
@@ -967,11 +820,7 @@ const EditProduct: React.FC<EditProductProps> = ({
                                                 }
                                             }}
                                             title="Habilitar edición de stock"
-                                            style={{
-                                                width: "14px",
-                                                height: "14px",
-                                                cursor: "pointer",
-                                            }}
+                                            className="h-3.5 w-3.5 cursor-pointer accent-indigo-600"
                                         />
                                     </label>
                                     <input
@@ -983,19 +832,15 @@ const EditProduct: React.FC<EditProductProps> = ({
                                         min="0"
                                         step="0.01"
                                         placeholder="0"
+                                        className={`${fieldClass} disabled:cursor-not-allowed ${
+                                            enableStockEdit
+                                                ? ""
+                                                : "bg-slate-100 dark:bg-slate-900"
+                                        }`}
                                         style={{
-                                            width: "100%",
                                             padding: inputPadding,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
                                             fontSize: inputFontSize,
                                             boxSizing: "border-box",
-                                            backgroundColor: enableStockEdit
-                                                ? "white"
-                                                : "#f8fafc",
-                                            cursor: enableStockEdit
-                                                ? "text"
-                                                : "not-allowed",
                                         }}
                                     />
                                 </div>
@@ -1006,18 +851,11 @@ const EditProduct: React.FC<EditProductProps> = ({
                         {(formData.productType === "BEVERAGE" ||
                             formData.productType === "INGREDIENT") && (
                             <div
-                                style={{
-                                    padding: "0.75rem",
-                                    borderRadius: "8px",
-                                    backgroundColor: formData.managesStock
-                                        ? "#eff6ff"
-                                        : "#f8fafc",
-                                    border: `1px solid ${formData.managesStock ? "#bfdbfe" : "#e2e8f0"}`,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    cursor: "pointer",
-                                }}
+                                className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
+                                    formData.managesStock
+                                        ? "border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/25"
+                                        : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
+                                }`}
                                 onClick={() => {
                                     setFormData((prev) => ({
                                         ...prev,
@@ -1036,31 +874,22 @@ const EditProduct: React.FC<EditProductProps> = ({
                                             managesStock: e.target.checked,
                                         }));
                                     }}
-                                    style={{
-                                        width: "18px",
-                                        height: "18px",
-                                        cursor: "pointer",
-                                    }}
+                                    className="h-[18px] w-[18px] cursor-pointer accent-indigo-600"
                                 />
                                 <div>
                                     <div
+                                        className="font-semibold text-indigo-800 dark:text-indigo-200"
                                         style={{
-                                            fontWeight: 600,
                                             fontSize: labelFontSize,
-                                            color: "#1e40af",
                                         }}
                                     >
                                         Manejar Stock e Inventario
                                     </div>
-                                    <div
-                                        style={{
-                                            fontSize: "0.7rem",
-                                            color: "#64748b",
-                                        }}
-                                    >
+                                    <div className="text-[0.7rem] text-slate-500 dark:text-slate-400">
                                         Si se activa, este producto generará
                                         movimientos en el Kardex. Una vez
-                                        guardado, no se podrá desactivar.
+                                        guardado con esta opción activa, no se
+                                        podrá desactivar.
                                     </div>
                                 </div>
                             </div>
@@ -1069,42 +898,30 @@ const EditProduct: React.FC<EditProductProps> = ({
                         {/* Estado Activo */}
                         <div>
                             <label
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.5rem",
-                                    cursor: "pointer",
-                                    padding: "0.75rem",
-                                    borderRadius: "8px",
-                                    backgroundColor: formData.isActive
-                                        ? "#dcfce7"
-                                        : "#fee2e2",
-                                    border: `1px solid ${formData.isActive ? "#86efac" : "#fecaca"}`,
-                                }}
+                                className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 transition-colors ${
+                                    formData.isActive
+                                        ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/35"
+                                        : "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/35"
+                                }`}
                             >
                                 <input
                                     type="checkbox"
                                     name="isActive"
                                     checked={formData.isActive}
                                     onChange={handleChange}
-                                    style={{
-                                        width: "18px",
-                                        height: "18px",
-                                        cursor: "pointer",
-                                    }}
+                                    className="h-[18px] w-[18px] cursor-pointer accent-indigo-600"
                                 />
                                 <span
-                                    style={{
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: formData.isActive
-                                            ? "#166534"
-                                            : "#991b1b",
-                                    }}
+                                    className={`font-medium ${
+                                        formData.isActive
+                                            ? "text-emerald-800 dark:text-emerald-200"
+                                            : "text-red-800 dark:text-red-200"
+                                    }`}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     {formData.isActive
-                                        ? "✅ Producto Activo"
-                                        : "❌ Producto Inactivo"}
+                                        ? "Producto activo"
+                                        : "Producto inactivo"}
                                 </span>
                             </label>
                         </div>
@@ -1122,35 +939,22 @@ const EditProduct: React.FC<EditProductProps> = ({
                             <button
                                 type="submit"
                                 disabled={loading}
+                                className="flex-1 rounded-lg border border-indigo-300 bg-indigo-600 font-semibold text-white transition-all duration-150 hover:bg-indigo-500 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-300 dark:border-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:disabled:border-slate-700 dark:disabled:bg-slate-700"
                                 style={{
-                                    flex: 1,
                                     padding: buttonPadding,
-                                    background: loading
-                                        ? "#94a3b8"
-                                        : "linear-gradient(135deg, #667eea, #764ba2)",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: "10px",
-                                    fontWeight: 600,
-                                    cursor: loading ? "not-allowed" : "pointer",
                                     fontSize: buttonFontSize,
                                 }}
                             >
                                 {loading
                                     ? "Guardando..."
-                                    : "💾 Guardar Cambios"}
+                                    : "Guardar cambios"}
                             </button>
                             <button
                                 type="button"
                                 onClick={onClose}
+                                className="rounded-lg border border-slate-300 bg-slate-100 font-semibold text-slate-700 transition-colors hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                                 style={{
                                     padding: buttonPadding,
-                                    background: "#f1f5f9",
-                                    color: "#475569",
-                                    border: "none",
-                                    borderRadius: "10px",
-                                    fontWeight: 600,
-                                    cursor: "pointer",
                                     fontSize: buttonFontSize,
                                 }}
                             >

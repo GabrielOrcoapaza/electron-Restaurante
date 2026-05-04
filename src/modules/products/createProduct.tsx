@@ -552,12 +552,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                             boxSizing: "border-box",
                                         }}
                                     />
-                                    <p
-                                        className="mt-1 text-[0.65rem] text-slate-400 dark:text-slate-500"
-                                        style={{
-                                            margin: "0.35rem 0 0",
-                                        }}
-                                    >
+                                    <p className="mt-1 text-[0.65rem] text-slate-400 dark:text-slate-500">
                                         JPG, PNG, WebP o GIF. Máx. 3 MB.
                                     </p>
                                 </div>
@@ -808,27 +803,19 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                             managesStock: e.target.checked,
                                         }));
                                     }}
-                                    style={{
-                                        width: "18px",
-                                        height: "18px",
-                                        cursor: "pointer",
-                                    }}
+                                    className="h-[18px] w-[18px] cursor-pointer accent-indigo-600"
                                 />
                                 <div>
                                     <div
+                                        className="font-semibold text-indigo-800 dark:text-indigo-200"
                                         style={{
-                                            fontWeight: 600,
                                             fontSize: labelFontSize,
-                                            color: "#1e40af",
                                         }}
                                     >
                                         Manejar Stock e Inventario
                                     </div>
                                     <div
-                                        style={{
-                                            fontSize: "0.7rem",
-                                            color: "#64748b",
-                                        }}
+                                        className="text-[0.7rem] text-slate-500 dark:text-slate-400"
                                     >
                                         Si se activa, este producto generará
                                         movimientos en el Kardex. Una vez
@@ -852,35 +839,22 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                             <button
                                 type="submit"
                                 disabled={loading}
+                                className="flex-1 rounded-lg border border-indigo-300 bg-indigo-600 font-semibold text-white transition-all duration-150 hover:bg-indigo-500 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-300 dark:border-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:disabled:border-slate-700 dark:disabled:bg-slate-700"
                                 style={{
-                                    flex: 1,
                                     padding: buttonPadding,
-                                    background: loading
-                                        ? "#94a3b8"
-                                        : "linear-gradient(135deg, #667eea, #764ba2)",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: "10px",
-                                    fontWeight: 600,
-                                    cursor: loading ? "not-allowed" : "pointer",
                                     fontSize: buttonFontSize,
                                 }}
                             >
                                 {loading
                                     ? "Guardando..."
-                                    : "💾 Guardar Producto"}
+                                    : "Guardar producto"}
                             </button>
                             <button
                                 type="button"
                                 onClick={onClose}
+                                className="rounded-lg border border-slate-300 bg-slate-100 font-semibold text-slate-700 transition-colors hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                                 style={{
                                     padding: buttonPadding,
-                                    background: "#f1f5f9",
-                                    color: "#475569",
-                                    border: "none",
-                                    borderRadius: "10px",
-                                    fontWeight: 600,
-                                    cursor: "pointer",
                                     fontSize: buttonFontSize,
                                 }}
                             >
