@@ -19,11 +19,13 @@ import {
 } from '../../graphql/queries';
 import { CREATE_PERSON } from '../../graphql/mutations';
 import ModalObservation from './modalObservation';
-import PayDeliveryModal from './payDelivery';
+import PayDeliveryModal, { type DeliveryPaymentLine } from './payDelivery';
 import CategoryIcon from '../../components/CategoryIcon';
 import { formatLocalDateYYYYMMDD, formatLocalTimeHHMMSS, formatInstantISO } from '../../utils/localDateTime';
 
-// Tipo para los ítems del carrito
+const roundMoney2 = (n: number): number =>
+    Math.round((Number(n) || 0) * 100) / 100;
+
 type CartItem = {
     id: string;
     productId: string;
@@ -75,8 +77,9 @@ const Delivery: React.FC = () => {
     const [selectedObservations, setSelectedObservations] = useState<Record<string, Set<string>>>({});
     const [selectedSerial, setSelectedSerial] = useState<string>('');
     const [selectedCashRegister, setSelectedCashRegister] = useState<string>('');
-    const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
-    const [paidAmount, setPaidAmount] = useState<string>('');
+    const [paymentLines, setPaymentLines] = useState<DeliveryPaymentLine[]>([
+        { id: '1', method: 'CASH', amount: 0, referenceNumber: '' },
+    ]);
     // Descuento: solo uno a la vez — monto fijo (S/) o porcentaje (%)
     const [discountAmount, setDiscountAmount] = useState<number>(0);
     const [discountPercent, setDiscountPercent] = useState<number>(0);
@@ -415,6 +418,63 @@ const Delivery: React.FC = () => {
     const subtotal = parseFloat((cartTotal / (1 + igvPercentageDecimal)).toFixed(2));
     const igvAmount = parseFloat((cartTotal - subtotal).toFixed(2));
 
+    const totalPaymentsAmount = paymentLines.reduce(
+        (sum, p) => sum + (Number(p.amount) || 0),
+        0,
+    );
+    const paymentsCoverDebt =
+        roundMoney2(cartTotal) <= 0.01 ||
+        roundMoney2(totalPaymentsAmount) >= roundMoney2(cartTotal) - 0.01;
+    const remainingToPay = roundMoney2(cartTotal) - roundMoney2(totalPaymentsAmount);
+    const changeDue = remainingToPay < 0 ? Math.abs(remainingToPay) : 0;
+    const canAddDeliveryPayment =
+        roundMoney2(cartTotal) > 0.01 &&
+        roundMoney2(totalPaymentsAmount) < roundMoney2(cartTotal);
+
+    const addDeliveryPayment = () => {
+        if (!canAddDeliveryPayment) return;
+        const remaining = roundMoney2(
+            Math.max(0, cartTotal - totalPaymentsAmount),
+        );
+        setPaymentLines((prev) => [
+            ...prev,
+            {
+                id: String(Date.now()),
+                method: 'CASH',
+                amount: remaining,
+                referenceNumber: '',
+            },
+        ]);
+    };
+
+    const removeDeliveryPayment = (id: string) => {
+        setPaymentLines((prev) =>
+            prev.length > 1 ? prev.filter((p) => p.id !== id) : prev,
+        );
+    };
+
+    const updateDeliveryPayment = (
+        id: string,
+        field: keyof DeliveryPaymentLine,
+        value: string | number,
+    ) => {
+        setPaymentLines((prev) =>
+            prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)),
+        );
+    };
+
+    useEffect(() => {
+        if (!showPaymentModal) return;
+        setPaymentLines([
+            {
+                id: '1',
+                method: 'CASH',
+                amount: roundMoney2(cartTotal),
+                referenceNumber: '',
+            },
+        ]);
+    }, [showPaymentModal]);
+
     // Función para procesar la venta
     const handleProcessSale = async () => {
         if (cartItems.length === 0) {
@@ -449,9 +509,15 @@ const Delivery: React.FC = () => {
             return;
         }
 
-        const paidAmountNum = parseFloat(paidAmount) || 0;
-        if (paidAmountNum < cartTotal) {
-            showToast('El monto pagado debe ser mayor o igual al total', 'error');
+        const totalPaidCheck = paymentLines.reduce(
+            (sum, p) => sum + (Number(p.amount) || 0),
+            0,
+        );
+        if (cartTotal > 0.01 && totalPaidCheck < cartTotal - 0.01) {
+            showToast(
+                `La suma de los pagos debe ser al menos el total a pagar (${cartTotal.toFixed(2)}).`,
+                'error',
+            );
             return;
         }
 
@@ -509,8 +575,79 @@ const Delivery: React.FC = () => {
             const cleanCartTotal = parseFloat(cartTotal.toFixed(2));
             const cleanSubtotal = parseFloat(subtotal.toFixed(2));
             const cleanIgvAmount = parseFloat(igvAmount.toFixed(2));
-            const cleanPaidAmount = parseFloat(paidAmountNum.toFixed(2));
             const cleanTotalDiscount = parseFloat(totalDiscount.toFixed(2));
+
+            const paymentsSum = paymentLines.reduce(
+                (sum, p) => sum + (Number(p.amount) || 0),
+                0,
+            );
+            const paymentsSumRounded = roundMoney2(paymentsSum);
+
+            let paymentsPayload: Array<{
+                cashRegisterId: string;
+                paymentType: string;
+                paymentMethod: string;
+                transactionType: string;
+                totalAmount: number;
+                paidAmount: number;
+                paymentDate: string;
+                notes: string | null;
+                referenceNumber?: string | null;
+            }>;
+
+            if (cleanCartTotal <= 0.01) {
+                paymentsPayload = [
+                    {
+                        cashRegisterId: selectedCashRegister,
+                        paymentType: 'CASH',
+                        paymentMethod: paymentLines[0]?.method || 'CASH',
+                        transactionType: 'INCOME',
+                        paymentDate: formatInstantISO(now),
+                        totalAmount: 0,
+                        paidAmount: 0,
+                        notes: null,
+                        referenceNumber: null,
+                    },
+                ];
+            } else if (
+                Math.abs(paymentsSumRounded - cleanCartTotal) <= 0.01
+            ) {
+                paymentsPayload = paymentLines
+                    .filter((p) => Number(p.amount) > 0)
+                    .map((p) => ({
+                        cashRegisterId: selectedCashRegister,
+                        paymentType: 'CASH',
+                        paymentMethod: p.method,
+                        transactionType: 'INCOME' as const,
+                        paymentDate: formatInstantISO(now),
+                        totalAmount: roundMoney2(Number(p.amount)),
+                        paidAmount: roundMoney2(Number(p.amount)),
+                        notes: null,
+                        referenceNumber:
+                            (p.referenceNumber || '').trim() || null,
+                    }));
+            } else {
+                const first = paymentLines.find((p) => Number(p.amount) > 0);
+                paymentsPayload = [
+                    {
+                        cashRegisterId: selectedCashRegister,
+                        paymentType: 'CASH',
+                        paymentMethod: first?.method || 'CASH',
+                        transactionType: 'INCOME',
+                        paymentDate: formatInstantISO(now),
+                        totalAmount: cleanCartTotal,
+                        paidAmount: cleanCartTotal,
+                        notes: null,
+                        referenceNumber: null,
+                    },
+                ];
+            }
+
+            if (paymentsPayload.length === 0) {
+                showToast('Agregue al menos un pago con monto mayor a 0', 'error');
+                setIsSaving(false);
+                return;
+            }
 
             const variables: any = {
                 branchId: companyData?.branch.id,
@@ -534,18 +671,7 @@ const Delivery: React.FC = () => {
                 totalFree: 0,
                 totalAmount: cleanCartTotal,
                 items,
-                payments: [
-                    {
-                        cashRegisterId: selectedCashRegister,
-                        paymentType: 'CASH',
-                        paymentMethod,
-                        transactionType: 'INCOME',
-                        paymentDate: formatInstantISO(now),
-                        totalAmount: cleanCartTotal,
-                        paidAmount: cleanPaidAmount,
-                        notes: ''
-                    }
-                ],
+                payments: paymentsPayload,
                 notes: '',
                 deviceId: resolvedDeviceId // No truncar, el backend ya se encarga
             };
@@ -566,7 +692,14 @@ const Delivery: React.FC = () => {
                 setPersonSearchTerm('');
                 setSelectedDocument('');
                 setSelectedSerial('');
-                setPaidAmount('');
+                setPaymentLines([
+                    {
+                        id: '1',
+                        method: 'CASH',
+                        amount: 0,
+                        referenceNumber: '',
+                    },
+                ]);
                 setDiscountAmount(0);
                 setDiscountPercent(0);
                 setSelectedCategory(null);
@@ -1120,10 +1253,14 @@ const Delivery: React.FC = () => {
                     cashRegisters={cashRegisters}
                     selectedCashRegister={selectedCashRegister}
                     setSelectedCashRegister={setSelectedCashRegister}
-                    paymentMethod={paymentMethod}
-                    setPaymentMethod={setPaymentMethod}
-                    paidAmount={paidAmount}
-                    setPaidAmount={setPaidAmount}
+                    paymentLines={paymentLines}
+                    onAddPayment={addDeliveryPayment}
+                    onRemovePayment={removeDeliveryPayment}
+                    onUpdatePayment={updateDeliveryPayment}
+                    canAddPayment={canAddDeliveryPayment}
+                    paymentsCoverDebt={paymentsCoverDebt}
+                    totalPaymentsAmount={totalPaymentsAmount}
+                    changeDue={changeDue}
                     onConfirm={handleProcessSale}
                 />
             )}
