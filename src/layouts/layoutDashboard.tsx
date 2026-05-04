@@ -580,16 +580,31 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     }) => (
         <button
             onClick={() => handleMenuClick(view)}
-            className={`group relative mx-4 flex w-[calc(100%-2rem)] items-center gap-3 overflow-hidden rounded-xl border px-5 py-3 text-left text-sm transition-all duration-300 ${
+            className={`group relative flex w-full items-center gap-4 px-8 py-4 text-left transition-all duration-200 ${
                 isActive
-                    ? "border-indigo-400/30 bg-indigo-500/15 text-indigo-300 shadow-[0_8px_20px_rgba(99,102,241,0.18)]"
-                    : "border-transparent text-slate-400 hover:border-white/10 hover:bg-white/5 hover:text-slate-100"
+                    ? "text-indigo-600 dark:text-indigo-400"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
             }`}
         >
-            <span className="text-xl">{icon}</span>
-            {sidebarOpen && label}
+            <span
+                className={`text-xl transition-transform duration-200 ${isActive ? "scale-110" : ""}`}
+            >
+                {icon}
+            </span>
+            {sidebarOpen && (
+                <span
+                    className={`text-sm font-medium tracking-wide ${
+                        isActive ? "font-semibold" : ""
+                    }`}
+                >
+                    {label}
+                </span>
+            )}
+            {isActive && sidebarOpen && (
+                <div className="absolute right-6 h-1 w-1 rounded-full bg-indigo-500 dark:bg-indigo-400" />
+            )}
             {isActive && (
-                <div className="absolute bottom-[20%] left-0 top-[20%] w-1 rounded-r bg-indigo-400" />
+                <div className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-indigo-500 dark:bg-indigo-400" />
             )}
         </button>
     );
@@ -776,7 +791,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 
             {/* Sidebar */}
             <div
-                className="fixed z-[1000] flex h-screen flex-col overflow-x-hidden overflow-y-auto border-r border-slate-800/70 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-900 text-white shadow-2xl shadow-slate-950/40"
+                className="fixed z-[1000] flex h-screen flex-col overflow-x-hidden overflow-y-auto border-r border-slate-200 bg-white text-slate-900 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
                 style={{
                     width: displayedSidebarWidth,
                     transform:
@@ -786,58 +801,34 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                     transition:
                         "width 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease",
                     boxShadow: sidebarOpen
-                        ? "2px 0 10px rgba(0, 0, 0, 0.1)"
+                        ? "0 0 0 1px rgba(0, 0, 0, 0.05), 0 20px 25px -5px rgba(0, 0, 0, 0.05)"
                         : "none",
                 }}
             >
                 {/* Header del Sidebar */}
-                <div className="flex items-center justify-between border-b border-slate-800 p-5">
+                <div className="flex items-center justify-between border-b border-slate-100 p-8 dark:border-slate-800">
                     {sidebarOpen && (
                         <div>
-                            <h2 className="m-0 bg-gradient-to-r from-indigo-400 to-fuchsia-400 bg-clip-text text-xl font-bold text-transparent">
+                            <h2 className="m-0 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                                 SumApp
                             </h2>
-                            <p className="mt-1 text-sm font-medium text-slate-400">
+                            <p className="mt-2 text-xs font-medium uppercase tracking-widest text-slate-400 dark:text-slate-500">
                                 {companyData?.company.denomination}
                             </p>
-                            {macAddress && (
-                                <p className="mt-1 font-mono text-xs text-slate-500">
-                                    MAC: {macAddress}
-                                </p>
-                            )}
                         </div>
                     )}
                 </div>
 
-                {/* Información del Usuario */}
-                <div className="border-b border-slate-800 p-6">
-                    <div className="mb-4 flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-xl shadow-lg shadow-indigo-500/20">
-                            👤
-                        </div>
-                        {sidebarOpen && (
-                            <div>
-                                <p className="m-0 text-sm font-semibold text-white">
-                                    {user?.fullName}
-                                </p>
-                                <p className="m-0 text-xs text-slate-400">
-                                    {roleDisplay(user?.role)}
-                                </p>
-                            </div>
-                        )}
-                    </div>
-
-                    
-                </div>
-
                 {/* Menú de Navegación */}
-                <nav className="flex-1 overflow-y-auto py-4 [scrollbar-width:thin]">
-                    <div className="mb-2 px-6 py-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                        {sidebarOpen && "MENÚ"}
-                    </div>
+                <nav className="flex-1 overflow-y-auto py-8 [scrollbar-width:thin]">
+                    {sidebarOpen && (
+                        <div className="mb-2 px-8 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                            Menú
+                        </div>
+                    )}
 
                     {/* Opciones del menú */}
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col">
                         {canSeeDashboard && (
                             <SidebarItem
                                 view="dashboard"
@@ -958,15 +949,17 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                 </nav>
 
                 {/* Footer del Sidebar */}
-                <div className="border-t border-slate-800 p-6">
+                <div className="border-t border-slate-100 p-8 dark:border-slate-800">
                     <button
                         onClick={handleLogout}
-                        className="flex w-full items-center gap-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-left text-sm font-semibold text-rose-300 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-300/50 hover:bg-rose-500/20 hover:text-rose-200 hover:shadow-lg hover:shadow-rose-500/20"
+                        className="group flex w-full items-center gap-4 px-1 py-3 text-left text-sm font-medium text-slate-600 transition-colors duration-200 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400"
                     >
-                        <span className="text-xl drop-shadow-[0_2px_4px_rgba(239,68,68,0.2)]">
+                        <span className="text-xl transition-transform duration-200 group-hover:scale-110">
                             🚪
                         </span>
-                        {sidebarOpen && "Cerrar Sesión"}
+                        {sidebarOpen && (
+                            <span className="tracking-wide">Cerrar Sesión</span>
+                        )}
                     </button>
                 </div>
             </div>
@@ -998,23 +991,22 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             >
                 {/* Header Principal: título | sucursal centrada | empleado + notificaciones */}
                 <header
-                    className="flex items-center justify-between border-b border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                    className="flex items-center justify-between border-b border-slate-100 bg-white px-8 py-6 dark:border-slate-800 dark:bg-slate-950"
                     style={{
-                        padding: headerPadding,
-                        gap: isMobile ? "0.5rem" : "1rem",
+                        gap: isMobile ? "0.75rem" : "1.5rem",
                     }}
                 >
                     {/* Sección Izquierda: Toggle + Título */}
-                    <div className="flex min-w-0 items-center gap-2 md:gap-4 flex-1">
+                    <div className="flex min-w-0 items-center gap-4 flex-1">
                         <button
                             onClick={toggleSidebar}
-                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-xl text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-xl text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100"
                         >
                             {sidebarOpen ? "⇤" : "☰"}
                         </button>
                         <div className="min-w-0">
                             <h1
-                                className="m-0 truncate font-bold text-slate-800 dark:text-slate-100"
+                                className="m-0 truncate text-xl font-bold tracking-tight text-slate-900 dark:text-white"
                                 style={{
                                     fontSize: headerFontSize,
                                 }}
@@ -1023,7 +1015,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                             </h1>
                             {!isMobile && (
                                 <div
-                                    className="mt-1 truncate text-slate-500 dark:text-slate-400"
+                                    className="mt-1 truncate text-xs font-medium uppercase tracking-widest text-slate-400 dark:text-slate-500"
                                     style={{
                                         fontSize: headerSubFontSize,
                                     }}
@@ -1036,8 +1028,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 
                     {/* Sección Central: Sucursal (Solo Desktop y Solo Administradores) */}
                     {!isMobile && isAdmin && (
-                        <div className="hidden md:flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                            <span>🏢</span>
+                        <div className="hidden md:flex items-center gap-3 rounded-xl bg-slate-50 px-6 py-3 text-sm dark:bg-slate-800">
+                            <span className="text-lg">🏢</span>
                             {(companyData?.availableBranches?.length ?? 0) >
                             1 ? (
                                 <select
@@ -1050,7 +1042,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                         }
                                     }}
                                     disabled={switchingBranch}
-                                    className="min-w-[140px] cursor-pointer rounded-md border border-slate-200 bg-white px-2 py-1 text-sm font-semibold text-slate-700 disabled:cursor-wait disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+                                    className="min-w-[160px] cursor-pointer border-none bg-transparent text-sm font-semibold text-slate-700 outline-none disabled:cursor-wait disabled:opacity-70 dark:text-slate-200"
                                 >
                                     {companyData?.availableBranches?.map(
                                         (b: any) => (
@@ -1069,7 +1061,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                     )}
 
                     {/* Sección Derecha: Internet Status, Dark Mode, Usuario + Notificaciones */}
-                    <div className="flex shrink-0 items-center gap-2 md:gap-4">
+                    <div className="flex shrink-0 items-center gap-3">
                         {/* Internet Status */}
                         <div
                             className="relative"
@@ -1079,9 +1071,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     : "Sin conexión"
                             }
                         >
-                            <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-xl dark:border-slate-600 dark:bg-slate-800">
+                            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-xl dark:bg-slate-800">
                                 {isOnline ? (
-                                    <span className="text-green-600">🌐</span>
+                                    <span className="text-green-600 dark:text-green-400">
+                                        🌐
+                                    </span>
                                 ) : (
                                     <span className="text-red-500 animate-pulse">
                                         ❌
@@ -1093,7 +1087,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                         {/* Dark Mode Toggle */}
                         <button
                             onClick={() => setIsDarkMode(!isDarkMode)}
-                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-xl text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                            className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-xl text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100"
                             title={
                                 isDarkMode
                                     ? "Cambiar a modo claro"
@@ -1108,20 +1102,23 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 onClick={() =>
                                     setShowUserPopover((prev) => !prev)
                                 }
-                                className={`flex items-center gap-2 rounded-lg border py-2 text-sm transition-all ${
-                                    isMobile
-                                        ? "px-3 h-10"
-                                        : "px-4 max-w-[240px]"
+                                className={`group flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm transition-all duration-200 ${
+                                    isMobile ? "h-12" : "max-w-[240px]"
                                 } ${
                                     showUserPopover
-                                        ? "border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200"
-                                        : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:bg-slate-700"
+                                        ? "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white"
+                                        : "bg-slate-50 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                                 }`}
                             >
-                                <span title={user?.fullName ?? ""}>👤</span>
+                                <span
+                                    className="text-xl transition-transform duration-200 group-hover:scale-110"
+                                    title={user?.fullName ?? ""}
+                                >
+                                    👤
+                                </span>
                                 {!isMobile && (
                                     <span
-                                        className="truncate font-semibold text-slate-700 dark:text-slate-200"
+                                        className="truncate font-semibold tracking-wide text-slate-700 dark:text-slate-200"
                                         title={user?.fullName ?? ""}
                                     >
                                         {user?.fullName ?? user?.firstName}
@@ -1133,102 +1130,41 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 <>
                                     {isMobile && (
                                         <div
-                                            className="fixed inset-0 z-[1199] bg-slate-950/40 backdrop-blur-[2px]"
+                                            className="fixed inset-0 z-[1199] bg-slate-950/30 backdrop-blur-sm"
                                             onClick={() =>
                                                 setShowUserPopover(false)
                                             }
                                         />
                                     )}
-                                    <div
-                                        style={{
-                                            position: isMobile
-                                                ? "fixed"
-                                                : "absolute",
-                                            top: isMobile ? "15%" : "110%",
-                                            left: isMobile ? "50%" : "auto",
-                                            right: isMobile ? "auto" : 0,
-                                            transform: isMobile
-                                                ? "translate(-50%, -50%)"
-                                                : "none",
-                                            width: isMobile
-                                                ? "min(340px, calc(100vw - 40px))"
-                                                : "320px",
-                                            backgroundColor: "white",
-                                            borderRadius: "12px",
-                                            border: "1px solid #e2e8f0",
-                                            boxShadow:
-                                                "0 12px 30px rgba(15, 23, 42, 0.18)",
-                                            padding: "1rem",
-                                            zIndex: 1200,
-                                        }}
-                                    >
-                                        <div className="mb-4 flex items-center gap-3">
-                                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-2xl text-indigo-600">
+                                    <div className="absolute right-0 top-[110%] z-[1200] w-80 rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900">
+                                        <div className="mb-6 flex items-center gap-4">
+                                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-3xl dark:bg-slate-800">
                                                 👤
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="m-0 truncate font-bold text-slate-900">
+                                                <p className="m-0 truncate font-bold text-slate-900 dark:text-white">
                                                     {user?.fullName}
                                                 </p>
-                                                <p className="m-0 text-xs font-medium text-slate-500">
+                                                <p className="m-0 mt-1 text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                                     {roleDisplay(user?.role)}
                                                 </p>
                                             </div>
                                         </div>
 
-                                        <div className="space-y-3 rounded-lg bg-slate-50 p-3 text-sm">
+                                        <div className="space-y-3 rounded-xl bg-slate-50 p-4 text-sm dark:bg-slate-800">
                                             <div>
-                                                <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
                                                     Sucursal Actual
                                                 </p>
-                                                {(companyData?.availableBranches
-                                                    ?.length ?? 0) > 1 ? (
-                                                    <select
-                                                        value={
-                                                            companyData?.branch
-                                                                .id ?? ""
-                                                        }
-                                                        onChange={(e) => {
-                                                            const id =
-                                                                e.target.value;
-                                                            if (id) {
-                                                                disconnect();
-                                                                switchToBranch(
-                                                                    id,
-                                                                );
-                                                                setShowUserPopover(
-                                                                    false,
-                                                                );
-                                                            }
-                                                        }}
-                                                        disabled={
-                                                            switchingBranch
-                                                        }
-                                                        className="w-full cursor-pointer rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
-                                                    >
-                                                        {companyData?.availableBranches?.map(
-                                                            (b: any) => (
-                                                                <option
-                                                                    key={b.id}
-                                                                    value={b.id}
-                                                                >
-                                                                    {b.name}
-                                                                </option>
-                                                            ),
-                                                        )}
-                                                    </select>
-                                                ) : (
-                                                    <p className="m-0 font-semibold text-slate-700">
-                                                        {
-                                                            companyData?.branch
-                                                                .name
-                                                        }
-                                                    </p>
-                                                )}
+                                                <p className="font-medium text-slate-700 dark:text-slate-200">
+                                                    {companyData?.branch.name}
+                                                </p>
                                             </div>
-                                            <div className="border-t border-slate-200 pt-2">
-                                                <p className="m-0 text-xs text-slate-500">
-                                                    <strong>DNI:</strong>{" "}
+                                            <div className="border-t border-slate-200 pt-3 dark:border-slate-700">
+                                                <p className="m-0 text-xs text-slate-500 dark:text-slate-400">
+                                                    <strong className="font-medium">
+                                                        DNI:
+                                                    </strong>{" "}
                                                     {user?.dni}
                                                 </p>
                                             </div>
@@ -1236,9 +1172,12 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 
                                         <button
                                             onClick={handleLogout}
-                                            className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-100"
+                                            className="group mt-6 flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-200 hover:border-red-200 hover:bg-red-50 hover:text-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-red-900/30 dark:hover:bg-red-900/10 dark:hover:text-red-400"
                                         >
-                                            <span>🚪</span> Cerrar Sesión
+                                            <span className="text-xl transition-transform duration-200 group-hover:scale-110">
+                                                🚪
+                                            </span>{" "}
+                                            Cerrar Sesión
                                         </button>
                                     </div>
                                 </>
@@ -1254,15 +1193,15 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 onClick={() =>
                                     setShowNotifications((prev) => !prev)
                                 }
-                                className={`relative flex h-10 w-10 items-center justify-center rounded-full border text-[1.1rem] text-slate-600 transition ${
+                                className={`group relative flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-[1.15rem] text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100 ${
                                     showNotifications
-                                        ? "border-slate-300 bg-slate-200"
-                                        : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-200"
+                                        ? "bg-slate-100 dark:bg-slate-700"
+                                        : ""
                                 }`}
                             >
                                 🔔
                                 {unreadCount > 0 && (
-                                    <span className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[0.6rem] font-bold text-white">
+                                    <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[0.65rem] font-bold text-white shadow-sm shadow-rose-500/20">
                                         {unreadCount > 9 ? "9+" : unreadCount}
                                     </span>
                                 )}
@@ -1271,65 +1210,19 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 <>
                                     {isMobile && (
                                         <div
-                                            className="fixed inset-0 z-[1199] bg-slate-950/40 backdrop-blur-[2px]"
+                                            className="fixed inset-0 z-[1199] bg-slate-950/30 backdrop-blur-sm"
                                             onClick={() =>
                                                 setShowNotifications(false)
                                             }
                                         />
                                     )}
-                                    <div
-                                        style={{
-                                            position: isMobile
-                                                ? "fixed"
-                                                : "absolute",
-                                            top: isMobile ? "15%" : "110%",
-                                            left: isMobile ? "50%" : "auto",
-                                            right: isMobile ? "auto" : 0,
-                                            transform: isMobile
-                                                ? "translate(-50%, -50%)"
-                                                : "none",
-                                            width: isMobile
-                                                ? "min(360px, calc(100vw - 40px))"
-                                                : "320px",
-                                            maxHeight: isMobile
-                                                ? "70vh"
-                                                : "420px",
-                                            overflowY: "auto",
-                                            backgroundColor: "white",
-                                            borderRadius: "12px",
-                                            border: "1px solid #e2e8f0",
-                                            boxShadow:
-                                                "0 12px 30px rgba(15, 23, 42, 0.18)",
-                                            padding: "0.75rem",
-                                            zIndex: 1200,
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-between",
-                                                marginBottom: "0.5rem",
-                                            }}
-                                        >
+                                    <div className="absolute right-0 top-[110%] z-[1200] w-88 max-h-[450px] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900">
+                                        <div className="mb-4 flex items-center justify-between">
                                             <div>
-                                                <h3
-                                                    style={{
-                                                        margin: 0,
-                                                        fontSize: "0.95rem",
-                                                        fontWeight: 600,
-                                                        color: "#2d3748",
-                                                    }}
-                                                >
+                                                <h3 className="m-0 text-sm font-bold tracking-tight text-slate-900 dark:text-white">
                                                     Notificaciones
                                                 </h3>
-                                                <p
-                                                    style={{
-                                                        margin: "0.15rem 0 0",
-                                                        fontSize: "0.75rem",
-                                                        color: "#718096",
-                                                    }}
-                                                >
+                                                <p className="m-0 mt-1 text-xs font-medium uppercase tracking-widest text-slate-400 dark:text-slate-500">
                                                     Mensajes y notificaciones de
                                                     cocina
                                                 </p>
@@ -1340,14 +1233,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                                     refetchKitchenNotifications();
                                                     refetchBroadcastMessages();
                                                 }}
-                                                style={{
-                                                    border: "none",
-                                                    backgroundColor:
-                                                        "transparent",
-                                                    color: "#4a5568",
-                                                    cursor: "pointer",
-                                                    fontSize: "1rem",
-                                                }}
+                                                className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-50 text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-800 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100"
                                                 title="Actualizar"
                                             >
                                                 ⟳
@@ -1355,264 +1241,178 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                         </div>
                                         {notificationsLoading ||
                                         broadcastMessagesLoading ? (
-                                            <div
-                                                style={{
-                                                    padding: "1rem",
-                                                    textAlign: "center",
-                                                    color: "#4a5568",
-                                                    fontSize: "0.85rem",
-                                                }}
-                                            >
+                                            <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                                                 Cargando notificaciones...
                                             </div>
                                         ) : visibleNotifications.length ===
                                           0 ? (
-                                            <div
-                                                style={{
-                                                    padding: "1rem",
-                                                    textAlign: "center",
-                                                    color: "#4a5568",
-                                                    fontSize: "0.85rem",
-                                                    backgroundColor: "#f7fafc",
-                                                    borderRadius: "10px",
-                                                }}
-                                            >
+                                            <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                                                 No tienes notificaciones
                                                 pendientes.
                                             </div>
                                         ) : (
-                                            visibleNotifications.map(
-                                                (notification: any) => {
-                                                    const isBroadcast =
-                                                        notification.type ===
-                                                        "broadcast";
-                                                    const chefName =
-                                                        notification?.preparedBy
-                                                            ?.fullName ||
-                                                        "Cocina";
-                                                    const tableName =
-                                                        notification?.operation
-                                                            ?.table?.name ||
-                                                        "Sin mesa";
-                                                    const productName =
-                                                        notification
-                                                            ?.operationDetail
-                                                            ?.productName;
-                                                    const quantity =
-                                                        notification
-                                                            ?.operationDetail
-                                                            ?.quantity;
-                                                    const senderName =
-                                                        notification?.sender
-                                                            ?.fullName ||
-                                                        "Usuario";
-                                                    const recipientsLabel =
-                                                        notification?.recipients ===
-                                                        "ALL"
-                                                            ? "Todos"
-                                                            : notification?.recipients ===
-                                                                "WAITERS"
-                                                              ? "Mozos"
-                                                              : notification?.recipients ===
-                                                                  "COOKS"
-                                                                ? "Cocineros"
+                                            <div className="space-y-3">
+                                                {visibleNotifications.map(
+                                                    (notification: any) => {
+                                                        const isBroadcast =
+                                                            notification.type ===
+                                                            "broadcast";
+                                                        const chefName =
+                                                            notification
+                                                                ?.preparedBy
+                                                                ?.fullName ||
+                                                            "Cocina";
+                                                        const tableName =
+                                                            notification
+                                                                ?.operation
+                                                                ?.table?.name ||
+                                                            "Sin mesa";
+                                                        const productName =
+                                                            notification
+                                                                ?.operationDetail
+                                                                ?.productName;
+                                                        const quantity =
+                                                            notification
+                                                                ?.operationDetail
+                                                                ?.quantity;
+                                                        const senderName =
+                                                            notification?.sender
+                                                                ?.fullName ||
+                                                            "Usuario";
+                                                        const recipientsLabel =
+                                                            notification?.recipients ===
+                                                            "ALL"
+                                                                ? "Todos"
                                                                 : notification?.recipients ===
-                                                                    "CASHIERS"
-                                                                  ? "Cajeros"
+                                                                    "WAITERS"
+                                                                  ? "Mozos"
                                                                   : notification?.recipients ===
-                                                                      "ADMINS"
-                                                                    ? "Administradores"
-                                                                    : notification?.recipients;
+                                                                      "COOKS"
+                                                                    ? "Cocineros"
+                                                                    : notification?.recipients ===
+                                                                        "CASHIERS"
+                                                                      ? "Cajeros"
+                                                                      : notification?.recipients ===
+                                                                          "ADMINS"
+                                                                        ? "Administradores"
+                                                                        : notification?.recipients;
 
-                                                    return (
-                                                        <div
-                                                            key={
-                                                                notification.id
-                                                            }
-                                                            style={{
-                                                                border: "1px solid #e2e8f0",
-                                                                borderRadius:
-                                                                    "10px",
-                                                                padding:
-                                                                    "0.75rem",
-                                                                marginBottom:
-                                                                    "0.5rem",
-                                                                backgroundColor:
+                                                        return (
+                                                            <div
+                                                                key={
+                                                                    notification.id
+                                                                }
+                                                                className={`rounded-xl border border-slate-200 p-4 text-sm ${
                                                                     isBroadcast
-                                                                        ? "#eff6ff"
-                                                                        : "#fdf2f8",
-                                                                position:
-                                                                    "relative",
-                                                            }}
-                                                        >
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    if (
-                                                                        isBroadcast
-                                                                    ) {
-                                                                        handleMarkMessageRead(
+                                                                        ? "bg-blue-50/80 dark:bg-blue-900/10"
+                                                                        : "bg-rose-50/80 dark:bg-rose-900/10"
+                                                                } dark:border-slate-700`}
+                                                            >
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (
+                                                                            isBroadcast
+                                                                        ) {
+                                                                            handleMarkMessageRead(
+                                                                                notification.id,
+                                                                            );
+                                                                        }
+                                                                        handleDismissNotification(
                                                                             notification.id,
                                                                         );
+                                                                    }}
+                                                                    className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-all duration-200 hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+                                                                    aria-label={
+                                                                        isBroadcast
+                                                                            ? "Marcar como leído y ocultar"
+                                                                            : "Ocultar notificación"
                                                                     }
-                                                                    handleDismissNotification(
-                                                                        notification.id,
-                                                                    );
-                                                                }}
-                                                                style={{
-                                                                    position:
-                                                                        "absolute",
-                                                                    top: "8px",
-                                                                    right: "8px",
-                                                                    border: "none",
-                                                                    backgroundColor:
-                                                                        "transparent",
-                                                                    color: "#a0aec0",
-                                                                    cursor: "pointer",
-                                                                    fontSize:
-                                                                        "1rem",
-                                                                    fontWeight: 700,
-                                                                    lineHeight: 1,
-                                                                }}
-                                                                aria-label={
-                                                                    isBroadcast
-                                                                        ? "Marcar como leído y ocultar"
-                                                                        : "Ocultar notificación"
-                                                                }
-                                                                title={
-                                                                    isBroadcast
-                                                                        ? "Marcar como leído y ocultar"
-                                                                        : "Ocultar notificación"
-                                                                }
-                                                            >
-                                                                ×
-                                                            </button>
-                                                            <div
-                                                                style={{
-                                                                    display:
-                                                                        "flex",
-                                                                    alignItems:
-                                                                        "flex-start",
-                                                                    gap: "0.75rem",
-                                                                }}
-                                                            >
-                                                                <div
-                                                                    style={{
-                                                                        width: "36px",
-                                                                        height: "36px",
-                                                                        borderRadius:
-                                                                            "9999px",
-                                                                        backgroundColor:
-                                                                            isBroadcast
-                                                                                ? "#bfdbfe"
-                                                                                : "#fbb6ce",
-                                                                        display:
-                                                                            "flex",
-                                                                        alignItems:
-                                                                            "center",
-                                                                        justifyContent:
-                                                                            "center",
-                                                                        fontSize:
-                                                                            "1.1rem",
-                                                                    }}
+                                                                    title={
+                                                                        isBroadcast
+                                                                            ? "Marcar como leído y ocultar"
+                                                                            : "Ocultar notificación"
+                                                                    }
                                                                 >
-                                                                    {isBroadcast
-                                                                        ? "💬"
-                                                                        : "🍽️"}
-                                                                </div>
-                                                                <div
-                                                                    style={{
-                                                                        flex: 1,
-                                                                    }}
-                                                                >
-                                                                    <p
-                                                                        style={{
-                                                                            margin: 0,
-                                                                            fontSize:
-                                                                                "0.9rem",
-                                                                            fontWeight: 600,
-                                                                            color: "#2d3748",
-                                                                        }}
-                                                                    >
-                                                                        {
-                                                                            notification.message
-                                                                        }
-                                                                    </p>
+                                                                    ×
+                                                                </button>
+                                                                <div className="flex items-start gap-3">
                                                                     <div
-                                                                        style={{
-                                                                            marginTop:
-                                                                                "0.35rem",
-                                                                            display:
-                                                                                "flex",
-                                                                            flexDirection:
-                                                                                "column",
-                                                                            gap: "0.25rem",
-                                                                            fontSize:
-                                                                                "0.75rem",
-                                                                            color: "#4a5568",
-                                                                        }}
+                                                                        className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg ${
+                                                                            isBroadcast
+                                                                                ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                                                                                : "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400"
+                                                                        }`}
                                                                     >
-                                                                        {isBroadcast ? (
-                                                                            <>
-                                                                                <span>
-                                                                                    👤
-                                                                                    De:{" "}
-                                                                                    {
-                                                                                        senderName
-                                                                                    }
-                                                                                </span>
-                                                                                <span>
-                                                                                    📢
-                                                                                    Para:{" "}
-                                                                                    {
-                                                                                        recipientsLabel
-                                                                                    }
-                                                                                </span>
-                                                                            </>
-                                                                        ) : (
-                                                                            <>
-                                                                                <span>
-                                                                                    👨‍🍳{" "}
-                                                                                    {
-                                                                                        chefName
-                                                                                    }
-                                                                                </span>
-                                                                                <span>
-                                                                                    🪑
-                                                                                    Mesa{" "}
-                                                                                    {
-                                                                                        tableName
-                                                                                    }
-                                                                                </span>
-                                                                                {productName && (
+                                                                        {isBroadcast
+                                                                            ? "💬"
+                                                                            : "🍽️"}
+                                                                    </div>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <p className="m-0 font-semibold text-slate-900 dark:text-white">
+                                                                            {
+                                                                                notification.message
+                                                                            }
+                                                                        </p>
+                                                                        <div className="mt-2 flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-400">
+                                                                            {isBroadcast ? (
+                                                                                <>
                                                                                     <span>
-                                                                                        🧾{" "}
-                                                                                        {quantity
-                                                                                            ? `${quantity}× `
-                                                                                            : ""}
+                                                                                        👤
+                                                                                        De:{" "}
                                                                                         {
-                                                                                            productName
+                                                                                            senderName
                                                                                         }
                                                                                     </span>
-                                                                                )}
-                                                                            </>
-                                                                        )}
-                                                                        <span
-                                                                            style={{
-                                                                                color: "#a0aec0",
-                                                                            }}
-                                                                        >
-                                                                            {formatRelativeTime(
-                                                                                notification?.createdAt,
+                                                                                    <span>
+                                                                                        📢
+                                                                                        Para:{" "}
+                                                                                        {
+                                                                                            recipientsLabel
+                                                                                        }
+                                                                                    </span>
+                                                                                </>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <span>
+                                                                                        👨‍🍳{" "}
+                                                                                        {
+                                                                                            chefName
+                                                                                        }
+                                                                                    </span>
+                                                                                    <span>
+                                                                                        🪑
+                                                                                        Mesa{" "}
+                                                                                        {
+                                                                                            tableName
+                                                                                        }
+                                                                                    </span>
+                                                                                    {productName && (
+                                                                                        <span>
+                                                                                            🧾{" "}
+                                                                                            {quantity
+                                                                                                ? `${quantity}× `
+                                                                                                : ""}
+                                                                                            {
+                                                                                                productName
+                                                                                            }
+                                                                                        </span>
+                                                                                    )}
+                                                                                </>
                                                                             )}
-                                                                        </span>
+                                                                            <span className="mt-1 text-slate-400 dark:text-slate-500">
+                                                                                {formatRelativeTime(
+                                                                                    notification?.createdAt,
+                                                                                )}
+                                                                            </span>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    );
-                                                },
-                                            )
+                                                        );
+                                                    },
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 </>
@@ -1623,37 +1423,13 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 
                 {/* Contenido */}
                 <main
-                    style={{
-                        flex: 1,
-                        padding:
-                            currentView === "cash" || currentView === "delivery"
-                                ? "0.25rem"
-                                : currentView === "dashboard"
-                                  ? isSmall
-                                      ? "1rem"
-                                      : isMedium
-                                        ? "1.5rem"
-                                        : "2rem"
-                                  : isSmall
-                                    ? "0.75rem"
-                                    : isMedium
-                                      ? "0.875rem"
-                                      : "1rem",
-                        backgroundColor: "#f8fafc",
-                        overflowY:
-                            currentView === "cash" || currentView === "delivery"
-                                ? "hidden"
-                                : "auto",
-                        overflowX: "hidden",
-                        width: "100%",
-                        maxWidth: "100%",
-                        boxSizing: "border-box",
-                        display: "flex",
-                        flexDirection: "column",
-                        minHeight: 0,
-                        minWidth: 0,
-                        position: "relative",
-                    }}
+                    className={`flex flex-1 flex-col overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 ${
+                        currentView === "cash" || currentView === "delivery"
+                            ? "p-1 overflow-hidden"
+                            : currentView === "dashboard"
+                              ? "p-6 overflow-y-auto"
+                              : "p-4 overflow-y-auto"
+                    }`}
                 >
                     {currentView === "dashboard" && children}
                     {currentView === "floors" && (
@@ -1695,62 +1471,15 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                     {currentView === "kardex" && <Kardex />}
                     {currentView === "purchase" && <Purchase />}
                     {currentView === "reports" && (
-                        <div
-                            style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                height: "100%",
-                                gap: isSmall
-                                    ? "1rem"
-                                    : isMedium
-                                      ? "1.25rem"
-                                      : "1.5rem",
-                            }}
-                        >
-                            <div
-                                style={{
-                                    display: "flex",
-                                    flexWrap: "wrap",
-                                    gap: isSmall ? "0.375rem" : "0.5rem",
-                                    background: "white",
-                                    padding: isSmall ? "0.375rem" : "0.5rem",
-                                    borderRadius: "12px",
-                                    width: "100%",
-                                    maxWidth: "100%",
-                                    boxSizing: "border-box",
-                                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                                }}
-                            >
+                        <div className="flex h-full flex-col gap-4">
+                            <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
                                 <button
                                     onClick={() => setReportType("sales")}
-                                    style={{
-                                        padding: isSmall
-                                            ? "0.375rem 0.75rem"
-                                            : isMedium
-                                              ? "0.45rem 1rem"
-                                              : "0.5rem 1.5rem",
-                                        borderRadius: "8px",
-                                        border: "none",
-                                        background:
-                                            reportType === "sales"
-                                                ? "#667eea"
-                                                : "transparent",
-                                        color:
-                                            reportType === "sales"
-                                                ? "white"
-                                                : "#64748b",
-                                        cursor: "pointer",
-                                        fontWeight: 600,
-                                        fontSize: isSmall
-                                            ? "0.75rem"
-                                            : isMedium
-                                              ? "0.8125rem"
-                                              : "0.875rem",
-                                        transition: "all 0.2s ease",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                    }}
+                                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                        reportType === "sales"
+                                            ? "bg-indigo-600 text-white dark:bg-indigo-500"
+                                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
                                 >
                                     <span>📊</span>
                                     Ventas
@@ -1759,34 +1488,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     onClick={() =>
                                         setReportType("cancellation")
                                     }
-                                    style={{
-                                        padding: isSmall
-                                            ? "0.375rem 0.75rem"
-                                            : isMedium
-                                              ? "0.45rem 1rem"
-                                              : "0.5rem 1.5rem",
-                                        borderRadius: "8px",
-                                        border: "none",
-                                        background:
-                                            reportType === "cancellation"
-                                                ? "#ef4444"
-                                                : "transparent",
-                                        color:
-                                            reportType === "cancellation"
-                                                ? "white"
-                                                : "#64748b",
-                                        cursor: "pointer",
-                                        fontWeight: 600,
-                                        fontSize: isSmall
-                                            ? "0.75rem"
-                                            : isMedium
-                                              ? "0.8125rem"
-                                              : "0.875rem",
-                                        transition: "all 0.2s ease",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                    }}
+                                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                        reportType === "cancellation"
+                                            ? "bg-red-600 text-white dark:bg-red-500"
+                                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
                                 >
                                     <span>🚫</span>
                                     Anulados
@@ -1795,34 +1501,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     onClick={() =>
                                         setReportType("productsSold")
                                     }
-                                    style={{
-                                        padding: isSmall
-                                            ? "0.375rem 0.75rem"
-                                            : isMedium
-                                              ? "0.45rem 1rem"
-                                              : "0.5rem 1.5rem",
-                                        borderRadius: "8px",
-                                        border: "none",
-                                        background:
-                                            reportType === "productsSold"
-                                                ? "#22c55e"
-                                                : "transparent",
-                                        color:
-                                            reportType === "productsSold"
-                                                ? "white"
-                                                : "#64748b",
-                                        cursor: "pointer",
-                                        fontWeight: 600,
-                                        fontSize: isSmall
-                                            ? "0.75rem"
-                                            : isMedium
-                                              ? "0.8125rem"
-                                              : "0.875rem",
-                                        transition: "all 0.2s ease",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                    }}
+                                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                        reportType === "productsSold"
+                                            ? "bg-green-600 text-white dark:bg-green-500"
+                                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
                                 >
                                     <span>🛒</span>
                                     Productos vendidos
@@ -1831,68 +1514,22 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     onClick={() =>
                                         setReportType("categorySales")
                                     }
-                                    style={{
-                                        padding: isSmall
-                                            ? "0.375rem 0.75rem"
-                                            : isMedium
-                                              ? "0.45rem 1rem"
-                                              : "0.5rem 1.5rem",
-                                        borderRadius: "8px",
-                                        border: "none",
-                                        background:
-                                            reportType === "categorySales"
-                                                ? "#3b82f6"
-                                                : "transparent",
-                                        color:
-                                            reportType === "categorySales"
-                                                ? "white"
-                                                : "#64748b",
-                                        cursor: "pointer",
-                                        fontWeight: 600,
-                                        fontSize: isSmall
-                                            ? "0.75rem"
-                                            : isMedium
-                                              ? "0.8125rem"
-                                              : "0.875rem",
-                                        transition: "all 0.2s ease",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                    }}
+                                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                        reportType === "categorySales"
+                                            ? "bg-blue-600 text-white dark:bg-blue-500"
+                                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
                                 >
                                     <span>📂</span>
                                     Por categoría
                                 </button>
                                 <button
                                     onClick={() => setReportType("employees")}
-                                    style={{
-                                        padding: isSmall
-                                            ? "0.375rem 0.75rem"
-                                            : isMedium
-                                              ? "0.45rem 1rem"
-                                              : "0.5rem 1.5rem",
-                                        borderRadius: "8px",
-                                        border: "none",
-                                        background:
-                                            reportType === "employees"
-                                                ? "#f59e0b"
-                                                : "transparent",
-                                        color:
-                                            reportType === "employees"
-                                                ? "white"
-                                                : "#64748b",
-                                        cursor: "pointer",
-                                        fontWeight: 600,
-                                        fontSize: isSmall
-                                            ? "0.75rem"
-                                            : isMedium
-                                              ? "0.8125rem"
-                                              : "0.875rem",
-                                        transition: "all 0.2s ease",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                    }}
+                                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                        reportType === "employees"
+                                            ? "bg-amber-500 text-white"
+                                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
                                 >
                                     <span>👤</span>
                                     Empleados
@@ -1912,58 +1549,17 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                         </div>
                     )}
                     {currentView === "configuration" && (
-                        <div
-                            style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: isSmall ? "0.75rem" : "1rem",
-                            }}
-                        >
-                            <div
-                                style={{
-                                    display: "flex",
-                                    flexWrap: "wrap",
-                                    gap: isSmall ? "0.375rem" : "0.5rem",
-                                    background: "white",
-                                    padding: isSmall ? "0.375rem" : "0.5rem",
-                                    borderRadius: "12px",
-                                    width: "100%",
-                                    boxSizing: "border-box",
-                                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                                }}
-                            >
+                        <div className="flex flex-col gap-4">
+                            <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
                                 <button
                                     onClick={() =>
                                         setConfigurationTab("category")
                                     }
-                                    style={{
-                                        padding: isSmall
-                                            ? "0.375rem 0.75rem"
-                                            : isMedium
-                                              ? "0.45rem 1rem"
-                                              : "0.5rem 1.5rem",
-                                        borderRadius: "8px",
-                                        border: "none",
-                                        background:
-                                            configurationTab === "category"
-                                                ? "#6366f1"
-                                                : "transparent",
-                                        color:
-                                            configurationTab === "category"
-                                                ? "white"
-                                                : "#64748b",
-                                        cursor: "pointer",
-                                        fontWeight: 600,
-                                        fontSize: isSmall
-                                            ? "0.75rem"
-                                            : isMedium
-                                              ? "0.8125rem"
-                                              : "0.875rem",
-                                        transition: "all 0.2s ease",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                    }}
+                                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                        configurationTab === "category"
+                                            ? "bg-violet-600 text-white dark:bg-violet-500"
+                                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
                                 >
                                     <span>📁</span>
                                     Categoría
@@ -1972,34 +1568,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     onClick={() =>
                                         setConfigurationTab("subcategory")
                                     }
-                                    style={{
-                                        padding: isSmall
-                                            ? "0.375rem 0.75rem"
-                                            : isMedium
-                                              ? "0.45rem 1rem"
-                                              : "0.5rem 1.5rem",
-                                        borderRadius: "8px",
-                                        border: "none",
-                                        background:
-                                            configurationTab === "subcategory"
-                                                ? "#3b82f6"
-                                                : "transparent",
-                                        color:
-                                            configurationTab === "subcategory"
-                                                ? "white"
-                                                : "#64748b",
-                                        cursor: "pointer",
-                                        fontWeight: 600,
-                                        fontSize: isSmall
-                                            ? "0.75rem"
-                                            : isMedium
-                                              ? "0.8125rem"
-                                              : "0.875rem",
-                                        transition: "all 0.2s ease",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                    }}
+                                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                        configurationTab === "subcategory"
+                                            ? "bg-blue-600 text-white dark:bg-blue-500"
+                                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
                                 >
                                     <span>🗂️</span>
                                     Subcategoría
@@ -2008,34 +1581,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     onClick={() =>
                                         setConfigurationTab("observation")
                                     }
-                                    style={{
-                                        padding: isSmall
-                                            ? "0.375rem 0.75rem"
-                                            : isMedium
-                                              ? "0.45rem 1rem"
-                                              : "0.5rem 1.5rem",
-                                        borderRadius: "8px",
-                                        border: "none",
-                                        background:
-                                            configurationTab === "observation"
-                                                ? "#8b5cf6"
-                                                : "transparent",
-                                        color:
-                                            configurationTab === "observation"
-                                                ? "white"
-                                                : "#64748b",
-                                        cursor: "pointer",
-                                        fontWeight: 600,
-                                        fontSize: isSmall
-                                            ? "0.75rem"
-                                            : isMedium
-                                              ? "0.8125rem"
-                                              : "0.875rem",
-                                        transition: "all 0.2s ease",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                    }}
+                                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                        configurationTab === "observation"
+                                            ? "bg-purple-600 text-white dark:bg-purple-500"
+                                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
                                 >
                                     <span>📝</span>
                                     Observaciones
@@ -2044,34 +1594,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     onClick={() =>
                                         setConfigurationTab("printers")
                                     }
-                                    style={{
-                                        padding: isSmall
-                                            ? "0.375rem 0.75rem"
-                                            : isMedium
-                                              ? "0.45rem 1rem"
-                                              : "0.5rem 1.5rem",
-                                        borderRadius: "8px",
-                                        border: "none",
-                                        background:
-                                            configurationTab === "printers"
-                                                ? "#0d9488"
-                                                : "transparent",
-                                        color:
-                                            configurationTab === "printers"
-                                                ? "white"
-                                                : "#64748b",
-                                        cursor: "pointer",
-                                        fontWeight: 600,
-                                        fontSize: isSmall
-                                            ? "0.75rem"
-                                            : isMedium
-                                              ? "0.8125rem"
-                                              : "0.875rem",
-                                        transition: "all 0.2s ease",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                    }}
+                                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                        configurationTab === "printers"
+                                            ? "bg-teal-600 text-white dark:bg-teal-500"
+                                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
                                 >
                                     <span>🖨️</span>
                                     Impresoras
@@ -2080,36 +1607,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     onClick={() =>
                                         setConfigurationTab("local_printers")
                                     }
-                                    style={{
-                                        padding: isSmall
-                                            ? "0.375rem 0.75rem"
-                                            : isMedium
-                                              ? "0.45rem 1rem"
-                                              : "0.5rem 1.5rem",
-                                        borderRadius: "8px",
-                                        border: "none",
-                                        background:
-                                            configurationTab ===
-                                            "local_printers"
-                                                ? "#0369a1"
-                                                : "transparent",
-                                        color:
-                                            configurationTab ===
-                                            "local_printers"
-                                                ? "white"
-                                                : "#64748b",
-                                        cursor: "pointer",
-                                        fontWeight: 600,
-                                        fontSize: isSmall
-                                            ? "0.75rem"
-                                            : isMedium
-                                              ? "0.8125rem"
-                                              : "0.875rem",
-                                        transition: "all 0.2s ease",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                    }}
+                                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                        configurationTab === "local_printers"
+                                            ? "bg-sky-700 text-white"
+                                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
                                 >
                                     <span>💻</span>
                                     Impresoras del equipo
@@ -2118,34 +1620,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     onClick={() =>
                                         setConfigurationTab("floors_tables")
                                     }
-                                    style={{
-                                        padding: isSmall
-                                            ? "0.375rem 0.75rem"
-                                            : isMedium
-                                              ? "0.45rem 1rem"
-                                              : "0.5rem 1.5rem",
-                                        borderRadius: "8px",
-                                        border: "none",
-                                        background:
-                                            configurationTab === "floors_tables"
-                                                ? "#059669"
-                                                : "transparent",
-                                        color:
-                                            configurationTab === "floors_tables"
-                                                ? "white"
-                                                : "#64748b",
-                                        cursor: "pointer",
-                                        fontWeight: 600,
-                                        fontSize: isSmall
-                                            ? "0.75rem"
-                                            : isMedium
-                                              ? "0.8125rem"
-                                              : "0.875rem",
-                                        transition: "all 0.2s ease",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                    }}
+                                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                        configurationTab === "floors_tables"
+                                            ? "bg-emerald-600 text-white"
+                                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
                                 >
                                     <span>🪑</span>
                                     Pisos y Mesas
@@ -2153,43 +1632,18 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                             </div>
 
                             {configurationTab === "floors_tables" && (
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        gap: "1rem",
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            gap: "0.5rem",
-                                            flexWrap: "wrap",
-                                        }}
-                                    >
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex flex-wrap gap-2">
                                         <button
                                             type="button"
                                             onClick={() =>
                                                 setFloorsTablesSubTab("floors")
                                             }
-                                            style={{
-                                                padding: "0.5rem 1rem",
-                                                borderRadius: "8px",
-                                                border: "none",
-                                                background:
-                                                    floorsTablesSubTab ===
-                                                    "floors"
-                                                        ? "#059669"
-                                                        : "#e5e7eb",
-                                                color:
-                                                    floorsTablesSubTab ===
-                                                    "floors"
-                                                        ? "white"
-                                                        : "#4b5563",
-                                                cursor: "pointer",
-                                                fontWeight: 600,
-                                                fontSize: "0.875rem",
-                                            }}
+                                            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                                floorsTablesSubTab === "floors"
+                                                    ? "bg-emerald-600 text-white"
+                                                    : "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+                                            }`}
                                         >
                                             Pisos
                                         </button>
@@ -2198,24 +1652,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                             onClick={() =>
                                                 setFloorsTablesSubTab("tables")
                                             }
-                                            style={{
-                                                padding: "0.5rem 1rem",
-                                                borderRadius: "8px",
-                                                border: "none",
-                                                background:
-                                                    floorsTablesSubTab ===
-                                                    "tables"
-                                                        ? "#059669"
-                                                        : "#e5e7eb",
-                                                color:
-                                                    floorsTablesSubTab ===
-                                                    "tables"
-                                                        ? "white"
-                                                        : "#4b5563",
-                                                cursor: "pointer",
-                                                fontWeight: 600,
-                                                fontSize: "0.875rem",
-                                            }}
+                                            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                                floorsTablesSubTab === "tables"
+                                                    ? "bg-emerald-600 text-white"
+                                                    : "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+                                            }`}
                                         >
                                             Mesas
                                         </button>

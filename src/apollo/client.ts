@@ -37,6 +37,15 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
                 localStorage.removeItem("refreshToken");
                 localStorage.removeItem("userData");
                 localStorage.removeItem("userPhoto");
+                
+                // Disparar un evento storage manualmente para que la misma pestaña lo escuche
+                window.dispatchEvent(new StorageEvent('storage', {
+                    key: null,
+                    newValue: null,
+                    oldValue: null,
+                    storageArea: localStorage,
+                    url: window.location.href
+                }));
             }
         });
     }

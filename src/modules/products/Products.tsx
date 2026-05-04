@@ -104,10 +104,10 @@ const Products: React.FC = () => {
     if (!branchId) {
         return (
             <div
+                className="rounded-lg border border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300"
                 style={{
                     padding: "2rem",
                     textAlign: "center",
-                    color: "#dc2626",
                 }}
             >
                 No se encontró información de la sucursal. Por favor, inicia
@@ -118,6 +118,7 @@ const Products: React.FC = () => {
 
     return (
         <div
+            className="relative flex w-full max-w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm dark:border-slate-700 dark:bg-slate-900"
             style={{
                 flexShrink: 0,
                 minHeight: "100%",
@@ -126,79 +127,43 @@ const Products: React.FC = () => {
                 display: "flex",
                 flexDirection: "column",
                 gap: containerGap,
-                background:
-                    "linear-gradient(160deg, #f0f4ff 0%, #f9fafb 45%, #ffffff 100%)",
                 padding: containerPadding,
-                borderRadius: "18px",
-                boxShadow: "0 25px 50px -12px rgba(15,23,42,0.18)",
                 position: "relative",
                 overflow: "hidden",
                 boxSizing: "border-box",
             }}
         >
-            {/* Elementos decorativos de fondo */}
-            <div
-                style={{
-                    position: "absolute",
-                    top: "-120px",
-                    right: "-120px",
-                    width: "260px",
-                    height: "260px",
-                    background:
-                        "radial-gradient(circle at center, rgba(102,126,234,0.25), transparent 70%)",
-                    filter: "blur(2px)",
-                    zIndex: 0,
-                }}
-            />
-            <div
-                style={{
-                    position: "absolute",
-                    bottom: "-80px",
-                    left: "-80px",
-                    width: "220px",
-                    height: "220px",
-                    background:
-                        "radial-gradient(circle at center, rgba(72,219,251,0.18), transparent 70%)",
-                    filter: "blur(2px)",
-                    zIndex: 0,
-                }}
-            />
-
             {/* Contenido principal */}
             <div style={{ position: "relative", zIndex: 1 }}>
                 {/* Header */}
                 <div
+                    className="mb-4 flex flex-wrap items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
                     style={{
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: isXs || isSmall ? "flex-start" : "center",
                         flexDirection: isXs || isSmall ? "column" : "row",
-                        marginBottom:
-                            isXs || isSmall
-                                ? "1rem"
-                                : isMedium
-                                  ? "1.5rem"
-                                  : "2rem",
+                        marginBottom: 0,
                         flexWrap:
                             isXs || isSmall || isMedium ? "wrap" : "nowrap",
-                        gap: isXs || isSmall || isMedium ? "1rem" : "0",
+                        gap: isXs || isSmall || isMedium ? "1rem" : "0.75rem",
                     }}
                 >
                     <div>
                         <h2
+                            className="text-slate-800 dark:text-slate-100"
                             style={{
                                 margin: 0,
                                 fontSize: titleFontSize,
                                 fontWeight: 700,
-                                color: "#1e293b",
                             }}
                         >
-                            🍽️ Gestión de Productos
+                            Gestion de Productos
                         </h2>
                         <p
+                            className="text-slate-500 dark:text-slate-400"
                             style={{
                                 margin: "0.25rem 0 0",
-                                color: "#64748b",
                                 fontSize: subtitleFontSize,
                             }}
                         >
@@ -207,20 +172,12 @@ const Products: React.FC = () => {
                     </div>
                     <button
                         onClick={() => setShowCreateModal(true)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-600 text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-indigo-500 dark:border-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400"
                         style={{
                             padding: buttonPadding,
-                            background:
-                                "linear-gradient(135deg, #667eea, #764ba2)",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "10px",
                             fontWeight: 600,
                             cursor: "pointer",
                             fontSize: buttonFontSize,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            transition: "all 0.2s ease",
                         }}
                     >
                         + Nuevo Producto

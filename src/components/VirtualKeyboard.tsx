@@ -165,6 +165,12 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
         boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
         transition: "all 0.15s ease",
     };
+    const keyClassName =
+        "inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-800 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700";
+    const specialKeyClassName =
+        "inline-flex items-center justify-center rounded-lg border border-slate-300 bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600";
+    const closeBtnClassName =
+        "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700";
 
     const specialKeyStyle: React.CSSProperties = {
         ...keyStyle,
@@ -219,7 +225,10 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 
     if (showNumbers) {
         return (
-            <div style={containerStyle}>
+            <div
+                className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
+                style={containerStyle}
+            >
                 {onClose && (
                     <div
                         style={{
@@ -231,18 +240,9 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                         <button
                             type="button"
                             onClick={onClose}
-                            style={{
-                                background: "#ef4444",
-                                color: "white",
-                                border: "none",
-                                padding: "0.4rem 0.8rem",
-                                borderRadius: "0.5rem",
-                                fontWeight: "bold",
-                                cursor: "pointer",
-                                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                            }}
+                            className={closeBtnClassName}
                         >
-                            ✕ Cerrar
+                            Cerrar
                         </button>
                     </div>
                 )}
@@ -252,6 +252,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                             key={k}
                             type="button"
                             onClick={() => handleKey(k)}
+                            className={keyClassName}
                             style={keyStyle}
                             onMouseDown={(e) => e.preventDefault()}
                         >
@@ -265,6 +266,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                             key={k}
                             type="button"
                             onClick={() => handleKey(k)}
+                            className={keyClassName}
                             style={keyStyle}
                             onMouseDown={(e) => e.preventDefault()}
                         >
@@ -276,6 +278,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                     <button
                         type="button"
                         onClick={() => setShowNumbers(false)}
+                        className={specialKeyClassName}
                         style={specialKeyStyle}
                         onMouseDown={(e) => e.preventDefault()}
                     >
@@ -284,6 +287,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                     <button
                         type="button"
                         onClick={() => handleKey(" ")}
+                        className={specialKeyClassName}
                         style={spaceKeyStyle}
                         onMouseDown={(e) => e.preventDefault()}
                     >
@@ -293,6 +297,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                         <button
                             type="button"
                             onClick={() => handleKey("↵")}
+                            className={specialKeyClassName}
                             style={enterKeyStyle}
                             onMouseDown={(e) => e.preventDefault()}
                         >
@@ -313,6 +318,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                         }}
                         onTouchEnd={handleBackspaceEnd}
                         onContextMenu={(e) => e.preventDefault()}
+                        className={specialKeyClassName}
                         style={specialKeyStyle}
                     >
                         ⌫
@@ -323,7 +329,10 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
     }
 
     return (
-        <div style={containerStyle}>
+        <div
+            className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
+            style={containerStyle}
+        >
             {onClose && (
                 <div
                     style={{
@@ -335,18 +344,9 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                     <button
                         type="button"
                         onClick={onClose}
-                        style={{
-                            background: "#ef4444",
-                            color: "white",
-                            border: "none",
-                            padding: "0.4rem 0.8rem",
-                            borderRadius: "0.5rem",
-                            fontWeight: "bold",
-                            cursor: "pointer",
-                            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                        }}
+                        className={closeBtnClassName}
                     >
-                        ✕ Cerrar
+                        Cerrar
                     </button>
                 </div>
             )}
@@ -356,6 +356,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                         key={k}
                         type="button"
                         onClick={() => handleKey(k)}
+                        className={keyClassName}
                         style={keyStyle}
                         onMouseDown={(e) => e.preventDefault()}
                     >
@@ -371,6 +372,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                         key={k}
                         type="button"
                         onClick={() => handleKey(k)}
+                        className={keyClassName}
                         style={keyStyle}
                         onMouseDown={(e) => e.preventDefault()}
                     >
@@ -395,6 +397,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                     }}
                     onTouchEnd={handleShiftEnd}
                     onContextMenu={(e) => e.preventDefault()}
+                    className={specialKeyClassName}
                     style={{
                         ...specialKeyStyle,
                         background: isCapsLock
@@ -427,6 +430,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                         key={k}
                         type="button"
                         onClick={() => handleKey(k)}
+                        className={keyClassName}
                         style={keyStyle}
                         onMouseDown={(e) => e.preventDefault()}
                     >
@@ -450,6 +454,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                     }}
                     onTouchEnd={handleBackspaceEnd}
                     onContextMenu={(e) => e.preventDefault()}
+                    className={specialKeyClassName}
                     style={specialKeyStyle}
                 >
                     ⌫
@@ -459,6 +464,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                 <button
                     type="button"
                     onClick={() => setShowNumbers(true)}
+                    className={specialKeyClassName}
                     style={specialKeyStyle}
                     onMouseDown={(e) => e.preventDefault()}
                 >
@@ -467,6 +473,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                 <button
                     type="button"
                     onClick={() => handleKey(" ")}
+                    className={specialKeyClassName}
                     style={spaceKeyStyle}
                     onMouseDown={(e) => e.preventDefault()}
                 >
@@ -476,6 +483,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                     <button
                         type="button"
                         onClick={() => handleKey("↵")}
+                        className={specialKeyClassName}
                         style={enterKeyStyle}
                         onMouseDown={(e) => e.preventDefault()}
                     >

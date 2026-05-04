@@ -154,12 +154,14 @@ const Order: React.FC<OrderProps> = ({
           ? "0.625rem"
           : "0.75rem";
     const breadcrumbBtnRadius = isXs ? "8px" : isSmall ? "10px" : "12px";
-    /** Ancho máximo en migas de pan: nombre largo con puntos suspensivos (ver título al hover) */
+    /** Ancho máximo en migas de pan: más flexible para evitar recortes agresivos */
     const breadcrumbLabelMaxWidth = isXs
-        ? "6rem"
+        ? "9rem"
         : isSmall
-          ? "7.5rem"
-          : "11rem";
+          ? "12rem"
+          : isMedium
+            ? "16rem"
+            : "22rem";
 
     // Función para verificar si el usuario puede acceder a esta mesa (por permisos)
     const canAccessTable = (): { canAccess: boolean; reason?: string } => {
@@ -396,8 +398,7 @@ const Order: React.FC<OrderProps> = ({
     } else if (selectedCategory) {
         if (subcategoriesLoading || awaitingSubcategoryPick) {
             products = [];
-            productsLoading =
-                subcategoriesLoading || productsByCategoryLoading;
+            productsLoading = subcategoriesLoading || productsByCategoryLoading;
         } else {
             products = productsByCategoryData?.productsByCategory;
             productsLoading = productsByCategoryLoading;
@@ -443,9 +444,9 @@ const Order: React.FC<OrderProps> = ({
     /** Una sola sub activa → pasar directo a productos filtrados por esa sub */
     useEffect(() => {
         if (!selectedCategory || subcategoriesLoading) return;
-        const subs = (
-            subcategoriesData?.subcategoriesByCategory || []
-        ).filter((s: any) => s.isActive !== false);
+        const subs = (subcategoriesData?.subcategoriesByCategory || []).filter(
+            (s: any) => s.isActive !== false,
+        );
         if (subs.length === 1) {
             setSelectedSubcategory(String(subs[0].id));
         }
@@ -1593,141 +1594,35 @@ const Order: React.FC<OrderProps> = ({
 					background: #64748b;
 				}
 			`}</style>
-            <div
-                style={{
-                    background: "white",
-                    width: "100vw",
-                    height: "100vh",
-                    overflow: "hidden",
-                    display: "flex",
-                    flexDirection: "column",
-                    position: "relative",
-                }}
-            >
+            <div className="flex h-full w-full flex-col overflow-hidden bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
                 {/* Header */}
-                <div
-                    style={{
-                        background: "linear-gradient(135deg, #667eea, #764ba2)",
-                        padding: isSmall
-                            ? "0.5rem 0.75rem 0.3rem 0.75rem"
-                            : isMedium
-                              ? "0.75rem 1rem 0.4rem 1rem"
-                              : "1rem 1.25rem 0.4rem 1.25rem",
-                        color: "white",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        flexWrap: "wrap",
-                        gap: isSmall ? "0.5rem" : "0.75rem",
-                    }}
-                >
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: isSmall ? "0.5rem" : "0.75rem",
-                            flexWrap: "wrap",
-                        }}
-                    >
-                        <div
-                            style={{
-                                backgroundColor: "rgba(255,255,255,0.15)",
-                                borderRadius: 12,
-                                padding: "0.35rem 0.75rem",
-                                fontWeight: 600,
-                                fontSize: isSmall
-                                    ? "0.75rem"
-                                    : isMedium
-                                      ? "0.875rem"
-                                      : "1.05rem",
-                            }}
-                        >
+                <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-4 text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                             Piso {resolvedFloorName ?? "—"}
                         </div>
-                        <span
-                            style={{
-                                opacity: 0.9,
-                                fontSize: isSmall ? "0.75rem" : "1.15rem",
-                            }}
-                        >
+                        <span className="text-slate-400 dark:text-slate-500">
                             •
                         </span>
-                        <div
-                            style={{
-                                backgroundColor: "rgba(255,255,255,0.15)",
-                                borderRadius: 12,
-                                padding: "0.35rem 0.75rem",
-                                fontWeight: 700,
-                                fontSize: isSmall
-                                    ? "0.8rem"
-                                    : isMedium
-                                      ? "0.95rem"
-                                      : "1.1rem",
-                            }}
-                        >
+                        <div className="flex items-center gap-2 rounded-xl bg-indigo-50 px-4 py-2 text-base font-bold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
                             Mesa {table.name.replace("MESA ", "")}
                         </div>
-                        <span
-                            style={{
-                                opacity: 0.9,
-                                fontSize: isSmall ? "0.75rem" : "1.15rem",
-                            }}
-                        >
+                        <span className="text-slate-400 dark:text-slate-500">
                             •
                         </span>
-                        <div
-                            style={{
-                                backgroundColor: "rgba(255,255,255,0.15)",
-                                borderRadius: 12,
-                                padding: "0.35rem 0.75rem",
-                                fontWeight: 600,
-                                fontSize: isSmall
-                                    ? "0.75rem"
-                                    : isMedium
-                                      ? "0.875rem"
-                                      : "1.05rem",
-                            }}
-                        >
+                        <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                             {headerWaiterName ?? "—"}
                         </div>
                     </div>
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: isSmall ? "0.5rem" : "0.65rem",
-                            flexWrap: "wrap",
-                        }}
-                    >
+                    <div className="flex flex-wrap items-center gap-3">
                         {onOpenCash && canNavigateToCashPay && (
                             <button
                                 type="button"
                                 onClick={handleOpenCashFromOrder}
-                                style={{
-                                    background: "rgba(255,255,255,0.95)",
-                                    border: "1px solid rgba(255,255,255,0.5)",
-                                    color: "#047857",
-                                    padding: isSmall
-                                        ? "0.4rem 0.75rem"
-                                        : isMedium
-                                          ? "0.5rem 1rem"
-                                          : "0.55rem 1.1rem",
-                                    borderRadius: isSmall ? "8px" : "10px",
-                                    cursor: "pointer",
-                                    fontWeight: 700,
-                                    fontSize: isSmall
-                                        ? "0.78rem"
-                                        : isMedium
-                                          ? "0.875rem"
-                                          : "0.95rem",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.35rem",
-                                    boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-                                }}
+                                className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition-all hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
                                 title="Ir a cobrar en Caja"
                             >
-                                <span aria-hidden>💵</span>
+                                <span>💵</span>
                                 Caja
                             </button>
                         )}
@@ -1740,53 +1635,15 @@ const Order: React.FC<OrderProps> = ({
                                     50,
                                 );
                             }}
-                            style={{
-                                background: "rgba(255,255,255,0.95)",
-                                border: "1px solid rgba(255,255,255,0.5)",
-                                color: "#4c1d95",
-                                padding: isSmall
-                                    ? "0.4rem 0.75rem"
-                                    : isMedium
-                                      ? "0.5rem 1rem"
-                                      : "0.55rem 1.1rem",
-                                borderRadius: isSmall ? "8px" : "10px",
-                                cursor: "pointer",
-                                fontWeight: 700,
-                                fontSize: isSmall
-                                    ? "0.78rem"
-                                    : isMedium
-                                      ? "0.875rem"
-                                      : "0.95rem",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.35rem",
-                                boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-                            }}
+                            className="flex items-center gap-2 rounded-xl bg-violet-50 px-4 py-2.5 text-sm font-bold text-violet-700 transition-all hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-400 dark:hover:bg-violet-900/30"
                             title="Mostrar teclado en pantalla"
                         >
-                            <span aria-hidden>⌨️</span>
+                            <span>⌨️</span>
                             Teclado virtual
                         </button>
                         <button
                             onClick={onClose}
-                            style={{
-                                background: "rgba(255,255,255,0.15)",
-                                border: "1px solid rgba(255,255,255,0.35)",
-                                color: "white",
-                                padding: isSmall
-                                    ? "0.45rem 1rem"
-                                    : isMedium
-                                      ? "0.55rem 1.25rem"
-                                      : "0.65rem 1.5rem",
-                                borderRadius: isSmall ? "8px" : "10px",
-                                cursor: "pointer",
-                                fontWeight: 700,
-                                fontSize: isSmall
-                                    ? "0.875rem"
-                                    : isMedium
-                                      ? "1rem"
-                                      : "1.125rem",
-                            }}
+                            className="rounded-xl border border-slate-200 bg-slate-50 px-6 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
                             Cerrar
                         </button>
@@ -1795,140 +1652,35 @@ const Order: React.FC<OrderProps> = ({
 
                 {/* Body */}
                 <div
+                    className="grid flex-1 gap-4 overflow-hidden p-4"
                     style={{
-                        display: "grid",
                         gridTemplateColumns:
                             isXs || isSmall || isMedium ? "1fr" : "1.5fr 1fr",
-                        gap: isXs
-                            ? "0.5rem"
-                            : isSmall
-                              ? "0.75rem"
-                              : isMedium
-                                ? "1rem"
-                                : "1.5rem",
-                        flex: 1,
-                        minHeight: 0,
-                        overflow: "hidden",
                     }}
                 >
-                    {/* Col izquierda: búsqueda y catálogo (como en delivery.tsx) */}
+                    {/* Col izquierda: búsqueda y catálogo */}
                     <div
-                        style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            overflow: "hidden",
-                            order: isXs || isSmall || isMedium ? 2 : 1,
-                        }}
+                        className="flex flex-col overflow-hidden"
+                        style={{ order: isXs || isSmall || isMedium ? 2 : 1 }}
                     >
                         {/* Búsqueda */}
-                        <div
-                            style={{
-                                background: "white",
-                                borderRadius: isSmall
-                                    ? "10px"
-                                    : isMedium
-                                      ? "12px"
-                                      : "14px",
-                                padding: isSmall
-                                    ? "0.45rem 0.75rem 0.4rem"
-                                    : isMedium
-                                      ? "0.5rem 0.85rem 0.45rem"
-                                      : "0.45rem 1rem 0.5rem",
-                                flexShrink: 0,
-                            }}
-                        >
-                            <div
-                                style={{
-                                    display: "flex",
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    flexWrap: "wrap",
-                                    gap:
-                                        isXs || isSmall
-                                            ? "0.5rem"
-                                            : isMedium
-                                              ? "0.55rem"
-                                              : "0.65rem",
-                                    rowGap:
-                                        isXs || isSmall ? "0.5rem" : "0.55rem",
-                                }}
-                            >
+                        <div className="mb-4 flex-shrink-0 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+                            <div className="flex flex-wrap items-center gap-3">
                                 <button
                                     type="button"
                                     onClick={() =>
                                         setSearchByCodeOnly((v) => !v)
                                     }
-                                    style={{
-                                        padding:
-                                            isXs || isSmall
-                                                ? "0.4rem 0.65rem"
-                                                : isMedium
-                                                  ? "0.4rem 0.75rem"
-                                                  : "0.45rem 0.85rem",
-                                        borderRadius: "8px",
-                                        border: "1px solid #e2e8f0",
-                                        backgroundColor: searchByCodeOnly
-                                            ? "#3b82f6"
-                                            : "white",
-                                        color: searchByCodeOnly
-                                            ? "white"
-                                            : "#64748b",
-                                        fontSize:
-                                            isXs || isSmall
-                                                ? "0.75rem"
-                                                : isMedium
-                                                  ? "0.8125rem"
-                                                  : "0.875rem",
-                                        fontWeight: 600,
-                                        cursor: "pointer",
-                                        whiteSpace: "nowrap",
-                                        flexShrink: 0,
-                                        touchAction: "manipulation",
-                                        minHeight: isXs || isSmall ? 40 : 36,
-                                    }}
+                                    className={`flex items-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-semibold transition-all duration-200 ${
+                                        searchByCodeOnly
+                                            ? "border-blue-500 bg-blue-600 text-white dark:border-blue-400 dark:bg-blue-500"
+                                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
                                 >
                                     Búsqueda solo código
                                 </button>
-                                {searchByCodeOnly && (
-                                    <span
-                                        style={{
-                                            fontSize:
-                                                isXs || isSmall
-                                                    ? "0.7rem"
-                                                    : "0.75rem",
-                                            color: "#64748b",
-                                            flexShrink: 0,
-                                            lineHeight: 1.25,
-                                            maxWidth:
-                                                isXs || isSmall
-                                                    ? "100%"
-                                                    : "12rem",
-                                        }}
-                                    ></span>
-                                )}
-                                <div
-                                    style={{
-                                        position: "relative",
-                                        flex: "1 1 11rem",
-                                        minWidth: 0,
-                                        width: "100%",
-                                        maxWidth: "100%",
-                                    }}
-                                >
-                                    <span
-                                        style={{
-                                            position: "absolute",
-                                            left: isXs || isSmall ? 12 : 14,
-                                            top: "50%",
-                                            transform: "translateY(-50%)",
-                                            opacity: 0.6,
-                                            fontSize:
-                                                isXs || isSmall
-                                                    ? "1.05rem"
-                                                    : "1.15rem",
-                                            pointerEvents: "none",
-                                        }}
-                                    >
+                                <div className="relative flex-1 min-w-0">
+                                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg opacity-60">
                                         🔎
                                     </span>
                                     <input
@@ -1955,28 +1707,7 @@ const Order: React.FC<OrderProps> = ({
                                                 );
                                             }
                                         }}
-                                        style={{
-                                            width: "100%",
-                                            boxSizing: "border-box",
-                                            padding:
-                                                isXs || isSmall
-                                                    ? "0.7rem 0.85rem 0.7rem 2.5rem"
-                                                    : isMedium
-                                                      ? "0.8rem 0.95rem 0.8rem 2.65rem"
-                                                      : "0.85rem 1rem 0.85rem 2.75rem",
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius:
-                                                isXs || isSmall ? 10 : 12,
-                                            fontSize:
-                                                isXs || isSmall
-                                                    ? "0.95rem"
-                                                    : isMedium
-                                                      ? "1rem"
-                                                      : "1.05rem",
-                                            minHeight:
-                                                isXs || isSmall ? 44 : 42,
-                                            touchAction: "manipulation",
-                                        }}
+                                        className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-base text-slate-900 outline-none transition-all duration-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                                     />
                                 </div>
                             </div>
@@ -1984,11 +1715,10 @@ const Order: React.FC<OrderProps> = ({
 
                         {/* Contenedor con breadcrumb + grid (como delivery) */}
                         <div
+                            className="border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
                             style={{
                                 flex: 1,
                                 minHeight: 0,
-                                background: "white",
-                                border: "1px solid #e2e8f0",
                                 borderRadius: isSmall
                                     ? "10px"
                                     : isMedium
@@ -1997,19 +1727,18 @@ const Order: React.FC<OrderProps> = ({
                                 display: "flex",
                                 flexDirection: "column",
                                 overflow: "hidden",
-                                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
                             }}
                         >
                             {/* Header: ruta como botones grandes (fácil de pulsar en salón) + Volver */}
                             <div
+                                className="border-b border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-900/70"
                                 style={{
                                     padding: isSmall ? "0.75rem" : "1rem",
-                                    borderBottom: "1px solid #f1f5f9",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "space-between",
                                     gap: "0.75rem",
-                                    flexWrap: "wrap",
+                                    flexWrap: "nowrap",
                                 }}
                             >
                                 <div
@@ -2019,17 +1748,20 @@ const Order: React.FC<OrderProps> = ({
                                         display: "flex",
                                         alignItems: "center",
                                         gap: isSmall ? "0.5rem" : "0.65rem",
-                                        flexWrap: "wrap",
+                                        flexWrap: "nowrap",
                                         minWidth: 0,
                                         flex: 1,
+                                        overflowX: "auto",
+                                        overflowY: "hidden",
+                                        whiteSpace: "nowrap",
                                     }}
                                 >
                                     {isSearching ? (
                                         <h3
+                                            className="text-slate-700 dark:text-slate-200"
                                             style={{
                                                 fontSize: breadcrumbFontSize,
                                                 fontWeight: "600",
-                                                color: "#2d3748",
                                                 margin: 0,
                                             }}
                                         >
@@ -2045,15 +1777,16 @@ const Order: React.FC<OrderProps> = ({
                                                         null,
                                                     );
                                                 }}
+                                                className={`inline-flex items-center justify-center border text-center transition-all duration-150 ${
+                                                    !selectedCategory
+                                                        ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-200"
+                                                        : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
+                                                }`}
                                                 style={{
                                                     minHeight:
                                                         breadcrumbBtnMinH,
                                                     padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-                                                    background:
-                                                        !selectedCategory
-                                                            ? "#e0e7ff"
-                                                            : "#ffffff",
-                                                    border: `2px solid ${!selectedCategory ? "#6366f1" : "#cbd5e1"}`,
+                                                    borderWidth: "1.5px",
                                                     borderRadius:
                                                         breadcrumbBtnRadius,
                                                     fontSize: breadcrumbBtnFont,
@@ -2061,15 +1794,9 @@ const Order: React.FC<OrderProps> = ({
                                                         !selectedCategory
                                                             ? 700
                                                             : 600,
-                                                    color: !selectedCategory
-                                                        ? "#312e81"
-                                                        : "#475569",
                                                     cursor: "pointer",
                                                     whiteSpace: "nowrap",
                                                     touchAction: "manipulation",
-                                                    boxShadow: !selectedCategory
-                                                        ? "0 2px 0 #4f46e5"
-                                                        : "0 1px 2px rgba(0,0,0,.06)",
                                                     lineHeight: 1.2,
                                                 }}
                                             >
@@ -2078,8 +1805,8 @@ const Order: React.FC<OrderProps> = ({
                                             {selectedCategory && (
                                                 <>
                                                     <span
+                                                        className="text-slate-400 dark:text-slate-500"
                                                         style={{
-                                                            color: "#94a3b8",
                                                             fontSize:
                                                                 breadcrumbBtnFont,
                                                             fontWeight: 700,
@@ -2103,15 +1830,16 @@ const Order: React.FC<OrderProps> = ({
                                                                 null,
                                                             )
                                                         }
+                                                        className={`inline-flex items-center justify-center border text-center transition-all duration-150 ${
+                                                            !selectedSubcategory
+                                                                ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-200"
+                                                                : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
+                                                        }`}
                                                         style={{
                                                             minHeight:
                                                                 breadcrumbBtnMinH,
                                                             padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-                                                            background:
-                                                                !selectedSubcategory
-                                                                    ? "#e0e7ff"
-                                                                    : "#ffffff",
-                                                            border: `2px solid ${!selectedSubcategory ? "#6366f1" : "#cbd5e1"}`,
+                                                            borderWidth: "1.5px",
                                                             borderRadius:
                                                                 breadcrumbBtnRadius,
                                                             fontSize:
@@ -2120,9 +1848,6 @@ const Order: React.FC<OrderProps> = ({
                                                                 !selectedSubcategory
                                                                     ? 700
                                                                     : 600,
-                                                            color: !selectedSubcategory
-                                                                ? "#312e81"
-                                                                : "#475569",
                                                             cursor: "pointer",
                                                             whiteSpace:
                                                                 "nowrap",
@@ -2130,15 +1855,12 @@ const Order: React.FC<OrderProps> = ({
                                                                 breadcrumbLabelMaxWidth,
                                                             minWidth: 0,
                                                             overflow: "hidden",
-                                                            textOverflow:
-                                                                "ellipsis",
                                                             touchAction:
                                                                 "manipulation",
-                                                            boxShadow:
-                                                                !selectedSubcategory
-                                                                    ? "0 2px 0 #4f46e5"
-                                                                    : "0 1px 2px rgba(0,0,0,.06)",
                                                             lineHeight: 1.2,
+                                                            textAlign: "center",
+                                                            textOverflow:
+                                                                "ellipsis",
                                                         }}
                                                     >
                                                         {categories.find(
@@ -2152,8 +1874,8 @@ const Order: React.FC<OrderProps> = ({
                                             {selectedSubcategory && (
                                                 <>
                                                     <span
+                                                        className="text-slate-400 dark:text-slate-500"
                                                         style={{
-                                                            color: "#94a3b8",
                                                             fontSize:
                                                                 breadcrumbBtnFont,
                                                             fontWeight: 700,
@@ -2171,34 +1893,29 @@ const Order: React.FC<OrderProps> = ({
                                                                     selectedSubcategory,
                                                             )?.name || undefined
                                                         }
+                                                        className="inline-flex items-center border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                                         style={{
                                                             minHeight:
                                                                 breadcrumbBtnMinH,
                                                             padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-                                                            display:
-                                                                "inline-flex",
-                                                            alignItems:
-                                                                "center",
-                                                            background:
-                                                                "#f1f5f9",
-                                                            border: "2px solid #94a3b8",
+                                                            borderWidth: "1.5px",
                                                             borderRadius:
                                                                 breadcrumbBtnRadius,
                                                             fontSize:
                                                                 breadcrumbBtnFont,
                                                             fontWeight: 700,
-                                                            color: "#0f172a",
                                                             whiteSpace:
                                                                 "nowrap",
                                                             maxWidth:
                                                                 breadcrumbLabelMaxWidth,
                                                             minWidth: 0,
                                                             overflow: "hidden",
-                                                            textOverflow:
-                                                                "ellipsis",
                                                             boxSizing:
                                                                 "border-box",
                                                             lineHeight: 1.2,
+                                                            textAlign: "center",
+                                                            textOverflow:
+                                                                "ellipsis",
                                                         }}
                                                     >
                                                         {subcategoriesOfCategory.find(
@@ -2213,6 +1930,28 @@ const Order: React.FC<OrderProps> = ({
                                         </>
                                     )}
                                 </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (selectedSubcategory) {
+                                            setSelectedSubcategory(null);
+                                            return;
+                                        }
+                                        if (selectedCategory) {
+                                            setSelectedCategory(null);
+                                            setSelectedSubcategory(null);
+                                        }
+                                    }}
+                                    disabled={
+                                        isSearching ||
+                                        (!selectedCategory &&
+                                            !selectedSubcategory)
+                                    }
+                                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition-all duration-150 hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
+                                    style={{ flexShrink: 0 }}
+                                >
+                                    Volver
+                                </button>
                             </div>
 
                             {/* Grid: categorías, subcategorías o productos */}
@@ -2228,10 +1967,8 @@ const Order: React.FC<OrderProps> = ({
                             >
                                 {productsLoading && showProductsInGrid ? (
                                     <div
+                                        className="rounded-xl border border-slate-200 bg-white/80 px-4 py-8 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400"
                                         style={{
-                                            textAlign: "center",
-                                            padding: "2rem",
-                                            color: "#718096",
                                             fontSize: isSmall
                                                 ? "0.8125rem"
                                                 : "0.875rem",
@@ -2250,14 +1987,7 @@ const Order: React.FC<OrderProps> = ({
                                         {/* Categorías */}
                                         {showCategoriesInGrid &&
                                             (categoriesLoading ? (
-                                                <div
-                                                    style={{
-                                                        gridColumn: "1 / -1",
-                                                        textAlign: "center",
-                                                        padding: "2rem",
-                                                        color: "#718096",
-                                                    }}
-                                                >
+                                                <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
                                                     Cargando categorías...
                                                 </div>
                                             ) : (
@@ -2273,73 +2003,9 @@ const Order: React.FC<OrderProps> = ({
                                                                     null,
                                                                 );
                                                             }}
-                                                            style={{
-                                                                backgroundColor:
-                                                                    "#ffffff",
-                                                                border: "1px solid #e2e8f0",
-                                                                borderRadius:
-                                                                    isSmall
-                                                                        ? "10px"
-                                                                        : "12px",
-                                                                padding:
-                                                                    gridPadding,
-                                                                cursor: "pointer",
-                                                                transition:
-                                                                    "all 0.2s ease",
-                                                                display: "flex",
-                                                                flexDirection:
-                                                                    "column",
-                                                                alignItems:
-                                                                    "center",
-                                                                justifyContent:
-                                                                    "center",
-                                                                minHeight:
-                                                                    isSmall
-                                                                        ? "90px"
-                                                                        : isMedium
-                                                                          ? "105px"
-                                                                          : "120px",
-                                                                boxShadow:
-                                                                    "0 1px 3px rgba(0,0,0,0.05)",
-                                                            }}
-                                                            onMouseOver={(
-                                                                e,
-                                                            ) => {
-                                                                e.currentTarget.style.transform =
-                                                                    "translateY(-2px)";
-                                                                e.currentTarget.style.boxShadow =
-                                                                    "0 4px 6px rgba(0,0,0,0.1)";
-                                                                e.currentTarget.style.borderColor =
-                                                                    category.color ||
-                                                                    "#667eea";
-                                                            }}
-                                                            onMouseOut={(e) => {
-                                                                e.currentTarget.style.transform =
-                                                                    "translateY(0)";
-                                                                e.currentTarget.style.boxShadow =
-                                                                    "0 1px 3px rgba(0,0,0,0.05)";
-                                                                e.currentTarget.style.borderColor =
-                                                                    "#e2e8f0";
-                                                            }}
+                                                            className="group flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-4 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-slate-800"
                                                         >
-                                                            <div
-                                                                style={{
-                                                                    fontSize:
-                                                                        isXs
-                                                                            ? "1.75rem"
-                                                                            : isSmall
-                                                                              ? "2rem"
-                                                                              : "2.5rem",
-                                                                    marginBottom:
-                                                                        "0.5rem",
-                                                                    display:
-                                                                        "flex",
-                                                                    alignItems:
-                                                                        "center",
-                                                                    justifyContent:
-                                                                        "center",
-                                                                }}
-                                                            >
+                                                            <div className="mb-2 flex items-center justify-center">
                                                                 <CategoryIcon
                                                                     iconId={
                                                                         category.icon
@@ -2354,24 +2020,7 @@ const Order: React.FC<OrderProps> = ({
                                                                     }
                                                                 />
                                                             </div>
-                                                            <div
-                                                                style={{
-                                                                    fontSize:
-                                                                        isXs
-                                                                            ? "0.7rem"
-                                                                            : isSmall
-                                                                              ? "0.75rem"
-                                                                              : breadcrumbFontSize,
-                                                                    fontWeight:
-                                                                        "700",
-                                                                    color: "#1e293b",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    lineHeight: 1.25,
-                                                                    wordBreak:
-                                                                        "break-word",
-                                                                }}
-                                                            >
+                                                            <div className="text-sm font-semibold leading-tight text-slate-800 dark:text-slate-100">
                                                                 {category.name}
                                                             </div>
                                                         </div>
@@ -2384,17 +2033,7 @@ const Order: React.FC<OrderProps> = ({
                                             (subcategoriesLoading &&
                                             subcategoriesOfCategory.length ===
                                                 0 ? (
-                                                <div
-                                                    style={{
-                                                        gridColumn: "1 / -1",
-                                                        textAlign: "center",
-                                                        padding: "2rem",
-                                                        color: "#718096",
-                                                        fontSize: isSmall
-                                                            ? "0.8125rem"
-                                                            : "0.875rem",
-                                                    }}
-                                                >
+                                                <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
                                                     Cargando subcategorías...
                                                 </div>
                                             ) : (
@@ -2407,94 +2046,25 @@ const Order: React.FC<OrderProps> = ({
                                                                     sub.id,
                                                                 )
                                                             }
-                                                        style={{
-                                                            backgroundColor:
-                                                                "#ffffff",
-                                                            border: "1px solid #e2e8f0",
-                                                            borderRadius:
-                                                                isSmall
-                                                                    ? "10px"
-                                                                    : "12px",
-                                                            padding:
-                                                                gridPadding,
-                                                            cursor: "pointer",
-                                                            transition:
-                                                                "all 0.2s ease",
-                                                            display: "flex",
-                                                            flexDirection:
-                                                                "column",
-                                                            alignItems:
-                                                                "center",
-                                                            justifyContent:
-                                                                "center",
-                                                            minHeight: isSmall
-                                                                ? "80px"
-                                                                : isMedium
-                                                                  ? "90px"
-                                                                  : "100px",
-                                                            boxShadow:
-                                                                "0 1px 2px rgba(0,0,0,0.05)",
-                                                        }}
-                                                        onMouseOver={(e) => {
-                                                            e.currentTarget.style.borderColor =
-                                                                sub.color ||
-                                                                "#667eea";
-                                                            e.currentTarget.style.backgroundColor =
-                                                                "#f0f4ff";
-                                                        }}
-                                                        onMouseOut={(e) => {
-                                                            e.currentTarget.style.borderColor =
-                                                                "#e2e8f0";
-                                                            e.currentTarget.style.backgroundColor =
-                                                                "#ffffff";
-                                                        }}
-                                                    >
-                                                        <div
-                                                            style={{
-                                                                fontSize:
-                                                                    isSmall
-                                                                        ? "1.5rem"
-                                                                        : "2rem",
-                                                                marginBottom:
-                                                                    "0.25rem",
-                                                                display: "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                justifyContent:
-                                                                    "center",
-                                                            }}
+                                                            className="flex min-h-20 cursor-pointer flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-4 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/70 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10"
                                                         >
-                                                            <CategoryIcon
-                                                                iconId={
-                                                                    sub.icon
-                                                                }
-                                                                type="subcategory"
-                                                                size={
-                                                                    isSmall
-                                                                        ? "1.5rem"
-                                                                        : "2rem"
-                                                                }
-                                                            />
+                                                            <div className="mb-1 flex items-center justify-center">
+                                                                <CategoryIcon
+                                                                    iconId={
+                                                                        sub.icon
+                                                                    }
+                                                                    type="subcategory"
+                                                                    size={
+                                                                        isSmall
+                                                                            ? "1.5rem"
+                                                                            : "2rem"
+                                                                    }
+                                                                />
+                                                            </div>
+                                                            <div className="text-sm font-medium leading-tight text-slate-700 dark:text-slate-200">
+                                                                {sub.name}
+                                                            </div>
                                                         </div>
-                                                        <div
-                                                            style={{
-                                                                fontSize:
-                                                                    isSmall
-                                                                        ? "0.75rem"
-                                                                        : "0.8125rem",
-                                                                fontWeight:
-                                                                    "600",
-                                                                color: "#334155",
-                                                                textAlign:
-                                                                    "center",
-                                                                lineHeight: 1.25,
-                                                                wordBreak:
-                                                                    "break-word",
-                                                            }}
-                                                        >
-                                                            {sub.name}
-                                                        </div>
-                                                    </div>
                                                     ),
                                                 )
                                             ))}
@@ -2502,14 +2072,7 @@ const Order: React.FC<OrderProps> = ({
                                         {/* Productos */}
                                         {showProductsInGrid &&
                                             (productsList.length === 0 ? (
-                                                <div
-                                                    style={{
-                                                        gridColumn: "1 / -1",
-                                                        textAlign: "center",
-                                                        padding: "2rem",
-                                                        color: "#64748b",
-                                                    }}
-                                                >
+                                                <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
                                                     No se encontraron productos
                                                 </div>
                                             ) : (
@@ -2523,41 +2086,7 @@ const Order: React.FC<OrderProps> = ({
                                                                     1,
                                                                 )
                                                             }
-                                                            style={{
-                                                                backgroundColor:
-                                                                    "#f8fafc",
-                                                                border: "1px solid #e2e8f0",
-                                                                borderRadius:
-                                                                    isSmall
-                                                                        ? "8px"
-                                                                        : "12px",
-                                                                padding: isSmall
-                                                                    ? "0.5rem"
-                                                                    : "0.75rem",
-                                                                cursor: "pointer",
-                                                                transition:
-                                                                    "all 0.2s ease",
-                                                                textAlign:
-                                                                    "center",
-                                                                display: "flex",
-                                                                flexDirection:
-                                                                    "column",
-                                                                height: "100%",
-                                                            }}
-                                                            onMouseOver={(
-                                                                e,
-                                                            ) => {
-                                                                e.currentTarget.style.borderColor =
-                                                                    "#667eea";
-                                                                e.currentTarget.style.backgroundColor =
-                                                                    "#f0f4ff";
-                                                            }}
-                                                            onMouseOut={(e) => {
-                                                                e.currentTarget.style.borderColor =
-                                                                    "#e2e8f0";
-                                                                e.currentTarget.style.backgroundColor =
-                                                                    "#f8fafc";
-                                                            }}
+                                                            className="flex h-full cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/60 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10"
                                                         >
                                                             {product.imageBase64 ? (
                                                                 <img
@@ -2575,7 +2104,7 @@ const Order: React.FC<OrderProps> = ({
                                                                         objectFit:
                                                                             "cover",
                                                                         borderRadius:
-                                                                            "8px",
+                                                                            "10px",
                                                                         marginBottom:
                                                                             isSmall
                                                                                 ? "0.35rem"
@@ -2584,6 +2113,7 @@ const Order: React.FC<OrderProps> = ({
                                                                 />
                                                             ) : (
                                                                 <div
+                                                                    className="bg-slate-100 dark:bg-slate-800"
                                                                     style={{
                                                                         width: "100%",
                                                                         height: isSmall
@@ -2597,10 +2127,8 @@ const Order: React.FC<OrderProps> = ({
                                                                             "center",
                                                                         justifyContent:
                                                                             "center",
-                                                                        backgroundColor:
-                                                                            "#f1f5f9",
                                                                         borderRadius:
-                                                                            "8px",
+                                                                            "10px",
                                                                         marginBottom:
                                                                             isSmall
                                                                                 ? "0.35rem"
@@ -2615,14 +2143,14 @@ const Order: React.FC<OrderProps> = ({
                                                                 </div>
                                                             )}
                                                             <div
+                                                                className="text-slate-700 dark:text-slate-200"
                                                                 style={{
                                                                     fontSize:
                                                                         isSmall
                                                                             ? "0.8125rem"
                                                                             : "0.875rem",
                                                                     fontWeight:
-                                                                        "600",
-                                                                    color: "#1e293b",
+                                                                        "500",
                                                                     marginBottom:
                                                                         "0.25rem",
                                                                     lineHeight: 1.25,
@@ -2641,10 +2169,11 @@ const Order: React.FC<OrderProps> = ({
                                                                             : "0.9375rem",
                                                                     fontWeight:
                                                                         "700",
-                                                                    color: "#4f46e5",
+                                                                    color: "#4338ca",
                                                                     marginTop:
                                                                         "auto",
                                                                 }}
+                                                                className="dark:text-indigo-300"
                                                             >
                                                                 S/{" "}
                                                                 {parseFloat(
@@ -2660,7 +2189,7 @@ const Order: React.FC<OrderProps> = ({
                                                                             isSmall
                                                                                 ? "0.7rem"
                                                                                 : "0.8125rem",
-                                                                        color: "#718096",
+                                                                        color: "#64748b",
                                                                         display:
                                                                             "flex",
                                                                         alignItems:
@@ -2671,6 +2200,7 @@ const Order: React.FC<OrderProps> = ({
                                                                         marginTop:
                                                                             "0.25rem",
                                                                     }}
+                                                                    className="dark:text-slate-400"
                                                                 >
                                                                     ⏱️{" "}
                                                                     {
@@ -2708,9 +2238,8 @@ const Order: React.FC<OrderProps> = ({
                     >
                         <div
                             ref={orderListContainerRef}
+                            className="border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
                             style={{
-                                background: "white",
-                                border: "1px solid #e2e8f0",
                                 borderRadius: isXs
                                     ? "8px"
                                     : isSmall
@@ -2731,9 +2260,9 @@ const Order: React.FC<OrderProps> = ({
                             }}
                         >
                             <h4
+                                className="text-slate-800 dark:text-slate-100"
                                 style={{
                                     margin: `0 0 ${isXs ? "0.4rem" : isSmall ? "0.5rem" : isMedium ? "0.75rem" : "1rem"} 0`,
-                                    color: "#2d3748",
                                     fontSize: isXs
                                         ? "0.8rem"
                                         : isSmall
@@ -2747,25 +2276,22 @@ const Order: React.FC<OrderProps> = ({
                             </h4>
                             {isLoadingExistingOrder ? (
                                 <div
+                                    className="rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-400"
                                     style={{
-                                        border: "1px dashed #cbd5e0",
                                         borderRadius: 12,
                                         padding: "1.25rem",
                                         textAlign: "center",
-                                        color: "#718096",
                                     }}
                                 >
                                     Cargando orden actual...
                                 </div>
                             ) : existingOperationError ? (
                                 <div
+                                    className="rounded-xl border border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300"
                                     style={{
-                                        border: "1px solid #fed7d7",
-                                        background: "#fff5f5",
                                         borderRadius: 12,
                                         padding: "1.25rem",
                                         textAlign: "center",
-                                        color: "#c53030",
                                     }}
                                 >
                                     Error al cargar la orden activa:{" "}
@@ -2773,12 +2299,11 @@ const Order: React.FC<OrderProps> = ({
                                 </div>
                             ) : orderItems.length === 0 ? (
                                 <div
+                                    className="rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-400"
                                     style={{
-                                        border: "1px dashed #cbd5e0",
                                         borderRadius: 12,
                                         padding: "1rem",
                                         textAlign: "center",
-                                        color: "#718096",
                                     }}
                                 >
                                     Aquí aparecerán los ítems agregados.
@@ -2810,8 +2335,10 @@ const Order: React.FC<OrderProps> = ({
                                                         ] = el;
                                                     }
                                                 }}
+                                                className={`${isExistingOrder && !item.isNew ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-900/20" : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"}`}
                                                 style={{
-                                                    border: "1px solid #e2e8f0",
+                                                    borderWidth: "1px",
+                                                    borderStyle: "solid",
                                                     borderRadius: isXs
                                                         ? "8px"
                                                         : isSmall
@@ -2826,11 +2353,6 @@ const Order: React.FC<OrderProps> = ({
                                                           : isMedium
                                                             ? "0.3rem"
                                                             : "0.35rem",
-                                                    background:
-                                                        isExistingOrder &&
-                                                        !item.isNew
-                                                            ? "#d4edda"
-                                                            : "#f7fafc",
                                                 }}
                                             >
                                                 {/* Una sola fila: Cantidad, Producto, Precio + Tachito, Botón notas */}
@@ -2878,6 +2400,7 @@ const Order: React.FC<OrderProps> = ({
                                                             disabled={
                                                                 !isEditable
                                                             }
+                                                            className="border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
                                                             style={{
                                                                 width: isXs
                                                                     ? "32px"
@@ -2899,11 +2422,6 @@ const Order: React.FC<OrderProps> = ({
                                                                         : isSmall
                                                                           ? "4px"
                                                                           : "6px",
-                                                                border: "1px solid #cbd5e0",
-                                                                background:
-                                                                    isEditable
-                                                                        ? "white"
-                                                                        : "#edf2f7",
                                                                 cursor: isEditable
                                                                     ? "pointer"
                                                                     : "not-allowed",
@@ -2943,6 +2461,7 @@ const Order: React.FC<OrderProps> = ({
                                                                 !isEditable
                                                             }
                                                             min="0"
+                                                            className="border border-slate-300 bg-white text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
                                                             style={{
                                                                 width: isXs
                                                                     ? "44px"
@@ -2953,7 +2472,6 @@ const Order: React.FC<OrderProps> = ({
                                                                         : "36px",
                                                                 textAlign:
                                                                     "center",
-                                                                border: "1px solid #cbd5e0",
                                                                 borderRadius:
                                                                     isXs
                                                                         ? "6px"
@@ -2968,13 +2486,6 @@ const Order: React.FC<OrderProps> = ({
                                                                         ? "0.15rem"
                                                                         : "0.2rem",
                                                                 fontWeight: 700,
-                                                                background:
-                                                                    isEditable
-                                                                        ? "white"
-                                                                        : "#edf2f7",
-                                                                color: isEditable
-                                                                    ? "#1a202c"
-                                                                    : "#a0aec0",
                                                                 fontSize: isXs
                                                                     ? "1rem"
                                                                     : isSmall
@@ -2996,6 +2507,7 @@ const Order: React.FC<OrderProps> = ({
                                                             disabled={
                                                                 !isEditable
                                                             }
+                                                            className="border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
                                                             style={{
                                                                 width: isXs
                                                                     ? "32px"
@@ -3017,11 +2529,6 @@ const Order: React.FC<OrderProps> = ({
                                                                         : isSmall
                                                                           ? "4px"
                                                                           : "6px",
-                                                                border: "1px solid #cbd5e0",
-                                                                background:
-                                                                    isEditable
-                                                                        ? "white"
-                                                                        : "#edf2f7",
                                                                 cursor: isEditable
                                                                     ? "pointer"
                                                                     : "not-allowed",
@@ -3055,9 +2562,9 @@ const Order: React.FC<OrderProps> = ({
                                                         }}
                                                     >
                                                         <div
+                                                            className="text-slate-800 dark:text-slate-100"
                                                             style={{
                                                                 fontWeight: 700,
-                                                                color: "#2d3748",
                                                                 fontSize:
                                                                     isSmall
                                                                         ? "0.7rem"
@@ -3107,9 +2614,9 @@ const Order: React.FC<OrderProps> = ({
                                                         }}
                                                     >
                                                         <div
+                                                            className="text-slate-800 dark:text-slate-100"
                                                             style={{
                                                                 fontWeight: 700,
-                                                                color: "#2d3748",
                                                                 fontSize: isXs
                                                                     ? "0.85rem"
                                                                     : isSmall
@@ -3135,13 +2642,11 @@ const Order: React.FC<OrderProps> = ({
                                                             disabled={
                                                                 !isEditable
                                                             }
+                                                            className="text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-slate-400 dark:text-red-400 dark:hover:text-red-300 dark:disabled:text-slate-600"
                                                             style={{
                                                                 background:
                                                                     "transparent",
                                                                 border: "none",
-                                                                color: isEditable
-                                                                    ? "#dc2626"
-                                                                    : "#cbd5e0",
                                                                 cursor: isEditable
                                                                     ? "pointer"
                                                                     : "not-allowed",
@@ -3179,6 +2684,16 @@ const Order: React.FC<OrderProps> = ({
                                                             }
                                                         }}
                                                         disabled={!canEditNotes}
+                                                        className={`border ${
+                                                            item.notes ||
+                                                            selectedObservations[
+                                                                item.id
+                                                            ]?.size > 0
+                                                                ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                                                                : canEditNotes
+                                                                  ? "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                                                  : "border-slate-200 bg-slate-100 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-600"
+                                                        }`}
                                                         style={{
                                                             padding: isSmall
                                                                 ? "0.1rem 0.35rem"
@@ -3186,19 +2701,6 @@ const Order: React.FC<OrderProps> = ({
                                                                   ? "0.15rem 0.4rem"
                                                                   : "0.15rem 0.45rem",
                                                             borderRadius: 999,
-                                                            border: "1px solid #bae6fd",
-                                                            background:
-                                                                item.notes ||
-                                                                selectedObservations[
-                                                                    item.id
-                                                                ]?.size > 0
-                                                                    ? "#dbeafe"
-                                                                    : canEditNotes
-                                                                      ? "#f0f9ff"
-                                                                      : "#f1f5f9",
-                                                            color: canEditNotes
-                                                                ? "#0369a1"
-                                                                : "#94a3b8",
                                                             fontSize: isSmall
                                                                 ? "0.6rem"
                                                                 : isMedium
@@ -3275,15 +2777,15 @@ const Order: React.FC<OrderProps> = ({
                         </div>
 
                         <div
+                            className="border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
                             style={{
-                                background:
-                                    "linear-gradient(135deg, #667eea, #764ba2)",
-                                border: "2px solid #667eea",
                                 borderRadius: isSmall
                                     ? "10px"
                                     : isMedium
                                       ? "12px"
                                       : "14px",
+                                borderWidth: "1px",
+                                borderStyle: "solid",
                                 padding: isSmall
                                     ? "0.5rem"
                                     : isMedium
@@ -3295,16 +2797,14 @@ const Order: React.FC<OrderProps> = ({
                                     : isMedium
                                       ? "0.375rem"
                                       : "0.5rem",
-                                boxShadow:
-                                    "0 4px 12px rgba(102, 126, 234, 0.3)",
                                 flexShrink: 0,
                             }}
                         >
                             <div
+                                className="text-slate-600 dark:text-slate-300"
                                 style={{
                                     display: "flex",
                                     justifyContent: "space-between",
-                                    color: "rgba(255,255,255,0.9)",
                                     fontSize: isSmall
                                         ? "0.75rem"
                                         : isMedium
@@ -3316,10 +2816,10 @@ const Order: React.FC<OrderProps> = ({
                                 <b>S/ {subtotal.toFixed(2)}</b>
                             </div>
                             <div
+                                className="text-slate-600 dark:text-slate-300"
                                 style={{
                                     display: "flex",
                                     justifyContent: "space-between",
-                                    color: "rgba(255,255,255,0.9)",
                                     fontSize: isSmall
                                         ? "0.75rem"
                                         : isMedium
@@ -3331,9 +2831,9 @@ const Order: React.FC<OrderProps> = ({
                                 <b>S/ {taxes.toFixed(2)}</b>
                             </div>
                             <div
+                                className="bg-slate-200 dark:bg-slate-700"
                                 style={{
                                     height: 1,
-                                    background: "rgba(255,255,255,0.3)",
                                     margin: isSmall
                                         ? "0.125rem 0"
                                         : isMedium
@@ -3342,17 +2842,16 @@ const Order: React.FC<OrderProps> = ({
                                 }}
                             />
                             <div
+                                className="text-slate-900 dark:text-slate-100"
                                 style={{
                                     display: "flex",
                                     justifyContent: "space-between",
-                                    color: "white",
                                     fontSize: isSmall
                                         ? "1rem"
                                         : isMedium
                                           ? "1.125rem"
                                           : "1.25rem",
                                     fontWeight: 900,
-                                    textShadow: "0 2px 4px rgba(0,0,0,0.2)",
                                 }}
                             >
                                 <span>TOTAL</span>
@@ -3390,58 +2889,24 @@ const Order: React.FC<OrderProps> = ({
                                     handleSaveOrder("PROCESSING", true)
                                 }
                                 disabled={isSaving || orderItems.length === 0}
+                                className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 font-bold text-indigo-700 transition-all duration-150 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-500 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200 dark:hover:border-indigo-600 dark:hover:bg-indigo-900/45 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
                                 style={{
                                     padding: isSmall
                                         ? "0.5rem"
                                         : isMedium
                                           ? "0.625rem"
                                           : "0.75rem",
-                                    background:
-                                        isSaving || orderItems.length === 0
-                                            ? "#cbd5e0"
-                                            : "#edf2ff",
-                                    border: "2px solid #c3dafe",
-                                    color: "#3730a3",
                                     borderRadius: isSmall
                                         ? "8px"
                                         : isMedium
                                           ? "10px"
                                           : "12px",
-                                    cursor:
-                                        isSaving || orderItems.length === 0
-                                            ? "not-allowed"
-                                            : "pointer",
                                     fontWeight: 800,
-                                    opacity:
-                                        isSaving || orderItems.length === 0
-                                            ? 0.6
-                                            : 1,
                                     fontSize: isSmall
                                         ? "0.75rem"
                                         : isMedium
                                           ? "0.8125rem"
                                           : "0.875rem",
-                                    boxShadow:
-                                        isSaving || orderItems.length === 0
-                                            ? "none"
-                                            : "0 2px 6px rgba(59, 130, 246, 0.25)",
-                                    transition: "all 0.2s ease",
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!isSaving && orderItems.length > 0) {
-                                        e.currentTarget.style.transform =
-                                            "translateY(-2px)";
-                                        e.currentTarget.style.boxShadow =
-                                            "0 4px 10px rgba(59, 130, 246, 0.35)";
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform =
-                                        "translateY(0)";
-                                    e.currentTarget.style.boxShadow =
-                                        isSaving || orderItems.length === 0
-                                            ? "none"
-                                            : "0 2px 6px rgba(59, 130, 246, 0.25)";
                                 }}
                             >
                                 {isSaving ? "Guardando..." : "Enviar orden"}
@@ -3451,58 +2916,24 @@ const Order: React.FC<OrderProps> = ({
                                     handleSaveOrder("PROCESSING", false)
                                 }
                                 disabled={isSaving || orderItems.length === 0}
+                                className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 font-bold text-emerald-700 transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-500 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:border-emerald-600 dark:hover:bg-emerald-900/45 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
                                 style={{
                                     padding: isSmall
                                         ? "0.5rem"
                                         : isMedium
                                           ? "0.625rem"
                                           : "0.75rem",
-                                    background:
-                                        isSaving || orderItems.length === 0
-                                            ? "#cbd5e0"
-                                            : "#f0fdf4",
-                                    border: "2px solid #bbf7d0",
-                                    color: "#166534",
                                     borderRadius: isSmall
                                         ? "8px"
                                         : isMedium
                                           ? "10px"
                                           : "12px",
-                                    cursor:
-                                        isSaving || orderItems.length === 0
-                                            ? "not-allowed"
-                                            : "pointer",
                                     fontWeight: 800,
-                                    opacity:
-                                        isSaving || orderItems.length === 0
-                                            ? 0.6
-                                            : 1,
                                     fontSize: isSmall
                                         ? "0.7rem"
                                         : isMedium
                                           ? "0.75rem"
                                           : "0.8125rem",
-                                    boxShadow:
-                                        isSaving || orderItems.length === 0
-                                            ? "none"
-                                            : "0 2px 6px rgba(34, 197, 94, 0.25)",
-                                    transition: "all 0.2s ease",
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!isSaving && orderItems.length > 0) {
-                                        e.currentTarget.style.transform =
-                                            "translateY(-2px)";
-                                        e.currentTarget.style.boxShadow =
-                                            "0 4px 10px rgba(34, 197, 94, 0.35)";
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform =
-                                        "translateY(0)";
-                                    e.currentTarget.style.boxShadow =
-                                        isSaving || orderItems.length === 0
-                                            ? "none"
-                                            : "0 2px 6px rgba(34, 197, 94, 0.25)";
                                 }}
                             >
                                 {isSaving
@@ -3521,85 +2952,24 @@ const Order: React.FC<OrderProps> = ({
                                         isPrintingPrecuenta ||
                                         isLoadingExistingOrder
                                     }
+                                    className="rounded-xl border border-amber-200 bg-amber-50 px-3 font-bold text-amber-700 transition-all duration-150 hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-500 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:border-amber-600 dark:hover:bg-amber-900/45 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
                                     style={{
                                         padding: isSmall
                                             ? "0.5rem"
                                             : isMedium
                                               ? "0.625rem"
                                               : "0.75rem",
-                                        background:
-                                            !existingOperation ||
-                                            existingOperation.status ===
-                                                "COMPLETED" ||
-                                            isPrintingPrecuenta ||
-                                            isLoadingExistingOrder
-                                                ? "#cbd5e0"
-                                                : "linear-gradient(135deg, rgba(245,158,11,0.9), rgba(217,119,6,0.9))",
-                                        color: "white",
-                                        border: "none",
                                         borderRadius: isSmall
                                             ? "8px"
                                             : isMedium
                                               ? "10px"
                                               : "12px",
-                                        cursor:
-                                            !existingOperation ||
-                                            existingOperation.status ===
-                                                "COMPLETED" ||
-                                            isPrintingPrecuenta ||
-                                            isLoadingExistingOrder
-                                                ? "not-allowed"
-                                                : "pointer",
                                         fontWeight: 800,
-                                        opacity:
-                                            !existingOperation ||
-                                            existingOperation.status ===
-                                                "COMPLETED" ||
-                                            isPrintingPrecuenta ||
-                                            isLoadingExistingOrder
-                                                ? 0.6
-                                                : 1,
                                         fontSize: isSmall
                                             ? "0.75rem"
                                             : isMedium
                                               ? "0.8125rem"
                                               : "0.875rem",
-                                        boxShadow:
-                                            !existingOperation ||
-                                            existingOperation.status ===
-                                                "COMPLETED" ||
-                                            isPrintingPrecuenta ||
-                                            isLoadingExistingOrder
-                                                ? "none"
-                                                : "0 3px 10px rgba(245,158,11,0.35)",
-                                        transition: "all 0.2s ease",
-                                        textShadow: "0 1px 2px rgba(0,0,0,0.1)",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        if (
-                                            existingOperation &&
-                                            existingOperation.status !==
-                                                "COMPLETED" &&
-                                            !isPrintingPrecuenta &&
-                                            !isLoadingExistingOrder
-                                        ) {
-                                            e.currentTarget.style.transform =
-                                                "translateY(-2px)";
-                                            e.currentTarget.style.boxShadow =
-                                                "0 5px 14px rgba(245,158,11,0.45)";
-                                        }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.transform =
-                                            "translateY(0)";
-                                        e.currentTarget.style.boxShadow =
-                                            !existingOperation ||
-                                            existingOperation.status ===
-                                                "COMPLETED" ||
-                                            isPrintingPrecuenta ||
-                                            isLoadingExistingOrder
-                                                ? "none"
-                                                : "0 3px 10px rgba(245,158,11,0.35)";
                                     }}
                                 >
                                     {isPrintingPrecuenta

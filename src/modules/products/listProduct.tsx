@@ -152,6 +152,10 @@ const ListProduct: React.FC<ListProductProps> = ({
             ? "0.6875rem"
             : "0.75rem";
 
+    /** Cabecera sticky: sin fondo inline para que dark: funcione */
+    const tableThClass =
+        "sticky top-0 z-[2] bg-slate-100 text-slate-600 shadow-[0_1px_0_#e2e8f0] dark:bg-slate-950 dark:text-slate-200 dark:shadow-[0_1px_0_rgb(51,65,85)]";
+
     const [selectedCategory, setSelectedCategory] = useState<string>("");
     const [selectedProductType, setSelectedProductType] = useState<string>("");
     const [searchTerm, setSearchTerm] = useState<string>("");
@@ -260,10 +264,10 @@ const ListProduct: React.FC<ListProductProps> = ({
     if (!branchId) {
         return (
             <div
+                className="rounded-lg border border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300"
                 style={{
                     padding: "2rem",
                     textAlign: "center",
-                    color: "#dc2626",
                 }}
             >
                 No se encontró información de la sucursal. Por favor, inicia
@@ -275,10 +279,10 @@ const ListProduct: React.FC<ListProductProps> = ({
     if (loading) {
         return (
             <div
+                className="rounded-lg border border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
                 style={{
                     padding: "2rem",
                     textAlign: "center",
-                    color: "#64748b",
                 }}
             >
                 Cargando productos...
@@ -289,10 +293,10 @@ const ListProduct: React.FC<ListProductProps> = ({
     if (error) {
         return (
             <div
+                className="rounded-lg border border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300"
                 style={{
                     padding: "2rem",
                     textAlign: "center",
-                    color: "#dc2626",
                 }}
             >
                 Error al cargar productos: {error.message}
@@ -301,7 +305,7 @@ const ListProduct: React.FC<ListProductProps> = ({
     }
 
     return (
-        <div>
+        <div className="text-slate-700 dark:text-slate-200">
             {/* Filtros */}
             <div
                 style={{
@@ -317,12 +321,10 @@ const ListProduct: React.FC<ListProductProps> = ({
             >
                 {/* Búsqueda */}
                 <div
+                    className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
                     style={{
-                        backgroundColor: "white",
                         borderRadius: "12px",
                         padding: cardPadding,
-                        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-                        border: "1px solid #e2e8f0",
                         flex: "1",
                         minWidth:
                             isXs || isSmall
@@ -333,12 +335,12 @@ const ListProduct: React.FC<ListProductProps> = ({
                     }}
                 >
                     <label
+                        className="text-slate-600 dark:text-slate-300"
                         style={{
                             display: "block",
                             marginBottom: "0.5rem",
                             fontWeight: 500,
                             fontSize: labelFontSize,
-                            color: "#475569",
                         }}
                     >
                         Buscar producto:
@@ -359,19 +361,17 @@ const ListProduct: React.FC<ListProductProps> = ({
                             placeholder="Buscar producto o escanear código"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                             style={{
-                                width: "100%",
                                 padding: "0.65rem 0.85rem 0.65rem 2.2rem",
-                                border: "1px solid #e2e8f0",
-                                borderRadius: "8px",
                                 fontSize: inputFontSize,
                                 boxSizing: "border-box",
-                                backgroundColor: "white",
                             }}
                         />
                         {searchTerm && (
                             <button
                                 onClick={() => setSearchTerm("")}
+                                className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
                                 style={{
                                     position: "absolute",
                                     right: 10,
@@ -379,7 +379,6 @@ const ListProduct: React.FC<ListProductProps> = ({
                                     background: "none",
                                     border: "none",
                                     cursor: "pointer",
-                                    opacity: 0.5,
                                     fontSize: "1rem",
                                 }}
                             >
@@ -392,12 +391,10 @@ const ListProduct: React.FC<ListProductProps> = ({
                 {/* Filtro de categorías */}
                 {categories.length > 0 && (
                     <div
+                        className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
                         style={{
-                            backgroundColor: "white",
                             borderRadius: "12px",
                             padding: cardPadding,
-                            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-                            border: "1px solid #e2e8f0",
                             flex: "1",
                             minWidth:
                                 isXs || isSmall
@@ -408,12 +405,12 @@ const ListProduct: React.FC<ListProductProps> = ({
                         }}
                     >
                         <label
+                            className="text-slate-600 dark:text-slate-300"
                             style={{
                                 display: "block",
                                 marginBottom: "0.5rem",
                                 fontWeight: 500,
                                 fontSize: labelFontSize,
-                                color: "#475569",
                             }}
                         >
                             Filtrar por categoría:
@@ -423,14 +420,11 @@ const ListProduct: React.FC<ListProductProps> = ({
                             onChange={(e) =>
                                 setSelectedCategory(e.target.value)
                             }
+                            className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                             style={{
-                                width: "100%",
                                 padding: inputPadding,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: "8px",
                                 fontSize: inputFontSize,
                                 boxSizing: "border-box",
-                                backgroundColor: "white",
                             }}
                         >
                             <option value="">Todas las categorías</option>
@@ -450,12 +444,10 @@ const ListProduct: React.FC<ListProductProps> = ({
 
                 {/* Filtro de tipo de producto */}
                 <div
+                    className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
                     style={{
-                        backgroundColor: "white",
                         borderRadius: "12px",
                         padding: cardPadding,
-                        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-                        border: "1px solid #e2e8f0",
                         flex: "1",
                         minWidth:
                             isXs || isSmall
@@ -466,12 +458,12 @@ const ListProduct: React.FC<ListProductProps> = ({
                     }}
                 >
                     <label
+                        className="text-slate-600 dark:text-slate-300"
                         style={{
                             display: "block",
                             marginBottom: "0.5rem",
                             fontWeight: 500,
                             fontSize: labelFontSize,
-                            color: "#475569",
                         }}
                     >
                         Filtrar por tipo:
@@ -479,14 +471,11 @@ const ListProduct: React.FC<ListProductProps> = ({
                     <select
                         value={selectedProductType}
                         onChange={(e) => setSelectedProductType(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                         style={{
-                            width: "100%",
                             padding: inputPadding,
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "8px",
                             fontSize: inputFontSize,
                             boxSizing: "border-box",
-                            backgroundColor: "white",
                         }}
                     >
                         <option value="">Todos los tipos</option>
@@ -499,14 +488,12 @@ const ListProduct: React.FC<ListProductProps> = ({
 
             {/* Lista de productos */}
             <div
+                className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
                 style={{
                     width: "100%",
                     maxWidth: "100%",
-                    backgroundColor: "white",
                     borderRadius: "16px",
                     padding: cardPadding,
-                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-                    border: "1px solid #e2e8f0",
                     boxSizing: "border-box",
                 }}
             >
@@ -519,21 +506,21 @@ const ListProduct: React.FC<ListProductProps> = ({
                     }}
                 >
                     <h3
+                        className="text-slate-700 dark:text-slate-200"
                         style={{
                             margin: 0,
                             fontSize: titleFontSize,
                             fontWeight: 600,
-                            color: "#334155",
                         }}
                     >
                         📋 Lista de Productos ({products.length})
                     </h3>
                     {products.length > 0 && (
                         <p
+                            className="text-slate-500 dark:text-slate-400"
                             style={{
                                 margin: 0,
                                 fontSize: inputFontSize,
-                                color: "#64748b",
                             }}
                         >
                             Página {currentPage} de {totalPages}
@@ -543,6 +530,7 @@ const ListProduct: React.FC<ListProductProps> = ({
 
                 {products.length === 0 ? (
                     <div
+                        className="text-slate-500 dark:text-slate-400"
                         style={{
                             textAlign: "center",
                             padding: isXs
@@ -550,7 +538,6 @@ const ListProduct: React.FC<ListProductProps> = ({
                                 : isSmall
                                   ? "2rem"
                                   : "3rem",
-                            color: "#64748b",
                         }}
                     >
                         <p
@@ -586,11 +573,9 @@ const ListProduct: React.FC<ListProductProps> = ({
                         {paginatedProducts.map((product) => (
                             <div
                                 key={product.id}
+                                className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
                                 style={{
                                     padding: "1rem",
-                                    border: "1px solid #e2e8f0",
-                                    borderRadius: "12px",
-                                    backgroundColor: "#f8fafc",
                                 }}
                             >
                                 <div
@@ -613,15 +598,14 @@ const ListProduct: React.FC<ListProductProps> = ({
                                         />
                                     ) : (
                                         <div
+                                            className="bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500"
                                             style={{
                                                 width: "60px",
                                                 height: "60px",
-                                                backgroundColor: "#f1f5f9",
                                                 borderRadius: "8px",
                                                 display: "flex",
                                                 alignItems: "center",
                                                 justifyContent: "center",
-                                                color: "#94a3b8",
                                                 fontSize: "1.5rem",
                                             }}
                                         >
@@ -630,9 +614,9 @@ const ListProduct: React.FC<ListProductProps> = ({
                                     )}
                                     <div style={{ flex: 1 }}>
                                         <div
+                                            className="text-slate-800 dark:text-slate-100"
                                             style={{
                                                 fontWeight: 700,
-                                                color: "#1e293b",
                                                 fontSize: "0.9rem",
                                                 marginBottom: "0.25rem",
                                             }}
@@ -640,9 +624,9 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             {product.name}
                                         </div>
                                         <div
+                                            className="text-slate-500 dark:text-slate-400"
                                             style={{
                                                 fontSize: "0.75rem",
-                                                color: "#64748b",
                                                 marginBottom: "0.25rem",
                                             }}
                                         >
@@ -650,9 +634,9 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             {getProductCategoryName(product)}
                                         </div>
                                         <div
+                                            className="text-indigo-600 dark:text-indigo-300"
                                             style={{
                                                 fontWeight: 700,
-                                                color: "#3b82f6",
                                                 fontSize: "1rem",
                                             }}
                                         >
@@ -664,12 +648,12 @@ const ListProduct: React.FC<ListProductProps> = ({
                                 </div>
 
                                 <div
+                                    className="border-t border-slate-200 dark:border-slate-700"
                                     style={{
                                         display: "flex",
                                         justifyContent: "space-between",
                                         alignItems: "center",
                                         paddingTop: "0.75rem",
-                                        borderTop: "1px solid #e2e8f0",
                                     }}
                                 >
                                     <span
@@ -699,12 +683,8 @@ const ListProduct: React.FC<ListProductProps> = ({
                                     >
                                         <button
                                             onClick={() => onEdit(product)}
+                                            className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
                                             style={{
-                                                padding: "0.4rem 0.75rem",
-                                                background: "#3b82f6",
-                                                color: "white",
-                                                border: "none",
-                                                borderRadius: "8px",
                                                 fontSize: "0.75rem",
                                                 fontWeight: 600,
                                             }}
@@ -720,12 +700,8 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                         product.productType,
                                                 })
                                             }
+                                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
                                             style={{
-                                                padding: "0.4rem 0.75rem",
-                                                background: "#10b981",
-                                                color: "white",
-                                                border: "none",
-                                                borderRadius: "8px",
                                                 fontSize: "0.75rem",
                                                 fontWeight: 600,
                                             }}
@@ -740,6 +716,7 @@ const ListProduct: React.FC<ListProductProps> = ({
                 ) : (
                     /* Vista de tabla para desktop/tablet */
                     <div
+                        className="overflow-auto rounded-lg border border-slate-200 dark:border-slate-700"
                         style={{
                             overflow: "auto",
                             width: "100%",
@@ -749,7 +726,6 @@ const ListProduct: React.FC<ListProductProps> = ({
                             boxSizing: "border-box",
                             WebkitOverflowScrolling: "touch",
                             borderRadius: "8px",
-                            border: "1px solid #e2e8f0",
                         }}
                     >
                         <table
@@ -774,188 +750,133 @@ const ListProduct: React.FC<ListProductProps> = ({
                                 <col style={{ width: "19%" }} />
                             </colgroup>
                             <thead>
-                                <tr
-                                    style={{
-                                        borderBottom: "2px solid #e2e8f0",
-                                        backgroundColor: "#f8fafc",
-                                    }}
-                                >
+                                <tr className="border-b-2 border-slate-200 dark:border-slate-700">
                                     <th
+                                        className={tableThClass}
                                         style={{
                                             padding: isSmall
                                                 ? "0.5rem"
                                                 : "0.625rem",
                                             textAlign: "center",
-                                            color: "#64748b",
                                             fontWeight: 600,
                                             fontSize: tableFontSize,
-                                            position: "sticky",
-                                            top: 0,
-                                            zIndex: 2,
-                                            backgroundColor: "#f8fafc",
-                                            boxShadow: "0 1px 0 #e2e8f0",
                                         }}
                                     >
                                         Imagen
                                     </th>
                                     <th
+                                        className={tableThClass}
                                         style={{
                                             padding: isSmall
                                                 ? "0.5rem"
                                                 : "0.625rem",
                                             textAlign: "center",
-                                            color: "#64748b",
                                             fontWeight: 600,
                                             fontSize: tableFontSize,
-                                            position: "sticky",
-                                            top: 0,
-                                            zIndex: 2,
-                                            backgroundColor: "#f8fafc",
-                                            boxShadow: "0 1px 0 #e2e8f0",
                                         }}
                                     >
                                         Código
                                     </th>
                                     <th
+                                        className={tableThClass}
                                         style={{
                                             padding: isSmall
                                                 ? "0.5rem"
                                                 : "0.625rem",
                                             textAlign: "center",
-                                            color: "#64748b",
                                             fontWeight: 600,
                                             fontSize: tableFontSize,
-                                            position: "sticky",
-                                            top: 0,
-                                            zIndex: 2,
-                                            backgroundColor: "#f8fafc",
-                                            boxShadow: "0 1px 0 #e2e8f0",
                                         }}
                                     >
                                         Nombre
                                     </th>
                                     <th
+                                        className={tableThClass}
                                         style={{
                                             padding: isSmall
                                                 ? "0.5rem"
                                                 : "0.625rem",
                                             textAlign: "center",
-                                            color: "#64748b",
                                             fontWeight: 600,
                                             fontSize: tableFontSize,
-                                            position: "sticky",
-                                            top: 0,
-                                            zIndex: 2,
-                                            backgroundColor: "#f8fafc",
-                                            boxShadow: "0 1px 0 #e2e8f0",
                                         }}
                                     >
                                         Categoría
                                     </th>
                                     <th
+                                        className={tableThClass}
                                         style={{
                                             padding: isSmall
                                                 ? "0.5rem"
                                                 : "0.625rem",
                                             textAlign: "center",
-                                            color: "#64748b",
                                             fontWeight: 600,
                                             fontSize: tableFontSize,
-                                            position: "sticky",
-                                            top: 0,
-                                            zIndex: 2,
-                                            backgroundColor: "#f8fafc",
-                                            boxShadow: "0 1px 0 #e2e8f0",
                                         }}
                                     >
                                         Subcategoría
                                     </th>
                                     <th
+                                        className={tableThClass}
                                         style={{
                                             padding: isSmall
                                                 ? "0.5rem"
                                                 : "0.625rem",
                                             textAlign: "center",
-                                            color: "#64748b",
                                             fontWeight: 600,
                                             fontSize: tableFontSize,
-                                            position: "sticky",
-                                            top: 0,
-                                            zIndex: 2,
-                                            backgroundColor: "#f8fafc",
-                                            boxShadow: "0 1px 0 #e2e8f0",
                                         }}
                                     >
                                         Descripción
                                     </th>
                                     <th
+                                        className={tableThClass}
                                         style={{
                                             padding: isSmall
                                                 ? "0.5rem"
                                                 : "0.625rem",
                                             textAlign: "center",
-                                            color: "#64748b",
                                             fontWeight: 600,
                                             fontSize: tableFontSize,
-                                            position: "sticky",
-                                            top: 0,
-                                            zIndex: 2,
-                                            backgroundColor: "#f8fafc",
-                                            boxShadow: "0 1px 0 #e2e8f0",
                                         }}
                                     >
                                         Precio
                                     </th>
                                     <th
+                                        className={tableThClass}
                                         style={{
                                             padding: isSmall
                                                 ? "0.5rem"
                                                 : "0.625rem",
                                             textAlign: "center",
-                                            color: "#64748b",
                                             fontWeight: 600,
                                             fontSize: tableFontSize,
-                                            position: "sticky",
-                                            top: 0,
-                                            zIndex: 2,
-                                            backgroundColor: "#f8fafc",
-                                            boxShadow: "0 1px 0 #e2e8f0",
                                         }}
                                     >
                                         Tiempo
                                     </th>
                                     <th
+                                        className={tableThClass}
                                         style={{
                                             padding: isSmall
                                                 ? "0.5rem"
                                                 : "0.625rem",
                                             textAlign: "center",
-                                            color: "#64748b",
                                             fontWeight: 600,
                                             fontSize: tableFontSize,
-                                            position: "sticky",
-                                            top: 0,
-                                            zIndex: 2,
-                                            backgroundColor: "#f8fafc",
-                                            boxShadow: "0 1px 0 #e2e8f0",
                                         }}
                                     >
                                         Estado
                                     </th>
                                     <th
+                                        className={tableThClass}
                                         style={{
                                             padding: isSmall
                                                 ? "0.5rem"
                                                 : "0.625rem",
                                             textAlign: "center",
-                                            color: "#64748b",
                                             fontWeight: 600,
                                             fontSize: tableFontSize,
-                                            position: "sticky",
-                                            top: 0,
-                                            zIndex: 2,
-                                            backgroundColor: "#f8fafc",
-                                            boxShadow: "0 1px 0 #e2e8f0",
                                         }}
                                     >
                                         Acciones
@@ -966,9 +887,7 @@ const ListProduct: React.FC<ListProductProps> = ({
                                 {paginatedProducts.map((product) => (
                                     <tr
                                         key={product.id}
-                                        style={{
-                                            borderBottom: "1px solid #f1f5f9",
-                                        }}
+                                        className="border-b border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900"
                                     >
                                         <td
                                             style={{
@@ -1001,6 +920,7 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                 />
                                             ) : (
                                                 <div
+                                                    className="bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
                                                     style={{
                                                         width: isSmall
                                                             ? "35px"
@@ -1012,14 +932,11 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                             : isMedium
                                                               ? "40px"
                                                               : "45px",
-                                                        backgroundColor:
-                                                            "#f1f5f9",
                                                         borderRadius: "6px",
                                                         display: "flex",
                                                         alignItems: "center",
                                                         justifyContent:
                                                             "center",
-                                                        color: "#94a3b8",
                                                         fontSize: isSmall
                                                             ? "1.125rem"
                                                             : isMedium
@@ -1033,12 +950,12 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             )}
                                         </td>
                                         <td
+                                            className="text-slate-800 dark:text-slate-100"
                                             style={{
                                                 padding: isSmall
                                                     ? "0.375rem"
                                                     : "0.5rem",
                                                 textAlign: "center",
-                                                color: "#334155",
                                                 fontFamily: "monospace",
                                                 fontSize: tableFontSize,
                                                 whiteSpace: "nowrap",
@@ -1055,9 +972,9 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             }}
                                         >
                                             <div
+                                                className="text-slate-800 dark:text-slate-100"
                                                 style={{
                                                     fontSize: tableFontSize,
-                                                    color: "#334155",
                                                     overflow: "hidden",
                                                     display: "-webkit-box",
                                                     WebkitLineClamp: 5,
@@ -1080,9 +997,9 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             }}
                                         >
                                             <div
+                                                className="text-slate-600 dark:text-slate-300"
                                                 style={{
                                                     fontSize: tableFontSize,
-                                                    color: "#475569",
                                                     overflow: "hidden",
                                                     display: "-webkit-box",
                                                     WebkitLineClamp: 3,
@@ -1108,9 +1025,9 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             }}
                                         >
                                             <div
+                                                className="text-slate-600 dark:text-slate-300"
                                                 style={{
                                                     fontSize: tableFontSize,
-                                                    color: "#475569",
                                                     overflow: "hidden",
                                                     display: "-webkit-box",
                                                     WebkitLineClamp: 3,
@@ -1136,8 +1053,8 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             }}
                                         >
                                             <div
+                                                className="text-slate-500 dark:text-slate-400"
                                                 style={{
-                                                    color: "#64748b",
                                                     fontSize: tableFontSize,
                                                     overflow: "hidden",
                                                     display: "-webkit-box",
@@ -1153,12 +1070,12 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             </div>
                                         </td>
                                         <td
+                                            className="text-slate-800 dark:text-slate-100"
                                             style={{
                                                 padding: isSmall
                                                     ? "0.375rem"
                                                     : "0.5rem",
                                                 textAlign: "center",
-                                                color: "#334155",
                                                 fontWeight: 600,
                                                 fontSize: tableFontSize,
                                                 whiteSpace: "nowrap",
@@ -1169,12 +1086,12 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             )}
                                         </td>
                                         <td
+                                            className="text-slate-500 dark:text-slate-400"
                                             style={{
                                                 padding: isSmall
                                                     ? "0.375rem"
                                                     : "0.5rem",
                                                 textAlign: "center",
-                                                color: "#64748b",
                                                 fontSize: tableFontSize,
                                                 whiteSpace: "nowrap",
                                             }}
@@ -1190,6 +1107,11 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             }}
                                         >
                                             <span
+                                                className={
+                                                    product.isActive
+                                                        ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:ring-emerald-700"
+                                                        : "bg-red-100 text-red-800 ring-1 ring-red-200 dark:bg-red-900/40 dark:text-red-200 dark:ring-red-800"
+                                                }
                                                 style={{
                                                     padding: isSmall
                                                         ? "0.25rem 0.5rem"
@@ -1201,13 +1123,6 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                     borderRadius: "9999px",
                                                     fontSize: badgeFontSize,
                                                     fontWeight: 600,
-                                                    backgroundColor:
-                                                        product.isActive
-                                                            ? "#dcfce7"
-                                                            : "#fee2e2",
-                                                    color: product.isActive
-                                                        ? "#166534"
-                                                        : "#991b1b",
                                                 }}
                                             >
                                                 {product.isActive
@@ -1239,15 +1154,14 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                         onEdit(product)
                                                     }
                                                     title="Editar producto"
+                                                    className="rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
                                                     style={{
                                                         padding: isSmall
                                                             ? "0.375rem 0.5rem"
                                                             : isMedium
                                                               ? "0.4375rem 0.625rem"
                                                               : "0.5rem 0.75rem",
-                                                        background: "#3b82f6",
-                                                        color: "white",
-                                                        border: "none",
+                                                        
                                                         borderRadius: "6px",
                                                         fontWeight: 500,
                                                         cursor: "pointer",
@@ -1260,14 +1174,6 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                         whiteSpace: "nowrap",
                                                         flexShrink: 0,
                                                     }}
-                                                    onMouseEnter={(e) =>
-                                                        (e.currentTarget.style.background =
-                                                            "#2563eb")
-                                                    }
-                                                    onMouseLeave={(e) =>
-                                                        (e.currentTarget.style.background =
-                                                            "#3b82f6")
-                                                    }
                                                 >
                                                     ✏️ Editar
                                                 </button>
@@ -1283,15 +1189,14 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                         )
                                                     }
                                                     title="Ver receta"
+                                                    className="rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
                                                     style={{
                                                         padding: isSmall
                                                             ? "0.375rem 0.5rem"
                                                             : isMedium
                                                               ? "0.4375rem 0.625rem"
                                                               : "0.5rem 0.75rem",
-                                                        background: "#10b981",
-                                                        color: "white",
-                                                        border: "none",
+                                                        
                                                         borderRadius: "6px",
                                                         fontWeight: 500,
                                                         cursor: "pointer",
@@ -1304,14 +1209,6 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                         whiteSpace: "nowrap",
                                                         flexShrink: 0,
                                                     }}
-                                                    onMouseEnter={(e) =>
-                                                        (e.currentTarget.style.background =
-                                                            "#059669")
-                                                    }
-                                                    onMouseLeave={(e) =>
-                                                        (e.currentTarget.style.background =
-                                                            "#10b981")
-                                                    }
                                                 >
                                                     🍳 Receta
                                                 </button>
@@ -1327,6 +1224,7 @@ const ListProduct: React.FC<ListProductProps> = ({
                 {/* Controles de paginación (visible con cualquier cantidad de productos) */}
                 {products.length > 0 && (
                     <div
+                        className="border-t border-slate-200 dark:border-slate-700"
                         style={{
                             display: "flex",
                             justifyContent: "center",
@@ -1338,7 +1236,6 @@ const ListProduct: React.FC<ListProductProps> = ({
                                   : "0.75rem",
                             marginTop: isXs ? "0.75rem" : "1.5rem",
                             paddingTop: isXs ? "0.75rem" : "1.5rem",
-                            borderTop: "1px solid #e2e8f0",
                             flexWrap: "wrap",
                         }}
                     >
@@ -1347,12 +1244,9 @@ const ListProduct: React.FC<ListProductProps> = ({
                                 setCurrentPage((prev) => Math.max(1, prev - 1))
                             }
                             disabled={currentPage === 1}
+                            className="rounded-lg border border-indigo-300 bg-indigo-600 text-white disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-500 dark:border-indigo-700 dark:bg-indigo-500 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
                             style={{
                                 padding: buttonPadding,
-                                backgroundColor:
-                                    currentPage === 1 ? "#e2e8f0" : "#667eea",
-                                color: currentPage === 1 ? "#94a3b8" : "white",
-                                border: "none",
                                 borderRadius: "8px",
                                 fontWeight: 600,
                                 cursor:
@@ -1413,6 +1307,7 @@ const ListProduct: React.FC<ListProductProps> = ({
                                     <button
                                         key={page}
                                         onClick={() => setCurrentPage(page)}
+                                        className={`${page === currentPage ? "border-indigo-500 bg-indigo-600 text-white dark:border-indigo-500 dark:bg-indigo-500" : "border-slate-300 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"} rounded-lg border`}
                                         style={{
                                             minWidth: isXs
                                                 ? "1.85rem"
@@ -1424,15 +1319,6 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "center",
-                                            backgroundColor:
-                                                page === currentPage
-                                                    ? "#667eea"
-                                                    : "white",
-                                            color:
-                                                page === currentPage
-                                                    ? "white"
-                                                    : "#374151",
-                                            border: `1px solid ${page === currentPage ? "#667eea" : "#e2e8f0"}`,
                                             borderRadius: "8px",
                                             fontWeight:
                                                 page === currentPage
@@ -1456,17 +1342,9 @@ const ListProduct: React.FC<ListProductProps> = ({
                                 )
                             }
                             disabled={currentPage === totalPages}
+                            className="rounded-lg border border-indigo-300 bg-indigo-600 text-white disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-500 dark:border-indigo-700 dark:bg-indigo-500 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
                             style={{
                                 padding: buttonPadding,
-                                backgroundColor:
-                                    currentPage === totalPages
-                                        ? "#e2e8f0"
-                                        : "#667eea",
-                                color:
-                                    currentPage === totalPages
-                                        ? "#94a3b8"
-                                        : "white",
-                                border: "none",
                                 borderRadius: "8px",
                                 fontWeight: 600,
                                 cursor:

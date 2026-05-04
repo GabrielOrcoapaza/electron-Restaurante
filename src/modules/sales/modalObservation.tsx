@@ -270,72 +270,44 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 
     return (
         <div
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]"
             style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
                 zIndex: 10000,
-                padding: "1rem",
             }}
+            onClick={handleCancel}
         >
             <div
+                className="relative w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900"
                 style={{
-                    backgroundColor: "white",
-                    borderRadius: "20px",
                     padding: modalPadding,
                     maxWidth: modalMaxWidth,
                     width: "100%",
                     maxHeight: "95vh",
                     minHeight: "50vh",
-                    overflowY: "auto",
-                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-                    position: "relative",
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Botón cerrar */}
                 <button
                     onClick={handleCancel}
+                    className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     style={{
-                        position: "absolute",
-                        top: "1rem",
-                        right: "1rem",
                         background: "none",
                         border: "none",
                         fontSize: "1.5rem",
                         cursor: "pointer",
-                        color: "#64748b",
-                        width: "32px",
-                        height: "32px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderRadius: "50%",
-                        transition: "background-color 0.2s",
                     }}
-                    onMouseEnter={(e) =>
-                        (e.currentTarget.style.backgroundColor = "#f1f5f9")
-                    }
-                    onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor = "transparent")
-                    }
                 >
                     ✕
                 </button>
 
                 <h2
+                    className="text-slate-800 dark:text-slate-100"
                     style={{
                         margin: "0 0 1rem",
                         paddingRight: "2.25rem",
                         fontSize: titleFontSize,
                         fontWeight: 700,
-                        color: "#1e293b",
                         lineHeight: 1.3,
                     }}
                 >
@@ -366,54 +338,25 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
                                     type="button"
                                     onClick={() => handleToggle(observation.id)}
                                     disabled={!canEdit}
+                                    className={`inline-flex items-center gap-2 rounded-full border text-center transition-all duration-150 ${
+                                        isSelected
+                                            ? "border-blue-400 bg-blue-50 text-blue-700 dark:border-blue-600 dark:bg-blue-900/30 dark:text-blue-300"
+                                            : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-700 dark:hover:bg-blue-900/20"
+                                    } ${canEdit ? "" : "cursor-not-allowed opacity-60"}`}
                                     style={{
                                         fontSize: isSmall
                                             ? "0.875rem"
                                             : isMedium
                                               ? "0.9375rem"
                                               : "1rem",
-                                        color: isSelected
-                                            ? "#0369a1"
-                                            : "#0c4a6e",
                                         padding: "0.5rem 1rem",
-                                        background: isSelected
-                                            ? "#dbeafe"
-                                            : "white",
                                         borderRadius: "999px",
-                                        border: isSelected
-                                            ? "2px solid #3b82f6"
-                                            : "1px solid #e0f2fe",
-                                        cursor: canEdit
-                                            ? "pointer"
-                                            : "not-allowed",
                                         textAlign: "center",
                                         display: "inline-flex",
                                         alignItems: "center",
                                         gap: "0.5rem",
-                                        transition: "all 0.2s ease",
-                                        opacity: canEdit ? 1 : 0.6,
                                         whiteSpace: "nowrap",
                                         fontWeight: isSelected ? 600 : 400,
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        if (canEdit) {
-                                            e.currentTarget.style.background =
-                                                isSelected
-                                                    ? "#bfdbfe"
-                                                    : "#f0f9ff";
-                                            e.currentTarget.style.transform =
-                                                "scale(1.05)";
-                                        }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        if (canEdit) {
-                                            e.currentTarget.style.background =
-                                                isSelected
-                                                    ? "#dbeafe"
-                                                    : "white";
-                                            e.currentTarget.style.transform =
-                                                "scale(1)";
-                                        }
                                     }}
                                 >
                                     <span
@@ -440,11 +383,11 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
                     }}
                 >
                     <label
+                        className="text-slate-800 dark:text-slate-100"
                         style={{
                             display: "block",
                             fontSize: isSmall ? "0.875rem" : "0.9375rem",
                             fontWeight: 600,
-                            color: "#1e293b",
                             marginBottom: "0.5rem",
                         }}
                     >
@@ -459,30 +402,23 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
                             setManualNotes(e.target.value);
                         }}
                         disabled={!canEdit}
+                        className="w-full rounded-lg border border-slate-300 bg-white p-3 font-inherit leading-6 text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
                         placeholder={
                             observations.length > 0
                                 ? "Las observaciones seleccionadas aparecerán aquí. Puedes agregar notas adicionales..."
                                 : "Ej: Sin cebolla, bien cocido, sin sal..."
                         }
                         style={{
-                            width: "100%",
                             minHeight: "80px",
-                            borderRadius: "8px",
-                            border: "1px solid #cbd5e0",
-                            padding: "0.75rem",
                             fontSize: isSmall ? "0.875rem" : "0.9375rem",
                             resize: "vertical",
-                            background: canEdit ? "white" : "#f1f5f9",
-                            color: canEdit ? "#1a202c" : "#64748b",
-                            fontFamily: "inherit",
-                            lineHeight: "1.5",
                         }}
                     />
                     {!canEdit && (
                         <p
+                            className="text-slate-400 dark:text-slate-500"
                             style={{
                                 fontSize: "0.75rem",
-                                color: "#94a3b8",
                                 margin: "0.5rem 0 0 0",
                                 fontStyle: "italic",
                             }}
@@ -511,35 +447,24 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 
                 {/* Botones de acción */}
                 <div
+                    className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700"
                     style={{
                         display: "flex",
                         gap: "0.75rem",
                         justifyContent: "flex-end",
-                        borderTop: "1px solid #e2e8f0",
-                        paddingTop: "0.75rem",
-                        marginTop: "0.75rem",
                     }}
                 >
                     <button
                         onClick={handleCancel}
+                        className="rounded-lg border border-slate-300 bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         style={{
                             padding: isSmall
                                 ? "0.5rem 1rem"
                                 : "0.625rem 1.25rem",
-                            background: "#f1f5f9",
-                            border: "1px solid #cbd5e0",
-                            color: "#475569",
                             borderRadius: "8px",
                             cursor: "pointer",
                             fontWeight: 600,
                             fontSize: isSmall ? "0.875rem" : "0.9375rem",
-                            transition: "all 0.2s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "#e2e8f0";
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "#f1f5f9";
                         }}
                     >
                         Cancelar
@@ -547,40 +472,16 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
                     <button
                         onClick={handleApply}
                         disabled={!canEdit}
+                        className="rounded-lg border border-indigo-300 bg-indigo-600 text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-indigo-500 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-300 dark:border-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:disabled:border-slate-700 dark:disabled:bg-slate-700"
                         style={{
                             padding: isSmall
                                 ? "0.5rem 1rem"
                                 : "0.625rem 1.25rem",
-                            background: canEdit
-                                ? "linear-gradient(135deg, #667eea, #764ba2)"
-                                : "#cbd5e0",
-                            border: "none",
-                            color: "white",
                             borderRadius: "8px",
                             cursor: canEdit ? "pointer" : "not-allowed",
                             fontWeight: 700,
                             fontSize: isSmall ? "0.875rem" : "0.9375rem",
                             opacity: canEdit ? 1 : 0.6,
-                            transition: "all 0.2s ease",
-                            boxShadow: canEdit
-                                ? "0 2px 6px rgba(102, 126, 234, 0.3)"
-                                : "none",
-                        }}
-                        onMouseEnter={(e) => {
-                            if (canEdit) {
-                                e.currentTarget.style.transform =
-                                    "translateY(-2px)";
-                                e.currentTarget.style.boxShadow =
-                                    "0 4px 10px rgba(102, 126, 234, 0.4)";
-                            }
-                        }}
-                        onMouseLeave={(e) => {
-                            if (canEdit) {
-                                e.currentTarget.style.transform =
-                                    "translateY(0)";
-                                e.currentTarget.style.boxShadow =
-                                    "0 2px 6px rgba(102, 126, 234, 0.3)";
-                            }
                         }}
                     >
                         Aplicar

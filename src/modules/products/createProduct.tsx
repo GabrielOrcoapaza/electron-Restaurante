@@ -76,6 +76,11 @@ const CreateProduct: React.FC<CreateProductProps> = ({
     const gapSize = isXs ? "0.75rem" : isSmall ? "0.875rem" : "1rem";
     const titleFontSize = isXs ? "1.125rem" : isSmall ? "1.2rem" : "1.25rem";
 
+    const labelClass =
+        "mb-2 block font-medium text-slate-600 dark:text-slate-300";
+    const fieldClass =
+        "w-full rounded-lg border border-slate-300 bg-white text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
+
     const [formData, setFormData] = useState({
         categoryId: "",
         subcategoryId: "",
@@ -241,92 +246,56 @@ const CreateProduct: React.FC<CreateProductProps> = ({
 
     return (
         <div
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]"
             style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
                 zIndex: 1000,
-                padding: "1rem",
             }}
             onClick={onClose}
         >
             <div
+                className="relative max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900"
                 style={{
-                    backgroundColor: "white",
-                    borderRadius: "20px",
                     padding: modalPadding,
                     maxWidth: modalMaxWidth,
-                    width: "100%",
-                    maxHeight: "90vh",
-                    overflowY: "auto",
-                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-                    position: "relative",
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Botón cerrar */}
                 <button
+                    type="button"
                     onClick={onClose}
+                    className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     style={{
-                        position: "absolute",
-                        top: "1rem",
-                        right: "1rem",
                         background: "none",
                         border: "none",
                         fontSize: "1.5rem",
                         cursor: "pointer",
-                        color: "#64748b",
-                        width: "32px",
-                        height: "32px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderRadius: "50%",
-                        transition: "background-color 0.2s",
                     }}
-                    onMouseEnter={(e) =>
-                        (e.currentTarget.style.backgroundColor = "#f1f5f9")
-                    }
-                    onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor = "transparent")
-                    }
                 >
                     ✕
                 </button>
 
                 <h2
+                    className="text-slate-800 dark:text-slate-100"
                     style={{
                         margin: "0 0 1rem",
                         fontSize: titleFontSize,
                         fontWeight: 700,
-                        color: "#1e293b",
                     }}
                 >
-                    🆕 Nuevo Producto
+                    Nuevo producto
                 </h2>
 
                 {/* Mensaje */}
                 {message && (
                     <div
+                        className={
+                            message.type === "success"
+                                ? "mb-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
+                                : "mb-4 rounded-xl border border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200"
+                        }
                         style={{
                             padding: "1rem",
-                            borderRadius: "10px",
-                            marginBottom: "1rem",
-                            backgroundColor:
-                                message.type === "success"
-                                    ? "#dcfce7"
-                                    : "#fee2e2",
-                            color:
-                                message.type === "success"
-                                    ? "#166534"
-                                    : "#991b1b",
-                            border: `1px solid ${message.type === "success" ? "#86efac" : "#fecaca"}`,
                         }}
                     >
                         {message.text}
@@ -351,29 +320,18 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                             }}
                         >
                             <div>
-                                <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
-                                >
+                                <label className={labelClass} style={{ fontSize: labelFontSize }}>
                                     Categoría
                                 </label>
                                 <select
                                     name="categoryId"
                                     value={formData.categoryId}
                                     onChange={handleChange}
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
-                                        backgroundColor: "white",
                                     }}
                                 >
                                     <option value="">
@@ -393,15 +351,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                             </div>
 
                             <div>
-                                <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
-                                >
+                                <label className={labelClass} style={{ fontSize: labelFontSize }}>
                                     Subcategoría
                                 </label>
                                 <select
@@ -409,16 +359,15 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     value={formData.subcategoryId}
                                     onChange={handleChange}
                                     disabled={!formData.categoryId}
+                                    className={`${fieldClass} disabled:cursor-not-allowed disabled:opacity-70 ${
+                                        formData.categoryId
+                                            ? ""
+                                            : "bg-slate-100 dark:bg-slate-900"
+                                    }`}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
-                                        backgroundColor: formData.categoryId
-                                            ? "white"
-                                            : "#f1f5f9",
                                     }}
                                 >
                                     <option value="">
@@ -440,15 +389,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({
 
                         {/* Tipo de Producto */}
                         <div>
-                            <label
-                                style={{
-                                    display: "block",
-                                    marginBottom: "0.5rem",
-                                    fontWeight: 500,
-                                    fontSize: labelFontSize,
-                                    color: "#475569",
-                                }}
-                            >
+                            <label className={labelClass} style={{ fontSize: labelFontSize }}>
                                 Tipo de Producto *
                             </label>
                             <select
@@ -456,14 +397,11 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                 value={formData.productType}
                                 onChange={handleChange}
                                 required
+                                className={fieldClass}
                                 style={{
-                                    width: "100%",
                                     padding: inputPadding,
-                                    border: "1px solid #e2e8f0",
-                                    borderRadius: "8px",
                                     fontSize: inputFontSize,
                                     boxSizing: "border-box",
-                                    backgroundColor: "white",
                                 }}
                             >
                                 <option value="DISH">Plato</option>
@@ -483,13 +421,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                         >
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Código *
                                 </label>
@@ -500,11 +433,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     onChange={handleChange}
                                     required
                                     placeholder="PROD001"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -513,13 +444,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({
 
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Nombre *
                                 </label>
@@ -530,11 +456,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     onChange={handleChange}
                                     required
                                     placeholder="Nombre del producto"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -545,13 +469,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                         {/* Descripción */}
                         <div>
                             <label
-                                style={{
-                                    display: "block",
-                                    marginBottom: "0.5rem",
-                                    fontWeight: 500,
-                                    fontSize: labelFontSize,
-                                    color: "#475569",
-                                }}
+                                className={labelClass}
+                                style={{ fontSize: labelFontSize }}
                             >
                                 Descripción
                             </label>
@@ -561,15 +480,11 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                 onChange={handleChange}
                                 placeholder="Descripción del producto"
                                 rows={2}
+                                className={`${fieldClass} resize-y font-inherit`}
                                 style={{
-                                    width: "100%",
                                     padding: inputPadding,
-                                    border: "1px solid #e2e8f0",
-                                    borderRadius: "8px",
                                     fontSize: inputFontSize,
                                     boxSizing: "border-box",
-                                    resize: "vertical",
-                                    fontFamily: "inherit",
                                 }}
                             />
                         </div>
@@ -577,13 +492,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                         {/* Foto del producto (ImageField en backend → imageBase64 en GraphQL) */}
                         <div>
                             <label
-                                style={{
-                                    display: "block",
-                                    marginBottom: "0.5rem",
-                                    fontWeight: 500,
-                                    fontSize: labelFontSize,
-                                    color: "#475569",
-                                }}
+                                className={labelClass}
+                                style={{ fontSize: labelFontSize }}
                             >
                                 Foto del producto (opcional)
                             </label>
@@ -605,6 +515,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                         <img
                                             src={imagePreview}
                                             alt="Vista previa"
+                                            className="rounded-[10px] border border-slate-200 dark:border-slate-600"
                                             style={{
                                                 width:
                                                     isXs || isSmall
@@ -615,8 +526,6 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                                         ? "72px"
                                                         : "88px",
                                                 objectFit: "cover",
-                                                borderRadius: "10px",
-                                                border: "1px solid #e2e8f0",
                                             }}
                                         />
                                     </div>
@@ -633,24 +542,20 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                         type="file"
                                         accept="image/jpeg,image/png,image/webp,image/gif"
                                         onChange={handleImageChange}
+                                        className={fieldClass}
                                         style={{
-                                            width: "100%",
                                             padding:
                                                 isXs || isSmall
                                                     ? "0.35rem"
                                                     : "0.4rem",
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
                                             fontSize: inputFontSize,
                                             boxSizing: "border-box",
-                                            backgroundColor: "white",
                                         }}
                                     />
                                     <p
+                                        className="mt-1 text-[0.65rem] text-slate-400 dark:text-slate-500"
                                         style={{
                                             margin: "0.35rem 0 0",
-                                            fontSize: "0.65rem",
-                                            color: "#94a3b8",
                                         }}
                                     >
                                         JPG, PNG, WebP o GIF. Máx. 3 MB.
@@ -660,15 +565,10 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     <button
                                         type="button"
                                         onClick={handleClearImage}
+                                        className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-1.5 font-medium text-slate-600 transition-colors hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                                         style={{
-                                            padding: "0.4rem 0.65rem",
                                             fontSize: inputFontSize,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            background: "#f8fafc",
-                                            color: "#64748b",
                                             cursor: "pointer",
-                                            fontWeight: 500,
                                             alignSelf: "center",
                                         }}
                                     >
@@ -689,13 +589,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                         >
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Precio de Venta
                                 </label>
@@ -707,11 +602,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     min="0"
                                     step="0.01"
                                     placeholder="0.00"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -720,13 +613,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({
 
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Precio de Compra
                                 </label>
@@ -738,11 +626,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     min="0"
                                     step="0.01"
                                     placeholder="0.00"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -761,13 +647,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                         >
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Unidad de Medida
                                 </label>
@@ -775,14 +656,11 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     name="unitMeasure"
                                     value={formData.unitMeasure}
                                     onChange={handleChange}
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
-                                        backgroundColor: "white",
                                     }}
                                 >
                                     <option value="NIU">NIU - Unidad</option>
@@ -794,13 +672,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({
 
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Tiempo de Preparación (min)
                                 </label>
@@ -811,11 +684,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     onChange={handleChange}
                                     min="0"
                                     placeholder="0"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -838,13 +709,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                         >
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Stock Mínimo
                                 </label>
@@ -856,11 +722,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     min="0"
                                     step="0.01"
                                     placeholder="0"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -869,13 +733,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({
 
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Stock Máximo
                                 </label>
@@ -887,11 +746,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     min="0"
                                     step="0.01"
                                     placeholder="0"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -900,13 +757,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({
 
                             <div>
                                 <label
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "0.5rem",
-                                        fontWeight: 500,
-                                        fontSize: labelFontSize,
-                                        color: "#475569",
-                                    }}
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
                                 >
                                     Stock Inicial
                                 </label>
@@ -918,11 +770,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     min="0"
                                     step="0.01"
                                     placeholder="0"
+                                    className={fieldClass}
                                     style={{
-                                        width: "100%",
                                         padding: inputPadding,
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
                                         fontSize: inputFontSize,
                                         boxSizing: "border-box",
                                     }}
@@ -934,18 +784,11 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                         {(formData.productType === "BEVERAGE" ||
                             formData.productType === "INGREDIENT") && (
                             <div
-                                style={{
-                                    padding: "0.75rem",
-                                    borderRadius: "8px",
-                                    backgroundColor: formData.managesStock
-                                        ? "#eff6ff"
-                                        : "#f8fafc",
-                                    border: `1px solid ${formData.managesStock ? "#bfdbfe" : "#e2e8f0"}`,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.75rem",
-                                    cursor: "pointer",
-                                }}
+                                className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
+                                    formData.managesStock
+                                        ? "border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/25"
+                                        : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
+                                }`}
                                 onClick={() =>
                                     setFormData((prev) => ({
                                         ...prev,

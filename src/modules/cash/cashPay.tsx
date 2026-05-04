@@ -1987,19 +1987,15 @@ const CashPay: React.FC<CashPayProps> = ({
             }}
         >
             <header
+                className="border-b border-slate-200 bg-white/95 text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-100"
                 style={{
                     flexShrink: 0,
-                    background:
-                        "linear-gradient(180deg, #aeb9c5 0%, #9aa8b6 100%)",
-                    color: "#0f172a",
                     padding: isNarrow ? "0.5rem" : "0.65rem 1rem",
                     display: "flex",
                     flexDirection: isNarrow ? "column" : "row",
                     justifyContent: "space-between",
                     alignItems: isNarrow ? "stretch" : "center",
                     gap: isNarrow ? "0.75rem" : "1rem",
-                    borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
-                    boxShadow: "0 1px 0 rgba(255,255,255,0.35) inset",
                 }}
             >
                 <div
@@ -2012,12 +2008,9 @@ const CashPay: React.FC<CashPayProps> = ({
                     <button
                         onClick={onBack}
                         type="button"
+                        className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         style={{
-                            background: "rgba(15, 23, 42, 0.08)",
-                            border: "1px solid rgba(15, 23, 42, 0.12)",
-                            color: "#0f172a",
                             padding: "0.45rem 0.55rem",
-                            borderRadius: "4px",
                             cursor: "pointer",
                             fontSize: "1.125rem",
                             lineHeight: 1,
@@ -2028,9 +2021,9 @@ const CashPay: React.FC<CashPayProps> = ({
                     </button>
                     <div style={{ minWidth: 0 }}>
                         <div
+                            className="text-slate-600 dark:text-slate-300"
                             style={{
                                 fontSize: "0.8125rem",
-                                color: "#0f172a",
                                 display: "flex",
                                 flexWrap: "wrap",
                                 alignItems: "center",
@@ -2049,12 +2042,12 @@ const CashPay: React.FC<CashPayProps> = ({
                             </span>
                         </div>
                         <div
+                            className="text-slate-900 dark:text-slate-100"
                             style={{
                                 fontWeight: 800,
                                 fontSize: "1.2rem",
                                 marginTop: "0.15rem",
                                 letterSpacing: "0.01em",
-                                color: "#0f172a",
                             }}
                         >
                             {table.name}
@@ -2068,12 +2061,10 @@ const CashPay: React.FC<CashPayProps> = ({
                 }}>
                     <button
                         onClick={() => setShowChangeTableModal(true)}
+                        className="rounded-lg border border-sky-200 bg-sky-50 text-sky-700 transition-colors hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/45"
                         style={{
                             padding: isNarrow ? "0.6rem 0.4rem" : "0.4rem 0.8rem",
                             fontSize: isNarrow ? "0.7rem" : "0.75rem",
-                            background: "#00BFFF",
-                            color: "white",
-                            border: "none",
                             borderRadius: "6px",
                             cursor: "pointer",
                             width: isNarrow ? "auto" : "150px",
@@ -2084,12 +2075,10 @@ const CashPay: React.FC<CashPayProps> = ({
                     </button>
                     <button
                         onClick={() => setShowTransferPlatesModal(true)}
+                        className="rounded-lg border border-slate-300 bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         style={{
                             padding: isNarrow ? "0.6rem 0.4rem" : "0.4rem 0.8rem",
                             fontSize: isNarrow ? "0.7rem" : "0.75rem",
-                            background: "#808080",
-                            color: "white",
-                            border: "none",
                             borderRadius: "6px",
                             cursor: "pointer",
                             width: isNarrow ? "auto" : "150px",
@@ -2100,12 +2089,10 @@ const CashPay: React.FC<CashPayProps> = ({
                     </button>
                     <button
                         onClick={() => setShowChangeUserModal(true)}
+                        className="rounded-lg border border-orange-200 bg-orange-50 text-orange-700 transition-colors hover:bg-orange-100 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300 dark:hover:bg-orange-900/45"
                         style={{
                             padding: isNarrow ? "0.6rem 0.4rem" : "0.4rem 0.8rem",
                             fontSize: isNarrow ? "0.7rem" : "0.75rem",
-                            background: "#E9967A",
-                            color: "white",
-                            border: "none",
                             borderRadius: "6px",
                             cursor: "pointer",
                             width: isNarrow ? "auto" : "150px",
@@ -2121,12 +2108,10 @@ const CashPay: React.FC<CashPayProps> = ({
                             operation.status === "COMPLETED" ||
                             isProcessing
                         }
+                        className="rounded-lg border border-amber-200 bg-amber-50 text-amber-700 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/45"
                         style={{
                             padding: isNarrow ? "0.6rem 0.4rem" : "0.4rem 0.8rem",
                             fontSize: isNarrow ? "0.7rem" : "0.75rem",
-                            background: "#f59e0b",
-                            color: "white",
-                            border: "none",
                             borderRadius: "6px",
                             cursor: "pointer",
                             width: isNarrow ? "auto" : "150px",
@@ -2143,12 +2128,10 @@ const CashPay: React.FC<CashPayProps> = ({
                     </button>
                     <button
                         onClick={() => refetch()}
+                        className="rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-colors hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/45"
                         style={{
                             padding: "0.4rem 0.8rem",
                             fontSize: "0.75rem",
-                            background: "#3b82f6",
-                            color: "white",
-                            border: "none",
                             borderRadius: "4px",
                             cursor: "pointer",
                         }}
@@ -2159,11 +2142,10 @@ const CashPay: React.FC<CashPayProps> = ({
             </header>
 
             <section
+                className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
                 style={{
                     flexShrink: 0,
-                    background: "white",
                     padding: isNarrow ? "0.5rem" : "0.5rem 1rem",
-                    borderBottom: "1px solid #e2e8f0",
                     display: "flex",
                     flexDirection: isXs ? "column" : "row",
                     gap: isNarrow ? "0.5rem" : "1rem",
@@ -2179,13 +2161,10 @@ const CashPay: React.FC<CashPayProps> = ({
                     }}
                 >
                         <div
+                            className="overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900"
                             style={{
                                 flex: 1,
                                 display: "flex",
-                                border: "1px solid #cbd5e0",
-                                borderRadius: "6px",
-                                overflow: "hidden",
-                                backgroundColor: "white",
                                 height: isNarrow ? "44px" : "50px",
                             }}
                         >
@@ -2203,6 +2182,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                         handleSearchSunat();
                                     }
                                 }}
+                                className="bg-transparent text-slate-900 placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
                                 style={{
                                     flex: 1,
                                     padding: "0.3rem 0.75rem",
@@ -2215,11 +2195,9 @@ const CashPay: React.FC<CashPayProps> = ({
                                 onClick={handleSearchSunat}
                                 disabled={sunatSearchLoading}
                                 title="Buscar en SUNAT"
+                                className="border-l border-slate-300 bg-sky-50 text-sky-700 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/45"
                                 style={{
                                     padding: "0 1rem",
-                                    background: "#0ea5e9",
-                                    color: "white",
-                                    border: "none",
                                     cursor: sunatSearchLoading
                                         ? "not-allowed"
                                         : "pointer",
@@ -2234,14 +2212,10 @@ const CashPay: React.FC<CashPayProps> = ({
                             onClick={() => setShowEditClientModal(true)}
                             disabled={!selectedClientId}
                             title="Editar Cliente"
+                            className="rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/45"
                             style={{
                                 padding: isNarrow ? "0 1rem" : "0.3rem 0.6rem",
                                 fontSize: isNarrow ? "1.1rem" : "0.75rem",
-                                background: !selectedClientId
-                                    ? "#94a3b8"
-                                    : "#6366f1",
-                                color: "white",
-                                border: "none",
                                 borderRadius: "6px",
                                 height: isNarrow ? "44px" : "auto",
                                 cursor: !selectedClientId
@@ -2256,12 +2230,10 @@ const CashPay: React.FC<CashPayProps> = ({
                             type="button"
                             onClick={() => setShowCreateClientModal(true)}
                             title="Nuevo Cliente"
+                            className="rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/45"
                             style={{
                                 padding: isNarrow ? "0 1rem" : "0.3rem 0.6rem",
                                 fontSize: isNarrow ? "1.1rem" : "0.75rem",
-                                background: "#10b981",
-                                color: "white",
-                                border: "none",
                                 borderRadius: "6px",
                                 height: isNarrow ? "44px" : "auto",
                                 cursor: "pointer",
@@ -2275,6 +2247,7 @@ const CashPay: React.FC<CashPayProps> = ({
                         !selectedClientId &&
                         filteredClients.length > 0 && (
                             <div
+                                className="rounded-md border border-slate-200 bg-white shadow-md dark:border-slate-700 dark:bg-slate-900"
                                 style={{
                                     position: "absolute",
                                     top: "100%",
@@ -2283,10 +2256,6 @@ const CashPay: React.FC<CashPayProps> = ({
                                     width: "250px",
                                     maxHeight: "200px",
                                     overflowY: "auto",
-                                    background: "white",
-                                    border: "1px solid #e2e8f0",
-                                    borderRadius: "4px",
-                                    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
                                     zIndex: 100,
                                 }}
                             >
@@ -2295,12 +2264,9 @@ const CashPay: React.FC<CashPayProps> = ({
                                         setSelectedClientId("");
                                         setClientSearchTerm("");
                                     }}
+                                    className="cursor-pointer border-b border-slate-100 px-2 py-2 text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
                                     style={{
-                                        padding: "0.5rem",
                                         fontSize: "0.75rem",
-                                        cursor: "pointer",
-                                        borderBottom: "1px solid #f1f5f9",
-                                        color: "#64748b",
                                     }}
                                 >
                                     Sin cliente (Consumidor final)
@@ -2314,13 +2280,12 @@ const CashPay: React.FC<CashPayProps> = ({
                                                 client.name || "",
                                             );
                                         }}
+                                        className="cursor-pointer border-b border-slate-100 px-2 py-2 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
                                         style={{
-                                            padding: "0.5rem",
-                                            cursor: "pointer",
-                                            borderBottom: "1px solid #f1f5f9",
                                         }}
                                     >
                                         <div
+                                            className="text-slate-800 dark:text-slate-100"
                                             style={{
                                                 fontSize: "0.75rem",
                                                 fontWeight: 700,
@@ -2329,9 +2294,9 @@ const CashPay: React.FC<CashPayProps> = ({
                                             {client.name}
                                         </div>
                                         <div
+                                            className="text-slate-500 dark:text-slate-400"
                                             style={{
                                                 fontSize: "0.65rem",
-                                                color: "#64748b",
                                             }}
                                         >
                                             {client.documentType || "DNI"}:{" "}
@@ -2345,6 +2310,7 @@ const CashPay: React.FC<CashPayProps> = ({
             </section>
 
             <main
+                className="bg-slate-50 dark:bg-slate-950"
                 style={{
                     flex: 1,
                     display: "flex",
@@ -2356,21 +2322,20 @@ const CashPay: React.FC<CashPayProps> = ({
                 }}
             >
                 <section
+                    className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
                     style={{
                         flex: isSmallDesktop ? "65%" : "70%",
-                        background: "white",
                         display: "flex",
                         flexDirection: "column",
-                        border: "1px solid #e2e8f0",
                     }}
                 >
                     <div
+                        className="border-b border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                         style={{
                             display: "grid",
                             gridTemplateColumns: isNarrow 
                                 ? "40px 40px 1fr 90px" 
                                 : "40px 40px 1fr 80px 80px 100px",
-                            background: "#f1f5f9",
                             padding: isNarrow ? "0.6rem 0.4rem" : "0.5rem",
                             fontWeight: 800,
                             fontSize: isNarrow ? "0.75rem" : "0.7rem",
@@ -2387,6 +2352,7 @@ const CashPay: React.FC<CashPayProps> = ({
                         {detailsToUse.map((d: any) => (
                             <div
                                 key={d.id}
+                                className={`${itemAssignments[d.id] ? "bg-sky-50 dark:bg-sky-900/20" : "bg-white dark:bg-slate-900"} border-b border-slate-100 dark:border-slate-800`}
                                 style={{
                                     display: "grid",
                                     gridTemplateColumns: isNarrow 
@@ -2394,10 +2360,6 @@ const CashPay: React.FC<CashPayProps> = ({
                                         : "40px 40px 1fr 80px 80px 100px",
                                     padding: isNarrow ? "0.75rem 0.4rem" : "0.5rem",
                                     fontSize: isNarrow ? "0.9rem" : "0.8rem",
-                                    borderBottom: "1px solid #f1f5f9",
-                                    background: itemAssignments[d.id]
-                                        ? "#f0f9ff"
-                                        : "none",
                                     alignItems: "center"
                                 }}
                             >
@@ -2407,24 +2369,24 @@ const CashPay: React.FC<CashPayProps> = ({
                                     onChange={() =>
                                         handleToggleItemSelection(d.id)
                                     }
-                                    style={{ width: "20px", height: "20px" }}
+                                    style={{ width: "20px", height: "20px", accentColor: "#4f46e5" }}
                                 />
-                                <div style={{ fontWeight: 800 }}>
+                                <div className="text-slate-800 dark:text-slate-100" style={{ fontWeight: 800 }}>
                                     {d.quantity}
                                 </div>
-                                <div>
+                                <div className="text-slate-700 dark:text-slate-200">
                                     <div style={{ fontWeight: 600 }}>{d.productName}</div>
                                     {isNarrow && (
-                                        <div style={{ fontSize: "0.7rem", color: "#64748b", marginTop: "2px" }}>
+                                        <div className="text-slate-500 dark:text-slate-400" style={{ fontSize: "0.7rem", marginTop: "2px" }}>
                                             PU: {currencyFormatter.format(d.unitPrice)}
                                             {d.quantity > 1 && !String(d.id).includes("-split") && (
-                                                <button onClick={() => handleSplitItem(d.id)} style={{ marginLeft: "8px", color: "#3b82f6", background: "none", border: "none", padding: 0 }}>Dividir</button>
+                                                <button onClick={() => handleSplitItem(d.id)} className="ml-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" style={{ background: "none", border: "none", padding: 0 }}>Dividir</button>
                                             )}
                                             {String(d.id).includes("-split") && (
-                                                <button onClick={() => handleMergeItem(d.id)} style={{ marginLeft: "8px", color: "#3b82f6", background: "none", border: "none", padding: 0 }}>Unir</button>
+                                                <button onClick={() => handleMergeItem(d.id)} className="ml-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" style={{ background: "none", border: "none", padding: 0 }}>Unir</button>
                                             )}
                                             {canVoidInCashPay && (
-                                                <button onClick={() => handleDeleteItem(d.id)} style={{ marginLeft: "8px", color: "#ef4444", background: "none", border: "none", padding: 0 }}>Quitar</button>
+                                                <button onClick={() => handleDeleteItem(d.id)} className="ml-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300" style={{ background: "none", border: "none", padding: 0 }}>Quitar</button>
                                             )}
                                         </div>
                                     )}
@@ -2451,13 +2413,13 @@ const CashPay: React.FC<CashPayProps> = ({
                                         </div>
                                         <div style={{ textAlign: "center" }}>
                                             {d.quantity > 1 && !String(d.id).includes("-split") && (
-                                                <button onClick={() => handleSplitItem(d.id)} style={{ fontSize: "1.1rem" }}>✂️</button>
+                                                <button onClick={() => handleSplitItem(d.id)} className="text-lg">✂️</button>
                                             )}
                                             {String(d.id).includes("-split") && (
-                                                <button onClick={() => handleMergeItem(d.id)} style={{ fontSize: "1.1rem" }}>🔗</button>
+                                                <button onClick={() => handleMergeItem(d.id)} className="text-lg">🔗</button>
                                             )}
                                             {canVoidInCashPay && (
-                                                <button type="button" onClick={() => handleDeleteItem(d.id)} style={{ fontSize: "1.1rem" }} title="Quitar ítem">🗑️</button>
+                                                <button type="button" onClick={() => handleDeleteItem(d.id)} className="text-lg" title="Quitar ítem">🗑️</button>
                                             )}
                                         </div>
                                     </>
@@ -2466,10 +2428,9 @@ const CashPay: React.FC<CashPayProps> = ({
                         ))}
                     </div>
                     <div
+                        className="border-t border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
                         style={{
                             padding: "0.5rem",
-                            background: "#f8fafc",
-                            borderTop: "1px solid #e2e8f0",
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "flex-end",
@@ -2483,10 +2444,10 @@ const CashPay: React.FC<CashPayProps> = ({
                             }}
                         >
                             <div
+                                className="text-slate-500 dark:text-slate-400"
                                 style={{
                                     fontSize: "0.7rem",
                                     fontWeight: 600,
-                                    color: "#64748b",
                                 }}
                             >
                                 Descuentos:
@@ -2513,12 +2474,12 @@ const CashPay: React.FC<CashPayProps> = ({
                                         setDiscountAmount(v);
                                         if (v > 0) setDiscountPercent(0);
                                     }}
+                                    className="rounded-md border border-slate-300 bg-white text-slate-900 disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:disabled:bg-slate-700 dark:disabled:text-slate-500"
                                     style={{
                                         width: isNarrow ? "100px" : "80px",
                                         padding: "0.4rem",
                                         fontSize: isNarrow ? "0.9rem" : "0.75rem",
                                         borderRadius: "6px",
-                                        border: "1px solid #cbd5e1"
                                     }}
                                 />
                                 <input
@@ -2540,12 +2501,12 @@ const CashPay: React.FC<CashPayProps> = ({
                                         setDiscountPercent(v);
                                         if (v > 0) setDiscountAmount(0);
                                     }}
+                                    className="rounded-md border border-slate-300 bg-white text-slate-900 disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:disabled:bg-slate-700 dark:disabled:text-slate-500"
                                     style={{
                                         width: isNarrow ? "100px" : "80px",
                                         padding: "0.4rem",
                                         fontSize: isNarrow ? "0.9rem" : "0.75rem",
                                         borderRadius: "6px",
-                                        border: "1px solid #cbd5e1"
                                     }}
                                 />
                             </div>
@@ -2559,18 +2520,18 @@ const CashPay: React.FC<CashPayProps> = ({
                             }}
                         >
                             <div
+                                className="text-slate-500 dark:text-slate-400"
                                 style={{
                                     fontSize: "0.75rem",
-                                    color: "#64748b",
                                     fontWeight: 600,
                                 }}
                             >
                                 Subtotal: {currencyFormatter.format(subtotal)}
                             </div>
                             <div
+                                className="text-slate-500 dark:text-slate-400"
                                 style={{
                                     fontSize: "0.75rem",
-                                    color: "#64748b",
                                     fontWeight: 600,
                                 }}
                             >
@@ -2579,9 +2540,9 @@ const CashPay: React.FC<CashPayProps> = ({
                             </div>
                             {totalDiscount > 0 && (
                                 <div
+                                    className="text-red-600 dark:text-red-400"
                                     style={{
                                         fontSize: "0.75rem",
-                                        color: "#ef4444",
                                         fontWeight: 600,
                                     }}
                                 >
@@ -2590,18 +2551,18 @@ const CashPay: React.FC<CashPayProps> = ({
                                 </div>
                             )}
                             <div
+                                className="text-slate-500 dark:text-slate-400"
                                 style={{
                                     fontSize: isNarrow ? "1.1rem" : "0.9rem",
-                                    color: "#64748b"
                                 }}
                             >
                                 Total: {currencyFormatter.format(subtotal + igvAmount)}
                             </div>
                             <div
+                                className="text-slate-900 dark:text-slate-100"
                                 style={{
                                     fontSize: isNarrow ? "1.5rem" : "1.2rem",
                                     fontWeight: 900,
-                                    color: "#1e293b",
                                 }}
                             >
                                 Pagar: {currencyFormatter.format(totalToPay)}
@@ -2611,20 +2572,18 @@ const CashPay: React.FC<CashPayProps> = ({
                 </section>
 
                 <section
+                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
                     style={{
                         flex: isNarrow ? "auto" : isSmallDesktop ? "35%" : "30%",
-                        background: "white",
                         padding: isNarrow ? "0.75rem" : "1rem",
-                        border: "1px solid #e2e8f0",
                         display: "flex",
                         flexDirection: "column",
                         gap: "1rem",
                     }}
                 >
                     <div
+                        className="rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200"
                         style={{
-                            background: "#0ea5e9",
-                            color: "white",
                             padding: "0.5rem",
                             textAlign: "center",
                             borderRadius: "4px",
@@ -2645,6 +2604,7 @@ const CashPay: React.FC<CashPayProps> = ({
                             }}
                         >
                             <span
+                                className="text-slate-700 dark:text-slate-200"
                                 style={{ fontSize: "0.8rem", fontWeight: 800 }}
                             >
                                 PAGOS
@@ -2653,6 +2613,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                 type="button"
                                 onClick={addPayment}
                                 disabled={!canAddPaymentMethod}
+                                className="rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-slate-700 transition-colors hover:bg-slate-200 disabled:cursor-not-allowed dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                                 style={{
                                     fontSize: "1.0rem",
                                     padding: "0.5rem",
@@ -2668,8 +2629,8 @@ const CashPay: React.FC<CashPayProps> = ({
                         {payments.map((p) => (
                             <div
                                 key={p.id}
+                                className="rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
                                 style={{
-                                    border: "1px solid #e2e8f0",
                                     padding: "0.4rem",
                                     marginBottom: "0.4rem",
                                     borderRadius: "4px",
@@ -2691,13 +2652,13 @@ const CashPay: React.FC<CashPayProps> = ({
                                                 e.target.value,
                                             )
                                         }
+                                        className="rounded-md border border-slate-300 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                                         style={{
                                             flex: 1,
                                             marginRight: "0.4rem",
                                             padding: "0.75rem",
                                             fontSize: "1rem",
                                             borderRadius: "6px",
-                                            border: "1px solid #cbd5e1"
                                         }}
                                     >
                                         {PAYMENT_METHODS.map(
@@ -2714,11 +2675,9 @@ const CashPay: React.FC<CashPayProps> = ({
                                     {payments.length > 1 && (
                                         <button
                                             onClick={() => removePayment(p.id)}
+                                            className="rounded-md border border-red-300 bg-red-50 text-red-700 transition-colors hover:bg-red-100 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/45"
                                             style={{
                                                 padding: "0 1rem",
-                                                background: "#ef4444",
-                                                color: "white",
-                                                border: "none",
                                                 borderRadius: "6px",
                                                 cursor: "pointer",
                                                 fontWeight: 900,
@@ -2740,21 +2699,21 @@ const CashPay: React.FC<CashPayProps> = ({
                                             Number(e.target.value),
                                         )
                                     }
+                                    className="rounded-md border border-slate-300 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                                     style={{
                                         width: "100%",
                                         fontWeight: 800,
                                         padding: "0.75rem",
                                         fontSize: "1.2rem",
                                         borderRadius: "6px",
-                                        border: "1px solid #cbd5e1"
                                     }}
                                 />
                             </div>
                         ))}
                     </div>
                     <div
+                        className="border-t border-slate-200 pt-2 dark:border-slate-700"
                         style={{
-                            borderTop: "1px solid #e2e8f0",
                             paddingTop: "0.5rem",
                         }}
                     >
@@ -2766,12 +2725,13 @@ const CashPay: React.FC<CashPayProps> = ({
                                 fontWeight: 800,
                                 marginBottom: "0.5rem",
                             }}
+                            className="text-slate-700 dark:text-slate-200"
                         >
                             <span>
                                 RESTA: {currencyFormatter.format(remaining)}
                             </span>
                             {vuelto > 0 && (
-                                <span style={{ color: "green" }}>
+                                <span className="text-emerald-600 dark:text-emerald-400">
                                     Vuelto: {currencyFormatter.format(vuelto)}
                                 </span>
                             )}
@@ -2785,21 +2745,20 @@ const CashPay: React.FC<CashPayProps> = ({
                         >
                             {showLocalPrinterPicker && (
                                 <div
+                                    className="rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800"
                                     style={{
-                                        backgroundColor: "#f8fafc",
                                         padding: "0.75rem",
                                         borderRadius: "8px",
-                                        border: "1px solid #e2e8f0",
                                         display: "flex",
                                         flexDirection: "column",
                                         gap: "0.4rem"
                                     }}
                                 >
                                     <div
+                                        className="text-slate-500 dark:text-slate-400"
                                         style={{
                                             fontSize: "0.65rem",
                                             fontWeight: 700,
-                                            color: "#64748b",
                                             textTransform: "uppercase",
                                             letterSpacing: "0.025em"
                                         }}
@@ -2807,10 +2766,10 @@ const CashPay: React.FC<CashPayProps> = ({
                                         Impresora de tickets (USB)
                                     </div>
                                     <div
+                                        className={selectedLocalPrinterName ? "text-slate-800 dark:text-slate-100" : "text-red-600 dark:text-red-400"}
                                         style={{
                                             fontSize: "0.85rem",
                                             fontWeight: 600,
-                                            color: selectedLocalPrinterName ? "#0f172a" : "#dc2626",
                                             display: "flex",
                                             alignItems: "center",
                                             gap: "0.4rem"
@@ -2818,7 +2777,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                     >
                                         {selectedLocalPrinterName ? (
                                             <>
-                                                <span style={{ color: "#059669" }}>✓</span>
+                                                <span className="text-emerald-600 dark:text-emerald-400">✓</span>
                                                 {selectedLocalPrinterName}
                                             </>
                                         ) : (
@@ -2829,9 +2788,9 @@ const CashPay: React.FC<CashPayProps> = ({
                                         )}
                                     </div>
                                     <div
+                                        className="text-slate-400 dark:text-slate-500"
                                         style={{
                                             fontSize: "0.6rem",
-                                            color: "#94a3b8",
                                             lineHeight: 1.3
                                         }}
                                     >
@@ -2839,32 +2798,30 @@ const CashPay: React.FC<CashPayProps> = ({
                                             ? "Se imprimirá directamente en esta impresora." 
                                             : "No hay una impresora seleccionada. Se usará la de Windows."}
                                         <br />
-                                        <span style={{ fontWeight: 600, color: "#64748b" }}>
+                                        <span className="font-semibold text-slate-500 dark:text-slate-400">
                                             * Sujeto a configuración del servidor por tipo de documento.
                                         </span>
                                     </div>
                                 </div>
                             )}
                             <div
+                                className="text-slate-500 dark:text-slate-400"
                                 style={{
                                     fontSize: "0.65rem",
                                     fontWeight: 700,
-                                    color: "#64748b",
                                 }}
                             >
                                 {isElectron ? "Cobrar e imprimir" : "Cobrar"}
                             </div>
                             {!isElectron && (
                                 <div
+                                    className="rounded-md border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
                                     style={{
                                         fontSize: "0.6rem",
-                                        color: "#d97706",
                                         marginBottom: "0.2rem",
                                         fontWeight: 600,
-                                        backgroundColor: "#fef3c7",
                                         padding: "0.3rem",
                                         borderRadius: "4px",
-                                        border: "1px solid #fcd34d",
                                     }}
                                 >
                                     ⚠️ La impresión física directa solo está disponible en la versión de escritorio.
@@ -2872,9 +2829,9 @@ const CashPay: React.FC<CashPayProps> = ({
                             )}
                             {payDocumentsOrdered.length === 0 ? (
                                 <div
+                                    className="text-slate-400 dark:text-slate-500"
                                     style={{
                                         fontSize: "0.75rem",
-                                        color: "#94a3b8",
                                         padding: "0.5rem 0",
                                     }}
                                 >
@@ -2912,6 +2869,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                                 }
                                                 disabled={disabled}
                                                 title={d.description}
+                                                className="rounded-md border border-transparent bg-slate-600 text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
                                                 style={{
                                                     flex: "1 1 calc(33.33% - 0.4rem)",
                                                     minWidth: "5.5rem",
@@ -2920,7 +2878,6 @@ const CashPay: React.FC<CashPayProps> = ({
                                                         ? "#cbd5e0"
                                                         : bg,
                                                     color: "white",
-                                                    border: "none",
                                                     borderRadius: "6px",
                                                     fontWeight: 800,
                                                     fontSize: "0.72rem",
@@ -2944,13 +2901,11 @@ const CashPay: React.FC<CashPayProps> = ({
                                     setCancellationReason("");
                                     setShowCancelOperationModal(true);
                                 }}
+                                className="w-full rounded-md border border-red-300 bg-red-50 text-red-700 transition-colors hover:bg-red-100 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/45"
                                 style={{
                                     width: "100%",
                                     marginTop: "0.8rem",
                                     padding: "0.5rem",
-                                    background: "#dc2626",
-                                    color: "white",
-                                    border: "none",
                                     borderRadius: "6px",
                                     fontSize: "0.75rem",
                                     fontWeight: 800,
