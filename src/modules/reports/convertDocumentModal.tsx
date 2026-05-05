@@ -76,15 +76,6 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
         }
     }, [serialsData]);
 
-    // Effect to populate client search if conversion target matches original
-    useEffect(() => {
-        if (annulledDocument?.person) {
-            // Pre-select client if available (optional, maybe better to let user choose)
-            // setSelectedClientId(annulledDocument.person.id);
-            // setClientSearchTerm(annulledDocument.person.name);
-        }
-    }, [annulledDocument]);
-
     // State for selected items to convert (checkboxes)
     const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
 
@@ -94,7 +85,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
             const initial: Record<string, number> = {};
             itemsData.reissueableItems.forEach((item: any) => {
                 if (item.remainingQuantity > 0) {
-                    initial[item.operationDetailId] = item.remainingQuantity; // Default to max quantity
+                    initial[item.operationDetailId] = item.remainingQuantity;
                 }
             });
             setSelectedItems(initial);
@@ -176,7 +167,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
 
     const filteredClients = useMemo(() => {
         const clients = (clientsData?.personsByBranch || []).filter((person: any) => !person.isSupplier && person.isActive !== false);
-        if (!clientSearchTerm) return clients.slice(0, 50); // Limit results
+        if (!clientSearchTerm) return clients.slice(0, 50);
         const lower = clientSearchTerm.toLowerCase();
         return clients.filter((c: any) => {
             if (isFactura && (c.documentType || '').toUpperCase() !== 'RUC') return false;
@@ -209,7 +200,6 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
             totalTaxable: Number(totalTaxable.toFixed(2)),
             igvAmount: Number(igvAmount.toFixed(2)),
             totalDiscount: Number(totalDiscount.toFixed(2)),
-            // Simplify others for now
             totalUnaffected: 0,
             totalExempt: 0,
             totalFree: 0,
@@ -230,7 +220,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
             return;
         }
 
-        if (doc.code === '01') { // Factura requires client
+        if (doc.code === '01') {
             if (!selectedClientId) {
                 setError('Debe seleccionar un cliente para Factura');
                 return;
@@ -242,7 +232,6 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
             }
         }
 
-        // Validate at least one item selected
         const hasSelection = Object.keys(selectedItems).length > 0;
         if (!hasSelection) {
             setError('Debe seleccionar al menos un producto para convertir');
@@ -260,11 +249,10 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                     unitValue: item.unitValue,
                     unitPrice: item.unitPrice,
                     discount: item.discount,
-                    notes: '' // Optional
+                    notes: ''
                 };
             }).filter(Boolean);
 
-            // Obtener MAC del cliente para impresión
             const mac = await getMacAddress();
             const resolvedDeviceId = mac || deviceId;
 
@@ -278,7 +266,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                     userId: user?.id,
                     emissionDate: formatLocalDateYYYYMMDD(),
                     emissionTime: formatLocalTimeHHMMSS(),
-                    currency: 'PEN', // Default
+                    currency: 'PEN',
                     exchangeRate: 1.0,
                     itemsTotalDiscount: totals.totalDiscount,
                     globalDiscount: 0,
@@ -292,8 +280,8 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                     totalFree: totals.totalFree,
                     totalAmount: totals.totalAmount,
                     items: formattedItems,
-                    deviceId: resolvedDeviceId, // For printing
-                    printerId: null, // Let backend decide or user select?
+                    deviceId: resolvedDeviceId,
+                    printerId: null,
                     notes: `Conversión desde ${annulledDocument.serial}-${annulledDocument.number}`
                 }
             });
@@ -315,329 +303,239 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div style={{
-            position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-        }}>
-            <div style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '1.5rem',
-                maxWidth: '500px',
-                width: '90%',
-                maxHeight: '90vh',
-                overflowY: 'auto'
-            }}>
-                <h2 style={{ marginTop: 0, color: '#1e293b' }}>Convertir Documento</h2>
-
-                <div style={{ marginBottom: '1rem', color: '#64748b', fontSize: '0.9rem' }}>
-                    Origen: {annulledDocument?.document?.description} {annulledDocument?.serial}-{annulledDocument?.number}
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="w-full max-w-2xl overflow-hidden rounded-[32px] bg-white shadow-2xl dark:bg-slate-900 max-h-[90vh] flex flex-col">
+                {/* Header */}
+                <div className="bg-indigo-600 p-8 text-white flex-shrink-0">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-2xl font-black">Convertir Documento</h3>
+                    <p className="mt-1 text-sm font-bold opacity-80">
+                        Origen: {annulledDocument?.document?.description} {annulledDocument?.serial}-{annulledDocument?.number}
+                    </p>
                 </div>
 
-                {error && (
-                    <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '8px', marginBottom: '1rem' }}>
-                        {error}
-                    </div>
-                )}
-                {successMsg && (
-                    <div style={{ padding: '0.75rem', background: '#dcfce7', color: '#166534', borderRadius: '8px', marginBottom: '1rem' }}>
-                        {successMsg}
-                    </div>
-                )}
-
-                <div style={{ marginBottom: '1rem' }}>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Tipo de Documento Destino</label>
-                    <select
-                        value={targetDocumentId}
-                        onChange={e => setTargetDocumentId(e.target.value)}
-                        style={{ width: '100%', padding: '0.625rem', borderRadius: '8px', border: '1px solid #d1d5db' }}
-                    >
-                        <option value="">Seleccione...</option>
-                        {targetDocuments.map((doc: any) => (
-                            <option key={doc.id} value={doc.id}>{doc.description} ({doc.code})</option>
-                        ))}
-                    </select>
-                </div>
-
-                {targetDocumentId && (
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Serie</label>
-                        <select
-                            value={targetSerial}
-                            onChange={e => setTargetSerial(e.target.value)}
-                            style={{ width: '100%', padding: '0.625rem', borderRadius: '8px', border: '1px solid #d1d5db' }}
-                        >
-                            {serialsData?.serialsByDocument?.map((s: any) => (
-                                <option key={s.id} value={s.serial}>{s.serial}</option>
-                            ))}
-                        </select>
-                    </div>
-                )}
-
-                {/* Client Selection */}
-                <div style={{ marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                        <label style={{ display: 'block', fontWeight: 500 }}>
-                            Cliente {isFactura && '(Requerido RUC)'}
-                        </label>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button
-                                type="button"
-                                onClick={() => setShowCreateClientModal(true)}
-                                style={{
-                                    padding: '0.4rem 0.75rem',
-                                    borderRadius: '6px',
-                                    border: 'none',
-                                    backgroundColor: '#10b981',
-                                    color: 'white',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 600,
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                + Nuevo
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowEditClientModal(true)}
-                                disabled={!selectedClientId}
-                                style={{
-                                    padding: '0.4rem 0.75rem',
-                                    borderRadius: '6px',
-                                    border: 'none',
-                                    backgroundColor: selectedClientId ? '#3b82f6' : '#94a3b8',
-                                    color: 'white',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 600,
-                                    cursor: selectedClientId ? 'pointer' : 'not-allowed'
-                                }}
-                            >
-                                ✏️ Editar
-                            </button>
+                <div className="p-8 overflow-y-auto flex-1 custom-scrollbar">
+                    {error && (
+                        <div className="mb-6 p-4 rounded-2xl border border-rose-100 bg-rose-50 text-sm font-bold text-rose-600 dark:border-rose-900/20 dark:bg-rose-900/10">
+                            {error}
                         </div>
-                    </div>
-                    <div style={{ position: 'relative' }}>
-                        <div style={{ display: 'flex' }}>
-                            <input
-                                type="text"
-                                placeholder={isFactura ? "Buscar por RUC o Razón Social..." : "Buscar por DNI, RUC o Nombre..."}
-                                value={clientSearchTerm}
-                                onChange={e => {
-                                    setClientSearchTerm(e.target.value);
-                                    setSelectedClientId('');
-                                }}
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
-                                        const validDoc = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
-                                        if (validDoc) {
-                                            handleSearchSunat();
-                                        } else {
-                                            showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa', 'warning');
-                                        }
-                                    }
-                                }}
-                                disabled={clientsLoading}
-                                style={{
-                                    flex: 1,
-                                    padding: '0.625rem 0.875rem',
-                                    borderRadius: '8px 0 0 8px',
-                                    border: '1px solid #d1d5db',
-                                    borderRight: 'none',
-                                    outline: 'none',
-                                    boxSizing: 'border-box'
-                                }}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
-                                    const validDoc = /^\d{8}$/.test(term) && !isFactura || /^\d{11}$/.test(term);
-                                    if (validDoc) {
-                                        handleSearchSunat();
-                                    } else {
-                                        showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa', 'warning');
-                                    }
-                                }}
-                                disabled={clientsLoading || sunatSearchLoading}
-                                title="Buscar en SUNAT"
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    padding: '0 0.75rem',
-                                    border: 'none',
-                                    borderRadius: '0 8px 8px 0',
-                                    background: sunatSearchLoading ? '#e2e8f0' : '#0d9488',
-                                    color: 'white',
-                                    cursor: clientsLoading || sunatSearchLoading ? 'not-allowed' : 'pointer',
-                                    opacity: clientsLoading || sunatSearchLoading ? 0.7 : 1
-                                }}
-                            >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <circle cx="11" cy="11" r="8" />
-                                    <path d="m21 21-4.35-4.35" />
-                                </svg>
-                            </button>
+                    )}
+                    {successMsg && (
+                        <div className="mb-6 p-4 rounded-2xl border border-emerald-100 bg-emerald-50 text-sm font-bold text-emerald-600 dark:border-emerald-900/20 dark:bg-emerald-900/10">
+                            {successMsg}
                         </div>
-                        {clientSearchTerm && !selectedClientId && filteredClients.length > 0 && (
-                            <div style={{
-                                position: 'absolute', top: '100%', left: 0, right: 0,
-                                marginTop: '0.25rem', maxHeight: '150px', overflowY: 'auto',
-                                border: '1px solid #e5e7eb', borderRadius: '8px',
-                                backgroundColor: 'white', zIndex: 10, boxShadow: '0 4px 6px rgba(0,0,0,0.07)'
-                            }}>
-                                {!isFactura && (
-                                    <div
-                                        onClick={() => {
-                                            setSelectedClientId('');
-                                            setClientSearchTerm('');
-                                        }}
-                                        style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem', color: '#64748b' }}
-                                    >
-                                        Sin cliente (Consumidor final)
-                                    </div>
-                                )}
-                                {filteredClients.map((client: any) => (
-                                    <div
-                                        key={client.id}
-                                        onClick={() => {
-                                            setSelectedClientId(client.id);
-                                            setClientSearchTerm(client.name);
-                                        }}
-                                        style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem' }}
-                                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#f7fafc'; }}
-                                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
-                                    >
-                                        <div style={{ fontWeight: 600 }}>{client.name}</div>
-                                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{client.documentType}: {client.documentNumber}</div>
-                                    </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tipo de Documento</label>
+                            <select
+                                value={targetDocumentId}
+                                onChange={e => setTargetDocumentId(e.target.value)}
+                                className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-200"
+                            >
+                                <option value="">Seleccione...</option>
+                                {targetDocuments.map((doc: any) => (
+                                    <option key={doc.id} value={doc.id}>{doc.description} ({doc.code})</option>
                                 ))}
-                            </div>
-                        )}
-                        {clientSearchTerm && !selectedClientId && !clientsLoading && filteredClients.length === 0 && (
-                            <div style={{ marginTop: '0.25rem' }}>
-                                <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.35rem' }}>
-                                    {isFactura ? 'No hay clientes con RUC' : 'No se encontraron clientes'}
-                                </div>
-                                {(() => {
-                                    const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
-                                    const canSearchSunat = /^\d{8}$/.test(term) && !isFactura || /^\d{11}$/.test(term);
-                                    return (
-                                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                                            {canSearchSunat ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={handleSearchSunat}
-                                                    disabled={sunatSearchLoading}
-                                                    style={{
-                                                        padding: '0.4rem 0.75rem', fontSize: '0.8rem', fontWeight: 600,
-                                                        color: '#0f766e', backgroundColor: '#ccfbf1', border: '1px solid #99f6e4',
-                                                        borderRadius: '6px', cursor: sunatSearchLoading ? 'not-allowed' : 'pointer'
-                                                    }}
-                                                >
-                                                    {sunatSearchLoading ? 'Buscando en SUNAT...' : '🔍 Buscar en SUNAT'}
-                                                </button>
-                                            ) : (
-                                                <span>Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse el botón de lupa para traer el cliente desde SUNAT.</span>
-                                            )}
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        )}
+                            </select>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Serie Disponible</label>
+                            <select
+                                value={targetSerial}
+                                onChange={e => setTargetSerial(e.target.value)}
+                                disabled={!targetDocumentId}
+                                className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-200 disabled:opacity-50"
+                            >
+                                {serialsData?.serialsByDocument?.map((s: any) => (
+                                    <option key={s.id} value={s.serial}>{s.serial}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
-                </div>
 
-                {itemsLoading && <div style={{ color: '#64748b' }}>Cargando items...</div>}
+                    {/* Client Selection */}
+                    <div className="flex flex-col gap-3 mb-8">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Cliente {isFactura && '(Requerido RUC)'}
+                            </label>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCreateClientModal(true)}
+                                    className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all dark:bg-emerald-900/20"
+                                >
+                                    + Nuevo
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEditClientModal(true)}
+                                    disabled={!selectedClientId}
+                                    className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all dark:bg-indigo-900/20 disabled:opacity-30 disabled:hover:bg-indigo-50 disabled:hover:text-indigo-600"
+                                >
+                                    Editar
+                                </button>
+                            </div>
+                        </div>
 
-                {reissueableItems.length > 0 && (
-                    <div style={{ marginBottom: '1.5rem', background: '#f8fafc', padding: '1rem', borderRadius: '8px' }}>
-                        <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Seleccionar productos a convertir:</div>
-                        {reissueableItems.map((item: any) => {
-                            const isSelected = !!selectedItems[item.operationDetailId];
-                            const selectedQty = selectedItems[item.operationDetailId] || 0;
-                            const totalForItem = selectedQty * item.unitPrice;
+                        <div className="relative">
+                            <div className="flex overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-800/50">
+                                <input
+                                    type="text"
+                                    placeholder={isFactura ? "Buscar por RUC o Razón Social..." : "Buscar por DNI, RUC o Nombre..."}
+                                    value={clientSearchTerm}
+                                    onChange={e => {
+                                        setClientSearchTerm(e.target.value);
+                                        setSelectedClientId('');
+                                    }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleSearchSunat();
+                                        }
+                                    }}
+                                    className="flex-1 bg-transparent py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleSearchSunat}
+                                    disabled={clientsLoading || sunatSearchLoading}
+                                    className="flex items-center justify-center px-4 bg-indigo-600 text-white hover:bg-indigo-700 transition-all disabled:opacity-50"
+                                >
+                                    {sunatSearchLoading ? (
+                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                        </svg>
+                                    )}
+                                </button>
+                            </div>
 
-                            return (
-                                <div key={item.operationDetailId} style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    fontSize: '0.9rem',
-                                    marginBottom: '0.5rem',
-                                    padding: '0.5rem',
-                                    background: isSelected ? 'white' : 'transparent',
-                                    borderRadius: '6px',
-                                    border: isSelected ? '1px solid #e2e8f0' : '1px solid transparent'
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={isSelected}
-                                            onChange={() => handleItemToggle(item.operationDetailId, item.remainingQuantity)}
-                                            style={{ width: '1.25rem', height: '1.25rem', cursor: 'pointer' }}
-                                        />
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontWeight: 500, color: isSelected ? '#1e293b' : '#94a3b8' }}>{item.productName}</span>
-                                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                                                Disponible: {item.remainingQuantity}
+                            {/* Dropdown Results */}
+                            {clientSearchTerm && !selectedClientId && (filteredClients.length > 0 || !isFactura) && (
+                                <div className="absolute top-full left-0 right-0 z-50 mt-2 max-h-60 overflow-y-auto rounded-2xl border border-slate-100 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900 custom-scrollbar">
+                                    {!isFactura && (
+                                        <div
+                                            onClick={() => { setSelectedClientId(''); setClientSearchTerm(''); }}
+                                            className="flex cursor-pointer items-center rounded-xl p-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all border-b border-slate-50 dark:border-slate-800 mb-1"
+                                        >
+                                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800 mr-3">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                </svg>
+                                            </div>
+                                            <span className="text-sm font-bold text-slate-500">Consumidor final</span>
+                                        </div>
+                                    )}
+                                    {filteredClients.map((client: any) => (
+                                        <div
+                                            key={client.id}
+                                            onClick={() => { setSelectedClientId(client.id); setClientSearchTerm(client.name); }}
+                                            className="flex cursor-pointer items-center rounded-xl p-3 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all"
+                                        >
+                                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 mr-3">
+                                                <span className="text-[10px] font-black">{client.documentType}</span>
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{client.name}</span>
+                                                <span className="text-[10px] font-bold text-slate-400">{client.documentNumber}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Products Selection */}
+                    <div className="flex flex-col gap-4 mb-8">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Seleccionar Productos</label>
+                        {itemsLoading ? (
+                            <div className="flex items-center justify-center py-10">
+                                <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-3">
+                                {reissueableItems.map((item: any) => {
+                                    const isSelected = !!selectedItems[item.operationDetailId];
+                                    return (
+                                        <div
+                                            key={item.operationDetailId}
+                                            onClick={() => handleItemToggle(item.operationDetailId, item.remainingQuantity)}
+                                            className={`flex cursor-pointer items-center justify-between rounded-2xl border p-4 transition-all ${
+                                                isSelected 
+                                                ? 'border-indigo-200 bg-indigo-50/30 dark:border-indigo-900/30 dark:bg-indigo-900/10' 
+                                                : 'border-slate-100 bg-white hover:border-indigo-100 dark:border-slate-800 dark:bg-slate-900'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className={`flex h-6 w-6 items-center justify-center rounded-lg border-2 transition-all ${
+                                                    isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-200'
+                                                }`}>
+                                                    {isSelected && <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className={`text-sm font-bold ${isSelected ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}>
+                                                        {item.productName}
+                                                    </span>
+                                                    <span className="text-[10px] font-black text-slate-400">CANT: {item.remainingQuantity} • P.U: S/ {item.unitPrice.toFixed(2)}</span>
+                                                </div>
+                                            </div>
+                                            <span className={`text-sm font-black ${isSelected ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-300'}`}>
+                                                S/ {(item.remainingQuantity * item.unitPrice).toFixed(2)}
                                             </span>
                                         </div>
-                                    </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
 
-                                    <div style={{ fontWeight: 600, color: isSelected ? '#334155' : '#cbd5e1' }}>
-                                        {isSelected ? `${item.remainingQuantity} x ` : ''} S/ {totalForItem.toFixed(2)}
+                    {/* Footer Summary & Actions */}
+                    <div className="mt-4 flex flex-col gap-6 rounded-[24px] bg-slate-50 p-6 dark:bg-slate-800/50">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-700">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Nuevo Documento</span>
+                            <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+                                S/ {totals.totalAmount.toFixed(2)}
+                            </span>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={onClose}
+                                disabled={creating}
+                                className="flex-1 h-14 rounded-2xl bg-white border border-slate-100 text-xs font-black uppercase tracking-widest text-slate-500 transition-all hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400"
+                            >
+                                Regresar
+                            </button>
+                            <button
+                                onClick={handleCreate}
+                                disabled={creating || itemsLoading}
+                                className="flex-[2] h-14 rounded-2xl bg-indigo-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-200 transition-all hover:bg-indigo-700 disabled:opacity-50 dark:shadow-none"
+                            >
+                                {creating ? (
+                                    <div className="flex items-center justify-center gap-2">
+                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                        <span>Procesando...</span>
                                     </div>
-                                </div>
-                            );
-                        })}
-                        <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '0.5rem', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '1.1rem' }}>
-                            <span>Total Nuevo Documento:</span>
-                            <span style={{ color: '#059669' }}>S/ {totals.totalAmount.toFixed(2)}</span>
+                                ) : (
+                                    'Confirmar Conversión'
+                                )}
+                            </button>
                         </div>
                     </div>
-                )}
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                    <button
-                        onClick={onClose}
-                        disabled={creating}
-                        style={{
-                            padding: '0.625rem 1rem',
-                            background: 'transparent',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                            color: '#64748b'
-                        }}
-                    >
-                        Cancelar
-                    </button>
-                    <button
-                        onClick={handleCreate}
-                        disabled={creating || itemsLoading}
-                        style={{
-                            padding: '0.625rem 1.5rem',
-                            background: creating ? '#9ca3af' : '#667eea',
-                            border: 'none',
-                            borderRadius: '8px',
-                            cursor: creating ? 'not-allowed' : 'pointer',
-                            color: 'white',
-                            fontWeight: 600
-                        }}
-                    >
-                        {creating ? 'Convirtiendo...' : 'Convertir'}
-                    </button>
                 </div>
             </div>
-            {/* Modal para crear nuevo cliente */}
+
+            {/* Modals for Create/Edit Client */}
             {showCreateClientModal && (
                 <CreateClient
                     onSuccess={async (clientId) => {
@@ -652,9 +550,8 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                 />
             )}
 
-            {/* Modal para editar cliente */}
             {showEditClientModal && selectedClientId && (() => {
-                const selectedClient = filteredClients.find((c: any) => c.id === selectedClientId);
+                const selectedClient = (clientsData?.personsByBranch || []).find((c: any) => c.id === selectedClientId);
                 return selectedClient ? (
                     <EditClient
                         client={selectedClient}

@@ -141,12 +141,10 @@ const Order: React.FC<OrderProps> = ({
     /** Encabezado de navegación categorías: botones grandes para uso táctil en salón */
     const breadcrumbBtnMinH = isXs ? 44 : isSmall ? 48 : 52;
     const breadcrumbBtnFont = isXs
-        ? "0.85rem"
+        ? "0.8rem"
         : isSmall
-          ? "0.9375rem"
-          : isMedium
-            ? "1.0625rem"
-            : "1.125rem";
+          ? "0.85rem"
+          : "0.875rem";
     const breadcrumbBtnPadX = isXs ? "0.75rem" : isSmall ? "1rem" : "1.25rem";
     const breadcrumbBtnPadY = isXs
         ? "0.5rem"
@@ -1777,7 +1775,7 @@ const Order: React.FC<OrderProps> = ({
                                                         null,
                                                     );
                                                 }}
-                                                className={`inline-flex items-center justify-center border text-center transition-all duration-150 ${
+                                                className={`inline-flex items-center gap-2 justify-center border text-center transition-all duration-150 ${
                                                     !selectedCategory
                                                         ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-200"
                                                         : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
@@ -1790,16 +1788,18 @@ const Order: React.FC<OrderProps> = ({
                                                     borderRadius:
                                                         breadcrumbBtnRadius,
                                                     fontSize: breadcrumbBtnFont,
-                                                    fontWeight:
-                                                        !selectedCategory
-                                                            ? 700
-                                                            : 600,
+                                                    fontWeight: 700,
                                                     cursor: "pointer",
                                                     whiteSpace: "nowrap",
                                                     touchAction: "manipulation",
                                                     lineHeight: 1.2,
                                                 }}
                                             >
+                                                <CategoryIcon
+                                                    iconId="grid_view"
+                                                    type="category"
+                                                    size="1.1rem"
+                                                />
                                                 Categorías
                                             </button>
                                             {selectedCategory && (
@@ -1830,7 +1830,7 @@ const Order: React.FC<OrderProps> = ({
                                                                 null,
                                                             )
                                                         }
-                                                        className={`inline-flex items-center justify-center border text-center transition-all duration-150 ${
+                                                        className={`inline-flex items-center gap-2 justify-center border text-center transition-all duration-150 ${
                                                             !selectedSubcategory
                                                                 ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-200"
                                                                 : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
@@ -1844,10 +1844,7 @@ const Order: React.FC<OrderProps> = ({
                                                                 breadcrumbBtnRadius,
                                                             fontSize:
                                                                 breadcrumbBtnFont,
-                                                            fontWeight:
-                                                                !selectedSubcategory
-                                                                    ? 700
-                                                                    : 600,
+                                                            fontWeight: 700,
                                                             cursor: "pointer",
                                                             whiteSpace:
                                                                 "nowrap",
@@ -1863,6 +1860,17 @@ const Order: React.FC<OrderProps> = ({
                                                                 "ellipsis",
                                                         }}
                                                     >
+                                                        <CategoryIcon
+                                                            iconId={
+                                                                categories.find(
+                                                                    (c: any) =>
+                                                                        c.id ===
+                                                                        selectedCategory,
+                                                                )?.icon
+                                                            }
+                                                            type="category"
+                                                            size="1.1rem"
+                                                        />
                                                         {categories.find(
                                                             (c: any) =>
                                                                 c.id ===
@@ -1893,7 +1901,7 @@ const Order: React.FC<OrderProps> = ({
                                                                     selectedSubcategory,
                                                             )?.name || undefined
                                                         }
-                                                        className="inline-flex items-center border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                        className="inline-flex items-center gap-2 border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                                         style={{
                                                             minHeight:
                                                                 breadcrumbBtnMinH,
@@ -1918,6 +1926,17 @@ const Order: React.FC<OrderProps> = ({
                                                                 "ellipsis",
                                                         }}
                                                     >
+                                                        <CategoryIcon
+                                                            iconId={
+                                                                subcategoriesOfCategory.find(
+                                                                    (s: any) =>
+                                                                        s.id ===
+                                                                        selectedSubcategory,
+                                                                )?.icon
+                                                            }
+                                                            type="subcategory"
+                                                            size="1.1rem"
+                                                        />
                                                         {subcategoriesOfCategory.find(
                                                             (s: any) =>
                                                                 s.id ===
@@ -2013,14 +2032,14 @@ const Order: React.FC<OrderProps> = ({
                                                                     type="category"
                                                                     size={
                                                                         isXs
-                                                                            ? "1.75rem"
+                                                                            ? "1.25rem"
                                                                             : isSmall
-                                                                              ? "2rem"
-                                                                              : "2.5rem"
+                                                                              ? "1.5rem"
+                                                                              : "1.75rem"
                                                                     }
                                                                 />
                                                             </div>
-                                                            <div className="text-sm font-semibold leading-tight text-slate-800 dark:text-slate-100">
+                                                            <div className="text-xs font-bold leading-tight text-slate-800 dark:text-slate-100 md:text-sm">
                                                                 {category.name}
                                                             </div>
                                                         </div>
@@ -2056,12 +2075,12 @@ const Order: React.FC<OrderProps> = ({
                                                                     type="subcategory"
                                                                     size={
                                                                         isSmall
-                                                                            ? "1.5rem"
-                                                                            : "2rem"
+                                                                            ? "1.1rem"
+                                                                            : "1.25rem"
                                                                     }
                                                                 />
                                                             </div>
-                                                            <div className="text-sm font-medium leading-tight text-slate-700 dark:text-slate-200">
+                                                            <div className="text-xs font-semibold leading-tight text-slate-700 dark:text-slate-200">
                                                                 {sub.name}
                                                             </div>
                                                         </div>
@@ -2143,14 +2162,8 @@ const Order: React.FC<OrderProps> = ({
                                                                 </div>
                                                             )}
                                                             <div
-                                                                className="text-slate-700 dark:text-slate-200"
+                                                                className="text-xs font-bold text-slate-700 dark:text-slate-200 md:text-sm"
                                                                 style={{
-                                                                    fontSize:
-                                                                        isSmall
-                                                                            ? "0.8125rem"
-                                                                            : "0.875rem",
-                                                                    fontWeight:
-                                                                        "500",
                                                                     marginBottom:
                                                                         "0.25rem",
                                                                     lineHeight: 1.25,

@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
-import { useResponsive } from '../../hooks/useResponsive';
 import { GET_SOLD_PRODUCTS_REPORT, GET_PRODUCTS_BY_BRANCH } from '../../graphql/queries';
 import ReportsProductsSoldList from './reportsProductsSoldList';
 import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
@@ -19,25 +18,16 @@ export interface SoldProductsSummary {
   grandTotal: number;
 }
 
+const currencyFormatter = new Intl.NumberFormat('es-PE', {
+    style: 'currency',
+    currency: 'PEN',
+    minimumFractionDigits: 2
+});
+
 const ReportsProductsSold: React.FC = () => {
   const { companyData } = useAuth();
-  const { breakpoint, isMobile, isXs } = useResponsive();
   const branchId = companyData?.branch?.id;
 
-  // Adaptar según tamaño de pantalla
-  const isSmall = breakpoint === 'sm' || isMobile;
-  const isMedium = breakpoint === 'md';
-  const isSmallDesktop = breakpoint === 'lg';
-
-  const containerPadding = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
-  const containerGap = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
-  const titleFontSize = isXs ? '1.1rem' : isSmall ? '1.25rem' : '1.5rem';
-  const subtitleFontSize = isXs ? '0.7rem' : isSmall ? '0.75rem' : '0.875rem';
-  const cardPadding = isXs ? '0.85rem' : isSmall ? '1rem' : '1.5rem';
-  const inputFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
-  const buttonFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
-
-  // Por defecto fecha actual (hoy); el usuario puede cambiar si desea otro rango
   const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [productId, setProductId] = useState<string>('');
@@ -52,20 +42,14 @@ const ReportsProductsSold: React.FC = () => {
   });
 
   const products = productsData?.productsByBranch ?? [];
-  type BranchProduct = {
-    id: string;
-    code: string;
-    name: string;
-    description?: string | null;
-    productType: string;
-    isActive: boolean;
-  };
-  const activeProducts: BranchProduct[] = products.filter((p: BranchProduct) =>
-    ['DISH', 'BEVERAGE'].includes(p.productType) && p.isActive
+  
+  const activeProducts = useMemo(() => 
+    products.filter((p: any) => ['DISH', 'BEVERAGE'].includes(p.productType) && p.isActive),
+    [products]
   );
 
   const selectedReportProduct = useMemo(
-    () => activeProducts.find((p) => p.id === productId) ?? null,
+    () => activeProducts.find((p: any) => p.id === productId) ?? null,
     [activeProducts, productId]
   );
 
@@ -74,7 +58,7 @@ const ReportsProductsSold: React.FC = () => {
     if (!q) return [];
     return activeProducts
       .filter(
-        (p) =>
+        (p: any) =>
           p.name?.toLowerCase().includes(q) ||
           p.code?.toLowerCase().includes(q) ||
           Boolean(p.description && p.description.toLowerCase().includes(q))
@@ -116,369 +100,218 @@ const ReportsProductsSold: React.FC = () => {
     refetch();
   };
 
+  // Real-time Top Product calculation
+  const topProduct = useMemo(() => {
+    if (!productsList.length) return null;
+    return [...productsList].sort((a, b) => b.totalQuantity - a.totalQuantity)[0];
+  }, [productsList]);
+
   if (!branchId) {
     return (
-      <div style={{
-        padding: containerPadding,
-        textAlign: 'center',
-        color: '#dc2626',
-        fontSize: subtitleFontSize
-      }}>
-        No se encontró información de la sucursal. Por favor, inicia sesión nuevamente.
-      </div>
+        <div className="flex min-h-[400px] items-center justify-center rounded-[32px] bg-white p-8 shadow-sm dark:bg-slate-900">
+            <div className="text-center text-rose-500 font-bold">
+                No se encontró información de la sucursal activa.
+            </div>
+        </div>
     );
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: containerGap,
-        background: 'linear-gradient(160deg, #f0fdf4 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: containerPadding,
-        borderRadius: '18px',
-        boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          top: '-120px',
-          right: '-120px',
-          width: isSmall ? '180px' : isMedium ? '220px' : isSmallDesktop ? '220px' : '260px',
-          height: isSmall ? '180px' : isMedium ? '220px' : isSmallDesktop ? '220px' : '260px',
-          background: 'radial-gradient(circle at center, rgba(34,197,94,0.2), transparent 70%)',
-          filter: 'blur(2px)',
-          zIndex: 0,
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '-80px',
-          left: '-80px',
-          width: isSmall ? '140px' : isMedium ? '180px' : isSmallDesktop ? '180px' : '220px',
-          height: isSmall ? '140px' : isMedium ? '180px' : isSmallDesktop ? '180px' : '220px',
-          background: 'radial-gradient(circle at center, rgba(72,219,251,0.15), transparent 70%)',
-          filter: 'blur(2px)',
-          zIndex: 0,
-        }}
-      />
-
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: isSmall ? 'flex-start' : 'center',
-          flexDirection: isSmall ? 'column' : 'row',
-          marginBottom: containerGap,
-          flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap',
-          gap: isSmall || isMedium ? '1rem' : '0'
-        }}>
-          <div>
-            <h1 style={{ fontSize: titleFontSize, fontWeight: 700, color: '#1e293b', margin: 0, marginBottom: '0.5rem' }}>
-              Reporte de Productos Vendidos
-            </h1>
-            <p style={{ fontSize: subtitleFontSize, color: '#64748b', margin: 0 }}>
-              Cantidad y monto por producto en el periodo
-            </p>
-          </div>
+    <div className="flex w-full flex-col gap-6 p-4 sm:p-6 lg:p-8">
+        {/* Header */}
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[22px] bg-emerald-500 text-white shadow-lg shadow-emerald-200 dark:shadow-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100 sm:text-3xl">
+                        Productos Vendidos
+                    </h1>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 sm:text-sm">
+                        Análisis de rendimiento y popularidad del menú
+                    </p>
+                </div>
+            </div>
+            <button
+                onClick={() => refetch()}
+                disabled={loading}
+                className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {loading ? "Actualizando" : "Refrescar"}
+            </button>
         </div>
 
-        <div
-          style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: cardPadding,
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-            marginBottom: containerGap
-          }}
-        >
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : isSmallDesktop ? '1fr 1fr 1fr' : '1fr 1fr 1fr auto',
-            gap: '1rem',
-            alignItems: 'end'
-          }}>
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: inputFontSize,
-                fontWeight: 500,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}>
-                Fecha Inicio
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem',
-                  fontSize: inputFontSize,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: inputFontSize,
-                fontWeight: 500,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}>
-                Fecha Fin
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem',
-                  fontSize: inputFontSize,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-              />
-            </div>
-
-            <div ref={productPickerRef} style={{ position: 'relative' }}>
-              <label style={{
-                display: 'block',
-                fontSize: inputFontSize,
-                fontWeight: 500,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}>
-                Producto (opcional)
-              </label>
-              {selectedReportProduct ? (
-                <div
-                  style={{
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.625rem',
-                    fontSize: inputFontSize,
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    transition: 'border-color 0.2s',
-                    backgroundColor: 'white',
-                    color: '#111827',
-                  }}
-                >
-                  <span
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      fontWeight: 500,
-                    }}
-                    title={`${selectedReportProduct.code} — ${selectedReportProduct.name}`}
-                  >
-                    {selectedReportProduct.code} — {selectedReportProduct.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={clearProductFilter}
-                    style={{
-                      flexShrink: 0,
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      opacity: 0.55,
-                      fontSize: '1rem',
-                      padding: '0 0.25rem',
-                      lineHeight: 1,
-                    }}
-                    title="Quitar filtro de producto"
-                  >
-                    ✕
-                  </button>
+        {/* Unified Filter Toolbar */}
+        <div className="rounded-[28px] border border-slate-100 bg-white p-2 shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0">
+                <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Desde</label>
+                    <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                    />
                 </div>
-              ) : (
-                <div
-                  style={{
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.625rem',
-                    fontSize: inputFontSize,
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    transition: 'border-color 0.2s',
-                    backgroundColor: 'white',
-                  }}
-                >
-                  <span style={{ opacity: 0.6, flexShrink: 0, lineHeight: 1 }} aria-hidden>🔎</span>
-                  <input
-                    type="text"
-                    placeholder="Buscar producto o escanear código"
-                    value={productSearchTerm}
-                    onChange={(e) => {
-                      setProductSearchTerm(e.target.value);
-                      setProductPickerOpen(true);
-                    }}
-                    onFocus={() => setProductPickerOpen(true)}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      border: 'none',
-                      outline: 'none',
-                      padding: 0,
-                      margin: 0,
-                      fontSize: inputFontSize,
-                      backgroundColor: 'transparent',
-                      color: '#111827',
-                    }}
-                  />
-                  {productSearchTerm ? (
-                    <button
-                      type="button"
-                      onClick={() => setProductSearchTerm('')}
-                      style={{
-                        flexShrink: 0,
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        opacity: 0.5,
-                        fontSize: '1rem',
-                        padding: '0 0.25rem',
-                        lineHeight: 1,
-                      }}
-                      title="Limpiar búsqueda"
-                    >
-                      ✕
-                    </button>
-                  ) : null}
+
+                <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Hasta</label>
+                    <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                    />
                 </div>
-              )}
-              {productPickerOpen && !selectedReportProduct && (
-                  <div style={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 0,
-                    zIndex: 40,
-                    marginTop: '0.35rem',
-                    maxHeight: 'min(240px, 40vh)',
-                    overflowY: 'auto',
-                    background: 'white',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    boxShadow: '0 12px 28px rgba(15,23,42,0.12)'
-                  }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        clearProductFilter();
-                      }}
-                      style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '0.55rem 0.75rem',
-                        border: 'none',
-                        borderBottom: '1px solid #f1f5f9',
-                        background: '#f8fafc',
-                        cursor: 'pointer',
-                        fontSize: inputFontSize,
-                        fontWeight: 600,
-                        color: '#475569'
-                      }}
-                    >
-                      Todos los productos
-                    </button>
-                    {!productSearchTerm.trim() ? (
-                      <div style={{ padding: '0.75rem', fontSize: inputFontSize, color: '#94a3b8' }}>
-                        Escribe nombre, código o descripción (como en Productos)
-                      </div>
-                    ) : filteredReportProducts.length === 0 ? (
-                      <div style={{ padding: '0.75rem', fontSize: inputFontSize, color: '#94a3b8' }}>
-                        No hay coincidencias
-                      </div>
-                    ) : (
-                      filteredReportProducts.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => {
-                            setProductId(p.id);
-                            setProductSearchTerm('');
-                            setProductPickerOpen(false);
-                          }}
-                          style={{
-                            width: '100%',
-                            textAlign: 'left',
-                            padding: '0.5rem 0.75rem',
-                            border: 'none',
-                            borderBottom: '1px solid #f1f5f9',
-                            background: 'white',
-                            cursor: 'pointer',
-                            fontSize: inputFontSize,
-                            color: '#334155'
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; }}
-                        >
-                          <span style={{ fontWeight: 600, color: '#0f172a' }}>{p.code}</span>
-                          <span style={{ marginLeft: '0.35rem' }}>{p.name}</span>
-                        </button>
-                      ))
+
+                <div className="relative flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800" ref={productPickerRef}>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Filtrar Producto</label>
+                    <div className="relative flex items-center">
+                        <input
+                            type="text"
+                            placeholder="Buscar plato o bebida..."
+                            value={selectedReportProduct ? `${selectedReportProduct.code} - ${selectedReportProduct.name}` : productSearchTerm}
+                            readOnly={!!selectedReportProduct}
+                            onChange={(e) => {
+                                setProductSearchTerm(e.target.value);
+                                setProductPickerOpen(true);
+                            }}
+                            onFocus={() => setProductPickerOpen(true)}
+                            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200 cursor-pointer placeholder:text-slate-300"
+                        />
+                        {selectedReportProduct && (
+                            <button onClick={clearProductFilter} className="text-slate-400 hover:text-rose-500 ml-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Modern Product Picker Dropdown */}
+                    {productPickerOpen && !selectedReportProduct && (
+                        <div className="absolute left-0 right-0 top-full z-50 mt-4 max-h-72 overflow-y-auto rounded-2xl border border-slate-100 bg-white p-2 shadow-2xl dark:border-slate-800 dark:bg-slate-900 custom-scrollbar">
+                            <button
+                                onClick={clearProductFilter}
+                                className="w-full rounded-xl px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                            >
+                                • Mostrar Todos
+                            </button>
+                            {filteredReportProducts.length === 0 && productSearchTerm ? (
+                                <div className="px-4 py-3 text-xs font-bold text-slate-400">Sin coincidencias</div>
+                            ) : (
+                                filteredReportProducts.map((p: any) => (
+                                    <div
+                                        key={p.id}
+                                        onClick={() => {
+                                            setProductId(p.id);
+                                            setProductSearchTerm('');
+                                            setProductPickerOpen(false);
+                                        }}
+                                        className="flex cursor-pointer flex-col rounded-xl px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                                    >
+                                        <span className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter">{p.code}</span>
+                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{p.name}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     )}
-                  </div>
+                </div>
+
+                <div className="flex items-center p-2">
+                    <button
+                        onClick={handleSearch}
+                        disabled={loading}
+                        className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-200 transition-all hover:bg-emerald-600 hover:shadow-emerald-300 disabled:opacity-50 dark:shadow-none"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        Filtrar Reporte
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {/* Summary Cards */}
+        {summary && (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="relative overflow-hidden rounded-[32px] bg-emerald-500 p-6 text-white shadow-lg shadow-emerald-200 dark:shadow-none">
+                    <div className="relative z-10">
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Unidades Vendidas</span>
+                        <div className="mt-1 text-3xl font-black">{summary.totalItemsSold}</div>
+                    </div>
+                    <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+                </div>
+
+                <div className="relative overflow-hidden rounded-[32px] bg-slate-800 p-6 text-white shadow-lg shadow-slate-200 dark:shadow-none">
+                    <div className="relative z-10">
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Recaudación de Menú</span>
+                        <div className="mt-1 text-3xl font-black">{currencyFormatter.format(summary.grandTotal)}</div>
+                    </div>
+                    <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+                </div>
+
+                {topProduct && (
+                    <div className="col-span-1 flex flex-col justify-center gap-1 rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800/50 dark:bg-slate-900 sm:col-span-2">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/20">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                </svg>
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Producto Estrella</span>
+                                <div className="flex items-baseline gap-3">
+                                    <span className="text-xl font-black text-slate-800 dark:text-slate-100 truncate max-w-[200px]">{topProduct.name}</span>
+                                    <span className="text-lg font-black text-amber-500">{topProduct.totalQuantity} <small className="text-[10px] uppercase">und</small></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </div>
+        )}
 
-            <button
-              onClick={handleSearch}
-              style={{
-                padding: '0.625rem 1.5rem',
-                fontSize: buttonFontSize,
-                fontWeight: 600,
-                color: 'white',
-                background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                height: '42px'
-              }}
-            >
-              Buscar
-            </button>
-          </div>
+        {/* Results List Container */}
+        <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-50 p-6 dark:border-slate-800/50">
+                <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">Rendimiento por Producto</h2>
+                <span className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800">
+                    {productsList.length} Ítems analizados
+                </span>
+            </div>
+
+            <div className="p-4 sm:p-6">
+                {loading ? (
+                    <div className="flex min-h-[300px] flex-col gap-4">
+                        {Array(5).fill(0).map((_, i) => (
+                            <div key={i} className="h-20 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50" />
+                        ))}
+                    </div>
+                ) : (
+                    <ReportsProductsSoldList
+                        products={productsList}
+                        summary={summary}
+                        loading={loading}
+                        error={error}
+                    />
+                )}
+            </div>
         </div>
 
-        <ReportsProductsSoldList
-          products={productsList}
-          summary={summary}
-          loading={loading}
-          error={error}
-          isSmall={isSmall}
-          isXs={isXs}
-        />
-      </div>
+        {error && (
+            <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600 dark:border-rose-900/30 dark:bg-rose-900/10">
+                Error al cargar el reporte: {error.message}
+            </div>
+        )}
     </div>
   );
 };

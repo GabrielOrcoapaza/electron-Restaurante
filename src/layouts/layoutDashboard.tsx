@@ -86,7 +86,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     const navigate = useNavigate();
     const { user, companyData, logout, getMacAddress } = useAuth();
     // useIntegratedPrinterSyncFromServer();
-    const [macAddress, setMacAddress] = useState<string>("");
     const { disconnect, subscribe } = useWebSocket();
     const { switchToBranch, loading: switchingBranch } = useSwitchBranch();
     const { breakpoint, isMobile } = useResponsive();
@@ -108,11 +107,10 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     const [isOnline, setIsOnline] = useState(navigator.onLine);
 
     // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
+    const isMobileOnly = breakpoint === "xs";
     const isSmall = breakpoint === "sm"; // 640px - 767px
     const isMedium = breakpoint === "md"; // 768px - 1023px
     const isSmallDesktop = breakpoint === "lg"; // 1024px - 1279px
-    const isMediumDesktop = breakpoint === "xl"; // 1280px - 1535px
-    const isMobileOnly = breakpoint === "xs";
 
     const isOverlay = ["xs", "sm", "md", "lg", "xl"].includes(breakpoint);
 
@@ -128,17 +126,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     const sidebarWidth = sidebarOpen ? sidebarWidthValue : "0px";
     const displayedSidebarWidth = isOverlay ? sidebarWidthValue : sidebarWidth;
 
-    const headerPadding = isMobileOnly
-        ? "0.5rem 0.75rem"
-        : isSmall
-          ? "0.75rem 1rem"
-          : isMedium
-            ? "1rem 1.25rem"
-            : isSmallDesktop
-              ? "1rem 1.5rem"
-              : isMediumDesktop
-                ? "1rem 1.75rem"
-                : "1rem 2rem";
 
     const headerFontSize = isMobileOnly
         ? "1.125rem"
@@ -282,13 +269,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     const [markMessageReadMutation] = useMutation(MARK_MESSAGE_READ);
 
     useEffect(() => {
-        let cancelled = false;
-        getMacAddress().then((mac) => {
-            if (!cancelled && mac) setMacAddress(mac);
-        });
-        return () => {
-            cancelled = true;
-        };
+        getMacAddress();
     }, [getMacAddress]);
 
     useEffect(() => {
@@ -1216,7 +1197,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                             }
                                         />
                                     )}
-                                    <div className="absolute right-0 top-[110%] z-[1200] w-88 max-h-[450px] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900">
+                                    <div className="absolute right-0 top-[110%] z-[1200] w-[400px] max-h-[500px] overflow-y-auto rounded-3xl border border-slate-200 bg-white/95 p-5 shadow-2xl shadow-slate-900/20 backdrop-blur-md scrollbar-thin scrollbar-thumb-slate-200 dark:border-slate-800 dark:bg-slate-950/95 dark:scrollbar-thumb-slate-800">
                                         <div className="mb-4 flex items-center justify-between">
                                             <div>
                                                 <h3 className="m-0 text-sm font-bold tracking-tight text-slate-900 dark:text-white">
@@ -1251,7 +1232,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                                 pendientes.
                                             </div>
                                         ) : (
-                                            <div className="space-y-3">
+                                            <div className="space-y-4">
                                                 {visibleNotifications.map(
                                                     (notification: any) => {
                                                         const isBroadcast =
@@ -1302,11 +1283,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                                                 key={
                                                                     notification.id
                                                                 }
-                                                                className={`rounded-xl border border-slate-200 p-4 text-sm ${
+                                                                className={`group relative overflow-hidden rounded-2xl border border-slate-200 p-5 text-sm transition-all hover:shadow-md ${
                                                                     isBroadcast
-                                                                        ? "bg-blue-50/80 dark:bg-blue-900/10"
-                                                                        : "bg-rose-50/80 dark:bg-rose-900/10"
-                                                                } dark:border-slate-700`}
+                                                                        ? "bg-blue-50/50 dark:bg-blue-900/10"
+                                                                        : "bg-rose-50/50 dark:bg-rose-900/10"
+                                                                } dark:border-slate-800`}
                                                             >
                                                                 <button
                                                                     type="button"
@@ -1322,7 +1303,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                                                             notification.id,
                                                                         );
                                                                     }}
-                                                                    className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-all duration-200 hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+                                                                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-xl bg-white/50 text-slate-400 opacity-0 transition-all duration-200 hover:bg-rose-100 hover:text-rose-600 group-hover:opacity-100 dark:bg-slate-800/50 dark:hover:bg-rose-900/30"
                                                                     aria-label={
                                                                         isBroadcast
                                                                             ? "Marcar como leído y ocultar"
@@ -1348,13 +1329,13 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                                                             ? "💬"
                                                                             : "🍽️"}
                                                                     </div>
-                                                                    <div className="min-w-0 flex-1">
-                                                                        <p className="m-0 font-semibold text-slate-900 dark:text-white">
+                                                                    <div className="min-w-0 flex-1 pr-4">
+                                                                        <p className="m-0 text-sm font-bold leading-tight text-slate-900 dark:text-white">
                                                                             {
                                                                                 notification.message
                                                                             }
                                                                         </p>
-                                                                        <div className="mt-2 flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-400">
+                                                                        <div className="mt-3 flex flex-col gap-2 text-[11px] font-medium text-slate-500 dark:text-slate-400">
                                                                             {isBroadcast ? (
                                                                                 <>
                                                                                     <span>
@@ -1601,7 +1582,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     }`}
                                 >
                                     <span>🖨️</span>
-                                    Impresoras
+                                    Impresoras en red (Raspberry Pi)
                                 </button>
                                 <button
                                     onClick={() =>
@@ -1614,7 +1595,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     }`}
                                 >
                                     <span>💻</span>
-                                    Impresoras del equipo
+                                    Impresoras locales
                                 </button>
                                 <button
                                     onClick={() =>

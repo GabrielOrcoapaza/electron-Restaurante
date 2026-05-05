@@ -1,608 +1,422 @@
-import React, { useState } from 'react';
-import { useQuery } from '@apollo/client';
-import { useAuth } from '../../hooks/useAuth';
-import { useResponsive } from '../../hooks/useResponsive';
-import { GET_SALES_REPORT, GET_DOCUMENTS } from '../../graphql/queries';
-import ReportSaleList from './reportSaleList';
-import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
+import React, { useState } from "react";
+import { useQuery } from "@apollo/client";
+import { useAuth } from "../../hooks/useAuth";
+import { GET_SALES_REPORT, GET_DOCUMENTS } from "../../graphql/queries";
+import ReportSaleList from "./reportSaleList";
+import { formatLocalDateYYYYMMDD } from "../../utils/localDateTime";
 
 interface SalesReportSummary {
-  totalDocuments: number;
-  totalAmount: number;
-  totalCash: number;
-  totalYape: number;
-  totalPlin: number;
-  totalCard: number;
-  totalTransfer: number;
-  totalOthers: number;
+    totalDocuments: number;
+    totalAmount: number;
+    totalCash: number;
+    totalYape: number;
+    totalPlin: number;
+    totalCard: number;
+    totalTransfer: number;
+    totalOthers: number;
 }
 
 interface IssuedDocument {
-  id: string;
-  serial: string;
-  number: string;
-  emissionDate: string;
-  emissionTime: string;
-  totalAmount: number;
-  totalDiscount: number;
-  globalDiscount?: number;
-  globalDiscountPercent?: number;
-  igvAmount: number;
-  billingStatus: string;
-  notes?: string;
-  document: {
     id: string;
-    code: string;
-    description: string;
-  };
-  person?: {
-    id: string;
-    name: string;
-    documentNumber: string;
-    documentType: string;
-  };
-  operation?: {
-    id: string;
-    order: string;
-    status: string;
-    operationType?: string;
-    user?: {
-      id: string;
-      fullName: string;
-    } | null;
-    table?: {
-      id: string;
-      name: string;
-      floor?: {
-        id: string;
-        name: string;
-      } | null;
-    } | null;
-  };
-  items: Array<{
-    id: string;
-    quantity: number;
-    unitPrice: number;
-    total: number;
+    serial: string;
+    number: string;
+    emissionDate: string;
+    emissionTime: string;
+    totalAmount: number;
+    totalDiscount: number;
+    globalDiscount?: number;
+    globalDiscountPercent?: number;
+    igvAmount: number;
+    billingStatus: string;
     notes?: string;
-    operationDetail?: {
-      product: {
+    document: {
         id: string;
         code: string;
-        name: string;
-      };
+        description: string;
     };
-  }>;
-  payments: Array<{
-    id: string;
-    paymentMethod: string;
-    paidAmount: number;
-    paymentDate: string;
-    status: string;
-    user?: {
-      id: string;
-      fullName: string;
-    } | null;
-  }>;
-  user: {
-    id: string;
-    fullName: string;
-  };
-  branch: {
-    id: string;
-    name: string;
-  };
+    person?: {
+        id: string;
+        name: string;
+        documentNumber: string;
+        documentType: string;
+    };
+    operation?: {
+        id: string;
+        order: string;
+        status: string;
+        operationType?: string;
+        user?: {
+            id: string;
+            fullName: string;
+        } | null;
+        table?: {
+            id: string;
+            name: string;
+            floor?: {
+                id: string;
+                name: string;
+            } | null;
+        } | null;
+    };
+    items: Array<{
+        id: string;
+        quantity: number;
+        unitPrice: number;
+        total: number;
+        notes?: string;
+        operationDetail?: {
+            product: {
+                id: string;
+                code: string;
+                name: string;
+            };
+        };
+    }>;
+    payments: Array<{
+        id: string;
+        paymentMethod: string;
+        paidAmount: number;
+        paymentDate: string;
+        status: string;
+        user?: {
+            id: string;
+            fullName: string;
+        } | null;
+    }>;
+    user: {
+        id: string;
+        fullName: string;
+    };
+    branch: {
+        id: string;
+        name: string;
+    };
 }
 
 interface SalesReportData {
-  documents: IssuedDocument[];
-  summary: SalesReportSummary;
+    documents: IssuedDocument[];
+    summary: SalesReportSummary;
 }
 
 interface Document {
-  id: string;
-  code: string;
-  description: string;
-  isActive: boolean;
+    id: string;
+    code: string;
+    description: string;
+    isActive: boolean;
 }
 
-const currencyFormatter = new Intl.NumberFormat('es-PE', {
-  style: 'currency',
-  currency: 'PEN',
-  minimumFractionDigits: 2
+const currencyFormatter = new Intl.NumberFormat("es-PE", {
+    style: "currency",
+    currency: "PEN",
+    minimumFractionDigits: 2,
 });
 
 const ReportSale: React.FC = () => {
-  const { companyData } = useAuth();
-  const { breakpoint, isMobile, isXs } = useResponsive();
-  const branchId = companyData?.branch?.id;
+    const { companyData } = useAuth();
+    const branchId = companyData?.branch?.id;
 
-  // Adaptar según tamaño de pantalla
-  const isSmall = breakpoint === 'sm' || isMobile;
-  const isMedium = breakpoint === 'md';
-  const isSmallDesktop = breakpoint === 'lg';
-
-  const containerPadding = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
-  const containerGap = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
-  const titleFontSize = isXs ? '1.1rem' : isSmall ? '1.25rem' : '1.5rem';
-  const subtitleFontSize = isXs ? '0.7rem' : isSmall ? '0.75rem' : '0.875rem';
-  const cardPadding = isXs ? '0.85rem' : isSmall ? '1rem' : '1.5rem';
-  const inputFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
-  const buttonFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
-
-  // Estado para los filtros: por defecto fecha actual (hoy); el usuario puede cambiar si desea otro rango
-  const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
-  const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
-  const [showDetails, setShowDetails] = useState(true);
-
-  // Obtener documentos para el selector
-  const { data: documentsData } = useQuery(GET_DOCUMENTS, {
-    variables: { branchId: branchId! },
-    skip: !branchId,
-    fetchPolicy: 'network-only'
-  });
-
-  const documents: Document[] = documentsData?.documentsByBranch || [];
-
-  // Query para obtener reporte de ventas
-  const { data, loading, error, refetch } = useQuery(GET_SALES_REPORT, {
-    variables: {
-      branchId: branchId!,
-      startDate: startDate,
-      endDate: endDate,
-      documentId: selectedDocumentId || null
-    },
-    skip: !branchId || !startDate || !endDate,
-    fetchPolicy: 'network-only'
-  });
-
-  const reportData: SalesReportData | null = data?.salesReport || null;
-  const summary: SalesReportSummary | null = reportData?.summary || null;
-  const salesDocuments: IssuedDocument[] = reportData?.documents || [];
-
-  // Función para manejar búsqueda
-  const handleSearch = () => {
-    refetch();
-    setShowDetails(true);
-  };
-
-  if (!branchId) {
-    return (
-      <div style={{
-        padding: containerPadding,
-        textAlign: 'center',
-        color: '#dc2626',
-        fontSize: subtitleFontSize
-      }}>
-        No se encontró información de la sucursal. Por favor, inicia sesión nuevamente.
-      </div>
+    const [startDate, setStartDate] = useState<string>(() =>
+        formatLocalDateYYYYMMDD(),
     );
-  }
+    const [endDate, setEndDate] = useState<string>(() =>
+        formatLocalDateYYYYMMDD(),
+    );
+    const [selectedDocumentId, setSelectedDocumentId] = useState<string>("");
 
-  return (
-    <div
-      style={{
-        minHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: containerGap,
-        background: 'linear-gradient(160deg, #f0f4ff 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: containerPadding,
-        borderRadius: '18px',
-        boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
-        position: 'relative',
-        overflowX: 'hidden', // Allow vertical scroll, hide horizontal decorations
-      }}
-    >
-      {/* Elementos decorativos de fondo */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-120px',
-          right: '-120px',
-          width: isSmall ? '180px' : isMedium ? '220px' : isSmallDesktop ? '220px' : '260px',
-          height: isSmall ? '180px' : isMedium ? '220px' : isSmallDesktop ? '220px' : '260px',
-          background: 'radial-gradient(circle at center, rgba(102,126,234,0.25), transparent 70%)',
-          filter: 'blur(2px)',
-          zIndex: 0,
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '-80px',
-          left: '-80px',
-          width: isSmall ? '140px' : isMedium ? '180px' : isSmallDesktop ? '180px' : '220px',
-          height: isSmall ? '140px' : isMedium ? '180px' : isSmallDesktop ? '180px' : '220px',
-          background: 'radial-gradient(circle at center, rgba(72,219,251,0.18), transparent 70%)',
-          filter: 'blur(2px)',
-          zIndex: 0,
-        }}
-      />
+    const { data: documentsData } = useQuery(GET_DOCUMENTS, {
+        variables: { branchId: branchId! },
+        skip: !branchId,
+        fetchPolicy: "network-only",
+    });
 
-      {/* Contenido principal */}
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: isSmall ? 'flex-start' : 'center',
-          flexDirection: isSmall ? 'column' : 'row',
-          marginBottom: containerGap,
-          flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap',
-          gap: isSmall || isMedium ? '1rem' : '0'
-        }}>
-          <div>
-            <h1 style={{
-              fontSize: titleFontSize,
-              fontWeight: 700,
-              color: '#1e293b',
-              margin: 0,
-              marginBottom: '0.5rem'
-            }}>
-              Reporte de Ventas
-            </h1>
-            <p style={{ fontSize: subtitleFontSize, color: '#64748b', margin: 0 }}>
-              Documentos emitidos y totales por método de pago
-            </p>
-          </div>
-        </div>
+    const documentsList: Document[] = documentsData?.documentsByBranch || [];
 
-        {/* Grid Principal: Filtros (Izq) y Resumen (Der) */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: isSmall || isMedium ? '1fr' : '1fr 2fr',
-          gap: containerGap,
-          marginBottom: containerGap,
-          alignItems: 'stretch'
-        }}>
+    const { data, loading, error, refetch } = useQuery(GET_SALES_REPORT, {
+        variables: {
+            branchId: branchId!,
+            startDate: startDate,
+            endDate: endDate,
+            documentId: selectedDocumentId || null,
+        },
+        skip: !branchId || !startDate || !endDate,
+        fetchPolicy: "network-only",
+    });
 
-          {/* CARD 1: Filtros (Izquierda) */}
-          <div
-            style={{
-              background: 'white',
-              borderRadius: '12px',
-              padding: cardPadding,
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center'
-            }}
-          >
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1rem'
-            }}>
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: inputFontSize,
-                  fontWeight: 500,
-                  color: '#374151',
-                  marginBottom: '0.5rem'
-                }}>
-                  Fecha Inicio
-                </label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.625rem',
-                    fontSize: inputFontSize,
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    transition: 'border-color 0.2s',
-                    boxSizing: 'border-box'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-                />
-              </div>
+    const reportData: SalesReportData | null = data?.salesReport || null;
+    const summary: SalesReportSummary | null = reportData?.summary || null;
+    const salesDocuments: IssuedDocument[] = reportData?.documents || [];
 
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: inputFontSize,
-                  fontWeight: 500,
-                  color: '#374151',
-                  marginBottom: '0.5rem'
-                }}>
-                  Fecha Fin
-                </label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.625rem',
-                    fontSize: inputFontSize,
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    transition: 'border-color 0.2s',
-                    boxSizing: 'border-box'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-                />
-              </div>
+    if (!branchId) {
+        return (
+            <div className="flex min-h-[400px] items-center justify-center rounded-[32px] bg-white p-8 shadow-sm dark:bg-slate-900">
+                <div className="text-center text-rose-500 font-bold">
+                    No se encontró información de la sucursal activa.
+                </div>
+            </div>
+        );
+    }
 
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: inputFontSize,
-                  fontWeight: 500,
-                  color: '#374151',
-                  marginBottom: '0.5rem'
-                }}>
-                  Tipo de Documento
-                </label>
-                <select
-                  value={selectedDocumentId}
-                  onChange={(e) => setSelectedDocumentId(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.625rem',
-                    fontSize: inputFontSize,
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    background: 'white',
-                    transition: 'border-color 0.2s',
-                    boxSizing: 'border-box'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+    return (
+        <div className="flex w-full flex-col gap-6 p-4 sm:p-6 lg:p-8">
+            {/* Header */}
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-4">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-[22px] bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-7 w-7"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100 sm:text-3xl">
+                            Reporte de Ventas
+                        </h1>
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400 sm:text-sm">
+                            Análisis detallado de facturación y cobranzas
+                        </p>
+                    </div>
+                </div>
+                <button
+                    onClick={() => refetch()}
+                    disabled={loading}
+                    className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
-                  <option value="">Todos los documentos</option>
-                  {documents
-                    .filter(doc => doc.isActive)
-                    .map(doc => (
-                      <option key={doc.id} value={doc.id}>
-                        {doc.code} - {doc.description}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <button
-                onClick={handleSearch}
-                disabled={loading || !startDate || !endDate}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: buttonFontSize,
-                  fontWeight: 600,
-                  color: 'white',
-                  background: loading || !startDate || !endDate
-                    ? '#9ca3af'
-                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: loading || !startDate || !endDate ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s',
-                  boxShadow: loading || !startDate || !endDate
-                    ? 'none'
-                    : '0 4px 6px -1px rgba(102, 126, 234, 0.3)',
-                  marginTop: '0.5rem'
-                }}
-                onMouseEnter={(e) => {
-                  if (!loading && startDate && endDate) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 12px -1px rgba(102, 126, 234, 0.4)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!loading && startDate && endDate) {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(102, 126, 234, 0.3)';
-                  }
-                }}
-              >
-                {loading ? 'Buscando...' : 'Buscar'}
-              </button>
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                    </svg>
+                    {loading ? "Actualizando" : "Refrescar"}
+                </button>
             </div>
-          </div>
 
-          {/* CARD 2: Resumen Completo (Derecha) */}
-          <div
-            style={{
-              background: 'white',
-              borderRadius: '12px',
-              padding: cardPadding,
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              minHeight: '300px'
-            }}
-          >
-            {summary && showDetails ? (
-              <>
-                <h2 style={{
-                  fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
-                  fontWeight: 600,
-                  color: '#1e293b',
-                  marginBottom: '0.75rem',
-                  marginTop: 0
-                }}>
-                  Resumen General
-                </h2>
+            {/* Unified Filter Toolbar */}
+            <div className="rounded-[28px] border border-slate-100 bg-white p-2 shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0">
+                    <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Desde
+                        </label>
+                        <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                        />
+                    </div>
 
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: isXs ? '1fr' : isSmall ? '1fr 1fr' : 'repeat(2, 1fr)',
-                  gap: isXs ? '0.75rem' : '1rem',
-                  marginBottom: '1.5rem'
-                }}>
-                  <div style={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    borderRadius: '8px',
-                    padding: isXs ? '0.75rem' : '1rem',
-                    color: 'white',
-                    boxShadow: '0 4px 6px -1px rgba(102, 126, 234, 0.2)'
-                  }}>
-                    <div style={{ fontSize: isSmall ? '0.75rem' : '0.875rem', opacity: 0.9, marginBottom: '0.25rem' }}>
-                      Total Documentos
+                    <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Hasta
+                        </label>
+                        <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                        />
                     </div>
-                    <div style={{ fontSize: isSmall ? '1.25rem' : '1.5rem', fontWeight: 700 }}>
-                      {summary.totalDocuments}
-                    </div>
-                  </div>
 
-                  <div style={{
-                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                    borderRadius: '8px',
-                    padding: isXs ? '0.75rem' : '1rem',
-                    color: 'white',
-                    boxShadow: '0 4px 6px -1px rgba(245, 87, 108, 0.2)'
-                  }}>
-                    <div style={{ fontSize: isSmall ? '0.75rem' : '0.875rem', opacity: 0.9, marginBottom: '0.25rem' }}>
-                      Total General
+                    <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Documento
+                        </label>
+                        <select
+                            value={selectedDocumentId}
+                            onChange={(e) =>
+                                setSelectedDocumentId(e.target.value)
+                            }
+                            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200 cursor-pointer"
+                        >
+                            <option value="">Todos los documentos</option>
+                            {documentsList
+                                .filter((doc) => doc.isActive)
+                                .map((doc) => (
+                                    <option key={doc.id} value={doc.id}>
+                                        {doc.code} - {doc.description}
+                                    </option>
+                                ))}
+                        </select>
                     </div>
-                    <div style={{ fontSize: isSmall ? '1.25rem' : '1.5rem', fontWeight: 700 }}>
-                      {currencyFormatter.format(summary.totalAmount)}
+
+                    <div className="flex items-center p-2">
+                        <button
+                            onClick={() => refetch()}
+                            disabled={loading}
+                            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-200 transition-all hover:bg-indigo-700 hover:shadow-indigo-300 disabled:opacity-50 dark:shadow-none"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2.5}
+                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                />
+                            </svg>
+                            Filtrar Reporte
+                        </button>
                     </div>
-                  </div>
                 </div>
+            </div>
 
-                <h2 style={{
-                  fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
-                  fontWeight: 600,
-                  color: '#1e293b',
-                  marginBottom: '0.75rem',
-                  borderTop: '1px solid #e2e8f0',
-                  paddingTop: '1rem'
-                }}>
-                  Totales por Método de Pago
-                </h2>
-
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: isXs ? '1fr 1fr' : 'repeat(auto-fit, minmax(110px, 1fr))',
-                  gap: isXs ? '0.5rem' : '0.75rem'
-                }}>
-                  {[
-                    { label: 'Efectivo', amount: summary.totalCash, color: '#0369a1', bg: '#f0f9ff', border: '#0ea5e9' },
-                    { label: 'Yape', amount: summary.totalYape, color: '#047857', bg: '#f0fdf4', border: '#10b981' },
-                    { label: 'Plin', amount: summary.totalPlin, color: '#b45309', bg: '#fef3c7', border: '#f59e0b' },
-                    { label: 'Tarjeta', amount: summary.totalCard, color: '#b91c1c', bg: '#fef2f2', border: '#ef4444' },
-                    { label: 'Transf.', amount: summary.totalTransfer, color: '#7e22ce', bg: '#f3e8ff', border: '#a855f7' },
-                    { label: 'Otros', amount: summary.totalOthers, color: '#334155', bg: '#f1f5f9', border: '#64748b' },
-                  ].map((item, index) => (
-                    <div key={index} style={{
-                      background: item.bg,
-                      border: `1px solid ${item.border}`,
-                      borderRadius: '8px',
-                      padding: isXs ? '0.5rem' : '0.75rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'center'
-                    }}>
-                      <div style={{ fontSize: '0.7rem', color: item.color, opacity: 0.8, marginBottom: '0.2rem' }}>
-                        {item.label}
-                      </div>
-                      <div style={{ fontSize: isXs ? '0.8rem' : '0.9rem', fontWeight: 700, color: item.color }}>
-                        {currencyFormatter.format(item.amount)}
-                      </div>
+            {/* Summary Cards */}
+            {summary && (
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="relative overflow-hidden rounded-[32px] bg-indigo-600 p-6 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
+                        <div className="relative z-10">
+                            <span className="text-[10px] font-black uppercase tracking-widest opacity-80">
+                                Total Documentos
+                            </span>
+                            <div className="mt-1 text-3xl font-black">
+                                {summary.totalDocuments}
+                            </div>
+                        </div>
+                        <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
                     </div>
-                  ))}
+
+                    <div className="relative overflow-hidden rounded-[32px] bg-emerald-500 p-6 text-white shadow-lg shadow-emerald-200 dark:shadow-none">
+                        <div className="relative z-10">
+                            <span className="text-[10px] font-black uppercase tracking-widest opacity-80">
+                                Venta Total Bruta
+                            </span>
+                            <div className="mt-1 text-3xl font-black">
+                                {currencyFormatter.format(summary.totalAmount)}
+                            </div>
+                        </div>
+                        <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+                    </div>
+
+                    <div className="col-span-1 flex flex-col gap-3 rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800/50 dark:bg-slate-900 sm:col-span-2 lg:col-span-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Distribución por Método de Pago
+                        </span>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                            {[
+                                {
+                                    label: "Efectivo",
+                                    amount: summary.totalCash,
+                                    color: "text-blue-600",
+                                    bg: "bg-blue-50 dark:bg-blue-900/20",
+                                },
+                                {
+                                    label: "Yape",
+                                    amount: summary.totalYape,
+                                    color: "text-emerald-600",
+                                    bg: "bg-emerald-50 dark:bg-emerald-900/20",
+                                },
+                                {
+                                    label: "Plin",
+                                    amount: summary.totalPlin,
+                                    color: "text-amber-600",
+                                    bg: "bg-amber-50 dark:bg-amber-900/20",
+                                },
+                                {
+                                    label: "Tarjeta",
+                                    amount: summary.totalCard,
+                                    color: "text-rose-600",
+                                    bg: "bg-rose-50 dark:bg-rose-900/20",
+                                },
+                                {
+                                    label: "Transf.",
+                                    amount: summary.totalTransfer,
+                                    color: "text-purple-600",
+                                    bg: "bg-purple-50 dark:bg-purple-900/20",
+                                },
+                                {
+                                    label: "Otros",
+                                    amount: summary.totalOthers,
+                                    color: "text-slate-600",
+                                    bg: "bg-slate-50 dark:bg-slate-800/30",
+                                },
+                            ].map((item, idx) => (
+                                <div
+                                    key={idx}
+                                    className={`flex flex-col rounded-2xl p-3 ${item.bg}`}
+                                >
+                                    <span className="text-[9px] font-black uppercase tracking-tighter opacity-70">
+                                        {item.label}
+                                    </span>
+                                    <span
+                                        className={`text-[11px] font-black ${item.color}`}
+                                    >
+                                        {currencyFormatter.format(item.amount)}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
-              </>
-            ) : (
-              <div style={{
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#94a3b8',
-                fontStyle: 'italic',
-                flexDirection: 'column',
-                gap: '1rem'
-              }}>
-                <div style={{ fontSize: '3rem' }}>📊</div>
-                <div>Realiza una búsqueda para ver el resumen</div>
-              </div>
             )}
-          </div>
-        </div>
 
-        {/* Lista de documentos: en su propio card con scroll */}
-        {showDetails && loading && (
-          <div
-            style={{
-              background: 'white',
-              borderRadius: '12px',
-              padding: cardPadding,
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              textAlign: 'center',
-              color: '#64748b',
-              fontSize: subtitleFontSize
-            }}
-          >
-            Cargando documentos...
-          </div>
-        )}
+            {/* Documents List Section */}
+            <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+                <div className="flex items-center justify-between border-b border-slate-50 p-6 dark:border-slate-800/50">
+                    <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                        Documentos Emitidos
+                    </h2>
+                    <span className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800">
+                        {salesDocuments.length} Registros encontrados
+                    </span>
+                </div>
 
-        {showDetails && !loading && (
-          <div
-            style={{
-              background: 'white',
-              borderRadius: '12px',
-              padding: cardPadding,
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              display: 'flex',
-              flexDirection: 'column',
-              height: '100%',
-              minHeight: '400px',
-              maxHeight: '900px',
-              overflow: 'hidden'
-            }}
-          >
-            <h2 style={{
-              fontSize: isSmallDesktop ? '0.9375rem' : '1rem',
-              fontWeight: 600,
-              color: '#1e293b',
-              marginBottom: '1rem',
-              marginTop: 0,
-              flexShrink: 0
-            }}>
-              Lista de documentos
-            </h2>
-            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'auto' }}>
-              <ReportSaleList
-                documents={salesDocuments}
-                loading={false}
-                error={error}
-                isSmallDesktop={isSmallDesktop}
-                isSmall={isSmall}
-                isXs={isXs}
-              />
+                <div className="p-4 sm:p-6">
+                    {loading ? (
+                        <div className="flex min-h-[300px] flex-col gap-4">
+                            {Array(5)
+                                .fill(0)
+                                .map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className="h-20 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50"
+                                    />
+                                ))}
+                        </div>
+                    ) : (
+                        <ReportSaleList
+                            documents={salesDocuments}
+                            loading={loading}
+                            error={error}
+                            isSmallDesktop={false}
+                            isSmall={false}
+                            isXs={false}
+                            onRefetch={refetch}
+                        />
+                    )}
+                </div>
             </div>
-          </div>
-        )}
 
-        {/* Error */}
-        {error && (
-          <div style={{
-            background: '#fee2e2',
-            border: '1px solid #fca5a5',
-            borderRadius: '8px',
-            padding: cardPadding,
-            color: '#991b1b',
-            marginTop: containerGap
-          }}>
-            Error al cargar el reporte: {error.message}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+            {error && (
+                <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600 dark:border-rose-900/30 dark:bg-rose-900/10">
+                    Error al cargar el reporte: {error.message}
+                </div>
+            )}
+        </div>
+    );
 };
 
 export default ReportSale;

@@ -41,13 +41,6 @@ const Observation: React.FC = () => {
   
   // Tamaños adaptativos
   const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.25rem' : '1.5rem';
-  const labelFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : '0.625rem 0.875rem';
-  const buttonPadding = isSmall ? '0.5rem 1rem' : isMedium ? '0.625rem 1.25rem' : isSmallDesktop ? '0.625rem 1.25rem' : '0.75rem 1.5rem';
-  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const tableFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : '0.875rem';
-  const tableCellPadding = isSmall ? '0.5rem' : isMedium ? '0.625rem' : isSmallDesktop ? '0.625rem' : '0.75rem';
 
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>('');
   const [formData, setFormData] = useState({
@@ -196,139 +189,49 @@ const Observation: React.FC = () => {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2rem',
-        background: 'linear-gradient(160deg, #f0f4ff 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: '1.5rem',
-        borderRadius: '18px',
-        boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Elementos decorativos de fondo */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-120px',
-          right: '-120px',
-          width: '260px',
-          height: '260px',
-          background: 'radial-gradient(circle at center, rgba(102,126,234,0.25), transparent 70%)',
-          filter: 'blur(2px)',
-          zIndex: 0,
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '-80px',
-          left: '-80px',
-          width: '220px',
-          height: '220px',
-          background: 'radial-gradient(circle at center, rgba(72,219,251,0.18), transparent 70%)',
-          filter: 'blur(2px)',
-          zIndex: 0,
-        }}
-      />
+    <div className="flex flex-col gap-6 p-1 transition-colors duration-200 md:p-0">
+      {/* Header Section */}
+      <div className="flex flex-col gap-1 px-2 md:px-0">
+        <h1 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100 md:text-2xl">
+          Gestión de Observaciones
+        </h1>
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 md:text-sm">
+          Administra las notas rápidas y modificadores para cada subcategoría de productos.
+        </p>
+      </div>
 
-      {/* Contenido principal */}
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        {/* Header */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '2rem',
-          flexWrap: 'wrap',
-          gap: '1rem'
-        }}>
-          <div>
-            <h1 style={{ 
-              fontSize: isSmall ? '1.25rem' : isMedium ? '1.5rem' : isSmallDesktop ? '1.5rem' : '1.875rem',
-              fontWeight: 700,
-              color: '#1e293b',
-              margin: 0,
-              marginBottom: '0.5rem'
-            }}>
-              Observaciones (Modificadores)
-            </h1>
-            <p style={{ 
-              fontSize: labelFontSize,
-              color: '#64748b',
-              margin: 0
-            }}>
-              Crea observaciones para las subcategorías de productos
-            </p>
-          </div>
+      {/* Main Form Card */}
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-4 dark:border-slate-800 dark:bg-slate-800/30">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">Configurar Observación</h3>
         </div>
 
-        {/* Mensaje de éxito/error */}
-        {message && (
-          <div
-            style={{
-              padding: '0.875rem 1rem',
-              borderRadius: '8px',
-              marginBottom: '1.5rem',
-              background: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-              border: `1px solid ${message.type === 'success' ? '#86efac' : '#fca5a5'}`,
-              color: message.type === 'success' ? '#166534' : '#991b1b',
-              fontSize: inputFontSize,
-            }}
-          >
-            {message.text}
-          </div>
-        )}
+        <div className="p-6">
+          {message && (
+            <div
+              className={`mb-6 flex items-center gap-3 rounded-xl border p-4 text-sm font-medium animate-in fade-in slide-in-from-top-2 ${
+                message.type === 'success'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-400'
+                  : 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-400'
+              }`}
+            >
+              <div className={`h-2 w-2 rounded-full ${message.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+              {message.text}
+            </div>
+          )}
 
-        {/* Formulario */}
-        <div
-          style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: cardPadding,
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-            marginBottom: '2rem',
-          }}
-        >
-          <form onSubmit={handleSubmit}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {/* Subcategoría */}
-              <div>
-                <label
-                  htmlFor="subcategoryId"
-                  style={{
-                    display: 'block',
-                    fontSize: labelFontSize,
-                    fontWeight: 600,
-                    color: '#374151',
-                    marginBottom: '0.5rem',
-                  }}
-                >
-                  Subcategoría
-                </label>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              {/* Subcategoría Selector */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Subcategoría *</label>
                 <select
                   id="subcategoryId"
                   name="subcategoryId"
                   value={selectedSubcategoryId}
                   onChange={handleSubcategoryChange}
                   required
-                  style={{
-                    width: '100%',
-                    padding: inputPadding,
-                    fontSize: inputFontSize,
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    transition: 'border-color 0.2s',
-                    background: 'white',
-                    cursor: 'pointer',
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                 >
                   <option value="">Seleccionar subcategoría</option>
                   {allSubcategories.map((subcategory) => (
@@ -338,262 +241,132 @@ const Observation: React.FC = () => {
                   ))}
                 </select>
                 {allSubcategories.length === 0 && (
-                  <p style={{ 
-                    fontSize: inputFontSize,
-                    color: '#f59e0b',
-                    marginTop: '0.5rem',
-                    margin: 0
-                  }}>
-                    No hay subcategorías activas disponibles. Debes crear subcategorías primero.
+                  <p className="text-[10px] font-bold text-amber-500 dark:text-amber-400">
+                    No hay subcategorías activas disponibles.
                   </p>
                 )}
               </div>
 
-              {/* Observación */}
-              {selectedSubcategoryId && (
-                <>
-                  <div>
-                    <label
-                      htmlFor="note"
-                      style={{
-                        display: 'block',
-                        fontSize: labelFontSize,
-                        fontWeight: 600,
-                        color: '#374151',
-                        marginBottom: '0.5rem',
-                      }}
-                    >
-                      Observación (Modificador)
-                    </label>
-                    <input
-                      type="text"
-                      id="note"
-                      name="note"
-                      value={formData.note}
-                      onChange={handleInputChange}
-                      placeholder="Ej: Sin ensalada, Helado, Caliente, etc."
-                      required
-                      maxLength={100}
-                      style={{
-                        width: '100%',
-                        padding: inputPadding,
-                        fontSize: inputFontSize,
-                        border: '1px solid #d1d5db',
-                        borderRadius: '8px',
-                        outline: 'none',
-                        transition: 'border-color 0.2s',
-                      }}
-                      onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                      onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-                    />
-                  </div>
-
-                  {/* Estado activo */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <input
-                      type="checkbox"
-                      id="isActive"
-                      name="isActive"
-                      checked={formData.isActive}
-                      onChange={handleInputChange}
-                      style={{
-                        width: '1rem',
-                        height: '1rem',
-                        cursor: 'pointer',
-                      }}
-                    />
-                    <label
-                      htmlFor="isActive"
-                      style={{
-                        fontSize: labelFontSize,
-                        color: '#374151',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Activo
-                    </label>
-                  </div>
-
-                  {/* Botón de envío */}
-                  <button
-                    type="submit"
-                    disabled={creating || !formData.note.trim()}
-                    style={{
-                      padding: buttonPadding,
-                      fontSize: buttonFontSize,
-                      fontWeight: 600,
-                      color: 'white',
-                      background: creating || !formData.note.trim() 
-                        ? '#9ca3af' 
-                        : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: creating || !formData.note.trim() ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s',
-                      boxShadow: creating || !formData.note.trim() 
-                        ? 'none' 
-                        : '0 4px 6px -1px rgba(102, 126, 234, 0.3)',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!creating && formData.note.trim()) {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 6px 12px -1px rgba(102, 126, 234, 0.4)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!creating && formData.note.trim()) {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(102, 126, 234, 0.3)';
-                      }
-                    }}
-                  >
-                    {creating ? 'Creando...' : 'Crear Observación'}
-                  </button>
-                </>
-              )}
+              {/* Input de Observación */}
+              <div className={`flex flex-col gap-2 transition-all duration-300 ${selectedSubcategoryId ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Observación (Texto) *</label>
+                <input
+                  type="text"
+                  name="note"
+                  value={formData.note}
+                  onChange={handleInputChange}
+                  placeholder="Ej: Sin cebolla, Extra salsa, Caliente..."
+                  maxLength={100}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </div>
             </div>
+
+            {/* Status and Action Row */}
+            {selectedSubcategoryId && (
+              <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-6 animate-in fade-in slide-in-from-bottom-2 dark:border-slate-800">
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-2 transition-all hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-800/50">
+                  <input
+                    type="checkbox"
+                    name="isActive"
+                    checked={formData.isActive}
+                    onChange={handleInputChange}
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800"
+                  />
+                  <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Observación Activa</span>
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={creating || !formData.note.trim()}
+                  className={`flex min-w-[200px] items-center justify-center gap-2 rounded-2xl py-3 text-sm font-black uppercase tracking-widest text-white transition-all shadow-lg ${
+                    creating || !formData.note.trim()
+                    ? 'bg-slate-300 dark:bg-slate-800 cursor-not-allowed shadow-none' 
+                    : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-indigo-600/30 active:translate-y-0'
+                  }`}
+                >
+                  {creating ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      <span>Procesando...</span>
+                    </>
+                  ) : 'Crear Observación'}
+                </button>
+              </div>
+            )}
           </form>
         </div>
+      </div>
 
-        {/* Lista de observaciones existentes */}
-        {selectedSubcategoryId && selectedSubcategory && (
-          <div
-            style={{
-              background: 'white',
-              borderRadius: '12px',
-              padding: cardPadding,
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-            }}
-          >
-            <h2 style={{
-              fontSize: isSmall ? '1rem' : isMedium ? '1.125rem' : isSmallDesktop ? '1.125rem' : '1.25rem',
-              fontWeight: 600,
-              color: '#1e293b',
-              marginBottom: '1rem',
-            }}>
-              Observaciones de "{selectedSubcategory.name}"
-            </h2>
-            
+      {/* Existing Observations Section */}
+      {selectedSubcategoryId && selectedSubcategory && (
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm animate-in fade-in zoom-in-95 duration-300 dark:border-slate-800 dark:bg-slate-900">
+          <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-4 dark:border-slate-800 dark:bg-slate-800/30">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
+              Observaciones de <span className="text-indigo-600 dark:text-indigo-400">"{selectedSubcategory.name}"</span>
+            </h3>
+          </div>
+
+          <div className="p-0">
             {existingModifiers.length === 0 ? (
-              <p style={{
-                fontSize: inputFontSize,
-                color: '#64748b',
-                textAlign: 'center',
-                padding: '2rem',
-                margin: 0,
-              }}>
-                No hay observaciones creadas para esta subcategoría.
-              </p>
+              <div className="flex flex-col items-center justify-center gap-2 py-12 text-slate-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-sm font-medium">Esta subcategoría no tiene observaciones registradas.</p>
+              </div>
             ) : (
-              <div style={{
-                overflowX: 'auto',
-              }}>
-                <table style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  fontSize: tableFontSize,
-                }}>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-sm">
                   <thead>
-                    <tr style={{ background: '#f9fafb' }}>
-                      <th style={{
-                        padding: tableCellPadding,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: '#374151',
-                        borderBottom: '1px solid #e5e7eb',
-                      }}>
-                        Observación
-                      </th>
-                      <th style={{
-                        padding: tableCellPadding,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: '#374151',
-                        borderBottom: '1px solid #e5e7eb',
-                      }}>
-                        Estado
-                      </th>
-                      <th style={{
-                        padding: tableCellPadding,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: '#374151',
-                        borderBottom: '1px solid #e5e7eb',
-                        width: '140px',
-                      }}>
-                        Acciones
-                      </th>
+                    <tr className="border-b border-slate-100 bg-slate-50/30 dark:border-slate-800 dark:bg-slate-800/20">
+                      <th className="px-6 py-4 font-bold text-slate-500 dark:text-slate-400">Nota / Observación</th>
+                      <th className="px-6 py-4 text-center font-bold text-slate-500 dark:text-slate-400">Estado</th>
+                      <th className="px-6 py-4 text-right font-bold text-slate-500 dark:text-slate-400">Acciones</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {existingModifiers.map((modifier) => (
-                      <tr
-                        key={modifier.id}
-                        style={{
-                          borderBottom: '1px solid #f3f4f6',
-                        }}
+                      <tr 
+                        key={modifier.id} 
+                        className="group transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30"
                       >
-                        <td style={{
-                          padding: tableCellPadding,
-                          color: '#1e293b',
-                        }}>
-                          {modifier.note}
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-800 dark:text-slate-100">{modifier.note}</div>
                         </td>
-                        <td style={{
-                          padding: tableCellPadding,
-                          textAlign: 'center',
-                        }}>
+                        <td className="px-6 py-4 text-center">
                           <span
-                            style={{
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              padding: '0.25rem 0.625rem',
-                              borderRadius: '6px',
-                              background: modifier.isActive ? '#dcfce7' : '#fee2e2',
-                              color: modifier.isActive ? '#166534' : '#991b1b',
-                            }}
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
+                              modifier.isActive 
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' 
+                                : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                            }`}
                           >
+                            <div className={`h-1.5 w-1.5 rounded-full ${modifier.isActive ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                             {modifier.isActive ? 'Activo' : 'Inactivo'}
                           </span>
                         </td>
-                        <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingModifier(modifier);
-                              setEditModifierForm({ note: modifier.note, isActive: modifier.isActive });
-                              setMessage(null);
-                            }}
-                            style={{
-                              padding: '0.3rem 0.5rem',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              color: '#6366f1',
-                              background: '#eef2ff',
-                              border: '1px solid #c7d2fe',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              marginRight: '0.35rem',
-                            }}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeletingModifierId(modifier.id)}
-                            style={{
-                              padding: '0.3rem 0.5rem',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              color: '#dc2626',
-                              background: '#fee2e2',
-                              border: '1px solid #fca5a5',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Eliminar
-                          </button>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingModifier(modifier);
+                                setEditModifierForm({ note: modifier.note, isActive: modifier.isActive });
+                                setMessage(null);
+                              }}
+                              className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 transition-all hover:bg-indigo-600 hover:text-white dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-indigo-600 dark:hover:text-white"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingModifierId(modifier.id)}
+                              className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-rose-600 transition-all hover:bg-rose-600 hover:text-white dark:bg-slate-800 dark:text-rose-400 dark:hover:bg-rose-600 dark:hover:text-white"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -602,13 +375,34 @@ const Observation: React.FC = () => {
               </div>
             )}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Modal editar observación */}
-        {editingModifier && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={() => setEditingModifier(null)}>
-            <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', maxWidth: '400px', width: '90%', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={(e) => e.stopPropagation()}>
-              <h3 style={{ margin: '0 0 1rem', color: '#334155' }}>Editar Observación</h3>
+      {/* Modal Editar Observación */}
+      {editingModifier && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all animate-in fade-in duration-200"
+          onClick={() => setEditingModifier(null)}
+        >
+          <div 
+            className="relative flex max-h-[90vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl transition-colors duration-200 dark:border-slate-800 dark:bg-slate-950"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Editar Observación</h3>
+              <button
+                type="button"
+                onClick={() => setEditingModifier(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -620,48 +414,97 @@ const Observation: React.FC = () => {
                     },
                   });
                 }}
-                style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+                className="flex flex-col gap-6"
               >
-                <input
-                  value={editModifierForm.note}
-                  onChange={(e) => setEditModifierForm((p) => ({ ...p, note: e.target.value }))}
-                  placeholder="Observación"
-                  required
-                  maxLength={100}
-                  style={{ padding: '0.625rem 0.875rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
-                />
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', margin: 0, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={editModifierForm.isActive} onChange={(e) => setEditModifierForm((p) => ({ ...p, isActive: e.target.checked }))} />
-                  Activo
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Texto de Observación</label>
+                  <input
+                    value={editModifierForm.note}
+                    onChange={(e) => setEditModifierForm((p) => ({ ...p, note: e.target.value }))}
+                    placeholder="Observación"
+                    required
+                    maxLength={100}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                </div>
+
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-2 transition-all hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-800/50">
+                  <input 
+                    type="checkbox" 
+                    checked={editModifierForm.isActive} 
+                    onChange={(e) => setEditModifierForm((p) => ({ ...p, isActive: e.target.checked }))} 
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800"
+                  />
+                  <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Activo</span>
                 </label>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <button type="button" onClick={() => setEditingModifier(null)} style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', cursor: 'pointer', flex: 1 }}>Cancelar</button>
-                  <button type="submit" disabled={updatingModifier || !editModifierForm.note.trim()} style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: 'none', background: updatingModifier ? '#9ca3af' : '#6366f1', color: 'white', fontWeight: 600, cursor: updatingModifier ? 'not-allowed' : 'pointer', flex: 1 }}>{updatingModifier ? 'Guardando...' : 'Guardar'}</button>
+
+                <div className="flex gap-3">
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingModifier(null)} 
+                    className="flex-1 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={updatingModifier || !editModifierForm.note.trim()} 
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-black uppercase tracking-widest text-white transition-all shadow-lg ${
+                      updatingModifier || !editModifierForm.note.trim()
+                      ? 'bg-slate-300 dark:bg-slate-800 cursor-not-allowed shadow-none' 
+                      : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-indigo-600/30 active:translate-y-0'
+                    }`}
+                  >
+                    {updatingModifier ? 'Guardando...' : 'Guardar'}
+                  </button>
                 </div>
               </form>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Modal confirmar eliminar observación */}
-        {deletingModifierId && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={() => setDeletingModifierId(null)}>
-            <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', maxWidth: '360px', width: '90%', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={(e) => e.stopPropagation()}>
-              <p style={{ margin: '0 0 1rem', color: '#334155' }}>¿Eliminar esta observación?</p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button type="button" onClick={() => setDeletingModifierId(null)} style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', cursor: 'pointer', flex: 1 }}>Cancelar</button>
-                <button
-                  type="button"
-                  onClick={() => deleteModifier({ variables: { modifierId: deletingModifierId } })}
-                  style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: 'none', background: '#dc2626', color: 'white', fontWeight: 600, cursor: 'pointer', flex: 1 }}
-                >
-                  Eliminar
-                </button>
+      {/* Modal Eliminar Observación */}
+      {deletingModifierId && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all animate-in fade-in duration-200"
+          onClick={() => setDeletingModifierId(null)}
+        >
+          <div 
+            className="relative w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl transition-colors duration-200 dark:border-slate-800 dark:bg-slate-950"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-6 flex flex-col items-center gap-4 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-50 text-rose-500 dark:bg-rose-900/20">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">¿Eliminar observación?</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Esta acción no se puede deshacer y la nota ya no estará disponible para los pedidos.</p>
               </div>
             </div>
+
+            <div className="flex gap-3">
+              <button 
+                type="button" 
+                onClick={() => setDeletingModifierId(null)} 
+                className="flex-1 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteModifier({ variables: { modifierId: deletingModifierId } })}
+                className="flex-1 rounded-2xl bg-rose-600 py-3.5 text-sm font-black uppercase tracking-widest text-white transition-all shadow-lg shadow-rose-600/30 hover:bg-rose-700 hover:-translate-y-0.5 active:translate-y-0"
+              >
+                Eliminar
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

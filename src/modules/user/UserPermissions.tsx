@@ -3,8 +3,8 @@ import { useQuery, useMutation } from '@apollo/client';
 import { GET_USERS_BY_BRANCH_LIGHT } from '../../graphql/queries';
 import { SET_USER_PERMISSIONS } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
-import { useResponsive } from '../../hooks/useResponsive';
 import { getPermissionOptions } from '../../constants/permissionLabels';
+import { useToast } from '../../context/ToastContext';
 
 interface User {
   id: string;
@@ -21,15 +21,9 @@ interface User {
 
 const UserPermissions: React.FC = () => {
   const { companyData, user: currentUser } = useAuth();
-  const { breakpoint } = useResponsive();
+  const { showToast } = useToast();
   const branchId = companyData?.branch?.id;
   const isAdmin = (currentUser?.role || '').toUpperCase() === 'ADMIN';
-
-  const isSmall = breakpoint === 'sm';
-  const isMedium = breakpoint === 'md';
-  const cardPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem';
-  const tableFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem';
-  const titleFontSize = isSmall ? '1rem' : isMedium ? '1.05rem' : '1.1rem';
 
   const { data: usersData, loading: usersLoading, error: usersError, refetch } = useQuery(GET_USERS_BY_BRANCH_LIGHT, {
     variables: { branchId: branchId!, includeInactive: true },
@@ -40,24 +34,20 @@ const UserPermissions: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const permissionOptions = getPermissionOptions();
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [setUserPermissionsMutation, { loading: saving }] = useMutation(SET_USER_PERMISSIONS, {
     onCompleted: (res) => {
       const result = res?.setUserPermissions;
       if (result?.success) {
-        setMessage({ type: 'success', text: result.message || 'Permisos actualizados' });
+        showToast(result.message || 'Permisos actualizados correctamente', 'success');
         refetch();
-        setTimeout(() => {
-          setSelectedUser(null);
-          setMessage(null);
-        }, 1500);
+        setSelectedUser(null);
       } else {
-        setMessage({ type: 'error', text: result?.message || 'Error al guardar' });
+        showToast(result?.message || 'Error al guardar permisos', 'error');
       }
     },
     onError: (err) => {
-      setMessage({ type: 'error', text: err.message || 'Error de conexión' });
+      showToast(err.message || 'Error de conexión', 'error');
     }
   });
 
@@ -67,7 +57,6 @@ const UserPermissions: React.FC = () => {
     setSelectedUser(u);
     const codes = Array.isArray(u.customPermissions) ? u.customPermissions : [];
     setSelectedCodes(new Set(codes));
-    setMessage(null);
   };
 
   const togglePermission = (code: string) => {
@@ -89,97 +78,108 @@ const UserPermissions: React.FC = () => {
     });
   };
 
+  const getRoleLabel = (role: string) => {
+    const roles: Record<string, string> = {
+        ADMIN: "Administrador",
+        CASHIER: "Cajero",
+        WAITER: "Mozo",
+        COOK: "Cocinero",
+    };
+    return roles[role] || role;
+  };
+
   if (!isAdmin) {
     return (
-      <div style={{
-        padding: cardPadding,
-        backgroundColor: 'white',
-        borderRadius: '16px',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-        border: '1px solid #e2e8f0',
-        textAlign: 'center'
-      }}>
-        <p style={{ margin: 0, color: '#dc2626', fontWeight: 600 }}>
-          Solo el administrador puede acceder a la gestión de permisos.
-        </p>
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-50 text-rose-500 dark:bg-rose-900/20">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">Acceso Restringido</h3>
+        <p className="text-sm font-medium text-slate-500">Solo el administrador puede acceder a la gestión de permisos.</p>
       </div>
     );
   }
 
-  if (!branchId) {
-    return (
-      <div style={{ padding: cardPadding, textAlign: 'center', color: '#dc2626' }}>
-        No se encontró la sucursal. Inicia sesión nuevamente.
-      </div>
-    );
-  }
-
-  if (usersLoading) {
-    return (
-      <div style={{ padding: cardPadding, textAlign: 'center', color: '#64748b' }}>
-        Cargando...
-      </div>
-    );
-  }
-
-  if (usersError) {
-    return (
-      <div style={{ padding: cardPadding, textAlign: 'center', color: '#dc2626' }}>
-        Error al cargar usuarios: {usersError.message}
-      </div>
-    );
-  }
+  if (!branchId) return null;
 
   return (
-    <div style={{ padding: cardPadding, minHeight: '400px' }}>
-      <div style={{
-        backgroundColor: 'white',
-        borderRadius: '16px',
-        padding: cardPadding,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-        border: '1px solid #e2e8f0',
-        minHeight: '320px'
-      }}>
-        <h3 style={{ margin: '0 0 1rem', fontSize: titleFontSize, fontWeight: 700, color: '#1e293b' }}>
-          🔐 Permisos por usuario
-        </h3>
-        <p style={{ margin: '0 0 1rem', fontSize: tableFontSize, color: '#64748b' }}>
-          Selecciona un empleado y asigna los permisos. Lista vacía = usar permisos por defecto del rol.
+    <div className="flex flex-col gap-6 rounded-[32px] bg-slate-50/50 p-6 shadow-xl shadow-slate-200/50 dark:bg-slate-900/50 dark:shadow-none sm:p-8">
+      {/* Header */}
+      <div className="flex flex-col gap-1">
+        <h2 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100">
+            🔐 Control de Accesos
+        </h2>
+        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            Asigna permisos específicos a cada integrante de tu equipo
         </p>
+      </div>
 
-        {users.length === 0 ? (
-          <p style={{ color: '#64748b', margin: 0 }}>No hay empleados en esta sucursal. Agrega empleados en la sección Empleados.</p>
+      <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+        {usersLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-indigo-500/20 border-t-indigo-500" />
+            <p className="text-xs font-bold uppercase tracking-widest">Cargando empleados...</p>
+          </div>
+        ) : usersError ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center text-rose-500">
+                <svg xmlns="http://www.w3.org/2000/svg" className="mb-4 h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm font-black">Error al cargar datos</p>
+                <p className="mt-1 text-xs">{usersError.message}</p>
+            </div>
+        ) : users.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center text-slate-400">
+             <svg xmlns="http://www.w3.org/2000/svg" className="mb-4 h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <p className="text-sm font-bold uppercase tracking-widest">No hay empleados registrados</p>
+          </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: tableFontSize }}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
               <thead>
-                <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: '#334155', fontWeight: 600 }}>Nombre</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: '#334155', fontWeight: 600 }}>Rol</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: '#334155', fontWeight: 600 }}>Acciones</th>
+                <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:bg-slate-800/30 dark:text-slate-400">
+                  <th className="px-6 py-4">Empleado</th>
+                  <th className="px-6 py-4">Rol Actual</th>
+                  <th className="px-6 py-4 text-center">Permisos Especiales</th>
+                  <th className="px-6 py-4 text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                 {users.map((u) => (
-                  <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '0.75rem', color: '#334155' }}>{u.fullName}</td>
-                    <td style={{ padding: '0.75rem', color: '#64748b' }}>{u.role}</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                  <tr key={u.id} className="group transition-colors hover:bg-slate-50/30 dark:hover:bg-slate-800/20">
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-bold text-slate-700 dark:text-slate-200">{u.fullName}</span>
+                        <span className="text-[10px] text-slate-400">{u.dni}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                        {getRoleLabel(u.role)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+                        (u.customPermissions?.length ?? 0) > 0 
+                            ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400' 
+                            : 'bg-slate-50 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
+                      }`}>
+                        {u.customPermissions?.length || 0} personalizados
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
                       <button
-                        type="button"
                         onClick={() => openModal(u)}
-                        style={{
-                          padding: '0.375rem 0.75rem',
-                          borderRadius: '8px',
-                          border: '1px solid #e2e8f0',
-                          backgroundColor: '#f1f5f9',
-                          color: '#475569',
-                          fontWeight: 600,
-                          fontSize: tableFontSize,
-                          cursor: 'pointer'
-                        }}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-50 px-4 text-xs font-black uppercase tracking-widest text-indigo-600 transition-all hover:bg-indigo-50 dark:bg-slate-800 dark:text-indigo-400 dark:hover:bg-slate-700 sm:w-auto"
                       >
-                        🔐 Permisos
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <span>Configurar</span>
                       </button>
                     </td>
                   </tr>
@@ -190,129 +190,110 @@ const UserPermissions: React.FC = () => {
         )}
       </div>
 
-      {/* Modal: permisos del usuario seleccionado */}
+      {/* Modal Permisos */}
       {selectedUser && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10000,
-            padding: '1rem'
-          }}
-          onClick={() => !saving && setSelectedUser(null)}
-        >
-          <div
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '16px',
-              padding: cardPadding,
-              maxWidth: '520px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
-              border: '1px solid #e2e8f0'
-            }}
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-300">
+          <div 
+            className="relative flex h-full max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-300 dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <h4 style={{ margin: '0 0 0.5rem', fontSize: titleFontSize, fontWeight: 700, color: '#1e293b' }}>
-              🔐 Permisos: {selectedUser.fullName}
-            </h4>
-            <p style={{ margin: '0 0 1rem', fontSize: tableFontSize, color: '#64748b' }}>
-              Marca los permisos que tendrá este usuario. Sin marcar ninguno se usan los del rol.
-            </p>
-            {message && (
-              <div style={{
-                marginBottom: '1rem',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-                color: message.type === 'success' ? '#166534' : '#991b1b',
-                fontSize: tableFontSize
-              }}>
-                {message.text}
-              </div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
-              {permissionOptions.map((perm) => (
-                <label
-                  key={perm.code}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '0.75rem',
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '8px',
-                    backgroundColor: selectedCodes.has(perm.code) ? '#eff6ff' : '#f8fafc',
-                    border: `1px solid ${selectedCodes.has(perm.code) ? '#93c5fd' : '#e2e8f0'}`,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedCodes.has(perm.code)}
-                    onChange={() => togglePermission(perm.code)}
-                    style={{ width: '1rem', height: '1rem', marginTop: '0.2rem', flexShrink: 0 }}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontWeight: 500, color: '#334155' }}>
-                      {selectedUser.role === 'WAITER' && perm.code === 'users.manage'
-                        ? 'Requiere contraseña para ingresar'
-                        : perm.label}
+             {/* Header */}
+             <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-6 dark:border-slate-800/50 dark:bg-slate-800/20">
+                <div className="flex flex-col gap-1">
+                    <h3 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100">
+                        Gestionar Permisos
+                    </h3>
+                    <span className="text-xs font-bold text-indigo-500 dark:text-indigo-400">
+                        {selectedUser.fullName}
                     </span>
-                    {perm.description && (
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
-                        {selectedUser.role === 'WAITER' && perm.code === 'users.manage'
-                          ? 'Si está marcado, el mozo deberá ingresar su contraseña. Si no, ingresa directamente.'
-                          : perm.description}
-                      </div>
-                    )}
-                  </div>
-                </label>
-              ))}
+                </div>
+                <button
+                    onClick={() => !saving && setSelectedUser(null)}
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-600 dark:bg-slate-800 dark:text-slate-500 dark:hover:bg-slate-700"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              <button
-                type="button"
-                onClick={() => setSelectedUser(null)}
-                disabled={saving}
-                style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: '8px',
-                  border: '1px solid #e2e8f0',
-                  backgroundColor: 'white',
-                  color: '#64748b',
-                  fontWeight: 600,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  fontSize: tableFontSize
-                }}
-              >
-                Cerrar
-              </button>
-              <button
-                type="button"
-                onClick={savePermissions}
-                disabled={saving}
-                style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: saving ? '#94a3b8' : '#16a34a',
-                  color: 'white',
-                  fontWeight: 600,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  fontSize: tableFontSize
-                }}
-              >
-                {saving ? 'Guardando...' : 'Guardar'}
-              </button>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="mb-6 flex items-start gap-4 rounded-2xl bg-amber-50/50 p-4 dark:bg-amber-900/10">
+                    <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-800/20 dark:text-amber-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <p className="text-xs font-medium leading-relaxed text-amber-700 dark:text-amber-400">
+                        Marca los permisos específicos que tendrá este usuario. Si no marcas ninguno, se utilizarán los permisos predeterminados de su rol ({getRoleLabel(selectedUser.role)}).
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                    {permissionOptions.map((perm) => (
+                        <label
+                            key={perm.code}
+                            className={`flex cursor-pointer items-start gap-4 rounded-2xl border p-4 transition-all hover:bg-slate-50/50 dark:hover:bg-slate-800/30 ${
+                                selectedCodes.has(perm.code)
+                                    ? 'border-indigo-100 bg-indigo-50/30 ring-1 ring-indigo-500/10 dark:border-indigo-900/30 dark:bg-indigo-900/10'
+                                    : 'border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900'
+                            }`}
+                        >
+                            <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
+                                <input
+                                    type="checkbox"
+                                    checked={selectedCodes.has(perm.code)}
+                                    onChange={() => togglePermission(perm.code)}
+                                    className="h-5 w-5 rounded-lg border-slate-200 text-indigo-600 transition-all focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800"
+                                />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-sm font-black text-slate-700 dark:text-slate-200">
+                                    {selectedUser.role === 'WAITER' && perm.code === 'users.manage'
+                                        ? 'Requiere contraseña para ingresar'
+                                        : perm.label}
+                                </span>
+                                {perm.description && (
+                                    <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                                        {selectedUser.role === 'WAITER' && perm.code === 'users.manage'
+                                          ? 'Si está marcado, el mozo deberá ingresar su contraseña para acceder al panel.'
+                                          : perm.description}
+                                    </span>
+                                )}
+                            </div>
+                        </label>
+                    ))}
+                </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/50 p-6 dark:border-slate-800/50 dark:bg-slate-800/20">
+                <button
+                    type="button"
+                    onClick={() => setSelectedUser(null)}
+                    disabled={saving}
+                    className="rounded-2xl bg-white px-6 py-2.5 text-sm font-black text-slate-500 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+                >
+                    Cerrar
+                </button>
+                <button
+                    type="button"
+                    onClick={savePermissions}
+                    disabled={saving}
+                    className="flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-8 py-2.5 text-sm font-black text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-700 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
+                >
+                    {saving ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    ) : (
+                        <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                            </svg>
+                            <span>Guardar Permisos</span>
+                        </>
+                    )}
+                </button>
             </div>
           </div>
         </div>

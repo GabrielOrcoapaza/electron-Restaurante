@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
-import { useResponsive } from '../../hooks/useResponsive';
 import {
   GET_SUPPLIERS_BY_BRANCH,
   GET_PRODUCTS_WITH_STOCK,
@@ -57,18 +56,8 @@ interface PurchaseDetail {
 
 const Purchase: React.FC = () => {
   const { companyData, user } = useAuth();
-  const { breakpoint } = useResponsive();
   const branchId = companyData?.branch?.id;
-  // IGV para compras establecido en 18% según solicitud
   const igvPercentage = 18;
-
-  // Adaptar según tamaño de pantalla de PC
-  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
-
-  // Tamaños adaptativos
-  const containerPadding = isSmallDesktop ? '1.25rem' : '1.5rem';
-  const containerGap = isSmallDesktop ? '1.5rem' : '2rem';
-  const titleFontSize = isSmallDesktop ? '1.375rem' : '1.5rem';
 
   const [view, setView] = useState<'list' | 'create'>('list');
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
@@ -89,14 +78,13 @@ const Purchase: React.FC = () => {
   const [referenceNumber, setReferenceNumber] = useState<string>('');
 
   // Queries
-  // Usa personsByBranch (del backend: persons_by_branch) y filtra proveedores (isSupplier=true) en el frontend
   const { data: personsData, loading: suppliersLoading, refetch: refetchSuppliers } = useQuery(GET_SUPPLIERS_BY_BRANCH, {
     variables: { branchId: branchId! },
     skip: !branchId,
     fetchPolicy: 'network-only'
   });
 
-  const { data: productsData, loading: productsLoading } = useQuery(GET_PRODUCTS_WITH_STOCK, {
+  const { data: productsData } = useQuery(GET_PRODUCTS_WITH_STOCK, {
     variables: { branchId: branchId! },
     skip: !branchId,
     fetchPolicy: 'network-only'
@@ -163,7 +151,6 @@ const Purchase: React.FC = () => {
     }
   );
 
-  // Filtrar solo los proveedores (personas con isSupplier=true) de todas las personas
   const allPersons = personsData?.personsByBranch || [];
   const suppliers: Supplier[] = allPersons.filter((person: any) => person.isSupplier === true);
   const allProducts: Product[] = productsData?.productsByBranch || [];
@@ -253,8 +240,6 @@ const Purchase: React.FC = () => {
   };
 
   const calculateTotals = () => {
-    // Para compras, el precio ingresado ya incluye el IGV (Total)
-    // El usuario desea que el IGV se calcule como el 18% del Total
     const totalSum = purchaseDetails.reduce((sum, detail) => sum + detail.subtotal, 0);
     const igvAmount = totalSum * (igvPercentage / 100);
     const subtotalCalculated = totalSum - igvAmount;
@@ -340,7 +325,7 @@ const Purchase: React.FC = () => {
 
   if (!branchId) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: '#dc2626' }}>
+      <div className="p-8 text-center text-rose-600 font-bold bg-white rounded-3xl dark:bg-slate-900">
         No se encontró información de la sucursal. Por favor, inicia sesión nuevamente.
       </div>
     );
@@ -349,67 +334,42 @@ const Purchase: React.FC = () => {
   const { subtotal, igvAmount, total } = calculateTotals();
 
   return (
-    <div
-      style={{
-        minHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: containerGap,
-        background: 'linear-gradient(160deg, #f0f4ff 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: containerPadding,
-        borderRadius: '18px',
-        boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
-      }}
-    >
+    <div className="flex min-h-full flex-col gap-6 rounded-3xl bg-white p-6 shadow-xl transition-all duration-300 dark:bg-slate-900 md:p-8 lg:p-10">
       {/* Mensajes */}
       {message && (
-        <div
-          style={{
-            padding: '1rem',
-            borderRadius: '10px',
-            backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-            color: message.type === 'success' ? '#166534' : '#991b1b',
-            border: `1px solid ${message.type === 'success' ? '#86efac' : '#fca5a5'}`,
-            fontWeight: 500
-          }}
-        >
+        <div className={`flex items-center gap-3 rounded-2xl border p-4 text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300 ${
+          message.type === 'success' 
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/30 dark:bg-emerald-950/20 dark:text-emerald-400' 
+            : 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-400'
+        }`}>
+          <div className={`h-2 w-2 rounded-full ${message.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
           {message.text}
         </div>
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: titleFontSize, fontWeight: 700, color: '#1e293b' }}>
-            🛒 Gestión de Compras
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100 md:text-3xl">
+            Gestión de Compras
           </h2>
-          <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.875rem' }}>
-            {view === 'list' ? 'Lista de compras realizadas' : 'Registrar nueva compra'}
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            {view === 'list' ? 'Historial de transacciones de abastecimiento' : 'Registro de nuevos egresos de inventario'}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div className="flex gap-3">
           {view === 'list' ? (
             <button
               onClick={() => {
                 setView('create');
                 resetForm();
               }}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: 'linear-gradient(135deg, #10b981, #059669)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                transition: 'all 0.2s ease'
-              }}
+              className="group flex items-center gap-2 rounded-2xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white transition-all hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 active:scale-95"
             >
-              + Nueva Compra
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Nueva Compra
             </button>
           ) : (
             <button
@@ -417,19 +377,12 @@ const Purchase: React.FC = () => {
                 setView('list');
                 resetForm();
               }}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: '#64748b',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                transition: 'all 0.2s ease'
-              }}
+              className="flex items-center gap-2 rounded-2xl bg-slate-100 px-6 py-3 text-sm font-bold text-slate-600 transition-all hover:bg-slate-200 active:scale-95 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             >
-              ← Volver a Lista
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Volver a Lista
             </button>
           )}
         </div>
@@ -437,72 +390,87 @@ const Purchase: React.FC = () => {
 
       {/* Contenido según la vista */}
       {view === 'list' ? (
-        <PurchaseList branchId={branchId!} setMessage={setMessage} />
+        <div className="animate-in fade-in duration-500">
+          <PurchaseList branchId={branchId!} setMessage={setMessage} />
+        </div>
       ) : (
-        <div style={{
-          backgroundColor: 'white',
-          borderRadius: '16px',
-          padding: '1.5rem',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-          border: '1px solid #e2e8f0',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1.5rem'
-        }}>
-          {/* Información del proveedor */}
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#475569' }}>
-              Proveedor (Opcional)
-            </label>
-            {suppliersLoading ? (
-              <div>Cargando proveedores...</div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <select
-                  value={selectedSupplierId}
-                  onChange={(e) => setSelectedSupplierId(e.target.value)}
-                  style={{
-                    flex: '1',
-                    minWidth: '200px',
-                    maxWidth: '400px',
-                    padding: '0.625rem 0.875rem',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '0.875rem',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <option value="">Selecciona un proveedor</option>
-                  {suppliers
-                    .filter(s => s.isActive)
-                    .map((supplier) => (
-                      <option key={supplier.id} value={supplier.id}>
-                        {supplier.name} {supplier.documentNumber ? `(${supplier.documentNumber})` : ''}
-                      </option>
-                    ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateSupplierModal(true)}
-                  style={{
-                    padding: '0.625rem 1rem',
-                    background: 'linear-gradient(135deg, #0d9488, #0f766e)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    fontSize: '0.875rem',
-                    whiteSpace: 'nowrap',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem'
-                  }}
-                >
-                  + Crear proveedor
-                </button>
+        <div className="flex flex-col gap-8 animate-in slide-in-from-bottom-4 duration-500">
+          {/* Sección 1: Información General */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2 flex flex-col gap-6 rounded-3xl border border-slate-100 bg-slate-50/30 p-6 dark:border-slate-800 dark:bg-slate-800/20">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                Información del Proveedor
+              </h3>
+              
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    Seleccionar Proveedor
+                  </label>
+                  {suppliersLoading ? (
+                    <div className="h-11 w-full animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+                  ) : (
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <select
+                        value={selectedSupplierId}
+                        onChange={(e) => setSelectedSupplierId(e.target.value)}
+                        className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                      >
+                        <option value="">Consumidor Final / Sin Proveedor</option>
+                        {suppliers
+                          .filter(s => s.isActive)
+                          .map((supplier) => (
+                            <option key={supplier.id} value={supplier.id}>
+                              {supplier.name} {supplier.documentNumber ? `(${supplier.documentNumber})` : ''}
+                            </option>
+                          ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateSupplierModal(true)}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-600 transition-all hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        </svg>
+                        Nuevo Proveedor
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
+
+            <div className="flex flex-col gap-6 rounded-3xl border border-slate-100 bg-slate-50/30 p-6 dark:border-slate-800 dark:bg-slate-800/20">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                Detalles de Operación
+              </h3>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    Fecha de Registro
+                  </label>
+                  <input
+                    type="date"
+                    value={operationDate}
+                    onChange={(e) => setOperationDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    Glosa / Comentario
+                  </label>
+                  <input
+                    type="text"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Eje: Compra semanal de verduras..."
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           {showCreateSupplierModal && branchId && (
@@ -523,168 +491,91 @@ const Purchase: React.FC = () => {
             />
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#475569' }}>
-                Fecha de Compra
-              </label>
-              <input
-                type="date"
-                value={operationDate}
-                onChange={(e) => setOperationDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem 0.875rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: '0.875rem',
-                  boxSizing: 'border-box'
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#475569' }}>
-                Notas
-              </label>
-              <input
-                type="text"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Notas adicionales..."
-                style={{
-                  width: '100%',
-                  padding: '0.625rem 0.875rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: '0.875rem',
-                  boxSizing: 'border-box'
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Agregar productos */}
-          <div style={{
-            border: '1px solid #e2e8f0',
-            borderRadius: '12px',
-            padding: '1rem',
-            backgroundColor: '#f8fafc'
-          }}>
-            <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600, color: '#334155' }}>
-              Agregar Producto
-            </h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
-              <div style={{ position: 'relative' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
-                  Producto
+          {/* Sección 2: Búsqueda y Selección de Productos */}
+          <div className="flex flex-col gap-6 rounded-3xl border border-slate-100 bg-indigo-50/30 p-6 dark:border-slate-800/50 dark:bg-indigo-950/10">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 dark:text-indigo-500">
+              Selector de Ítems
+            </h3>
+            
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-end">
+              <div className="relative lg:col-span-5">
+                <label className="mb-2 px-1 block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  Producto / Insumo
                 </label>
-                {productsLoading ? (
-                  <div>Cargando productos...</div>
-                ) : (
-                  <div style={{ position: 'relative' }}>
-                    <span style={{
-                      position: 'absolute',
-                      left: '0.65rem',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      fontSize: '0.9rem',
-                      opacity: 0.6,
-                      pointerEvents: 'none'
-                    }}>🔎</span>
-                    <input
-                      type="text"
-                      value={selectedProductForDisplay ? `${selectedProductForDisplay.code} - ${selectedProductForDisplay.name}` : productSearchTerm}
-                      onChange={(e) => {
-                        setSelectedProductId('');
-                        setProductSearchTerm(e.target.value);
-                      }}
-                      onFocus={() => setProductSearchFocused(true)}
-                      onBlur={() => setTimeout(() => setProductSearchFocused(false), 200)}
-                      placeholder="Buscar producto o escanear código..."
-                      style={{
-                        width: '100%',
-                        padding: '0.625rem 0.875rem 0.625rem 2rem',
-                        paddingRight: selectedProductForDisplay ? '2.5rem' : undefined,
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        fontSize: '0.875rem',
-                        boxSizing: 'border-box',
-                        outline: 'none'
-                      }}
-                    />
-                    {selectedProductForDisplay && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedProductId('');
-                          setProductSearchTerm('');
-                        }}
-                        style={{
-                          position: 'absolute',
-                          right: '0.5rem',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          background: '#f1f5f9',
-                          border: 'none',
-                          borderRadius: '4px',
-                          padding: '0.25rem 0.5rem',
-                          fontSize: '0.75rem',
-                          cursor: 'pointer',
-                          color: '#64748b',
-                          fontWeight: 500
-                        }}
-                      >
-                        ✕
-                      </button>
-                    )}
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
                   </div>
-                )}
+                  <input
+                    type="text"
+                    value={selectedProductForDisplay ? `${selectedProductForDisplay.code} - ${selectedProductForDisplay.name}` : productSearchTerm}
+                    onChange={(e) => {
+                      setSelectedProductId('');
+                      setProductSearchTerm(e.target.value);
+                    }}
+                    onFocus={() => setProductSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setProductSearchFocused(false), 200)}
+                    placeholder="Buscar por nombre o código..."
+                    className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-12 text-sm text-slate-800 outline-none transition-all focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                  {selectedProductForDisplay && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProductId('');
+                        setProductSearchTerm('');
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown de búsqueda */}
                 {productSearchFocused && productSearchTerm.length >= 3 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    marginTop: '0.25rem',
-                    maxHeight: '260px',
-                    overflowY: 'auto',
-                    backgroundColor: 'white',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                    zIndex: 20
-                  }}>
-                    {productSearchTerm.length >= 3 && searchLoading ? (
-                      <div style={{ padding: '0.75rem', fontSize: '0.875rem', color: '#64748b' }}>Buscando...</div>
+                  <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-72 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl animate-in fade-in slide-in-from-top-2 dark:border-slate-700 dark:bg-slate-800">
+                    {searchLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-500/30 border-t-indigo-500" />
+                      </div>
                     ) : productSearchResults.length === 0 ? (
-                      <div style={{ padding: '0.75rem', fontSize: '0.875rem', color: '#64748b' }}>No se encontraron productos (ingredientes o bebidas)</div>
+                      <div className="py-8 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                        Sin resultados
+                      </div>
                     ) : (
                       productSearchResults.slice(0, 40).map((p: any) => (
-                        <div
+                        <button
                           key={p.id}
                           onClick={() => {
                             handleProductSelect(p.id);
                             setProductSearchTerm('');
                             setProductSearchFocused(false);
                           }}
-                          style={{
-                            padding: '0.5rem 0.75rem',
-                            cursor: 'pointer',
-                            fontSize: '0.875rem',
-                            borderBottom: '1px solid #f1f5f9'
-                          }}
-                          onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-                          onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
+                          className="flex w-full flex-col gap-0.5 rounded-xl p-3 text-left transition-colors hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
                         >
-                          <span style={{ fontWeight: 600 }}>{p.code}</span> - {p.name} <span style={{ fontSize: '0.75rem', color: '#64748b' }}>({p.productType})</span>
-                        </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{p.name}</span>
+                            <span className="text-[10px] font-mono font-black text-indigo-500 dark:text-indigo-400">{p.code}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase text-slate-400">{p.productType}</span>
+                            <span className="text-[10px] text-slate-400">•</span>
+                            <span className="text-[10px] font-bold text-slate-500">S/ {p.purchasePrice.toFixed(2)}</span>
+                          </div>
+                        </button>
                       ))
                     )}
                   </div>
                 )}
               </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+
+              <div className="lg:col-span-2">
+                <label className="mb-2 px-1 block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
                   Cantidad
                 </label>
                 <input
@@ -693,125 +584,104 @@ const Purchase: React.FC = () => {
                   onChange={(e) => setQuantity(e.target.value)}
                   min="0.01"
                   step="0.01"
-                  style={{
-                    width: '100%',
-                    padding: '0.625rem 0.875rem',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '0.875rem',
-                    boxSizing: 'border-box'
-                  }}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800 outline-none transition-all focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 />
               </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
+
+              <div className="lg:col-span-2">
+                <label className="mb-2 px-1 block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
                   Precio Unit.
                 </label>
-                <input
-                  type="number"
-                  value={unitPrice}
-                  onChange={(e) => setUnitPrice(e.target.value)}
-                  min="0"
-                  step="0.01"
-                  placeholder="Auto"
-                  style={{
-                    width: '100%',
-                    padding: '0.625rem 0.875rem',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '0.875rem',
-                    boxSizing: 'border-box'
-                  }}
-                />
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">S/</span>
+                  <input
+                    type="number"
+                    value={unitPrice}
+                    onChange={(e) => setUnitPrice(e.target.value)}
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm font-bold text-slate-800 outline-none transition-all focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                </div>
               </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
-                  Notas
+
+              <div className="lg:col-span-2">
+                <label className="mb-2 px-1 block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  Obs. Ítem
                 </label>
                 <input
                   type="text"
                   value={productNotes}
                   onChange={(e) => setProductNotes(e.target.value)}
-                  placeholder="Opcional"
-                  style={{
-                    width: '100%',
-                    padding: '0.625rem 0.875rem',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '0.875rem',
-                    boxSizing: 'border-box'
-                  }}
+                  placeholder="Lote..."
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition-all focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 />
               </div>
-              <button
-                onClick={handleAddProduct}
-                style={{
-                  padding: '0.625rem 1rem',
-                  background: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Agregar
-              </button>
+
+              <div className="lg:col-span-1">
+                <button
+                  onClick={handleAddProduct}
+                  className="flex h-[46px] w-full items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-700 hover:scale-105 active:scale-95"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Lista de productos agregados */}
+          {/* Sección 3: Tabla de Ítems */}
           {purchaseDetails.length > 0 && (
-            <div>
-              <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600, color: '#334155' }}>
-                Productos Agregados ({purchaseDetails.length})
-              </h4>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
                   <thead>
-                    <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                      <th style={{ padding: '0.75rem', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Código</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Producto</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Cantidad</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Precio Unit.</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Subtotal</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Acción</th>
+                    <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:bg-slate-800/30 dark:text-slate-400">
+                      <th className="px-6 py-4">Ítem / Código</th>
+                      <th className="px-6 py-4 text-center">Cant.</th>
+                      <th className="px-6 py-4 text-right">Unit.</th>
+                      <th className="px-6 py-4 text-right">Subtotal</th>
+                      <th className="px-6 py-4 text-center">Notas</th>
+                      <th className="px-6 py-4 text-right"></th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                     {purchaseDetails.map((detail, index) => (
-                      <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '0.75rem', color: '#334155', fontFamily: 'monospace' }}>
-                          {detail.productCode}
+                      <tr key={index} className="group transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-bold text-slate-700 dark:text-slate-200">{detail.productName}</span>
+                            <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500">{detail.productCode}</span>
+                          </div>
                         </td>
-                        <td style={{ padding: '0.75rem', color: '#334155' }}>
-                          {detail.productName}
+                        <td className="px-6 py-4 text-center">
+                          <span className="inline-flex items-center rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-black text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400">
+                            {detail.quantity} {detail.unitMeasure}
+                          </span>
                         </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', color: '#334155' }}>
-                          {detail.quantity} {detail.unitMeasure}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', color: '#334155' }}>
+                        <td className="px-6 py-4 text-right text-slate-600 dark:text-slate-400">
                           {currencyFormatter.format(detail.unitPrice)}
                         </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', color: '#334155', fontWeight: 600 }}>
-                          {currencyFormatter.format(detail.subtotal)}
+                        <td className="px-6 py-4 text-right">
+                          <span className="font-black text-slate-800 dark:text-slate-100">
+                            {currencyFormatter.format(detail.subtotal)}
+                          </span>
                         </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                        <td className="px-6 py-4">
+                          <p className="mx-auto max-w-[120px] truncate text-center text-[11px] text-slate-400">
+                            {detail.notes || '—'}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4 text-right">
                           <button
                             onClick={() => handleRemoveProduct(index)}
-                            style={{
-                              padding: '0.5rem',
-                              background: '#dc2626',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontSize: '0.75rem'
-                            }}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-500 opacity-0 transition-all group-hover:opacity-100 hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400"
                           >
-                            ✕
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
                           </button>
                         </td>
                       </tr>
@@ -822,176 +692,117 @@ const Purchase: React.FC = () => {
             </div>
           )}
 
-          {/* Sección de Pago */}
+          {/* Sección 4: Pago y Totales */}
           {purchaseDetails.length > 0 && (
-            <div style={{
-              borderTop: '2px solid #e2e8f0',
-              paddingTop: '1.5rem',
-              marginTop: '1rem',
-              backgroundColor: '#f8fafc',
-              padding: '1.25rem',
-              borderRadius: '12px',
-              border: '1px solid #e2e8f0'
-            }}>
-              <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600, color: '#334155' }}>
-                💳 Información del Pago (Egreso)
-              </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
-                    Caja
-                  </label>
-                  <select
-                    value={cashRegisterId}
-                    onChange={(e) => setCashRegisterId(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.625rem 0.875rem',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      fontSize: '0.875rem',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="">Selecciona caja</option>
-                    {cashRegisters.map((cash: any) => (
-                      <option key={cash.id} value={cash.id}>
-                        {cash.name} (S/ {Number(cash.currentBalance || 0).toFixed(2)})
-                      </option>
-                    ))}
-                  </select>
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+              <div className="flex flex-col gap-6 rounded-3xl border border-slate-100 bg-slate-50/30 p-8 dark:border-slate-800 dark:bg-slate-800/20">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                  Liquidación de Pago
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-2">
+                    <label className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                      Caja de Origen
+                    </label>
+                    <select
+                      value={cashRegisterId}
+                      onChange={(e) => setCashRegisterId(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 outline-none transition-all focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    >
+                      <option value="">Selecciona caja</option>
+                      {cashRegisters.map((cash: any) => (
+                        <option key={cash.id} value={cash.id}>
+                          {cash.name} (S/ {Number(cash.currentBalance || 0).toFixed(2)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                      Medio de Pago
+                    </label>
+                    <select
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 outline-none transition-all focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    >
+                      <option value="CASH">Efectivo</option>
+                      <option value="YAPE">Yape</option>
+                      <option value="PLIN">Plin</option>
+                      <option value="CARD">Tarjeta</option>
+                      <option value="TRANSFER">Transferencia</option>
+                      <option value="OTROS">Otros</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                    <label className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                      N° Referencia / Operación
+                    </label>
+                    <input
+                      type="text"
+                      value={referenceNumber}
+                      onChange={(e) => setReferenceNumber(e.target.value)}
+                      placeholder="Ej: TRX-992288"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
-                    Método
-                  </label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.625rem 0.875rem',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      fontSize: '0.875rem',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="CASH">Efectivo</option>
-                    <option value="YAPE">Yape</option>
-                    <option value="PLIN">Plin</option>
-                    <option value="CARD">Tarjeta</option>
-                    <option value="TRANSFER">Transferencia</option>
-                    <option value="OTROS">Otros</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#475569' }}>
-                    Referencia
-                  </label>
-                  <input
-                    type="text"
-                    value={referenceNumber}
-                    onChange={(e) => setReferenceNumber(e.target.value)}
-                    placeholder="N° Operación"
-                    style={{
-                      width: '100%',
-                      padding: '0.625rem 0.875rem',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      fontSize: '0.875rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
+              </div>
+
+              <div className="flex flex-col gap-6 rounded-3xl bg-slate-900 p-8 text-white shadow-2xl dark:bg-slate-800/40">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Resumen de Costos
+                </h3>
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <span className="text-sm font-medium text-slate-400">Subtotal</span>
+                    <span className="text-lg font-bold text-slate-100">{currencyFormatter.format(subtotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <span className="text-sm font-medium text-slate-400">Impuestos (IGV {igvPercentage}%)</span>
+                    <span className="text-lg font-bold text-slate-100">{currencyFormatter.format(igvAmount)}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-black uppercase tracking-widest text-indigo-400">Total a Pagar</span>
+                      <span className="text-3xl font-black text-white">{currencyFormatter.format(total)}</span>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setView('list');
+                          resetForm();
+                        }}
+                        className="rounded-2xl border border-white/10 px-6 py-3 text-sm font-bold text-slate-300 transition-all hover:bg-white/5"
+                      >
+                        Descartar
+                      </button>
+                      <button
+                        onClick={handleCreatePurchase}
+                        disabled={isProcessing || creatingPurchase || purchaseDetails.length === 0}
+                        className="flex min-w-[160px] items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-6 py-3 text-sm font-black text-white transition-all hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500"
+                      >
+                        {isProcessing || creatingPurchase ? (
+                          <>
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                            <span>Procesando...</span>
+                          </>
+                        ) : (
+                          'Confirmar Compra'
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           )}
-
-          {/* Totales */}
-          {purchaseDetails.length > 0 && (
-            <div style={{
-              borderTop: '2px solid #e2e8f0',
-              paddingTop: '1rem',
-              display: 'flex',
-              justifyContent: 'flex-end'
-            }}>
-              <div style={{ minWidth: '300px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ color: '#64748b' }}>Subtotal:</span>
-                  <span style={{ fontWeight: 600, color: '#334155' }}>
-                    {currencyFormatter.format(subtotal)}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ color: '#64748b' }}>IGV ({igvPercentage}%):</span>
-                  <span style={{ fontWeight: 600, color: '#334155' }}>
-                    {currencyFormatter.format(igvAmount)}
-                  </span>
-                </div>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  paddingTop: '0.75rem',
-                  borderTop: '2px solid #334155',
-                  marginTop: '0.5rem'
-                }}>
-                  <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#334155' }}>Total:</span>
-                  <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#334155' }}>
-                    {currencyFormatter.format(total)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Botón guardar */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-            <button
-              onClick={() => {
-                setView('list');
-                resetForm();
-              }}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: '#64748b',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontSize: '0.875rem'
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleCreatePurchase}
-              disabled={isProcessing || creatingPurchase || purchaseDetails.length === 0}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: isProcessing || creatingPurchase || purchaseDetails.length === 0
-                  ? '#94a3b8'
-                  : 'linear-gradient(135deg, #10b981, #059669)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                fontWeight: 600,
-                cursor: isProcessing || creatingPurchase || purchaseDetails.length === 0
-                  ? 'not-allowed'
-                  : 'pointer',
-                fontSize: '0.875rem',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {isProcessing || creatingPurchase ? 'Guardando...' : 'Guardar Compra'}
-            </button>
-          </div>
         </div>
       )}
     </div>
   );
 };
+
 
 export default Purchase;
 

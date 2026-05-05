@@ -55,172 +55,145 @@ const PurchaseModal: React.FC<PurchaseModalProps> = ({ isOpen, onClose, purchase
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10000,
-        padding: '1rem'
-      }}
+      className="fixed inset-0 z-[11000] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-300"
       onClick={onClose}
     >
       <div
-        style={{
-          backgroundColor: 'white',
-          borderRadius: '16px',
-          padding: '1.5rem',
-          maxWidth: '700px',
-          width: '100%',
-          maxHeight: '90vh',
-          overflow: 'auto',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-          border: '1px solid #e2e8f0'
-        }}
+        className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-300 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#1e293b' }}>
-            🛒 Detalle de Compra #{purchase?.order ?? '—'}
-          </h3>
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-100 p-6 dark:border-slate-800/50">
+          <div className="flex flex-col gap-1">
+            <h3 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100">
+              Detalle de Compra
+            </h3>
+            <span className="text-xs font-mono font-black text-indigo-500 dark:text-indigo-400">
+              #{purchase?.order ?? '—'}
+            </span>
+          </div>
           <button
             onClick={onClose}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0',
-              backgroundColor: 'white',
-              color: '#64748b',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.875rem'
-            }}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700"
           >
-            ✕ Cerrar
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
-        {purchase && (
-          <>
-            <div
-              style={{
-                padding: '1rem',
-                borderRadius: '12px',
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                marginBottom: '1.5rem',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-                gap: '1rem'
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Proveedor</div>
-                <div style={{ fontWeight: 600, color: '#334155' }}>{purchase.person?.name || 'Sin proveedor'}</div>
+        {/* Content */}
+        <div className="max-h-[70vh] overflow-y-auto p-6">
+          {purchase ? (
+            <div className="flex flex-col gap-8">
+              {/* Resumen Grid */}
+              <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Proveedor</span>
+                  <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                    {purchase.person?.name || 'Consumidor Final'}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Registrado por</span>
+                  <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{purchase.user.fullName}</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fecha y Hora</span>
+                  <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatDate(purchase.operationDate)}</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estado</span>
+                  <div>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                      purchase.status === 'CANCELLED'
+                        ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400'
+                        : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400'
+                    }`}>
+                      <div className={`h-1 w-1 rounded-full ${purchase.status === 'CANCELLED' ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                      {purchase.status === 'CANCELLED' ? 'Anulado' : 'Completado'}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Usuario</div>
-                <div style={{ fontWeight: 600, color: '#334155' }}>{purchase.user.fullName}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Fecha</div>
-                <div style={{ fontWeight: 600, color: '#334155' }}>{formatDate(purchase.operationDate)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Estado</div>
-                <span
-                  style={{
-                    padding: '0.25rem 0.75rem',
-                    borderRadius: '9999px',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    backgroundColor: purchase.status === 'CANCELLED' ? '#fee2e2' : '#dcfce7',
-                    color: purchase.status === 'CANCELLED' ? '#991b1b' : '#166534'
-                  }}
-                >
-                  {purchase.status === 'CANCELLED' ? 'Cancelada' : 'Procesada'}
-                </span>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Subtotal</div>
-                <div style={{ fontWeight: 600, color: '#334155' }}>{currencyFormatter.format(purchase.subtotal)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>IGV</div>
-                <div style={{ fontWeight: 600, color: '#334155' }}>{currencyFormatter.format(purchase.igvAmount)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Total</div>
-                <div style={{ fontWeight: 700, fontSize: '1.125rem', color: '#1e293b' }}>
-                  {currencyFormatter.format(purchase.total)}
+
+              {/* Notas si existen */}
+              {purchase.notes && (
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/20">
+                  <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Observaciones</span>
+                  <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400">{purchase.notes}</p>
+                </div>
+              )}
+
+              {/* Tabla de ítems */}
+              <div className="flex flex-col gap-4">
+                <h4 className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Lista de Artículos</h4>
+                <div className="overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:bg-slate-800/30 dark:text-slate-400">
+                        <th className="px-4 py-3">Código</th>
+                        <th className="px-4 py-3">Producto</th>
+                        <th className="px-4 py-3 text-center">Cant.</th>
+                        <th className="px-4 py-3 text-right">Unit.</th>
+                        <th className="px-4 py-3 text-right">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                      {activeDetails.map((detail) => {
+                        const detailSubtotal = detail.quantity * detail.unitPrice;
+                        return (
+                          <tr key={detail.id} className="transition-colors hover:bg-slate-50/30 dark:hover:bg-slate-800/20">
+                            <td className="px-4 py-3 font-mono text-slate-400">{detail.product?.code ?? '—'}</td>
+                            <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200">{detail.product?.name ?? '—'}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="font-bold text-slate-600 dark:text-slate-400">
+                                {detail.quantity} {detail.unitMeasure}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right text-slate-500">{currencyFormatter.format(detail.unitPrice)}</td>
+                            <td className="px-4 py-3 text-right font-black text-slate-800 dark:text-slate-100">
+                              {currencyFormatter.format(detailSubtotal)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="mb-4 h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="text-sm font-bold uppercase tracking-widest">Sin información</p>
+            </div>
+          )}
+        </div>
 
-            {purchase.notes && (
-              <div style={{ marginBottom: '1.5rem' }}>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>Notas</div>
-                <div style={{ fontSize: '0.875rem', color: '#334155' }}>{purchase.notes}</div>
-              </div>
-            )}
-
-            <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600, color: '#475569' }}>
-              Productos ({activeDetails.length})
-            </h4>
-
-            {activeDetails.length === 0 ? (
-              <div style={{ padding: '1.5rem', textAlign: 'center', color: '#64748b', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
-                No hay productos en esta compra
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid #e2e8f0', backgroundColor: '#f1f5f9' }}>
-                      <th style={{ padding: '0.75rem', textAlign: 'left', color: '#475569', fontWeight: 600 }}>Código</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'left', color: '#475569', fontWeight: 600 }}>Producto</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'right', color: '#475569', fontWeight: 600 }}>Cantidad</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'right', color: '#475569', fontWeight: 600 }}>Precio Unit.</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'right', color: '#475569', fontWeight: 600 }}>Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeDetails.map((detail) => {
-                      const subtotal = detail.quantity * detail.unitPrice;
-                      return (
-                        <tr key={detail.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '0.75rem', color: '#334155', fontFamily: 'monospace' }}>
-                            {detail.product?.code ?? '—'}
-                          </td>
-                          <td style={{ padding: '0.75rem', color: '#334155' }}>
-                            {detail.product?.name ?? '—'}
-                          </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#334155' }}>
-                            {detail.quantity} {detail.unitMeasure}
-                          </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#334155' }}>
-                            {currencyFormatter.format(detail.unitPrice)}
-                          </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#334155', fontWeight: 600 }}>
-                            {currencyFormatter.format(subtotal)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
+        {/* Footer con Totales */}
+        <div className="border-t border-slate-100 bg-slate-900 p-8 text-white dark:bg-slate-800/40">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Base Imponible</span>
+              <span className="text-lg font-bold text-slate-100">{currencyFormatter.format(purchase?.subtotal ?? 0)}</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">IGV ({purchase?.igvPercentage ?? 18}%)</span>
+              <span className="text-lg font-bold text-slate-100">{currencyFormatter.format(purchase?.igvAmount ?? 0)}</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Total Transacción</span>
+              <span className="text-2xl font-black text-white">{currencyFormatter.format(purchase?.total ?? 0)}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
+
 
 export default PurchaseModal;

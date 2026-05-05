@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
-import { useResponsive } from '../../hooks/useResponsive';
 import { GET_USER_SALES_REPORT, SEARCH_USERS } from '../../graphql/queries';
 import ReportEmployeeList from './reportEmployeeList';
 import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
@@ -25,25 +24,16 @@ export interface UserSalesSummary {
   grandTotal: number;
 }
 
+const currencyFormatter = new Intl.NumberFormat('es-PE', {
+    style: 'currency',
+    currency: 'PEN',
+    minimumFractionDigits: 2
+});
+
 const ReportEmployee: React.FC = () => {
   const { companyData } = useAuth();
-  const { breakpoint, isMobile, isXs } = useResponsive();
   const branchId = companyData?.branch?.id;
 
-  // Adaptar según tamaño de pantalla
-  const isSmall = breakpoint === 'sm' || isMobile;
-  const isMedium = breakpoint === 'md';
-  const isSmallDesktop = breakpoint === 'lg';
-
-  const containerPadding = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
-  const containerGap = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
-  const titleFontSize = isXs ? '1.1rem' : isSmall ? '1.25rem' : '1.5rem';
-  const subtitleFontSize = isXs ? '0.7rem' : isSmall ? '0.75rem' : '0.875rem';
-  const cardPadding = isXs ? '0.85rem' : isSmall ? '1rem' : '1.5rem';
-  const inputFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
-  const buttonFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
-
-  // Por defecto fecha actual (hoy); el usuario puede cambiar si desea otro rango
   const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [userId, setUserId] = useState<string>('');
@@ -103,297 +93,212 @@ const ReportEmployee: React.FC = () => {
   const operations: UserSaleOperation[] = data?.userSalesReport?.operations ?? [];
   const summary: UserSalesSummary | null = data?.userSalesReport?.summary ?? null;
 
+  const averageSale = useMemo(() => {
+    if (!summary || summary.totalOperations === 0) return 0;
+    return summary.grandTotal / summary.totalOperations;
+  }, [summary]);
+
   const handleSearch = () => {
     refetch();
   };
 
   if (!branchId) {
     return (
-      <div style={{
-        padding: containerPadding,
-        textAlign: 'center',
-        color: '#dc2626',
-        fontSize: subtitleFontSize
-      }}>
-        No se encontró información de la sucursal. Por favor, inicia sesión nuevamente.
-      </div>
+        <div className="flex min-h-[400px] items-center justify-center rounded-[32px] bg-white p-8 shadow-sm dark:bg-slate-900">
+            <div className="text-center text-rose-500 font-bold">
+                No se encontró información de la sucursal activa.
+            </div>
+        </div>
     );
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: containerGap,
-        background: 'linear-gradient(160deg, #fef3c7 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: containerPadding,
-        borderRadius: '18px',
-        boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          top: '-120px',
-          right: '-120px',
-          width: isSmall ? '180px' : isMedium ? '220px' : isSmallDesktop ? '220px' : '260px',
-          height: isSmall ? '180px' : isMedium ? '220px' : isSmallDesktop ? '220px' : '260px',
-          background: 'radial-gradient(circle at center, rgba(245,158,11,0.2), transparent 70%)',
-          filter: 'blur(2px)',
-          zIndex: 0,
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '-80px',
-          left: '-80px',
-          width: isSmall ? '140px' : isMedium ? '180px' : isSmallDesktop ? '180px' : '220px',
-          height: isSmall ? '140px' : isMedium ? '180px' : isSmallDesktop ? '180px' : '220px',
-          background: 'radial-gradient(circle at center, rgba(251,191,36,0.15), transparent 70%)',
-          filter: 'blur(2px)',
-          zIndex: 0,
-        }}
-      />
-
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: isSmall ? 'flex-start' : 'center',
-          flexDirection: isSmall ? 'column' : 'row',
-          marginBottom: containerGap,
-          flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap',
-          gap: isSmall || isMedium ? '1rem' : '0'
-        }}>
-          <div>
-            <h1 style={{ fontSize: titleFontSize, fontWeight: 700, color: '#1e293b', margin: 0, marginBottom: '0.5rem' }}>
-              Reporte de Empleados
-            </h1>
-            <p style={{ fontSize: subtitleFontSize, color: '#64748b', margin: 0 }}>
-              Ventas por empleado en el periodo
-            </p>
-          </div>
-        </div>
-
-        <div
-          style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: cardPadding,
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-            marginBottom: containerGap
-          }}
-        >
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : isSmallDesktop ? '1fr 1fr 1fr' : '1fr 1fr 1fr auto',
-            gap: '1rem',
-            alignItems: 'end'
-          }}>
-            <div style={{ position: 'relative' }} ref={userDropdownRef}>
-              <label style={{
-                display: 'block',
-                fontSize: inputFontSize,
-                fontWeight: 500,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}>
-                Empleado
-              </label>
-              {userId ? (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.625rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  background: '#fffbeb',
-                  fontSize: inputFontSize
-                }}>
-                  <span style={{ flex: 1, fontWeight: 500, color: '#1e293b' }}>{selectedUserLabel}</span>
-                  <button
-                    type="button"
-                    onClick={handleClearUser}
-                    style={{
-                      padding: '0.25rem 0.5rem',
-                      fontSize: '0.75rem',
-                      color: '#b45309',
-                      background: 'transparent',
-                      border: '1px solid #f59e0b',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontWeight: 500
-                    }}
-                  >
-                    Cambiar
-                  </button>
+    <div className="flex w-full flex-col gap-6 p-4 sm:p-6 lg:p-8">
+        {/* Header */}
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[22px] bg-amber-500 text-white shadow-lg shadow-amber-200 dark:shadow-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
                 </div>
-              ) : (
-                <>
-                  <input
-                    type="text"
-                    value={searchInput}
-                    onChange={(e) => {
-                      setSearchInput(e.target.value);
-                      setShowUserDropdown(true);
-                    }}
-                    onFocus={() => debouncedQuery.length >= 2 && setShowUserDropdown(true)}
-                    placeholder="Buscar por nombre, apellido o DNI..."
-                    style={{
-                      width: '100%',
-                      padding: '0.625rem',
-                      fontSize: inputFontSize,
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      outline: 'none',
-                      transition: 'border-color 0.2s',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  {showUserDropdown && debouncedQuery.length >= 2 && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      right: 0,
-                      marginTop: '4px',
-                      maxHeight: '220px',
-                      overflowY: 'auto',
-                      background: 'white',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                      zIndex: 50
-                    }}>
-                      {searchResults.length === 0 ? (
-                        <div style={{ padding: '0.75rem 1rem', fontSize: inputFontSize, color: '#64748b' }}>
-                          No se encontraron empleados.
-                        </div>
-                      ) : (
-                        searchResults.map((u) => (
-                          <button
-                            key={u.id}
-                            type="button"
-                            onClick={() => handleSelectUser(u)}
-                            style={{
-                              width: '100%',
-                              padding: '0.625rem 1rem',
-                              textAlign: 'left',
-                              border: 'none',
-                              background: 'transparent',
-                              fontSize: inputFontSize,
-                              cursor: 'pointer',
-                              color: '#334155'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = '#f8fafc';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'transparent';
-                            }}
-                          >
-                            <span style={{ fontWeight: 500 }}>{u.fullName}</span>
-                            {u.role && <span style={{ color: '#64748b', marginLeft: '0.25rem' }}>({u.role})</span>}
-                            {u.dni && <span style={{ color: '#94a3b8', marginLeft: '0.5rem', fontSize: '0.75rem' }}>DNI {u.dni}</span>}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
+                <div>
+                    <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100 sm:text-3xl">
+                        Reporte de Empleados
+                    </h1>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 sm:text-sm">
+                        Análisis de rendimiento y ventas por colaborador
+                    </p>
+                </div>
             </div>
-
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: inputFontSize,
-                fontWeight: 500,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}>
-                Fecha Inicio
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem',
-                  fontSize: inputFontSize,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: inputFontSize,
-                fontWeight: 500,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}>
-                Fecha Fin
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem',
-                  fontSize: inputFontSize,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-              />
-            </div>
-
             <button
-              onClick={handleSearch}
-              disabled={!userId}
-              style={{
-                padding: '0.625rem 1.5rem',
-                fontSize: buttonFontSize,
-                fontWeight: 600,
-                color: 'white',
-                background: userId
-                  ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
-                  : '#d1d5db',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: userId ? 'pointer' : 'not-allowed',
-                transition: 'all 0.2s',
-                height: '42px'
-              }}
+                onClick={() => refetch()}
+                disabled={loading}
+                className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              Buscar
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {loading ? "Actualizando" : "Refrescar"}
             </button>
-          </div>
         </div>
 
-        <ReportEmployeeList
-          operations={operations}
-          summary={summary}
-          loading={loading}
-          error={error}
-          isSmall={isSmall}
-          isXs={isXs}
-        />
-      </div>
+        {/* Unified Filter Toolbar */}
+        <div className="rounded-[28px] border border-slate-100 bg-white p-2 shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0">
+                <div className="relative flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800" ref={userDropdownRef}>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Seleccionar Empleado</label>
+                    <div className="relative flex items-center">
+                        <input
+                            type="text"
+                            placeholder="Buscar por nombre o DNI..."
+                            value={userId ? selectedUserLabel : searchInput}
+                            readOnly={!!userId}
+                            onChange={(e) => {
+                                setSearchInput(e.target.value);
+                                setShowUserDropdown(true);
+                            }}
+                            onFocus={() => debouncedQuery.length >= 2 && setShowUserDropdown(true)}
+                            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200 cursor-pointer placeholder:text-slate-300"
+                        />
+                        {userId && (
+                            <button onClick={handleClearUser} className="text-slate-400 hover:text-rose-500 ml-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Modern User Picker Dropdown */}
+                    {showUserDropdown && debouncedQuery.length >= 2 && !userId && (
+                        <div className="absolute left-0 right-0 top-full z-50 mt-4 max-h-72 overflow-y-auto rounded-2xl border border-slate-100 bg-white p-2 shadow-2xl dark:border-slate-800 dark:bg-slate-900 custom-scrollbar">
+                            {searchResults.length === 0 ? (
+                                <div className="px-4 py-3 text-xs font-bold text-slate-400">Sin coincidencias</div>
+                            ) : (
+                                searchResults.map((u) => (
+                                    <div
+                                        key={u.id}
+                                        onClick={() => handleSelectUser(u)}
+                                        className="flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                                    >
+                                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-600 text-[10px] font-black dark:bg-amber-900/20">
+                                            {u.fullName.charAt(0)}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{u.fullName}</span>
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{u.role || 'Empleado'}</span>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Desde</label>
+                    <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                    />
+                </div>
+
+                <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Hasta</label>
+                    <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                    />
+                </div>
+
+                <div className="flex items-center p-2">
+                    <button
+                        onClick={handleSearch}
+                        disabled={loading || !userId}
+                        className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-amber-200 transition-all hover:bg-amber-600 hover:shadow-amber-300 disabled:opacity-50 dark:shadow-none"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        Filtrar Reporte
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {/* Summary Cards */}
+        {summary && (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="relative overflow-hidden rounded-[32px] bg-amber-500 p-6 text-white shadow-lg shadow-amber-200 dark:shadow-none">
+                    <div className="relative z-10">
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Recaudación Personal</span>
+                        <div className="mt-1 text-3xl font-black">{currencyFormatter.format(summary.grandTotal)}</div>
+                    </div>
+                    <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+                </div>
+
+                <div className="relative overflow-hidden rounded-[32px] bg-slate-800 p-6 text-white shadow-lg shadow-slate-200 dark:shadow-none">
+                    <div className="relative z-10">
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Órdenes Gestionadas</span>
+                        <div className="mt-1 text-3xl font-black">{summary.totalOperations}</div>
+                    </div>
+                    <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+                </div>
+
+                <div className="flex flex-col justify-center gap-1 rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800/50 dark:bg-slate-900 sm:col-span-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ticket Promedio</span>
+                    <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-black text-amber-600">{currencyFormatter.format(averageSale)}</span>
+                    </div>
+                </div>
+
+                <div className="flex flex-col justify-center gap-1 rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800/50 dark:bg-slate-900 sm:col-span-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estado de Cuenta</span>
+                    <div className="flex items-center gap-2">
+                        <div className="h-3 w-3 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase tracking-tight">Activo y Operando</span>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Results List Container */}
+        <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-50 p-6 dark:border-slate-800/50">
+                <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">Desglose de Operaciones</h2>
+                <span className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800">
+                    {operations.length} Órdenes encontradas
+                </span>
+            </div>
+
+            <div className="p-4 sm:p-6">
+                {loading ? (
+                    <div className="flex min-h-[300px] flex-col gap-4">
+                        {Array(5).fill(0).map((_, i) => (
+                            <div key={i} className="h-20 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50" />
+                        ))}
+                    </div>
+                ) : (
+                    <ReportEmployeeList
+                        operations={operations}
+                        summary={summary}
+                        loading={loading}
+                        error={error}
+                    />
+                )}
+            </div>
+        </div>
+
+        {error && (
+            <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600 dark:border-rose-900/30 dark:bg-rose-900/10">
+                Error al cargar el reporte: {error.message}
+            </div>
+        )}
     </div>
   );
 };

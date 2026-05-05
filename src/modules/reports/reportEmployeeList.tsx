@@ -13,192 +13,115 @@ interface ReportEmployeeListProps {
   summary: UserSalesSummary | null;
   loading: boolean;
   error?: ApolloError;
-  isSmall?: boolean;
-  isXs?: boolean;
 }
 
 const ReportEmployeeList: React.FC<ReportEmployeeListProps> = ({
   operations,
-  summary,
   loading,
   error,
-  isSmall = false,
-  isXs = false
 }) => {
-  const tableFontSize = isXs ? '0.8rem' : isSmall ? '0.85rem' : '0.875rem';
-  const headerFontSize = isXs ? '0.75rem' : isSmall ? '0.8rem' : '0.8125rem';
-  const cellPadding = isXs ? '0.6rem' : isSmall ? '0.75rem' : '1rem';
-
-  if (loading) {
-    return (
-      <div style={{
-        padding: '2rem',
-        textAlign: 'center',
-        color: '#64748b',
-        fontSize: tableFontSize,
-        background: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-      }}>
-        Cargando datos...
-      </div>
-    );
-  }
+  if (loading) return null; // Handled by parent skeleton
 
   if (error) {
     return (
-      <div style={{
-        padding: '2rem',
-        textAlign: 'center',
-        color: '#ef4444',
-        background: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-      }}>
-        Error al cargar reporte: {error.message}
-      </div>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-rose-50 text-rose-500 dark:bg-rose-900/20">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <h3 className="text-lg font-black text-slate-800 dark:text-slate-200">Error en la consulta</h3>
+            <p className="max-w-xs text-sm font-bold text-slate-400">{error.message}</p>
+        </div>
     );
   }
 
   if (!operations.length) {
     return (
-      <div style={{
-        padding: '3rem',
-        textAlign: 'center',
-        color: '#94a3b8',
-        background: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-      }}>
-        <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>👤</div>
-        <div style={{ fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>Sin registros</div>
-        No se encontraron operaciones para el empleado en el periodo seleccionado.
-      </div>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-50 text-amber-300 dark:bg-amber-900/20 dark:text-amber-600">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+            </div>
+            <h3 className="text-lg font-black text-slate-800 dark:text-slate-200">Sin operaciones</h3>
+            <p className="max-w-xs text-sm font-bold text-slate-400">Selecciona un empleado para ver su historial de ventas en este periodo.</p>
+        </div>
     );
   }
 
   return (
-    <div style={{
-      background: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-      overflow: 'hidden'
-    }}>
-      {!isXs ? (
-        <div style={{
-          overflow: 'auto',
-          maxHeight: '60vh',
-          minHeight: '200px'
-        }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isSmall ? '480px' : '600px', fontSize: tableFontSize }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1, boxShadow: '0 1px 0 0 #e2e8f0' }}>
-                <th style={{ padding: cellPadding, textAlign: 'left', fontSize: headerFontSize, fontWeight: 700, color: '#475569', background: '#f8fafc' }}>Fecha / Hora</th>
-                <th style={{ padding: cellPadding, textAlign: 'center', fontSize: headerFontSize, fontWeight: 700, color: '#475569', background: '#f8fafc' }}>Orden</th>
-                <th style={{ padding: cellPadding, textAlign: 'right', fontSize: headerFontSize, fontWeight: 700, color: '#475569', background: '#f8fafc' }}>Total (S/)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {operations.map((op, index) => (
-                <tr
-                  key={op.id}
-                  style={{
-                    borderBottom: index < operations.length - 1 ? '1px solid #f1f5f9' : 'none',
-                    transition: 'background 0.15s'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <td style={{ padding: cellPadding, fontSize: tableFontSize, color: '#64748b' }}>
-                    {new Date(op.operationDate).toLocaleString('es-PE')}
-                  </td>
-                  <td style={{ padding: cellPadding, textAlign: 'center', fontSize: tableFontSize, color: '#334155', fontWeight: 600 }}>#{op.order}</td>
-                  <td style={{ padding: cellPadding, textAlign: 'right', fontSize: tableFontSize, fontWeight: 700, color: '#f59e0b' }}>
-                    {currencyFormatter.format(Number(op.total ?? 0))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {operations.map((op, index) => (
-            <div key={op.id} style={{
-              padding: '1rem',
-              borderBottom: index < operations.length - 1 ? '1px solid #f1f5f9' : 'none',
-              background: 'white'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b' }}>
-                    Orden #{op.order}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.1rem' }}>
-                    {new Date(op.operationDate).toLocaleString('es-PE')}
-                  </div>
+    <div className="grid grid-cols-1 gap-4">
+      {operations.map((op, index) => {
+        const dateObj = new Date(op.operationDate);
+        const isCancelled = op.status === 'CANCELLED';
+
+        return (
+            <div 
+                key={`${op.id}-${index}`}
+                className="group relative overflow-hidden rounded-[24px] border border-slate-100 bg-white p-5 transition-all hover:border-amber-100 hover:shadow-xl hover:shadow-amber-500/5 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:border-amber-900/30"
+            >
+                {/* Status Side Accent */}
+                <div className={`absolute left-0 top-0 bottom-0 w-1.5 transition-all group-hover:w-2 ${isCancelled ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl ${isCancelled ? 'bg-rose-50 text-rose-500 dark:bg-rose-900/20' : 'bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20'}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
+                        </div>
+
+                        <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-black uppercase tracking-widest ${isCancelled ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                    {isCancelled ? 'Operación Anulada' : 'Venta Exitosa'}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-300">•</span>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
+                                    ORDEN #{op.order}
+                                </span>
+                            </div>
+                            <h3 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase leading-tight">
+                                Transacción de Venta #{op.order}
+                            </h3>
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span>{dateObj.toLocaleDateString()} {dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-8 self-end sm:self-center">
+                        <div className="text-right">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Importe de Venta</div>
+                            <div className={`text-xl font-black ${isCancelled ? 'text-rose-500 line-through opacity-50' : 'text-slate-800 dark:text-slate-100'}`}>
+                                {currencyFormatter.format(op.total)}
+                            </div>
+                        </div>
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-xl border border-slate-100 transition-all dark:border-slate-800 ${isCancelled ? 'text-rose-500' : 'text-emerald-500 hover:bg-emerald-50'}`}>
+                            {isCancelled ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                            )}
+                        </div>
+                    </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f59e0b' }}>
-                    {currencyFormatter.format(Number(op.total ?? 0))}
-                  </div>
-                </div>
-              </div>
             </div>
-          ))}
-        </div>
-      )}
+        );
+      })}
 
-      {summary && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: isSmall ? '1fr' : 'repeat(2, 1fr)',
-          gap: isSmall ? '0.5rem' : '1.5rem',
-          padding: '1.25rem',
-          borderTop: '2px solid #e2e8f0',
-          background: 'linear-gradient(to right, #fffbeb, #fef3c7)',
-        }}>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            padding: '0.75rem',
-            background: 'white',
-            borderRadius: '8px',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-          }}>
-            <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.25rem' }}>Total Operaciones</span>
-            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>
-              {Number(summary.totalOperations).toLocaleString('es-PE')}
-            </span>
-          </div>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            padding: '0.75rem',
-            background: 'white',
-            borderRadius: '8px',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-            borderLeft: '4px solid #f59e0b'
-          }}>
-            <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.25rem' }}>Total General</span>
-            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f59e0b' }}>
-              {currencyFormatter.format(Number(summary.grandTotal ?? 0))}
-            </span>
-          </div>
-        </div>
-      )}
-
-      <div style={{
-        padding: '0.75rem',
-        borderTop: '1px solid #e5e7eb',
-        textAlign: 'center',
-        fontSize: '0.8rem',
-        color: '#64748b',
-        fontWeight: 500
-      }}>
-        Mostrando {operations.length} operación(es)
+      <div className="mt-4 text-center">
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+            Total histórico analizado: {operations.length} órdenes
+        </span>
       </div>
     </div>
   );

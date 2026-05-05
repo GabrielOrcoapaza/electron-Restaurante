@@ -156,163 +156,139 @@ const CreateSupplierModal: React.FC<CreateSupplierModalProps> = ({
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: '1rem',
-        boxSizing: 'border-box'
-      }}
+      className="fixed inset-0 z-[11000] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-300"
       onClick={onClose}
     >
       <div
-        style={{
-          backgroundColor: 'white',
-          borderRadius: '12px',
-          padding: '1.25rem',
-          maxWidth: '420px',
-          width: '100%',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)'
-        }}
+        className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-300 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: '600', color: '#2d3748', margin: 0 }}>
-            Crear o buscar proveedor
-          </h3>
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-100 p-6 dark:border-slate-800/50">
+          <div className="flex flex-col gap-1">
+            <h3 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100">
+              Registrar Proveedor
+            </h3>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Búsqueda en sistema o consulta SUNAT
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            style={{
-              padding: '0.25rem 0.5rem',
-              border: 'none',
-              background: 'transparent',
-              fontSize: '1.25rem',
-              color: '#64748b',
-              cursor: 'pointer',
-              lineHeight: 1
-            }}
-            aria-label="Cerrar"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700"
           >
-            ×
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: '500', color: '#475569', display: 'block', marginBottom: '0.35rem' }}>
-              Buscar por nombre o documento
-            </label>
-            <div style={{ position: 'relative' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'stretch',
-                  gap: '0.35rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  backgroundColor: 'white',
-                  overflow: 'hidden'
-                }}
-              >
-                <input
-                  type="text"
-                  value={supplierSearchTerm}
-                  onChange={(e) => {
-                    setSupplierSearchTerm(e.target.value);
-                    setSelectedSupplier(null);
-                  }}
-                  placeholder="Nombre, DNI (8) o RUC (11)..."
-                  style={{
-                    flex: 1,
-                    padding: '0.5rem 0.75rem',
-                    border: 'none',
-                    fontSize: '0.875rem',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={handleConfirmCreate}
-                  disabled={sunatSearchLoading}
-                  title="Buscar en SUNAT"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '0 0.75rem',
-                    border: 'none',
-                    background: sunatSearchLoading ? '#e2e8f0' : '#0d9488',
-                    color: 'white',
-                    cursor: sunatSearchLoading ? 'not-allowed' : 'pointer',
-                    opacity: sunatSearchLoading ? 0.7 : 1
-                  }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="11" cy="11" r="8" />
-                    <path d="m21 21-4.35-4.35" />
-                  </svg>
-                </button>
-              </div>
-              {supplierSearchTerm && !selectedSupplier && filteredSuppliers.length > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    marginTop: '0.25rem',
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    backgroundColor: 'white',
-                    boxShadow: '0 4px 6px rgba(0,0,0,0.07)',
-                    zIndex: 10
-                  }}
-                >
-                  {filteredSuppliers.map((supplier) => (
-                    <div
-                      key={supplier.id}
-                      onClick={() => handleSelectSupplier(supplier)}
-                      style={{
-                        padding: '0.5rem 0.75rem',
-                        cursor: 'pointer',
-                        borderBottom: '1px solid #f1f5f9',
-                        fontSize: '0.875rem'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.backgroundColor = '#f8fafc';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.backgroundColor = 'white';
-                      }}
-                    >
-                      <div style={{ fontWeight: 600, color: '#334155' }}>{supplier.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                        {supplier.documentType}: {supplier.documentNumber}
-                      </div>
-                    </div>
-                  ))}
+        {/* Content */}
+        <div className="p-6">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-3">
+              <label className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                Nombre o Documento (DNI/RUC)
+              </label>
+              <div className="relative">
+                <div className="flex items-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-800">
+                  <input
+                    type="text"
+                    value={supplierSearchTerm}
+                    onChange={(e) => {
+                      setSupplierSearchTerm(e.target.value);
+                      setSelectedSupplier(null);
+                    }}
+                    placeholder="DNI (8), RUC (11) o nombre..."
+                    className="flex-1 bg-transparent px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleConfirmCreate}
+                    disabled={sunatSearchLoading}
+                    title="Buscar en SUNAT"
+                    className="flex items-center justify-center bg-indigo-600 px-4 text-white transition-all hover:bg-indigo-700 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
+                  >
+                    {sunatSearchLoading ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="m21 21-4.35-4.35" />
+                      </svg>
+                    )}
+                  </button>
                 </div>
-              )}
+
+                {/* Dropdown de resultados */}
+                {supplierSearchTerm && !selectedSupplier && filteredSuppliers.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full z-[12000] mt-2 max-h-60 overflow-y-auto rounded-2xl border border-slate-100 bg-white p-2 shadow-2xl animate-in fade-in slide-in-from-top-2 dark:border-slate-800 dark:bg-slate-900">
+                    {filteredSuppliers.map((supplier) => (
+                      <button
+                        key={supplier.id}
+                        onClick={() => handleSelectSupplier(supplier)}
+                        className="flex w-full flex-col gap-0.5 rounded-xl p-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                      >
+                        <div className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                          {supplier.name}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black uppercase text-indigo-500 dark:text-indigo-400">
+                            {supplier.documentType}
+                          </span>
+                          <span className="text-[10px] font-medium text-slate-400">
+                            {supplier.documentNumber}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {supplierSearchTerm && !selectedSupplier && filteredSuppliers.length === 0 && (
-                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem' }}>
-                  No hay proveedores que coincidan. Ingrese DNI (8 dígitos) o RUC (11) y pulse la lupa para buscar en SUNAT.
+                <div className="rounded-xl bg-slate-50 p-3 text-center dark:bg-slate-800/50">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    No hay coincidencias locales
+                  </p>
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Use la lupa para consultar en SUNAT si el documento es válido.
+                  </p>
                 </div>
               )}
             </div>
+
+            <div className="flex items-start gap-3 rounded-2xl bg-indigo-50/50 p-4 dark:bg-indigo-900/10">
+              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-[11px] leading-relaxed text-indigo-700 dark:text-indigo-400">
+                Al buscar un documento que no existe, el sistema consultará con <strong>SUNAT</strong> y lo registrará automáticamente como proveedor si la búsqueda es exitosa.
+              </p>
+            </div>
           </div>
-          <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>
-            Escriba nombre o documento para filtrar la lista, o ingrese solo DNI/RUC y use la lupa para buscar en SUNAT y registrar como proveedor.
-          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 border-t border-slate-100 bg-slate-50/30 p-6 dark:border-slate-800/50 dark:bg-slate-800/10">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-2xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
+          >
+            Cerrar
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirmCreate}
+            disabled={sunatSearchLoading || !supplierSearchTerm.trim()}
+            className="flex-1 rounded-2xl bg-indigo-600 py-3 text-sm font-black text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-700 active:scale-95 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
+          >
+            {sunatSearchLoading ? 'Buscando...' : 'Buscar / Crear'}
+          </button>
         </div>
       </div>
     </div>
@@ -320,3 +296,4 @@ const CreateSupplierModal: React.FC<CreateSupplierModalProps> = ({
 };
 
 export default CreateSupplierModal;
+

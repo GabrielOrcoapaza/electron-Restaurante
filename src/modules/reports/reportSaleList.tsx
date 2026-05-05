@@ -1,1321 +1,942 @@
-import React, { useState } from 'react';
-import { useMutation } from '@apollo/client';
-import { CANCEL_ISSUED_DOCUMENT, REPRINT_DOCUMENT, REOPEN_ORDER_FROM_ANNULLED_DOCUMENT } from '../../graphql/mutations';
-import { useAuth } from '../../hooks/useAuth';
-import { useUserPermissions } from '../../hooks/useUserPermissions';
-import { useResponsive } from '../../hooks/useResponsive';
-import ConvertDocumentModal from './convertDocumentModal';
-import { parseLocalEmissionDateTime } from '../../utils/localDateTime';
+import React, { useState } from "react";
+import { useMutation } from "@apollo/client";
+import {
+    CANCEL_ISSUED_DOCUMENT,
+    REPRINT_DOCUMENT,
+    REOPEN_ORDER_FROM_ANNULLED_DOCUMENT,
+} from "../../graphql/mutations";
+import { useAuth } from "../../hooks/useAuth";
+import { useUserPermissions } from "../../hooks/useUserPermissions";
+import ConvertDocumentModal from "./convertDocumentModal";
+import { parseLocalEmissionDateTime } from "../../utils/localDateTime";
+import { isElectronRenderer } from "../../utils/electronPrint";
+
 interface IssuedDocument {
-  id: string;
-  serial: string;
-  number: string;
-  emissionDate: string;
-  emissionTime: string;
-  totalAmount: number;
-  totalDiscount: number;
-  globalDiscount?: number;
-  globalDiscountPercent?: number;
-  igvAmount: number;
-  billingStatus: string;
-  notes?: string;
-  document: {
     id: string;
-    code: string;
-    description: string;
-  };
-  person?: {
-    id: string;
-    name: string;
-    documentNumber: string;
-    documentType: string;
-  };
-  operation?: {
-    id: string;
-    order: string;
-    status: string;
-    operationType?: string;
-    user?: {
-      id: string;
-      fullName: string;
-    } | null;
-    table?: {
-      id: string;
-      name: string;
-      floor?: {
-        id: string;
-        name: string;
-      } | null;
-    } | null;
-  };
-  items: Array<{
-    id: string;
-    quantity: number;
-    unitPrice: number;
-    total: number;
+    serial: string;
+    number: string;
+    emissionDate: string;
+    emissionTime: string;
+    totalAmount: number;
+    totalDiscount: number;
+    globalDiscount?: number;
+    globalDiscountPercent?: number;
+    igvAmount: number;
+    billingStatus: string;
     notes?: string;
-    operationDetail?: {
-      product: {
+    document: {
         id: string;
         code: string;
-        name: string;
-      };
+        description: string;
     };
-  }>;
-  payments: Array<{
-    id: string;
-    paymentMethod: string;
-    paidAmount: number;
-    paymentDate: string;
-    status: string;
-    user?: {
-      id: string;
-      fullName: string;
-    } | null;
-  }>;
-  user: {
-    id: string;
-    fullName: string;
-  };
-  branch: {
-    id: string;
-    name: string;
-  };
+    person?: {
+        id: string;
+        name: string;
+        documentNumber: string;
+        documentType: string;
+    };
+    operation?: {
+        id: string;
+        order: string;
+        status: string;
+        operationType?: string;
+        user?: {
+            id: string;
+            fullName: string;
+        } | null;
+        table?: {
+            id: string;
+            name: string;
+            floor?: {
+                id: string;
+                name: string;
+            } | null;
+        } | null;
+    };
+    items: Array<{
+        id: string;
+        quantity: number;
+        unitPrice: number;
+        total: number;
+        notes?: string;
+        operationDetail?: {
+            product: {
+                id: string;
+                code: string;
+                name: string;
+            };
+        };
+    }>;
+    payments: Array<{
+        id: string;
+        paymentMethod: string;
+        paidAmount: number;
+        paymentDate: string;
+        status: string;
+        user?: {
+            id: string;
+            fullName: string;
+        } | null;
+    }>;
+    user: {
+        id: string;
+        fullName: string;
+    };
+    branch: {
+        id: string;
+        name: string;
+    };
 }
 
 interface ReportSaleListProps {
-  documents: IssuedDocument[];
-  loading: boolean;
-  error?: any;
-  isSmallDesktop: boolean;
-  isSmall?: boolean;
-  isXs?: boolean;
-  onRefetch?: () => void;
+    documents: IssuedDocument[];
+    loading: boolean;
+    error?: any;
+    isSmallDesktop: boolean;
+    isSmall?: boolean;
+    isXs?: boolean;
+    onRefetch?: () => void;
 }
 
-const currencyFormatter = new Intl.NumberFormat('es-PE', {
-  style: 'currency',
-  currency: 'PEN',
-  minimumFractionDigits: 2
+const currencyFormatter = new Intl.NumberFormat("es-PE", {
+    style: "currency",
+    currency: "PEN",
+    minimumFractionDigits: 2,
 });
 
-const dateFormatter = new Intl.DateTimeFormat('es-PE', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit'
+const dateFormatter = new Intl.DateTimeFormat("es-PE", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
 });
 
-const roundMoney2 = (n: number): number => Math.round((Number(n) || 0) * 100) / 100;
+const roundMoney2 = (n: number): number =>
+    Math.round((Number(n) || 0) * 100) / 100;
 
-/** Descuento en listado: "10% (S/ 1,60)" si aplica %; si no, solo monto en soles. */
 function formatSalesDiscountSummary(doc: IssuedDocument): string | null {
-  const td = roundMoney2(doc.totalDiscount);
-  if (td <= 0) return null;
-  const moneyStr = currencyFormatter.format(td);
-  const pct = roundMoney2(doc.globalDiscountPercent ?? 0);
-  if (pct > 0.001) {
-    const pctDisplay = Math.abs(pct % 1) < 0.001 ? String(Math.trunc(pct)) : String(pct);
-    return `${pctDisplay}% (${moneyStr})`;
-  }
-  return moneyStr;
+    const td = roundMoney2(doc.totalDiscount);
+    if (td <= 0) return null;
+    const moneyStr = currencyFormatter.format(td);
+    const pct = roundMoney2(doc.globalDiscountPercent ?? 0);
+    if (pct > 0.001) {
+        const pctDisplay =
+            Math.abs(pct % 1) < 0.001 ? String(Math.trunc(pct)) : String(pct);
+        return `${pctDisplay}% (${moneyStr})`;
+    }
+    return moneyStr;
 }
 
 const ReportSaleList: React.FC<ReportSaleListProps> = ({
-  documents,
-  loading,
-  error,
-  isSmallDesktop: propIsSmallDesktop,
-  isSmall: propIsSmall,
-  isXs: propIsXs,
-  onRefetch
+    documents,
+    loading,
+    error,
+    onRefetch,
 }) => {
-  const { user, deviceId, getMacAddress, getDeviceId } = useAuth();
-  const { hasPermission } = useUserPermissions();
-  const { breakpoint, isMobile, isXs: isXsHook } = useResponsive();
+    const { user, deviceId, getMacAddress, getDeviceId } = useAuth();
+    const { hasPermission } = useUserPermissions();
+    const isElectron = isElectronRenderer();
 
-  const isSmall = propIsSmall ?? (breakpoint === 'sm' || isMobile);
-  const isSmallDesktop = propIsSmallDesktop !== undefined ? propIsSmallDesktop : breakpoint === 'lg';
-  const isMediumDesktop = breakpoint === 'xl';
-  const isXs = propIsXs ?? isXsHook;
-  const [expandedDocument, setExpandedDocument] = useState<string | null>(null);
-  const [searchTerm] = useState<string>('');
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [selectedDocument, setSelectedDocument] = useState<IssuedDocument | null>(null);
-  const [cancellationReason, setCancellationReason] = useState<string>('');
-  const [cancellationDescription, setCancellationDescription] = useState<string>('');
-  const [cancelMessage, setCancelMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [localDocuments, setLocalDocuments] = useState<IssuedDocument[]>(documents);
-  const [printMessage, setPrintMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [printingDocId, setPrintingDocId] = useState<string | null>(null);
-  const [showConvertModal, setShowConvertModal] = useState(false);
-  const [documentToConvert, setDocumentToConvert] = useState<IssuedDocument | null>(null);
-  const [reopenMessage, setReopenMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [reopeningDocId, setReopeningDocId] = useState<string | null>(null);
+    const [expandedDocument, setExpandedDocument] = useState<string | null>(
+        null,
+    );
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [selectedDocument, setSelectedDocument] =
+        useState<IssuedDocument | null>(null);
+    const [cancellationReason, setCancellationReason] = useState<string>("");
+    const [cancellationDescription, setCancellationDescription] =
+        useState<string>("");
+    const [cancelMessage, setCancelMessage] = useState<{
+        type: "success" | "error";
+        text: string;
+    } | null>(null);
+    const [localDocuments, setLocalDocuments] =
+        useState<IssuedDocument[]>(documents);
+    const [printMessage, setPrintMessage] = useState<{
+        type: "success" | "error";
+        text: string;
+    } | null>(null);
+    const [printingDocId, setPrintingDocId] = useState<string | null>(null);
+    const [showConvertModal, setShowConvertModal] = useState(false);
+    const [documentToConvert, setDocumentToConvert] =
+        useState<IssuedDocument | null>(null);
+    const [reopenMessage, setReopenMessage] = useState<{
+        type: "success" | "error";
+        text: string;
+    } | null>(null);
+    const [reopeningDocId, setReopeningDocId] = useState<string | null>(null);
 
-  // Actualizar documentos locales cuando cambien los props
-  React.useEffect(() => {
-    setLocalDocuments(documents);
-  }, [documents]);
+    React.useEffect(() => {
+        setLocalDocuments(documents);
+    }, [documents]);
 
-  // Reimpresión: Precuenta, Cuenta, Boleta, Factura. Nota de venta (80) = Cuenta. No hay reimpresión para Nota de crédito.
-  const getReprintDocumentType = (code: string, description: string): string => {
-    const map: Record<string, string> = {
-      '01': 'FACTURA',
-      '03': 'BOLETA',
-      '80': 'CUENTA', // Nota de venta se reimprime como Cuenta
+    const getReprintDocumentType = (
+        code: string,
+        description: string,
+    ): string => {
+        const map: Record<string, string> = {
+            "01": "FACTURA",
+            "03": "BOLETA",
+            "80": "CUENTA",
+        };
+        return map[code] || description || code;
     };
-    return map[code] || description || code;
-  };
 
-  const [reprintDocument, { loading: reprinting }] = useMutation(REPRINT_DOCUMENT, {
-    onCompleted: (data) => {
-      const result = data?.reprintDocument;
-      console.log('[ReprintDocument] Respuesta completa:', data);
-      console.log('[ReprintDocument] success:', result?.success, '| message:', result?.message);
-      if (result?.success) {
-        setPrintMessage({ type: 'success', text: result.message });
-      } else {
-        setPrintMessage({ type: 'error', text: result?.message || 'Error al imprimir' });
-      }
-      setPrintingDocId(null);
-      setTimeout(() => setPrintMessage(null), 4000);
-    },
-    onError: (err) => {
-      console.error('[ReprintDocument] Error:', err);
-      console.error('[ReprintDocument] graphQLErrors:', err.graphQLErrors);
-      console.error('[ReprintDocument] networkError:', (err as any).networkError);
-      console.error('[ReprintDocument] message:', err.message);
-      const msg =
-        err.graphQLErrors?.[0]?.message ||
-        (err as any).networkError?.result?.errors?.[0]?.message ||
-        err.message;
-      setPrintMessage({ type: 'error', text: msg || 'Error al enviar a la impresora' });
-      setPrintingDocId(null);
-      setTimeout(() => setPrintMessage(null), 4000);
-    },
-  });
+    const [reprintDocument, { loading: reprinting }] = useMutation(
+        REPRINT_DOCUMENT,
+        {
+            onCompleted: (data) => {
+                const result = data?.reprintDocument;
+                if (result?.success) {
+                    setPrintMessage({ type: "success", text: result.message });
+                } else {
+                    setPrintMessage({
+                        type: "error",
+                        text: result?.message || "Error al imprimir",
+                    });
+                }
+                setPrintingDocId(null);
+                setTimeout(() => setPrintMessage(null), 4000);
+            },
+            onError: (err) => {
+                const msg = err.graphQLErrors?.[0]?.message || err.message;
+                setPrintMessage({
+                    type: "error",
+                    text: msg || "Error al enviar a la impresora",
+                });
+                setPrintingDocId(null);
+                setTimeout(() => setPrintMessage(null), 4000);
+            },
+        },
+    );
 
-  // Mutación para cancelar documento
-  const [reopenOrderFromAnnulledDocument, { loading: reopening }] = useMutation(REOPEN_ORDER_FROM_ANNULLED_DOCUMENT, {
-    onCompleted: (data) => {
-      const r = data?.reopenOrderFromAnnulledDocument;
-      if (r?.success) {
-        setReopenMessage({ type: 'success', text: r.message || 'Orden reaperturada.' });
-        if (onRefetch) onRefetch();
-      } else {
-        setReopenMessage({ type: 'error', text: r?.message || 'No se pudo reaperturar la orden.' });
-      }
-      setReopeningDocId(null);
-      setTimeout(() => setReopenMessage(null), 5000);
-    },
-    onError: (err) => {
-      const msg =
-        err.graphQLErrors?.[0]?.message ||
-        (err as any).networkError?.result?.errors?.[0]?.message ||
-        err.message;
-      setReopenMessage({ type: 'error', text: msg || 'Error al reaperturar.' });
-      setReopeningDocId(null);
-      setTimeout(() => setReopenMessage(null), 5000);
-    }
-  });
+    const [reopenOrderFromAnnulledDocument, { loading: reopening }] =
+        useMutation(REOPEN_ORDER_FROM_ANNULLED_DOCUMENT, {
+            onCompleted: (data) => {
+                const r = data?.reopenOrderFromAnnulledDocument;
+                if (r?.success) {
+                    setReopenMessage({
+                        type: "success",
+                        text: r.message || "Orden reaperturada.",
+                    });
+                    if (onRefetch) onRefetch();
+                } else {
+                    setReopenMessage({
+                        type: "error",
+                        text: r?.message || "No se pudo reaperturar la orden.",
+                    });
+                }
+                setReopeningDocId(null);
+                setTimeout(() => setReopenMessage(null), 5000);
+            },
+            onError: (err) => {
+                setReopenMessage({
+                    type: "error",
+                    text: err.message || "Error al reaperturar.",
+                });
+                setReopeningDocId(null);
+                setTimeout(() => setReopenMessage(null), 5000);
+            },
+        });
 
-  const [cancelDocument, { loading: canceling }] = useMutation(CANCEL_ISSUED_DOCUMENT, {
-    onCompleted: (data) => {
-      if (data.cancelIssuedDocument.success) {
-        // Actualizar el documento local con el nuevo estado
-        if (selectedDocument) {
-          setLocalDocuments(prevDocs =>
-            prevDocs.map(doc =>
-              doc.id === selectedDocument.id
-                ? { ...doc, billingStatus: data.cancelIssuedDocument.issuedDocument.billingStatus }
-                : doc
-            )
-          );
+    const [cancelDocument, { loading: canceling }] = useMutation(
+        CANCEL_ISSUED_DOCUMENT,
+        {
+            onCompleted: (data) => {
+                if (data.cancelIssuedDocument.success) {
+                    if (selectedDocument) {
+                        setLocalDocuments((prevDocs) =>
+                            prevDocs.map((doc) =>
+                                doc.id === selectedDocument.id
+                                    ? {
+                                          ...doc,
+                                          billingStatus:
+                                              data.cancelIssuedDocument
+                                                  .issuedDocument.billingStatus,
+                                      }
+                                    : doc,
+                            ),
+                        );
+                    }
+                    setCancelMessage({
+                        type: "success",
+                        text: data.cancelIssuedDocument.message,
+                    });
+                    setTimeout(() => {
+                        setShowCancelModal(false);
+                        setCancellationReason("");
+                        setCancellationDescription("");
+                        setSelectedDocument(null);
+                        setCancelMessage(null);
+                        if (onRefetch) onRefetch();
+                    }, 2000);
+                } else {
+                    setCancelMessage({
+                        type: "error",
+                        text: data.cancelIssuedDocument.message,
+                    });
+                }
+            },
+            onError: (error) =>
+                setCancelMessage({ type: "error", text: error.message }),
+        },
+    );
+
+    const getPaymentMethodInfo = (method: string) => {
+        const methods: Record<
+            string,
+            { label: string; color: string; bg: string }
+        > = {
+            CASH: {
+                label: "Efectivo",
+                color: "text-sky-600",
+                bg: "bg-sky-50 dark:bg-sky-900/20",
+            },
+            YAPE: {
+                label: "Yape",
+                color: "text-emerald-600",
+                bg: "bg-emerald-50 dark:bg-emerald-900/20",
+            },
+            PLIN: {
+                label: "Plin",
+                color: "text-amber-600",
+                bg: "bg-amber-50 dark:bg-amber-900/20",
+            },
+            CARD: {
+                label: "Tarjeta",
+                color: "text-rose-600",
+                bg: "bg-rose-50 dark:bg-rose-900/20",
+            },
+            TRANSFER: {
+                label: "Transf.",
+                color: "text-purple-600",
+                bg: "bg-purple-50 dark:bg-purple-900/20",
+            },
+            OTROS: {
+                label: "Otros",
+                color: "text-slate-600",
+                bg: "bg-slate-50 dark:bg-slate-800/30",
+            },
+        };
+        return (
+            methods[method] || {
+                label: method,
+                color: "text-slate-600",
+                bg: "bg-slate-50 dark:bg-slate-800/30",
+            }
+        );
+    };
+
+    const getBillingStatusInfo = (status: string) => {
+        const statusMap: Record<
+            string,
+            { label: string; color: string; bg: string; dot: string }
+        > = {
+            PROCESSING: {
+                label: "Procesando",
+                color: "text-amber-600",
+                bg: "bg-amber-50 dark:bg-amber-900/20",
+                dot: "bg-amber-500",
+            },
+            SENT: {
+                label: "Enviado",
+                color: "text-blue-600",
+                bg: "bg-blue-50 dark:bg-blue-900/20",
+                dot: "bg-blue-500",
+            },
+            ACCEPTED: {
+                label: "Emitido",
+                color: "text-emerald-600",
+                bg: "bg-emerald-50 dark:bg-emerald-900/20",
+                dot: "bg-emerald-500",
+            },
+            REJECTED: {
+                label: "Rechazado",
+                color: "text-rose-600",
+                bg: "bg-rose-50 dark:bg-rose-900/20",
+                dot: "bg-rose-500",
+            },
+            ERROR: {
+                label: "Error",
+                color: "text-rose-600",
+                bg: "bg-rose-50 dark:bg-rose-900/20",
+                dot: "bg-rose-500",
+            },
+            CANCELLED: {
+                label: "Anulado",
+                color: "text-slate-500",
+                bg: "bg-slate-100 dark:bg-slate-800",
+                dot: "bg-slate-400",
+            },
+        };
+        return (
+            statusMap[status] || {
+                label: status,
+                color: "text-slate-500",
+                bg: "bg-slate-100 dark:bg-slate-800",
+                dot: "bg-slate-400",
+            }
+        );
+    };
+
+    const canCancelDocument = (status: string): boolean =>
+        ["ACCEPTED", "SENT", "ACCEPTED_WITH_OBSERVATIONS"].includes(status);
+    const canReopenAnnulledOrder = (doc: IssuedDocument): boolean =>
+        hasPermission("orders.edit") &&
+        doc.billingStatus === "CANCELLED" &&
+        doc.operation?.status === "COMPLETED";
+
+    const handleCancelDocument = () => {
+        if (!selectedDocument || !cancellationReason || !user?.id) {
+            setCancelMessage({
+                type: "error",
+                text: "Por favor completa todos los campos requeridos",
+            });
+            return;
         }
 
-        setCancelMessage({ type: 'success', text: data.cancelIssuedDocument.message });
-
-        // Cerrar el modal después de 2 segundos
-        setTimeout(() => {
-          setShowCancelModal(false);
-          setCancellationReason('');
-          setCancellationDescription('');
-          setSelectedDocument(null);
-          setCancelMessage(null);
-
-          // Si hay callback de refetch, llamarlo para actualizar los datos
-          if (onRefetch) {
-            onRefetch();
-          }
-        }, 2000);
-      } else {
-        setCancelMessage({ type: 'error', text: data.cancelIssuedDocument.message });
-      }
-    },
-    onError: (error) => {
-      // Verificar si es un error de autenticación
-      if (error.message.includes('authentication') || error.message.includes('token') || error.message.includes('Unauthorized')) {
-        setCancelMessage({ type: 'error', text: 'Error de autenticación. Por favor, verifica tu sesión.' });
-      } else {
-        setCancelMessage({ type: 'error', text: error.message });
-      }
-    },
-  });
-
-  // Tamaños adaptativos
-  const cardPadding = isXs ? '0.6rem' : isSmall ? '0.75rem' : '1rem';
-  const tableFontSize = isXs ? '0.8rem' : isSmall ? '0.85rem' : '0.875rem';
-  const tableCellPadding = isXs ? '0.5rem' : isSmall ? '0.6rem' : '0.75rem';
-  const badgeFontSize = isXs ? '0.65rem' : isSmall ? '0.7rem' : '0.75rem';
-  const inputFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
-
-  // Función para obtener el nombre del método de pago
-  const getPaymentMethodName = (method: string) => {
-    const methods: { [key: string]: string } = {
-      'CASH': 'Efectivo',
-      'YAPE': 'Yape',
-      'PLIN': 'Plin',
-      'CARD': 'Tarjeta',
-      'TRANSFER': 'Transferencia',
-      'OTROS': 'Otros'
+        setCancelMessage(null);
+        cancelDocument({
+            variables: {
+                issuedDocumentId: selectedDocument.id,
+                userId: user.id,
+                cancellationReason: cancellationReason,
+                cancellationDescription: cancellationDescription || null,
+            },
+        });
     };
-    return methods[method] || method;
-  };
 
-  // Función para obtener el color del método de pago
-  const getPaymentMethodColor = (method: string) => {
-    const colors: { [key: string]: { bg: string; text: string } } = {
-      'CASH': { bg: '#f0f9ff', text: '#0369a1' },
-      'YAPE': { bg: '#f0fdf4', text: '#047857' },
-      'PLIN': { bg: '#fef3c7', text: '#b45309' },
-      'CARD': { bg: '#fef2f2', text: '#b91c1c' },
-      'TRANSFER': { bg: '#f3e8ff', text: '#7e22ce' },
-      'OTROS': { bg: '#f1f5f9', text: '#334155' }
+    const handleReprint = async (doc: IssuedDocument, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const mac = await getMacAddress();
+        const resolvedDeviceId = mac || deviceId || getDeviceId();
+        if (!resolvedDeviceId) {
+            setPrintMessage({
+                type: "error",
+                text: "No se pudo obtener la MAC del dispositivo.",
+            });
+            setTimeout(() => setPrintMessage(null), 4000);
+            return;
+        }
+        setPrintingDocId(doc.id);
+        console.log("Documento a reimprimir:", {
+            operationId: doc.operation?.id || null,
+            issuedDocumentId: doc.id,
+            documentType: getReprintDocumentType(
+                doc.document.code,
+                doc.document.description,
+            ),
+            deviceId: resolvedDeviceId,
+        });
+        reprintDocument({
+            variables: {
+                operationId: doc.operation?.id || null,
+                issuedDocumentId: doc.id,
+                documentType: getReprintDocumentType(
+                    doc.document.code,
+                    doc.document.description,
+                ),
+                deviceId: resolvedDeviceId,
+            },
+        });
     };
-    return colors[method] || { bg: '#f1f5f9', text: '#334155' };
-  };
 
-  // Función para obtener el nombre del estado de facturación
-  const getBillingStatusName = (status: string) => {
-    const statusMap: { [key: string]: string } = {
-      'PROCESSING': 'Procesando',
-      'SENT': 'Enviado',
-      'ACCEPTED': 'Emitido',
-      'ACCEPTED_WITH_OBSERVATIONS': 'Emitido con observaciones',
-      'REJECTED': 'Rechazado',
-      'ERROR': 'Error',
-      'PROCESSING_CANCELLATION': 'Procesando anulación',
-      'CANCELLATION_PENDING': 'Anulación pendiente',
-      'CANCELLED': 'Anulado',
-      'CANCELLATION_ERROR': 'Error en anulación'
-    };
-    return statusMap[status] || status;
-  };
+    const cancellationReasonsList = [
+        { code: "01", description: "Anulación de la operación" },
+        { code: "02", description: "Anulación por error en el RUC" },
+        { code: "03", description: "Corrección por error en la descripción" },
+        { code: "04", description: "Descuento global aplicado después" },
+        { code: "05", description: "Descuento por ítem aplicado después" },
+        { code: "06", description: "Devolución total" },
+        { code: "07", description: "Devolución por ítem" },
+        { code: "08", description: "Bonificación" },
+    ];
 
-  // Función para obtener el color del estado de facturación
-  const getBillingStatusColor = (status: string) => {
-    const colors: { [key: string]: { bg: string; text: string; border: string } } = {
-      'PROCESSING': { bg: '#fef3c7', text: '#92400e', border: '#fcd34d' },
-      'SENT': { bg: '#dbeafe', text: '#1e40af', border: '#93c5fd' },
-      'ACCEPTED': { bg: '#dcfce7', text: '#166534', border: '#86efac' },
-      'ACCEPTED_WITH_OBSERVATIONS': { bg: '#fef3c7', text: '#92400e', border: '#fcd34d' },
-      'REJECTED': { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' },
-      'ERROR': { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' },
-      'PROCESSING_CANCELLATION': { bg: '#fef3c7', text: '#92400e', border: '#fcd34d' },
-      'CANCELLATION_PENDING': { bg: '#fef3c7', text: '#92400e', border: '#fcd34d' },
-      'CANCELLED': { bg: '#f3f4f6', text: '#374151', border: '#d1d5db' },
-      'CANCELLATION_ERROR': { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' }
-    };
-    return colors[status] || { bg: '#f3f4f6', text: '#374151', border: '#d1d5db' };
-  };
+    if (loading)
+        return (
+            <div className="text-center py-10 font-bold text-slate-400">
+                Cargando documentos...
+            </div>
+        );
+    if (error)
+        return (
+            <div className="p-6 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100 font-bold">
+                Error: {error.message}
+            </div>
+        );
+    if (localDocuments.length === 0)
+        return (
+            <div className="text-center py-20 text-slate-400 font-bold">
+                No se encontraron documentos.
+            </div>
+        );
 
-  // Verificar si un documento puede ser cancelado
-  const canCancelDocument = (status: string): boolean => {
-    const validStatuses = ['ACCEPTED', 'SENT', 'ACCEPTED_WITH_OBSERVATIONS'];
-    return validStatuses.includes(status);
-  };
-
-  /** Misma lógica base que el backend (venta completada, comprobante anulado, permiso orders.edit). */
-  const canReopenAnnulledOrder = (doc: IssuedDocument): boolean => {
-    if (!hasPermission('orders.edit')) return false;
-    if (doc.billingStatus !== 'CANCELLED') return false;
-    if (!doc.operation?.id || doc.operation.status !== 'COMPLETED') return false;
-    const opType = doc.operation.operationType;
-    if (opType && opType !== 'SALE') return false;
-    return true;
-  };
-
-  const handleReopenOrder = (doc: IssuedDocument, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!user?.id) return;
-    const msg =
-      '¿Reaperturar la orden de esta venta?\n\n' +
-      'Se anularán en caja los pagos vinculados a este comprobante (solo si no están en un cierre). La orden volverá a “en proceso” y, si hay mesa disponible, quedará ocupada de nuevo.';
-    if (!window.confirm(msg)) return;
-    setReopenMessage(null);
-    setReopeningDocId(doc.id);
-    reopenOrderFromAnnulledDocument({
-      variables: { issuedDocumentId: doc.id, userId: user.id }
-    });
-  };
-
-  // Motivos de cancelación válidos según SUNAT
-  const cancellationReasons = [
-    { code: '01', description: 'Anulación de la operación' },
-    { code: '02', description: 'Anulación por error en el RUC' },
-    { code: '03', description: 'Corrección por error en la descripción' },
-    { code: '04', description: 'Descuento global aplicado después' },
-    { code: '05', description: 'Descuento por ítem aplicado después' },
-    { code: '06', description: 'Devolución total' },
-    { code: '07', description: 'Devolución por ítem' },
-    { code: '08', description: 'Bonificación' }
-  ];
-
-  const handleOpenCancelModal = (doc: IssuedDocument, e: React.MouseEvent) => {
-    e.stopPropagation(); // Evitar que se expanda/contraiga el documento
-    setSelectedDocument(doc);
-    setCancellationReason('');
-    setCancellationDescription('');
-    setCancelMessage(null);
-    setShowCancelModal(true);
-  };
-
-  const handleReprint = async (doc: IssuedDocument, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setPrintMessage(null);
-
-    console.log('[ReprintDocument] Click impresora — documento:', {
-      id: doc.id,
-      code: doc.document.code,
-      description: doc.document.description,
-      operationId: doc.operation?.id ?? null,
-    });
-
-    // device_id debe ser la MAC del dispositivo (backend usa DevicePrintConfig por MAC o impresora de caja)
-    const mac = await getMacAddress();
-    const resolvedDeviceId = mac || deviceId || getDeviceId();
-    if (!resolvedDeviceId) {
-      setPrintMessage({ type: 'error', text: 'No se pudo obtener la MAC del dispositivo. No se puede imprimir.' });
-      setTimeout(() => setPrintMessage(null), 4000);
-      return;
-    }
-    console.log('[ReprintDocument] device_id (MAC) enviado:', resolvedDeviceId);
-
-    const documentTypeForBackend = getReprintDocumentType(doc.document.code, doc.document.description);
-    console.log('[ReprintDocument] document_type para backend:', documentTypeForBackend, '(código:', doc.document.code, ')');
-
-    const variables = {
-      operationId: doc.operation?.id || null,
-      issuedDocumentId: doc.id,
-      documentType: documentTypeForBackend,
-      deviceId: resolvedDeviceId,
-    };
-    console.log('[ReprintDocument] Enviando a GraphQL variables:', variables);
-
-    setPrintingDocId(doc.id);
-    reprintDocument({ variables });
-  };
-
-  const handleCancelDocument = () => {
-    if (!selectedDocument || !cancellationReason || !user?.id) {
-      setCancelMessage({ type: 'error', text: 'Por favor completa todos los campos requeridos' });
-      return;
-    }
-
-    setCancelMessage(null);
-    cancelDocument({
-      variables: {
-        issuedDocumentId: selectedDocument.id,
-        userId: user.id,
-        cancellationReason: cancellationReason,
-        cancellationDescription: cancellationDescription || null,
-      },
-    });
-  };
-
-  // Filtrar documentos por término de búsqueda
-  const filteredDocuments = localDocuments.filter(doc => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-
-    // Buscar en campos básicos del documento
-    const paymentUserMatch = doc.payments.some(
-      (p) => p.user?.fullName?.toLowerCase().includes(search) ?? false
-    );
-    const basicMatch =
-      doc.serial.toLowerCase().includes(search) ||
-      doc.number.toLowerCase().includes(search) ||
-      doc.document.description.toLowerCase().includes(search) ||
-      (doc.person?.name.toLowerCase().includes(search) || false) ||
-      (doc.person?.documentNumber.toLowerCase().includes(search) || false) ||
-      doc.user.fullName.toLowerCase().includes(search) ||
-      (doc.operation?.user?.fullName?.toLowerCase().includes(search) ?? false) ||
-      (doc.operation?.table?.floor?.name?.toLowerCase().includes(search) ?? false) ||
-      paymentUserMatch;
-
-    // Buscar en productos de los items
-    const productMatch = doc.items.some(item =>
-      item.operationDetail?.product?.code.toLowerCase().includes(search) ||
-      item.operationDetail?.product?.name.toLowerCase().includes(search)
-    );
-
-    return basicMatch || productMatch;
- });
-
-
-  if (loading) {
     return (
-      <div
-        style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: cardPadding,
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-          textAlign: 'center',
-          color: '#64748b'
-        }}
-      >
-        Cargando documentos...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div
-        style={{
-          background: '#fee2e2',
-          border: '1px solid #fca5a5',
-          borderRadius: '12px',
-          padding: cardPadding,
-          color: '#991b1b'
-        }}
-      >
-        Error al cargar los documentos: {error.message}
-      </div>
-    );
-  }
-
-  if (filteredDocuments.length === 0) {
-    return (
-      <div
-        style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '2rem',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-          textAlign: 'center',
-          color: '#475569',
-          fontSize: '1rem',
-          fontWeight: 500
-        }}
-      >
-        <div style={{ fontSize: '2.5rem', marginBottom: '1rem', opacity: 0.7 }}>📋</div>
-        <div style={{ marginBottom: '0.5rem' }}>
-          {documents.length === 0
-            ? 'No se encontraron documentos en el rango de fechas seleccionado.'
-            : 'No se encontraron documentos que coincidan con la búsqueda.'}
-        </div>
-        <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-          Prueba con otro rango de fechas o verifica que existan ventas emitidas en ese periodo.
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: '0 0 1rem 0' }}>
-      {/* Mensaje de impresión */}
-      {printMessage && (
-        <div
-          style={{
-            padding: '0.625rem 1rem',
-            borderRadius: '8px',
-            marginBottom: '1rem',
-            background: printMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
-            border: `1px solid ${printMessage.type === 'success' ? '#86efac' : '#fca5a5'}`,
-            color: printMessage.type === 'success' ? '#166534' : '#991b1b',
-            fontSize: tableFontSize,
-          }}
-        >
-          {printMessage.text}
-        </div>
-      )}
-      {reopenMessage && (
-        <div
-          style={{
-            padding: '0.625rem 1rem',
-            borderRadius: '8px',
-            marginBottom: '1rem',
-            background: reopenMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
-            border: `1px solid ${reopenMessage.type === 'success' ? '#86efac' : '#fca5a5'}`,
-            color: reopenMessage.type === 'success' ? '#166534' : '#991b1b',
-            fontSize: tableFontSize,
-          }}
-        >
-          {reopenMessage.text}
-        </div>
-      )}
-      {/* Lista de documentos (el scroll está en el card del padre) */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1rem',
-        minHeight: '200px'
-      }}>
-        {filteredDocuments.map((doc) => {
-          const isExpanded = expandedDocument === doc.id;
-          const discountSummary = formatSalesDiscountSummary(doc);
-          const paymentMethodsMap = new Map<string, number>();
-
-          doc.payments.forEach(payment => {
-            const current = paymentMethodsMap.get(payment.paymentMethod) || 0;
-            paymentMethodsMap.set(payment.paymentMethod, current + payment.paidAmount);
-          });
-
-          return (
-            <div
-              key={doc.id}
-              style={{
-                border: '1px solid #e5e7eb',
-                borderRadius: '10px',
-                overflow: 'hidden',
-                transition: 'all 0.2s',
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#667eea';
-                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(102, 126, 234, 0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#e5e7eb';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-              onClick={() => setExpandedDocument(isExpanded ? null : doc.id)}
-            >
-              {/* Header del documento */}
+        <div className="flex flex-col gap-4">
+            {/* Toast Messages */}
+            {(printMessage || reopenMessage) && (
                 <div
-                  style={{
-                    padding: cardPadding,
-                    background: isExpanded ? '#f8fafc' : 'white',
-                    display: 'flex',
-                    flexDirection: isXs ? 'column' : 'row',
-                    alignItems: isXs ? 'stretch' : 'flex-start',
-                    gap: isXs ? '0.75rem' : '1rem',
-                    minWidth: 0
-                  }}
+                    className={`p-4 rounded-2xl border mb-2 font-bold text-sm ${
+                        printMessage?.type === "success" ||
+                        reopenMessage?.type === "success"
+                            ? "bg-emerald-50 border-emerald-100 text-emerald-600 dark:bg-emerald-900/20 dark:border-emerald-900/30"
+                            : "bg-rose-50 border-rose-100 text-rose-600 dark:bg-rose-900/20 dark:border-rose-900/30"
+                    }`}
                 >
-                  {/* Bloque izquierdo: tipo, número, estado, fecha y datos */}
-                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
-                      <span
-                        style={{
-                          fontSize: badgeFontSize,
-                          fontWeight: 700,
-                          padding: '0.2rem 0.5rem',
-                          borderRadius: '6px',
-                          background: '#667eea',
-                          color: 'white'
-                        }}
-                      >
-                        {doc.document.code}
-                      </span>
-                      <span style={{ fontSize: tableFontSize, fontWeight: 600, color: '#1e293b' }}>
-                        {doc.serial}-{doc.number}
-                      </span>
-                      {doc.billingStatus && (
-                        <span
-                          style={{
-                            fontSize: '0.65rem',
-                            fontWeight: 600,
-                            padding: '0.15rem 0.4rem',
-                            borderRadius: '4px',
-                            background: getBillingStatusColor(doc.billingStatus).bg,
-                            color: getBillingStatusColor(doc.billingStatus).text,
-                            border: `1px solid ${getBillingStatusColor(doc.billingStatus).border}`
-                          }}
-                        >
-                          {getBillingStatusName(doc.billingStatus)}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>
-                      {dateFormatter.format(parseLocalEmissionDateTime(doc.emissionDate, doc.emissionTime))}
-                    </div>
-                    {doc.person && (
-                      <div style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500 }}>
-                        👤 {doc.person.name}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bloque derecho: monto, métodos de pago y acciones */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: isXs ? 'row' : 'column',
-                      justifyContent: 'space-between',
-                      alignItems: isXs ? 'center' : 'flex-end',
-                      gap: '0.75rem',
-                      minWidth: 0,
-                      borderTop: isXs ? '1px solid #f1f5f9' : 'none',
-                      paddingTop: isXs ? '0.75rem' : '0'
-                    }}
-                  >
-                    <div style={{ textAlign: isXs ? 'left' : 'right' }}>
-                      <div style={{
-                        fontSize: isXs ? '1.1rem' : '1.25rem',
-                        fontWeight: 800,
-                        color: '#1e293b'
-                      }}>
-                        {currencyFormatter.format(doc.totalAmount)}
-                      </div>
-                      {!isXs && discountSummary && (
-                        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#b45309' }}>
-                          Desc: {discountSummary}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                    <button
-                      onClick={(e) => handleReprint(doc, e)}
-                      disabled={reprinting && printingDocId === doc.id}
-                      title="Reimprimir documento"
-                      style={{
-                        padding: '0.625rem 0.75rem',
-                        fontSize: badgeFontSize,
-                        background: printingDocId === doc.id ? '#e2e8f0' : '#f1f5f9',
-                        color: printingDocId === doc.id ? '#94a3b8' : '#475569',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        cursor: reprinting && printingDocId === doc.id ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: '40px',
-                        minHeight: '40px',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!(reprinting && printingDocId === doc.id)) {
-                          e.currentTarget.style.background = '#e2e8f0';
-                          e.currentTarget.style.borderColor = '#667eea';
-                          e.currentTarget.style.color = '#667eea';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (printingDocId !== doc.id) {
-                          e.currentTarget.style.background = '#f1f5f9';
-                          e.currentTarget.style.borderColor = '#e2e8f0';
-                          e.currentTarget.style.color = '#475569';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                        }
-                      }}
-                    >
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <polyline points="6 9 6 2 18 2 18 9" />
-                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                      </svg>
-                    </button>
-                    {canCancelDocument(doc.billingStatus) && (
-                      <button
-                        onClick={(e) => handleOpenCancelModal(doc, e)}
-                        style={{
-                          padding: '0.625rem 1.25rem',
-                          fontSize: '0.8125rem',
-                          fontWeight: 600,
-                          color: 'white',
-                          background: '#ef4444',
-                          border: 'none',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          minHeight: '40px',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#dc2626';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = '#ef4444';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                        }}
-                      >
-                        Cancelar
-                      </button>
-                    )}
-                    {doc.billingStatus === 'CANCELLED' && canReopenAnnulledOrder(doc) && (
-                      <button
-                        type="button"
-                        onClick={(e) => handleReopenOrder(doc, e)}
-                        disabled={reopening && reopeningDocId === doc.id}
-                        title="Reaperturar orden: revierte pagos en caja y deja la orden en proceso"
-                        style={{
-                          padding: '0.625rem 1rem',
-                          fontSize: '0.8125rem',
-                          fontWeight: 600,
-                          color: 'white',
-                          background: reopening && reopeningDocId === doc.id ? '#94a3b8' : '#d97706',
-                          border: 'none',
-                          borderRadius: '8px',
-                          cursor: reopening && reopeningDocId === doc.id ? 'not-allowed' : 'pointer',
-                          transition: 'all 0.2s',
-                          minHeight: '40px',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!(reopening && reopeningDocId === doc.id)) {
-                            e.currentTarget.style.background = '#b45309';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!(reopening && reopeningDocId === doc.id)) {
-                            e.currentTarget.style.background = '#d97706';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                          }
-                        }}
-                      >
-                        {reopening && reopeningDocId === doc.id ? '…' : 'Reaperturar orden'}
-                      </button>
-                    )}
-                    {doc.billingStatus === 'CANCELLED' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDocumentToConvert(doc);
-                          setShowConvertModal(true);
-                        }}
-                        style={{
-                          padding: '0.625rem 1rem',
-                          fontSize: '0.8125rem',
-                          fontWeight: 600,
-                          color: 'white',
-                          background: '#8b5cf6', // Violeta
-                          border: 'none',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          minHeight: '40px',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#7c3aed';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = '#8b5cf6';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                        }}
-                        title="Convertir a otro documento"
-                      >
-                        Convertir
-                      </button>
-                    )}
-                    <div style={{ fontSize: '1.375rem', color: '#64748b', marginLeft: '0.25rem' }} aria-hidden="true">
-                      {isExpanded ? '▼' : '▶'}
-                    </div>
-                  </div>
+                    {printMessage?.text || reopenMessage?.text}
                 </div>
-              </div>
-
-              {/* Detalles expandidos */}
-              {isExpanded && (
-                <div style={{ padding: tableCellPadding, background: '#f8fafc', borderTop: '1px solid #e5e7eb' }}>
-                  {/* Items del documento */}
-                  <div style={{ marginBottom: '1rem' }}>
-                    <h4 style={{
-                      fontSize: tableFontSize,
-                      fontWeight: 600,
-                      color: '#1e293b',
-                      marginBottom: '0.75rem'
-                    }}>
-                      Productos/Servicios
-                    </h4>
-                    <div style={{
-                      background: 'white',
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                      border: '1px solid #e5e7eb'
-                    }}>
-                      {!isXs ? (
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: tableFontSize }}>
-                          <thead>
-                            <tr style={{ background: '#f9fafb' }}>
-                              <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Código</th>
-                              <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Producto</th>
-                              <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Cantidad</th>
-                              <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Precio Unit.</th>
-                              <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {doc.items.map((item) => (
-                              <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                <td style={{ padding: tableCellPadding, color: '#64748b' }}>{item.operationDetail?.product?.code || '-'}</td>
-                                <td style={{ padding: tableCellPadding, color: '#1e293b' }}>
-                                  {item.operationDetail?.product?.name || '-'}
-                                  {item.notes && <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>{item.notes}</div>}
-                                </td>
-                                <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>{item.quantity}</td>
-                                <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>{currencyFormatter.format(item.unitPrice)}</td>
-                                <td style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>{currencyFormatter.format(item.total)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr style={{ background: '#f9fafb', borderTop: '2px solid #e5e7eb' }}>
-                              <td colSpan={4} style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#374151' }}>Subtotal:</td>
-                              <td style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>{currencyFormatter.format(doc.totalAmount - doc.igvAmount)}</td>
-                            </tr>
-                            {doc.totalDiscount > 0 && (
-                              <tr>
-                                <td colSpan={4} style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>Descuento:</td>
-                                <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>{discountSummary ?? currencyFormatter.format(doc.totalDiscount)}</td>
-                              </tr>
-                            )}
-                            <tr>
-                              <td colSpan={4} style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>IGV:</td>
-                              <td style={{ padding: tableCellPadding, textAlign: 'right', color: '#64748b' }}>{currencyFormatter.format(doc.igvAmount)}</td>
-                            </tr>
-                            <tr style={{ background: '#f9fafb', borderTop: '2px solid #e5e7eb' }}>
-                              <td colSpan={4} style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#374151' }}>Total:</td>
-                              <td style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 700, color: '#1e293b', fontSize: '1.125rem' }}>{currencyFormatter.format(doc.totalAmount)}</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          {doc.items.map((item) => (
-                            <div key={item.id} style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                                <span style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.85rem' }}>{item.operationDetail?.product?.name}</span>
-                                <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.85rem' }}>{currencyFormatter.format(item.total)}</span>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b' }}>
-                                <span>{item.quantity} x {currencyFormatter.format(item.unitPrice)}</span>
-                                <span>{item.operationDetail?.product?.code}</span>
-                              </div>
-                            </div>
-                          ))}
-                          <div style={{ padding: '0.75rem', backgroundColor: '#f9fafb', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b' }}>
-                              <span>Subtotal:</span>
-                              <span>{currencyFormatter.format(doc.totalAmount - doc.igvAmount)}</span>
-                            </div>
-                            {doc.totalDiscount > 0 && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#b45309' }}>
-                                <span>Descuento:</span>
-                                <span>{discountSummary ?? currencyFormatter.format(doc.totalDiscount)}</span>
-                              </div>
-                            )}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b' }}>
-                              <span>IGV:</span>
-                              <span>{currencyFormatter.format(doc.igvAmount)}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 800, color: '#1e293b', marginTop: '0.25rem', paddingTop: '0.25rem', borderTop: '1px solid #e2e8f0' }}>
-                              <span>TOTAL:</span>
-                              <span>{currencyFormatter.format(doc.totalAmount)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Pagos del documento */}
-                  {doc.payments.length > 0 && (
-                    <div>
-                      <h4 style={{
-                        fontSize: tableFontSize,
-                        fontWeight: 600,
-                        color: '#1e293b',
-                        marginBottom: '0.75rem'
-                      }}>
-                        Pagos
-                      </h4>
-                      <div style={{
-                        background: 'white',
-                        borderRadius: '8px',
-                        overflow: 'hidden',
-                        border: '1px solid #e5e7eb'
-                      }}>
-                        {!isXs ? (
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: tableFontSize }}>
-                            <thead>
-                              <tr style={{ background: '#f9fafb' }}>
-                                <th style={{ padding: tableCellPadding, textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                                  Método
-                                </th>
-                                <th style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                                  Monto
-                                </th>
-                                <th style={{ padding: tableCellPadding, textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                                  Fecha
-                                </th>
-                                <th style={{ padding: tableCellPadding, textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
-                                  Estado
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {doc.payments.map((payment) => {
-                                const color = getPaymentMethodColor(payment.paymentMethod);
-                                return (
-                                  <tr key={payment.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                    <td style={{ padding: tableCellPadding }}>
-                                      <span
-                                        style={{
-                                          fontSize: badgeFontSize,
-                                          padding: '0.25rem 0.5rem',
-                                          borderRadius: '4px',
-                                          background: color.bg,
-                                          color: color.text,
-                                          fontWeight: 500
-                                        }}
-                                      >
-                                        {getPaymentMethodName(payment.paymentMethod)}
-                                      </span>
-                                    </td>
-                                    <td style={{ padding: tableCellPadding, textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>
-                                      {currencyFormatter.format(payment.paidAmount)}
-                                    </td>
-                                    <td style={{ padding: tableCellPadding, color: '#64748b' }}>
-                                      {dateFormatter.format(new Date(payment.paymentDate))}
-                                    </td>
-                                    <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
-                                      <span
-                                        style={{
-                                          fontSize: badgeFontSize,
-                                          padding: '0.25rem 0.5rem',
-                                          borderRadius: '4px',
-                                          background: payment.status === 'PAID' ? '#dcfce7' : '#fee2e2',
-                                          color: payment.status === 'PAID' ? '#166534' : '#991b1b',
-                                          fontWeight: 500
-                                        }}
-                                      >
-                                        {payment.status === 'PAID' ? 'Pagado' : payment.status}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            {doc.payments.map((payment) => {
-                              const color = getPaymentMethodColor(payment.paymentMethod);
-                              return (
-                                <div key={payment.id} style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                    <span
-                                      style={{
-                                        fontSize: '0.7rem',
-                                        padding: '0.125rem 0.4rem',
-                                        borderRadius: '4px',
-                                        background: color.bg,
-                                        color: color.text,
-                                        fontWeight: 600,
-                                        width: 'fit-content'
-                                      }}
-                                    >
-                                      {getPaymentMethodName(payment.paymentMethod)}
-                                    </span>
-                                    <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                                      {dateFormatter.format(new Date(payment.paymentDate))}
-                                    </span>
-                                  </div>
-                                  <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.85rem' }}>
-                                    {currencyFormatter.format(payment.paidAmount)}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Notas */}
-                  {doc.notes && (
-                    <div style={{ marginTop: '1rem', padding: tableCellPadding, background: '#fffbeb', borderRadius: '8px', border: '1px solid #fde68a' }}>
-                      <div style={{ fontSize: tableFontSize, fontWeight: 600, color: '#92400e', marginBottom: '0.5rem' }}>
-                        Notas:
-                      </div>
-                      <div style={{ fontSize: tableFontSize, color: '#78350f' }}>
-                        {doc.notes}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Footer con contador */}
-      <div style={{
-        marginTop: '1.5rem',
-        paddingTop: '1rem',
-        borderTop: '1px solid #e5e7eb',
-        textAlign: 'center',
-        fontSize: tableFontSize,
-        color: '#64748b'
-      }}>
-        Mostrando {filteredDocuments.length} de {localDocuments.length} documento(s)
-      </div>
-
-      {/* Modal de cancelación */}
-      {showCancelModal && selectedDocument && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem'
-          }}
-          onClick={() => setShowCancelModal(false)}
-        >
-          <div
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '16px',
-              padding: cardPadding,
-              maxWidth: isSmallDesktop ? '90%' : isMediumDesktop ? '550px' : '600px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              border: '1px solid #e2e8f0'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ marginBottom: '1.5rem' }}>
-              <div style={{
-                fontSize: '2.5rem',
-                textAlign: 'center',
-                marginBottom: '1rem'
-              }}>
-                ⚠️
-              </div>
-              <h3 style={{
-                margin: '0 0 0.5rem',
-                fontSize: isSmallDesktop ? '1.125rem' : isMediumDesktop ? '1.25rem' : '1.5rem',
-                fontWeight: 700,
-                color: '#1e293b',
-                textAlign: 'center'
-              }}>
-                Cancelar Documento
-              </h3>
-              <p style={{
-                margin: 0,
-                fontSize: inputFontSize,
-                color: '#64748b',
-                textAlign: 'center',
-                lineHeight: '1.5'
-              }}>
-                {selectedDocument.document.description} {selectedDocument.serial}-{selectedDocument.number}
-              </p>
-            </div>
-
-            {/* Mensaje de éxito/error */}
-            {cancelMessage && (
-              <div
-                style={{
-                  padding: '0.875rem 1rem',
-                  borderRadius: '8px',
-                  marginBottom: '1.5rem',
-                  background: cancelMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
-                  border: `1px solid ${cancelMessage.type === 'success' ? '#86efac' : '#fca5a5'}`,
-                  color: cancelMessage.type === 'success' ? '#166534' : '#991b1b',
-                  fontSize: inputFontSize,
-                }}
-              >
-                {cancelMessage.text}
-              </div>
             )}
 
-            {/* Formulario de cancelación */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div>
-                <label
-                  htmlFor="cancellationReason"
-                  style={{
-                    display: 'block',
-                    fontSize: inputFontSize,
-                    fontWeight: 600,
-                    color: '#374151',
-                    marginBottom: '0.5rem',
-                  }}
-                >
-                  Motivo de Cancelación *
-                </label>
-                <select
-                  id="cancellationReason"
-                  value={cancellationReason}
-                  onChange={(e) => setCancellationReason(e.target.value)}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.625rem 0.875rem',
-                    fontSize: inputFontSize,
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    transition: 'border-color 0.2s',
-                    background: 'white',
-                    cursor: 'pointer',
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-                >
-                  <option value="">Seleccionar motivo</option>
-                  {cancellationReasons.map((reason) => (
-                    <option key={reason.code} value={reason.code}>
-                      {reason.code} - {reason.description}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="flex flex-col gap-4">
+                {localDocuments.map((doc) => {
+                    const isExpanded = expandedDocument === doc.id;
+                    const status = getBillingStatusInfo(doc.billingStatus);
+                    const discountSummary = formatSalesDiscountSummary(doc);
 
-              <div>
-                <label
-                  htmlFor="cancellationDescription"
-                  style={{
-                    display: 'block',
-                    fontSize: inputFontSize,
-                    fontWeight: 600,
-                    color: '#374151',
-                    marginBottom: '0.5rem',
-                  }}
-                >
-                  Descripción (Opcional)
-                </label>
-                <textarea
-                  id="cancellationDescription"
-                  value={cancellationDescription}
-                  onChange={(e) => setCancellationDescription(e.target.value)}
-                  placeholder="Ingresa una descripción adicional sobre la cancelación..."
-                  rows={4}
-                  style={{
-                    width: '100%',
-                    padding: '0.625rem 0.875rem',
-                    fontSize: inputFontSize,
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    transition: 'border-color 0.2s',
-                    fontFamily: 'inherit',
-                    resize: 'vertical',
-                    boxSizing: 'border-box',
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-                />
-              </div>
+                    return (
+                        <div
+                            key={doc.id}
+                            onClick={() =>
+                                setExpandedDocument(isExpanded ? null : doc.id)
+                            }
+                            className={`group flex flex-col overflow-hidden rounded-[24px] border transition-all cursor-pointer ${
+                                isExpanded
+                                    ? "border-indigo-200 bg-indigo-50/20 shadow-lg shadow-indigo-100 dark:border-indigo-900/30 dark:bg-indigo-900/10 dark:shadow-none"
+                                    : "border-slate-100 bg-white hover:border-indigo-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+                            }`}
+                        >
+                            {/* Card Header */}
+                            <div className="flex flex-col p-5 sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <div className="flex items-start gap-4">
+                                    <div
+                                        className={`flex h-12 w-12 items-center justify-center rounded-2xl font-black ${
+                                            doc.document.code === "01"
+                                                ? "bg-amber-100 text-amber-600"
+                                                : "bg-indigo-100 text-indigo-600"
+                                        }`}
+                                    >
+                                        {doc.document.code}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg font-black text-slate-800 dark:text-slate-100">
+                                                {doc.serial}-{doc.number}
+                                            </span>
+                                            <div
+                                                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${status.bg} ${status.color}`}
+                                            >
+                                                <span
+                                                    className={`h-1.5 w-1.5 rounded-full ${status.dot}`}
+                                                />
+                                                {status.label}
+                                            </div>
+                                        </div>
+                                        <span className="text-xs font-bold text-slate-400">
+                                            {dateFormatter.format(
+                                                parseLocalEmissionDateTime(
+                                                    doc.emissionDate,
+                                                    doc.emissionTime,
+                                                ),
+                                            )}
+                                            {doc.person &&
+                                                ` • 👤 ${doc.person.name}`}
+                                        </span>
+                                    </div>
+                                </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-                <button
-                  onClick={() => {
-                    setShowCancelModal(false);
-                    setSelectedDocument(null);
-                    setCancellationReason('');
-                    setCancellationDescription('');
-                    setCancelMessage(null);
-                  }}
-                  disabled={canceling}
-                  style={{
-                    padding: '0.625rem 1.25rem',
-                    fontSize: inputFontSize,
-                    fontWeight: 600,
-                    color: '#64748b',
-                    background: '#f1f5f9',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: canceling ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!canceling) {
-                      e.currentTarget.style.background = '#e2e8f0';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!canceling) {
-                      e.currentTarget.style.background = '#f1f5f9';
-                    }
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleCancelDocument}
-                  disabled={canceling || !cancellationReason}
-                  style={{
-                    padding: '0.625rem 1.25rem',
-                    fontSize: inputFontSize,
-                    fontWeight: 600,
-                    color: 'white',
-                    background: canceling || !cancellationReason
-                      ? '#9ca3af'
-                      : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: canceling || !cancellationReason ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s',
-                    boxShadow: canceling || !cancellationReason
-                      ? 'none'
-                      : '0 4px 6px -1px rgba(239, 68, 68, 0.3)',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!canceling && cancellationReason) {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 12px -1px rgba(239, 68, 68, 0.4)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!canceling && cancellationReason) {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(239, 68, 68, 0.3)';
-                    }
-                  }}
-                >
-                  {canceling ? 'Cancelando...' : 'Confirmar Cancelación'}
-                </button>
-              </div>
+                                <div className="flex items-center justify-between sm:justify-end gap-6">
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-xl font-black text-slate-800 dark:text-slate-100">
+                                            {currencyFormatter.format(
+                                                doc.totalAmount,
+                                            )}
+                                        </span>
+                                        {discountSummary && (
+                                            <span className="text-[10px] font-black text-rose-500 uppercase">
+                                                Desc: {discountSummary}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        {isElectron && (
+                                            <button
+                                                onClick={(e) =>
+                                                    handleReprint(doc, e)
+                                                }
+                                                disabled={
+                                                    reprinting &&
+                                                    printingDocId === doc.id
+                                                }
+                                                className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition-all hover:bg-indigo-600 hover:text-white dark:bg-slate-800 dark:text-slate-400"
+                                            >
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    className={`h-5 w-5 ${reprinting && printingDocId === doc.id ? "animate-spin" : ""}`}
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth={2}
+                                                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        )}
+
+                                        {canCancelDocument(
+                                            doc.billingStatus,
+                                        ) && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedDocument(doc);
+                                                    setShowCancelModal(true);
+                                                }}
+                                                className="h-10 px-4 rounded-xl bg-rose-50 text-rose-600 text-xs font-black uppercase tracking-widest transition-all hover:bg-rose-600 hover:text-white dark:bg-rose-900/20"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        )}
+
+                                        {canReopenAnnulledOrder(doc) && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setReopeningDocId(doc.id);
+                                                    reopenOrderFromAnnulledDocument(
+                                                        {
+                                                            variables: {
+                                                                issuedDocumentId:
+                                                                    doc.id,
+                                                                userId: user!
+                                                                    .id,
+                                                            },
+                                                        },
+                                                    );
+                                                }}
+                                                disabled={
+                                                    reopening &&
+                                                    reopeningDocId === doc.id
+                                                }
+                                                className="h-10 px-4 rounded-xl bg-amber-50 text-amber-600 text-xs font-black uppercase tracking-widest transition-all hover:bg-amber-600 hover:text-white dark:bg-amber-900/20"
+                                            >
+                                                {reopening &&
+                                                reopeningDocId === doc.id
+                                                    ? "..."
+                                                    : "Reabrir"}
+                                            </button>
+                                        )}
+
+                                        {doc.billingStatus === "CANCELLED" && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setDocumentToConvert(doc);
+                                                    setShowConvertModal(true);
+                                                }}
+                                                className="h-10 px-4 rounded-xl bg-indigo-600 text-white text-xs font-black uppercase tracking-widest transition-all hover:bg-indigo-700"
+                                            >
+                                                Convertir
+                                            </button>
+                                        )}
+
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            className={`h-5 w-5 text-slate-300 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={3}
+                                                d="M19 9l-7 7-7-7"
+                                            />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Expanded Details */}
+                            {isExpanded && (
+                                <div className="border-t border-indigo-100 bg-white/50 p-6 dark:border-indigo-900/30 dark:bg-slate-900/50">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        {/* Items */}
+                                        <div className="flex flex-col gap-4">
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                Detalle de Productos
+                                            </h4>
+                                            <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead>
+                                                        <tr className="bg-slate-50/50 text-[9px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800/30">
+                                                            <th className="px-4 py-3">
+                                                                Producto
+                                                            </th>
+                                                            <th className="px-4 py-3 text-center">
+                                                                Cant.
+                                                            </th>
+                                                            <th className="px-4 py-3 text-right">
+                                                                Total
+                                                            </th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                                        {doc.items.map(
+                                                            (item) => (
+                                                                <tr
+                                                                    key={
+                                                                        item.id
+                                                                    }
+                                                                >
+                                                                    <td className="px-4 py-3">
+                                                                        <div className="flex flex-col">
+                                                                            <span className="font-bold text-slate-700 dark:text-slate-200">
+                                                                                {
+                                                                                    item
+                                                                                        .operationDetail
+                                                                                        ?.product
+                                                                                        ?.name
+                                                                                }
+                                                                            </span>
+                                                                            <span className="text-[10px] text-slate-400">
+                                                                                {
+                                                                                    item
+                                                                                        .operationDetail
+                                                                                        ?.product
+                                                                                        ?.code
+                                                                                }
+                                                                            </span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-center font-bold text-slate-500">
+                                                                        {
+                                                                            item.quantity
+                                                                        }
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-right font-black text-slate-700 dark:text-slate-200">
+                                                                        {currencyFormatter.format(
+                                                                            item.total,
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            ),
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        {/* Payments & Summary */}
+                                        <div className="flex flex-col gap-6">
+                                            <div className="flex flex-col gap-4">
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    Información de Pago
+                                                </h4>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    {doc.payments.map((p) => {
+                                                        const info =
+                                                            getPaymentMethodInfo(
+                                                                p.paymentMethod,
+                                                            );
+                                                        return (
+                                                            <div
+                                                                key={p.id}
+                                                                className={`flex items-center justify-between rounded-2xl border border-transparent p-4 ${info.bg}`}
+                                                            >
+                                                                <div className="flex flex-col">
+                                                                    <span
+                                                                        className={`text-[10px] font-black uppercase ${info.color}`}
+                                                                    >
+                                                                        {
+                                                                            info.label
+                                                                        }
+                                                                    </span>
+                                                                    <span className="text-[10px] font-bold text-slate-400 opacity-70">
+                                                                        {dateFormatter.format(
+                                                                            new Date(
+                                                                                p.paymentDate,
+                                                                            ),
+                                                                        )}
+                                                                    </span>
+                                                                </div>
+                                                                <span
+                                                                    className={`text-sm font-black ${info.color}`}
+                                                                >
+                                                                    {currencyFormatter.format(
+                                                                        p.paidAmount,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-auto flex flex-col gap-2 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/50">
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="font-bold text-slate-400">
+                                                        IGV (18%)
+                                                    </span>
+                                                    <span className="font-black text-slate-600 dark:text-slate-300">
+                                                        {currencyFormatter.format(
+                                                            doc.igvAmount,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between text-lg border-t border-slate-200 pt-2 dark:border-slate-700">
+                                                    <span className="font-black text-slate-800 dark:text-slate-100">
+                                                        TOTAL
+                                                    </span>
+                                                    <span className="font-black text-indigo-600 dark:text-indigo-400">
+                                                        {currencyFormatter.format(
+                                                            doc.totalAmount,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Modal de Conversión */}
-      {showConvertModal && documentToConvert && (
-        <ConvertDocumentModal
-          isOpen={showConvertModal}
-          onClose={() => {
-            setShowConvertModal(false);
-            setDocumentToConvert(null);
-          }}
-          annulledDocument={documentToConvert}
-          onSuccess={() => {
-            if (onRefetch) onRefetch();
-          }}
-        />
-      )}
-    </div>
-  );
+            {/* Cancel Modal */}
+            {showCancelModal && selectedDocument && (
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+                    onClick={() => setShowCancelModal(false)}
+                >
+                    <div
+                        className="w-full max-w-lg overflow-hidden rounded-[32px] bg-white shadow-2xl dark:bg-slate-900"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="bg-rose-500 p-8 text-white">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 mb-4">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-10 w-10"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                    />
+                                </svg>
+                            </div>
+                            <h3 className="text-2xl font-black">
+                                Cancelar Documento
+                            </h3>
+                            <p className="mt-1 text-sm font-bold opacity-80">
+                                {selectedDocument.document.description}{" "}
+                                {selectedDocument.serial}-
+                                {selectedDocument.number}
+                            </p>
+                        </div>
+
+                        <div className="p-8">
+                            {cancelMessage && (
+                                <div
+                                    className={`mb-6 p-4 rounded-2xl border text-sm font-bold ${cancelMessage.type === "success" ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-rose-50 text-rose-600 border-rose-100"}`}
+                                >
+                                    {cancelMessage.text}
+                                </div>
+                            )}
+
+                            <div className="flex flex-col gap-6">
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        Motivo de Cancelación
+                                    </label>
+                                    <select
+                                        value={cancellationReason}
+                                        onChange={(e) =>
+                                            setCancellationReason(
+                                                e.target.value,
+                                            )
+                                        }
+                                        className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-200"
+                                    >
+                                        <option value="">
+                                            Seleccionar motivo...
+                                        </option>
+                                        {cancellationReasonsList.map((r) => (
+                                            <option key={r.code} value={r.code}>
+                                                {r.code} - {r.description}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        Descripción (Opcional)
+                                    </label>
+                                    <textarea
+                                        value={cancellationDescription}
+                                        onChange={(e) =>
+                                            setCancellationDescription(
+                                                e.target.value,
+                                            )
+                                        }
+                                        rows={3}
+                                        placeholder="Detalles adicionales..."
+                                        className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-200"
+                                    />
+                                </div>
+
+                                <div className="flex gap-3 pt-2">
+                                    <button
+                                        onClick={() =>
+                                            setShowCancelModal(false)
+                                        }
+                                        className="flex-1 h-12 rounded-2xl bg-slate-100 text-xs font-black uppercase tracking-widest text-slate-500 transition-all hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                                    >
+                                        Regresar
+                                    </button>
+                                    <button
+                                        onClick={handleCancelDocument}
+                                        disabled={
+                                            canceling || !cancellationReason
+                                        }
+                                        className="flex-1 h-12 rounded-2xl bg-rose-500 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-rose-200 transition-all hover:bg-rose-600 disabled:opacity-50 dark:shadow-none"
+                                    >
+                                        {canceling ? "..." : "Anular Documento"}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Convert Modal */}
+            {showConvertModal && documentToConvert && (
+                <ConvertDocumentModal
+                    isOpen={showConvertModal}
+                    onClose={() => {
+                        setShowConvertModal(false);
+                        setDocumentToConvert(null);
+                    }}
+                    annulledDocument={documentToConvert}
+                    onSuccess={() => onRefetch?.()}
+                />
+            )}
+        </div>
+    );
 };
 
 export default ReportSaleList;

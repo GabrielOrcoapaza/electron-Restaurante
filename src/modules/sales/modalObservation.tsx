@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useResponsive } from "../../hooks/useResponsive";
 import VirtualKeyboard from "../../components/VirtualKeyboard";
 
 type Observation = {
@@ -28,11 +27,6 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
     currentNotes,
     canEdit,
 }) => {
-    const { breakpoint } = useResponsive();
-    const isSmall = breakpoint === "sm";
-    const isMedium = breakpoint === "md";
-    const isSmallDesktop = breakpoint === "lg";
-
     const [localSelected, setLocalSelected] = useState<Set<string>>(new Set());
     const [manualNotes, setManualNotes] = useState<string>("");
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -185,21 +179,7 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 
     if (!isOpen) return null;
 
-    const modalPadding = isSmall
-        ? "1rem"
-        : isMedium
-          ? "1.25rem"
-          : isSmallDesktop
-            ? "1.5rem"
-            : "2rem";
-    const modalMaxWidth = isSmall
-        ? "95%"
-        : isMedium
-          ? "580px"
-          : isSmallDesktop
-            ? "680px"
-            : "760px";
-    const titleFontSize = isSmall ? "1rem" : isMedium ? "1.125rem" : "1.25rem";
+    if (!isOpen) return null;
 
     const handleToggle = (observationId: string) => {
         if (!canEdit) return;

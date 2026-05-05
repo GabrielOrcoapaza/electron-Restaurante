@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_USERS_BY_BRANCH_LIGHT } from '../../graphql/queries';
 import { SET_USER_PERMISSIONS } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
-import { useResponsive } from '../../hooks/useResponsive';
 import EditUser from './editUser';
 import { getPermissionOptions } from '../../constants/permissionLabels';
+import { useToast } from '../../context/ToastContext';
 
 interface User {
   id: string;
@@ -22,55 +22,34 @@ interface User {
 
 const ListUser: React.FC = () => {
   const { companyData, user: currentUser } = useAuth();
+  const { showToast } = useToast();
   const isAdmin = (currentUser?.role || '').toUpperCase() === 'ADMIN';
-  const { breakpoint, isMobile, isXs } = useResponsive();
   const branchId = companyData?.branch?.id;
   
-  // Adaptar según tamaño de pantalla
-  const isSmall = breakpoint === 'sm' || isMobile; 
-  
-  // Tamaños adaptativos
-  const cardPadding = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
-  const tableFontSize = isXs ? '0.8rem' : isSmall ? '0.85rem' : '0.875rem';
-  const tableCellPadding = isXs ? '0.4rem' : isSmall ? '0.6rem' : '0.75rem';
-  const titleFontSize = isXs ? '1rem' : isSmall ? '1.1rem' : '1.25rem';
-  const badgeFontSize = isXs ? '0.65rem' : isSmall ? '0.7rem' : '0.75rem';
-
   const { data, loading, error, refetch } = useQuery(GET_USERS_BY_BRANCH_LIGHT, {
     variables: { branchId: branchId!, includeInactive: isAdmin },
     skip: !branchId,
     fetchPolicy: 'network-only',
-    onError: (err) => {
-      console.error('Error al cargar usuarios:', err);
-    },
-    onCompleted: (data) => {
-      console.log('Usuarios cargados:', data);
-    }
   });
 
   const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<User | null>(null);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
   const [selectedPermissionCodes, setSelectedPermissionCodes] = useState<Set<string>>(new Set());
-  const [permissionsMessage, setPermissionsMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const permissionOptions = getPermissionOptions();
 
   const [setUserPermissionsMutation, { loading: savingPermissions }] = useMutation(SET_USER_PERMISSIONS, {
     onCompleted: (res) => {
       const result = res?.setUserPermissions;
       if (result?.success) {
-        setPermissionsMessage({ type: 'success', text: result.message || 'Permisos actualizados' });
+        showToast(result.message || 'Permisos actualizados correctamente', 'success');
         refetch();
-        setTimeout(() => {
-          setSelectedUserForPermissions(null);
-          setSelectedPermissionCodes(new Set());
-          setPermissionsMessage(null);
-        }, 1500);
+        setSelectedUserForPermissions(null);
       } else {
-        setPermissionsMessage({ type: 'error', text: result?.message || 'Error al guardar' });
+        showToast(result?.message || 'Error al guardar permisos', 'error');
       }
     },
     onError: (err) => {
-      setPermissionsMessage({ type: 'error', text: err.message || 'Error de conexión' });
+      showToast(err.message || 'Error de conexión', 'error');
     }
   });
 
@@ -78,7 +57,6 @@ const ListUser: React.FC = () => {
     setSelectedUserForPermissions(u);
     const codes = Array.isArray(u.customPermissions) ? u.customPermissions : [];
     setSelectedPermissionCodes(new Set(codes));
-    setPermissionsMessage(null);
   };
 
   const togglePermission = (code: string) => {
@@ -100,17 +78,6 @@ const ListUser: React.FC = () => {
     });
   };
 
-  // Debug: Verificar valores
-  useEffect(() => {
-    console.log('ListUser - branchId:', branchId);
-    console.log('ListUser - companyData:', companyData);
-    console.log('ListUser - data:', data);
-    console.log('ListUser - loading:', loading);
-    console.log('ListUser - error:', error);
-  }, [branchId, companyData, data, loading, error]);
-
-  const users: User[] = data?.usersByBranch || [];
-
   const roles = [
     { value: 'ADMIN', label: 'Administrador' },
     { value: 'CASHIER', label: 'Cajero' },
@@ -118,224 +85,132 @@ const ListUser: React.FC = () => {
     { value: 'COOK', label: 'Cocinero' },
   ];
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'ADMIN': return { bg: '#fef3c7', color: '#d97706' };
-      case 'CASHIER': return { bg: '#dbeafe', color: '#2563eb' };
-      case 'WAITER': return { bg: '#dcfce7', color: '#16a34a' };
-      case 'COOK': return { bg: '#fce7f3', color: '#db2777' };
-      default: return { bg: '#f3f4f6', color: '#6b7280' };
-    }
-  };
-
   const getRoleLabel = (role: string) => {
     return roles.find(r => r.value === role)?.label || role;
   };
 
-  if (!branchId) {
-    return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: '#dc2626' }}>
-        No se encontró información de la sucursal. Por favor, inicia sesión nuevamente.
-      </div>
-    );
-  }
+  const getRoleBadgeStyles = (role: string) => {
+    switch (role) {
+      case 'ADMIN': return 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400';
+      case 'CASHIER': return 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400';
+      case 'WAITER': return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400';
+      case 'COOK': return 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400';
+      default: return 'bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
+    }
+  };
 
-  if (loading) {
-    return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
-        Cargando empleados...
-      </div>
-    );
-  }
+  if (!branchId) return null;
 
-  if (error) {
-    return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: '#dc2626' }}>
-        Error al cargar empleados: {error.message}
-        {error.graphQLErrors?.length > 0 && (
-          <div style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
-            {error.graphQLErrors.map((err, idx) => (
-              <div key={idx}>{err.message}</div>
-            ))}
+  const users: User[] = data?.usersByBranch || [];
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between px-2">
+        <h3 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100">
+          📋 Lista de Empleados
+          <span className="ml-2 text-xs font-mono font-black text-indigo-500 dark:text-indigo-400">
+            {users.length}
+          </span>
+        </h3>
+      </div>
+
+      <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-indigo-500/20 border-t-indigo-500" />
+            <p className="text-xs font-bold uppercase tracking-widest">Cargando empleados...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center text-rose-500">
+             <svg xmlns="http://www.w3.org/2000/svg" className="mb-4 h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm font-black">Error al cargar empleados</p>
+            <p className="mt-1 text-xs">{error.message}</p>
+          </div>
+        ) : users.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center text-slate-400">
+            <svg xmlns="http://www.w3.org/2000/svg" className="mb-4 h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <p className="text-sm font-bold uppercase tracking-widest">No hay empleados registrados</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:bg-slate-800/30 dark:text-slate-400">
+                  <th className="px-6 py-4">DNI</th>
+                  <th className="px-6 py-4">Nombre Completo</th>
+                  <th className="px-6 py-4">Contacto</th>
+                  <th className="px-6 py-4 text-center">Rol</th>
+                  <th className="px-6 py-4 text-center">Estado</th>
+                  {isAdmin && <th className="px-6 py-4 text-right">Acciones</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                {users.map((user) => (
+                  <tr key={user.id} className="group transition-colors hover:bg-slate-50/30 dark:hover:bg-slate-800/20">
+                    <td className="whitespace-nowrap px-6 py-4 font-mono text-slate-500 dark:text-slate-400">
+                      {user.dni}
+                    </td>
+                    <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">
+                      {user.fullName}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium text-slate-600 dark:text-slate-400">{user.email}</span>
+                        <span className="text-[10px] text-slate-400">{user.phone || '—'}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${getRoleBadgeStyles(user.role)}`}>
+                        <div className="h-1 w-1 rounded-full bg-current opacity-50" />
+                        {getRoleLabel(user.role)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+                        user.isActive 
+                          ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' 
+                          : 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400'
+                      }`}>
+                        {user.isActive ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+                    {isAdmin && (
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => setSelectedUserForEdit(user)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-all hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:hover:bg-slate-700"
+                            title="Editar Empleado"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button 
+                            onClick={() => openPermissionsModal(user)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-all hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:hover:bg-slate-700"
+                            title="Gestionar Permisos"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
-    );
-  }
 
-  return (
-    <div style={{
-      width: '100%',
-      maxWidth: '100%',
-      backgroundColor: 'white',
-      borderRadius: '16px',
-      padding: cardPadding,
-      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-      border: '1px solid #e2e8f0',
-      boxSizing: 'border-box'
-    }}>
-      <h3 style={{ 
-        margin: '0 0 1rem', 
-        fontSize: titleFontSize, 
-        fontWeight: 600, 
-        color: '#334155' 
-      }}>
-        📋 Lista de Empleados ({users.length})
-      </h3>
-      
-      {users.length === 0 ? (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: isSmall ? '2rem' : '3rem', 
-          color: '#64748b' 
-        }}>
-          <p style={{ fontSize: isSmall ? '0.875rem' : '1rem', margin: 0 }}>No hay empleados registrados</p>
-          <p style={{ fontSize: isSmall ? '0.75rem' : '0.875rem', margin: '0.5rem 0 0' }}>
-            Haz clic en "Nuevo Empleado" para agregar uno
-          </p>
-        </div>
-      ) : (
-        <div style={{ width: '100%' }}>
-          {!isSmall ? (
-            <div style={{ 
-              overflowX: 'auto',
-              width: '100%',
-              borderRadius: '8px',
-              border: '1px solid #f1f5f9',
-            }}>
-              <table style={{ 
-                width: '100%', 
-                borderCollapse: 'collapse',
-                fontSize: tableFontSize,
-              }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>DNI</th>
-                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Nombre</th>
-                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Email</th>
-                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Teléfono</th>
-                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Rol</th>
-                    <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Estado</th>
-                    {isAdmin && (
-                      <th style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b', fontWeight: 600 }}>Acciones</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => {
-                    const badgeColors = getRoleBadgeColor(user.role);
-                    return (
-                      <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155' }}>{user.dni}</td>
-                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#334155', fontWeight: 500 }}>{user.fullName}</td>
-                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b' }}>{user.email}</td>
-                        <td style={{ padding: tableCellPadding, textAlign: 'center', color: '#64748b' }}>{user.phone || '-'}</td>
-                        <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
-                          <span style={{
-                            padding: '0.25rem 0.75rem',
-                            borderRadius: '9999px',
-                            fontSize: badgeFontSize,
-                            fontWeight: 600,
-                            backgroundColor: badgeColors.bg,
-                            color: badgeColors.color
-                          }}>
-                            {getRoleLabel(user.role)}
-                          </span>
-                        </td>
-                        <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
-                          <span style={{
-                            padding: '0.25rem 0.75rem',
-                            borderRadius: '9999px',
-                            fontSize: badgeFontSize,
-                            fontWeight: 600,
-                            backgroundColor: user.isActive ? '#dcfce7' : '#fee2e2',
-                            color: user.isActive ? '#166534' : '#991b1b'
-                          }}>
-                            {user.isActive ? 'Activo' : 'Inactivo'}
-                          </span>
-                        </td>
-                        {isAdmin && (
-                          <td style={{ padding: tableCellPadding, textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                              <button onClick={() => setSelectedUserForEdit(user)} style={{ padding: '0.375rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, fontSize: badgeFontSize, cursor: 'pointer' }}>✏️ Editar</button>
-                              <button onClick={() => openPermissionsModal(user)} style={{ padding: '0.375rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, fontSize: badgeFontSize, cursor: 'pointer' }}>🔐 Permisos</button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {users.map((user) => {
-                const badgeColors = getRoleBadgeColor(user.role);
-                return (
-                  <div key={user.id} style={{ 
-                    padding: '1rem', 
-                    borderRadius: '12px', 
-                    border: '1px solid #e2e8f0', 
-                    backgroundColor: 'white',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                      <div>
-                        <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1rem' }}>{user.fullName}</div>
-                        <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.1rem' }}>DNI: {user.dni}</div>
-                      </div>
-                      <span style={{
-                        padding: '0.25rem 0.6rem',
-                        borderRadius: '9999px',
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        backgroundColor: badgeColors.bg,
-                        color: badgeColors.color
-                      }}>
-                        {getRoleLabel(user.role)}
-                      </span>
-                    </div>
-                    
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem', fontSize: '0.85rem' }}>
-                      <div style={{ color: '#64748b' }}>
-                        <strong>Email:</strong><br/>
-                        <span style={{ fontSize: '0.75rem', wordBreak: 'break-all' }}>{user.email}</span>
-                      </div>
-                      <div style={{ color: '#64748b' }}>
-                        <strong>Teléfono:</strong><br/>
-                        {user.phone || '-'}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '6px',
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        backgroundColor: user.isActive ? '#dcfce7' : '#fee2e2',
-                        color: user.isActive ? '#166534' : '#991b1b'
-                      }}>
-                        {user.isActive ? 'ACTIVO' : 'INACTIVO'}
-                      </span>
-                      
-                      {isAdmin && (
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button onClick={() => setSelectedUserForEdit(user)} style={{ padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer' }}>✏️</button>
-                          <button onClick={() => openPermissionsModal(user)} style={{ padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer' }}>🔐</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Modal Editar Usuario (solo ADMIN) */}
+      {/* Modal Editar Usuario */}
       {selectedUserForEdit && (
         <EditUser
           user={selectedUserForEdit}
@@ -347,121 +222,104 @@ const ListUser: React.FC = () => {
         />
       )}
 
-      {/* Modal Permisos (solo ADMIN) */}
+      {/* Modal Permisos */}
       {selectedUserForPermissions && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10000,
-            padding: '1rem'
-          }}
-          onClick={() => !savingPermissions && setSelectedUserForPermissions(null)}
-        >
-          <div
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '16px',
-              padding: cardPadding,
-              maxWidth: '480px',
-              width: '100%',
-              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
-              border: '1px solid #e2e8f0'
-            }}
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-300">
+          <div 
+            className="relative flex h-full max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-300 dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <h4 style={{ margin: '0 0 1rem', fontSize: titleFontSize, fontWeight: 700, color: '#1e293b' }}>
-              🔐 Permisos: {selectedUserForPermissions.fullName}
-            </h4>
-            <p style={{ margin: '0 0 1rem', fontSize: tableFontSize, color: '#64748b' }}>
-              Marca los permisos que tendrá este usuario. Sin marcar ninguno se usan los del rol.
-            </p>
-            {permissionsMessage && (
-              <div style={{
-                marginBottom: '1rem',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                backgroundColor: permissionsMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
-                color: permissionsMessage.type === 'success' ? '#166534' : '#991b1b',
-                fontSize: tableFontSize
-              }}>
-                {permissionsMessage.text}
-              </div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem', maxHeight: '50vh', overflowY: 'auto' }}>
-              {permissionOptions.map((perm) => (
-                <label
-                  key={perm.code}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '0.75rem',
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '8px',
-                    backgroundColor: selectedPermissionCodes.has(perm.code) ? '#eff6ff' : '#f8fafc',
-                    border: `1px solid ${selectedPermissionCodes.has(perm.code) ? '#93c5fd' : '#e2e8f0'}`,
-                    cursor: 'pointer'
-                  }}
+             {/* Header */}
+             <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-6 dark:border-slate-800/50 dark:bg-slate-800/20">
+                <div className="flex flex-col gap-1">
+                    <h3 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100">
+                        Gestionar Permisos
+                    </h3>
+                    <span className="text-xs font-bold text-indigo-500 dark:text-indigo-400">
+                        {selectedUserForPermissions.fullName}
+                    </span>
+                </div>
+                <button
+                    onClick={() => !savingPermissions && setSelectedUserForPermissions(null)}
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-600 dark:bg-slate-800 dark:text-slate-500 dark:hover:bg-slate-700"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedPermissionCodes.has(perm.code)}
-                    onChange={() => togglePermission(perm.code)}
-                    style={{ width: '1rem', height: '1rem', marginTop: '0.2rem', flexShrink: 0 }}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontWeight: 500, color: '#334155', fontSize: tableFontSize }}>{perm.label}</span>
-                    {perm.description && (
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
-                        {perm.description}
-                      </div>
-                    )}
-                  </div>
-                </label>
-              ))}
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              <button
-                type="button"
-                onClick={() => setSelectedUserForPermissions(null)}
-                disabled={savingPermissions}
-                style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: '8px',
-                  border: '1px solid #e2e8f0',
-                  backgroundColor: 'white',
-                  color: '#64748b',
-                  fontWeight: 600,
-                  cursor: savingPermissions ? 'not-allowed' : 'pointer',
-                  fontSize: tableFontSize
-                }}
-              >
-                Cerrar
-              </button>
-              <button
-                type="button"
-                onClick={savePermissions}
-                disabled={savingPermissions}
-                style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: savingPermissions ? '#94a3b8' : '#16a34a',
-                  color: 'white',
-                  fontWeight: 600,
-                  cursor: savingPermissions ? 'not-allowed' : 'pointer',
-                  fontSize: tableFontSize
-                }}
-              >
-                {savingPermissions ? 'Guardando...' : 'Guardar'}
-              </button>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="mb-6 flex items-start gap-4 rounded-2xl bg-amber-50/50 p-4 dark:bg-amber-900/10">
+                    <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-800/20 dark:text-amber-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <p className="text-xs font-medium leading-relaxed text-amber-700 dark:text-amber-400">
+                        Marca los permisos específicos que tendrá este usuario. Si no marcas ninguno, se utilizarán los permisos predeterminados de su rol ({getRoleLabel(selectedUserForPermissions.role)}).
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                    {permissionOptions.map((perm) => (
+                        <label
+                            key={perm.code}
+                            className={`flex cursor-pointer items-start gap-4 rounded-2xl border p-4 transition-all hover:bg-slate-50/50 dark:hover:bg-slate-800/30 ${
+                                selectedPermissionCodes.has(perm.code)
+                                    ? 'border-indigo-100 bg-indigo-50/30 ring-1 ring-indigo-500/10 dark:border-indigo-900/30 dark:bg-indigo-900/10'
+                                    : 'border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900'
+                            }`}
+                        >
+                            <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
+                                <input
+                                    type="checkbox"
+                                    checked={selectedPermissionCodes.has(perm.code)}
+                                    onChange={() => togglePermission(perm.code)}
+                                    className="h-5 w-5 rounded-lg border-slate-200 text-indigo-600 transition-all focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800"
+                                />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-sm font-black text-slate-700 dark:text-slate-200">{perm.label}</span>
+                                {perm.description && (
+                                    <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                                        {perm.description}
+                                    </span>
+                                )}
+                            </div>
+                        </label>
+                    ))}
+                </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/50 p-6 dark:border-slate-800/50 dark:bg-slate-800/20">
+                <button
+                    type="button"
+                    onClick={() => setSelectedUserForPermissions(null)}
+                    disabled={savingPermissions}
+                    className="rounded-2xl bg-white px-6 py-2.5 text-sm font-black text-slate-500 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+                >
+                    Cerrar
+                </button>
+                <button
+                    type="button"
+                    onClick={savePermissions}
+                    disabled={savingPermissions}
+                    className="flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-8 py-2.5 text-sm font-black text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-700 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
+                >
+                    {savingPermissions ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    ) : (
+                        <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                            </svg>
+                            <span>Guardar Permisos</span>
+                        </>
+                    )}
+                </button>
             </div>
           </div>
         </div>
@@ -471,4 +329,3 @@ const ListUser: React.FC = () => {
 };
 
 export default ListUser;
-

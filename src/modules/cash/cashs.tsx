@@ -1,9 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation, useApolloClient } from "@apollo/client";
+import React, { useState } from "react";
+import { useQuery, useMutation } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
-import { useUserPermissions } from "../../hooks/useUserPermissions";
-import { useToast } from "../../context/ToastContext";
-import { useResponsive } from "../../hooks/useResponsive";
 import {
     GET_CASH_REGISTERS,
     GET_CASH_CLOSURE_PREVIEW,
@@ -18,7 +15,11 @@ import {
     UPDATE_PAYMENT_METHOD,
 } from "../../graphql/mutations";
 import ManualTransactionModal from "./manualTransactionModal";
-import CashDetailModal, { type CashClosureForDetail } from "./cashDetailModal";
+import CashDetailModal from "./cashDetailModal";
+import { useToast } from "../../context/ToastContext";
+import { isElectronRenderer } from "../../utils/electronPrint";
+
+const isElectron = isElectronRenderer();
 
 interface CashRegister {
     id: string;
@@ -26,78 +27,35 @@ interface CashRegister {
     cashType: string;
     currentBalance: number;
     isActive: boolean;
+    status?: string;
 }
 
-interface UserSummary {
-    userId: string;
-    userName: string;
-    userRole: string;
+interface CashPreview {
     totalIncome: number;
     totalExpense: number;
     netTotal: number;
-    paymentsCount: number;
-    operationsCount: number;
-    dishesCount: number;
-    hasOccupiedTables: boolean;
-    occupiedTablesCount: number;
-    occupiedTablesNames: string[];
+    generalPaymentMethods: {
+        methodCode: string;
+        methodName: string;
+        income: number;
+        expense: number;
+        net: number;
+    }[];
     canClose: boolean;
-    paymentMethods: PaymentMethodDetail[];
-}
-
-interface PaymentMethodDetail {
-    methodCode: string;
-    methodName: string;
-    income: number;
-    expense: number;
-    net: number;
-}
-
-interface ClosureWarning {
-    type: string;
-    message: string;
-}
-
-interface CashClosurePreview {
-    branchId: string;
-    branchName: string;
-    cashRegisterId: string;
-    cashRegisterName: string;
-    nextClosureNumber: number;
-    totalPaymentsPending: number;
-    totalIncome: number;
-    totalExpense: number;
-    netTotal: number;
-    canClose: boolean;
-    previewDate: string;
-    usersSummary: UserSummary[];
-    generalPaymentMethods: PaymentMethodDetail[];
-    warnings: ClosureWarning[];
 }
 
 interface CashClosure {
     id: string;
     closureNumber: number;
     closedAt: string;
+    openedAt?: string;
     totalIncome: number;
     totalExpense: number;
     netTotal: number;
-    user: {
-        id: string;
-        fullName: string;
-        role: string;
-    };
-    cashRegister: {
-        id: string;
-        name: string;
-        cashType: string;
-    };
-    branch: {
-        id: string;
-        name: string;
-    };
+    user: { id: string; fullName: string; role: string };
+    cashRegister: { id: string; name: string; cashType: string };
+    branch: { id: string; name: string };
 }
-
 interface PaymentMovement {
     id: string;
     paymentDate: string;
@@ -115,234 +73,148 @@ interface PaymentMovement {
 const currencyFormatter = new Intl.NumberFormat("es-PE", {
     style: "currency",
     currency: "PEN",
-    minimumFractionDigits: 2,
 });
 
-/** Coincide con valid_methods en UpdatePaymentMethodMutation (Django). */
-const EDITABLE_PAYMENT_METHOD_CODES = [
-    "CASH",
-    "YAPE",
-    "PLIN",
-    "CARD",
-    "TRANSFER",
-    "OTROS",
-] as const;
+
+const formatLocalDateYYYYMMDD = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("es-PE", {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+};
 
 const Cashs: React.FC = () => {
-    const apolloClient = useApolloClient();
     const { companyData, user, getMacAddress } = useAuth();
-    const { hasPermission } = useUserPermissions();
     const { showToast } = useToast();
-    const { breakpoint, isXs } = useResponsive();
-    const branchId = companyData?.branch?.id;
+    const branchId = companyData?.branch?.id || "";
+    const userId = user?.id || "";
 
-    // Adaptar según tamaño de pantalla
-    const isSmall = breakpoint === "sm"; // 640px - 767px
-    const isMedium = breakpoint === "md"; // 768px - 1023px
-    const isSmallDesktop = breakpoint === "lg"; // 1024px - 1279px
+    const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+    const [selectedRegister, setSelectedRegister] =
+        useState<CashRegister | null>(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [selectedClosureDetail, setSelectedClosureDetail] =
+        useState<CashClosure | null>(null);
+    const [reprintingClosureId, setReprintingClosureId] = useState<
+        string | null
+    >(null);
+    const [showMovements, setShowMovements] = useState(true);
+    const [showHistory, setShowHistory] = useState(true);
 
-    // Tamaños adaptativos
-    const containerPadding = isXs
-        ? "0.75rem"
-        : isSmall
-          ? "1rem"
-          : isMedium
-            ? "1.25rem"
-            : "2rem";
-    const cardPadding = isXs ? "0.875rem" : isSmall ? "1rem" : "1.5rem";
-    const titleFontSize = isXs ? "1.1rem" : isSmall ? "1.25rem" : "1.75rem";
-    const subtitleFontSize = isXs ? "0.7rem" : isSmall ? "0.75rem" : "0.875rem";
-    const sectionTitleFontSize = isXs
-        ? "0.9rem"
-        : isSmall
-          ? "0.9375rem"
-          : "1.125rem";
-    const gridGap = isXs ? "0.75rem" : isSmall ? "0.75rem" : "1.5rem";
-    const statCardMinWidth = isXs ? "140px" : "180px";
-    const cashCardMinWidth = isXs ? "100%" : "260px";
-    const buttonPadding = isXs
-        ? "0.5rem 0.75rem"
-        : isSmall
-          ? "0.5rem 0.875rem"
-          : "0.75rem 1.5rem";
-    const buttonFontSize = isXs ? "0.75rem" : isSmall ? "0.75rem" : "0.875rem";
-
-    const [selectedCashRegister, setSelectedCashRegister] =
-        useState<string>("");
-    const [showPreview, setShowPreview] = useState(false);
-    const [showHistory, setShowHistory] = useState(false);
-    const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [showManualTransactionModal, setShowManualTransactionModal] =
-        useState(false);
-    const [salesTotalsByRegister, setSalesTotalsByRegister] = useState<
-        Record<string, number>
-    >({});
-    // Filtro de fechas para historial de cierres (YYYY-MM-DD; vacío = sin filtro)
-    const [closureFilterStart, setClosureFilterStart] = useState<string>("");
-    const [closureFilterEnd, setClosureFilterEnd] = useState<string>("");
-    // Mostrar/ocultar bloque de cajas en gestión de cajas
-    const [summaryVisible, setSummaryVisible] = useState<{ cajas: boolean }>({
-        cajas: true,
-    });
-    // Mostrar/ocultar movimientos de caja en el preview
-    const [showMovements, setShowMovements] = useState(false);
-    // Mostrar/ocultar totales generales en el preview
-    const [showTotalesGenerales, setShowTotalesGenerales] = useState(true);
-    // Modal de detalle de cierre (al hacer clic en una fila del historial)
-    const [selectedClosureForDetail, setSelectedClosureForDetail] =
-        useState<CashClosureForDetail | null>(null);
-
-    const roleUpper = (user?.role || "").toUpperCase();
-    const isAdminUser = roleUpper === "ADMIN";
-    const canCloseCashRegister = isAdminUser || hasPermission("sales.close");
-    const canRegisterManualMovements =
-        isAdminUser ||
-        hasPermission("cash.register_movements") ||
-        canCloseCashRegister;
-    const canChangeManualPaymentMethod =
-        isAdminUser ||
-        hasPermission("cash.change_payment_method") ||
-        canCloseCashRegister;
-    /** Debe coincidir con UpdatePaymentMethodMutation en Django (cash.change_payment_method). */
-    const canEditPaymentMethodInMovementsList =
-        isAdminUser || hasPermission("cash.change_payment_method");
-    const canVoidManualMovementInList =
-        isAdminUser ||
-        hasPermission("cash.view") ||
-        hasPermission("cash.void") ||
-        canCloseCashRegister;
-    const canOpenClosePreview =
-        canCloseCashRegister || canRegisterManualMovements;
-
-    // Query para obtener cajas
+    // Queries
     const {
-        data: cashRegistersData,
-        loading: cashRegistersLoading,
-        refetch: refetchCashRegisters,
+        data: registersData,
+        loading: loadingRegisters,
+        refetch: refetchRegisters,
     } = useQuery(GET_CASH_REGISTERS, {
-        variables: { branchId: branchId! },
+        variables: { branchId },
         skip: !branchId,
         fetchPolicy: "network-only",
     });
 
-    // Query para obtener preview de cierre
     const {
         data: previewData,
-        loading: previewLoading,
+        loading: loadingPreview,
         refetch: refetchPreview,
     } = useQuery(GET_CASH_CLOSURE_PREVIEW, {
-        variables: {
-            branchId: branchId!,
-            cashRegisterId: selectedCashRegister,
-            userId: selectedUserId,
-        },
-        skip: !branchId || !selectedCashRegister || !showPreview,
+        variables: { branchId, cashRegisterId: selectedRegister?.id || "" },
+        skip: !branchId || !selectedRegister,
         fetchPolicy: "network-only",
     });
 
-    // Query para obtener historial de cierres (con filtro de fechas opcional)
     const {
-        data: closuresData,
-        loading: closuresLoading,
-        error: closuresError,
-        refetch: refetchClosures,
+        data: historyData,
+        loading: loadingHistory,
+        refetch: refetchHistory,
     } = useQuery(GET_CASH_CLOSURES, {
-        variables: {
-            branchId: branchId!,
-            userId: null,
-            startDate: closureFilterStart || null,
-            endDate: closureFilterEnd || null,
-        },
+        variables: { branchId, limit: 10 },
         skip: !branchId,
         fetchPolicy: "network-only",
-        onCompleted: (data) => {
-            console.log("📜 Datos de cierres recibidos:", data);
-            console.log("📜 Cierres:", data?.cashClosures);
-        },
-        onError: (error) => {
-            console.error("❌ Error al cargar cierres:", error);
-        },
     });
 
     // Pagos pendientes: al abrir preview (total ventas sin manual) y para la tabla de movimientos
     const {
         data: movementsData,
-        loading: movementsLoading,
         refetch: refetchMovements,
     } = useQuery(GET_PAYMENTS_PENDING_CLOSURE, {
         variables: {
-            cashRegisterId: selectedCashRegister,
+            cashRegisterId: selectedRegister?.id,
             transactionType: null,
             paymentMethod: null,
         },
-        skip: !selectedCashRegister || !showPreview,
+        skip: !selectedRegister,
         fetchPolicy: "network-only",
     });
-
-    // Mutación para reimprimir cierre (usada al cerrar caja y para cierres anteriores)
-    const [reprintClosureMutation, { loading: reprintingClosure }] =
-        useMutation(REPRINT_CLOSURE);
-    const [reprintingClosureId, setReprintingClosureId] = useState<
-        string | null
-    >(null);
-
-    // Mutación para imprimir movimiento de caja individual
+    // Mutations
+    const [closeCashRegister] = useMutation(CLOSE_CASH);
+    const [reprintClosureMutation] = useMutation(REPRINT_CLOSURE);
     const [printPaymentMutation] = useMutation(PRINT_PAYMENT);
-    const [printingPaymentId, setPrintingPaymentId] = useState<string | null>(
-        null,
-    );
-
     const [cancelPaymentMutation] = useMutation(CANCEL_PAYMENT);
-    const [cancelingPaymentId, setCancelingPaymentId] = useState<string | null>(
-        null,
-    );
     const [updatePaymentMethodMutation] = useMutation(UPDATE_PAYMENT_METHOD);
-    const [updatingPaymentMethodId, setUpdatingPaymentMethodId] = useState<
-        string | null
-    >(null);
 
-    const handleReprintClosure = async (closure: CashClosure) => {
+    const cashRegisters: CashRegister[] =
+        registersData?.cashRegistersByBranch || [];
+    const preview: CashPreview | null = previewData?.cashClosurePreview || null;
+    const history: CashClosure[] =
+        historyData?.cashClosures || historyData?.cash_closures || [];
+    const movements: PaymentMovement[] =
+        movementsData?.paymentsPendingClosure ||
+        movementsData?.payments_pending_closure ||
+        [];
+    const handleCloseRegister = async (registerId: string) => {
+        if (!window.confirm("¿Está seguro de que desea cerrar esta caja?"))
+            return;
         try {
-            const mac = await getMacAddress();
-            if (!mac) {
+            const deviceId = await getMacAddress();
+            const result = await closeCashRegister({
+                variables: {
+                    cashRegisterId: registerId,
+                    userId,
+                    branchId,
+                    deviceId,
+                },
+            });
+            if (result.data?.closeCash?.success) {
+                showToast("Caja cerrada correctamente", "success");
+                refetchRegisters();
+                refetchHistory();
+                setSelectedRegister(null);
+            } else {
                 showToast(
-                    "No se pudo obtener la MAC de la PC. Intenta de nuevo.",
+                    result.data?.closeCash?.message ||
+                        "Error al cerrar la caja",
                     "error",
                 );
-                return;
             }
-            setReprintingClosureId(closure.id);
+        } catch (error: any) {
+            showToast(error.message || "Error al cerrar la caja", "error");
+        }
+    };
+
+    const handleReprint = async (closure: CashClosure) => {
+        setReprintingClosureId(closure.id);
+        try {
             const result = await reprintClosureMutation({
-                variables: { closureId: closure.id, deviceId: mac },
+                variables: {
+                    closureId: closure.id,
+                    deviceId: await getMacAddress(),
+                },
             });
-            const data = result.data?.reprintClosure;
-            if (data?.success) {
-                if (data.printLocally && data.documentData) {
-                    try {
-                        const doc =
-                            typeof data.documentData === "string"
-                                ? JSON.parse(data.documentData)
-                                : data.documentData;
-                        if (
-                            typeof (window as any).printClosureDocument ===
-                            "function"
-                        ) {
-                            (window as any).printClosureDocument(doc);
-                        }
-                    } catch (_) {
-                        // Sin impresora integrada: el backend ya pudo haber enviado a cola
-                    }
-                }
-                showToast(data.message || "Reimpresión enviada", "success");
+            if (result.data?.reprintClosure?.success) {
+                showToast("Ticket enviado a impresión", "success");
             } else {
-                showToast(data?.message || "Error al reimprimir", "error");
+                showToast(
+                    result.data?.reprintClosure?.message ||
+                        "Error al imprimir el ticket",
+                    "error",
+                );
             }
-        } catch (err: any) {
-            showToast(
-                err?.message || "Error de conexión al reimprimir",
-                "error",
-            );
+        } catch (error: any) {
+            showToast(error.message || "Error al imprimir el ticket", "error");
         } finally {
             setReprintingClosureId(null);
         }
@@ -350,3839 +222,1044 @@ const Cashs: React.FC = () => {
 
     const handlePrintPayment = async (paymentId: string) => {
         try {
-            const mac = await getMacAddress();
-            if (!mac) {
+            const result = await printPaymentMutation({
+                variables: { paymentId, deviceId: await getMacAddress() },
+            });
+            if (result.data?.printPayment?.success) {
+                showToast("Comprobante enviado a impresión", "success");
+            } else {
                 showToast(
-                    "No se pudo obtener la MAC de la PC. Intenta de nuevo.",
+                    result.data?.printPayment?.message || "Error al imprimir",
                     "error",
                 );
-                return;
             }
-            setPrintingPaymentId(paymentId);
-            const result = await printPaymentMutation({
-                variables: { paymentId, deviceId: mac },
-            });
-            const data = result.data?.printPayment;
-            if (data?.success) {
-                showToast(data.message || "Impresión enviada", "success");
-            } else {
-                showToast(data?.message || "Error al imprimir", "error");
-            }
-        } catch (err: any) {
-            showToast(err?.message || "Error de conexión al imprimir", "error");
-        } finally {
-            setPrintingPaymentId(null);
+        } catch (error: any) {
+            showToast(error.message || "Error al imprimir", "error");
         }
     };
 
-    const isCancelledCashMovement = (mov: PaymentMovement): boolean => {
-        const s = String((mov as any).status ?? "")
-            .toUpperCase()
-            .replace(/\s/g, "_");
-        return s === "CANCELLED" || s === "CANCELED";
-    };
-
-    /** Solo ingresos/egresos manuales (sin operación de compra/venta). El backend rechaza el resto. */
-    const canCancelManualCashMovement = (mov: PaymentMovement): boolean => {
-        if (isCancelledCashMovement(mov)) return false;
-        const opId = mov.operation?.id ?? (mov as any).operation?.id;
-        if (opId != null && opId !== "") return false;
-        return true;
-    };
-
-    const handleCancelManualPayment = async (paymentId: string) => {
+    const handleCancelPayment = async (paymentId: string) => {
         if (
-            !window.confirm(
-                "¿Anular este movimiento manual? Se marcará como cancelado y se revertirá el saldo de la caja. No aplica a ventas ni compras.",
-            )
-        ) {
+            !window.confirm("¿Está seguro de que desea anular este movimiento?")
+        )
             return;
-        }
         try {
-            setCancelingPaymentId(paymentId);
             const result = await cancelPaymentMutation({
                 variables: { paymentId },
             });
-            const data =
-                result.data?.cancelPayment ??
-                (result.data as any)?.cancel_payment;
-            if (data?.success) {
-                showToast(data.message || "Movimiento anulado", "success");
-                await refetchMovements();
+            if (result.data?.cancelPayment?.success) {
+                showToast("Movimiento anulado correctamente", "success");
+                refetchMovements();
                 refetchPreview();
-                refetchCashRegisters();
             } else {
                 showToast(
-                    data?.message || "No se pudo anular el movimiento",
+                    result.data?.cancelPayment?.message || "Error al anular",
                     "error",
                 );
             }
-        } catch (err: any) {
-            const gqlMsg = err?.graphQLErrors?.[0]?.message;
-            showToast(
-                gqlMsg || err?.message || "Error al anular el movimiento",
-                "error",
-            );
-        } finally {
-            setCancelingPaymentId(null);
+        } catch (error: any) {
+            showToast(error.message || "Error al anular", "error");
         }
     };
 
     const handleUpdatePaymentMethod = async (
         paymentId: string,
-        newMethod: string,
-        currentRaw: string,
+        method: string,
     ) => {
-        const normalized = String(newMethod || "").toUpperCase();
-        const current = String(currentRaw || "").toUpperCase();
-        if (normalized === current) return;
         try {
-            setUpdatingPaymentMethodId(paymentId);
             const result = await updatePaymentMethodMutation({
-                variables: { paymentId, newPaymentMethod: normalized },
+                variables: { paymentId, newPaymentMethod: method },
             });
-            const data =
-                result.data?.updatePaymentMethod ??
-                (
-                    result.data as {
-                        update_payment_method?: {
-                            success?: boolean;
-                            message?: string;
-                        };
-                    }
-                )?.update_payment_method;
-            if (data?.success) {
-                showToast(
-                    data.message || "Método de pago actualizado",
-                    "success",
-                );
-                await refetchMovements();
+            if (result.data?.updatePaymentMethod?.success) {
+                showToast("Método de pago actualizado", "success");
+                refetchMovements();
                 refetchPreview();
             } else {
                 showToast(
-                    data?.message || "No se pudo cambiar el método de pago",
+                    result.data?.updatePaymentMethod?.message ||
+                        "Error al actualizar",
                     "error",
                 );
             }
-        } catch (err: any) {
-            const gqlMsg = err?.graphQLErrors?.[0]?.message;
-            showToast(
-                gqlMsg || err?.message || "Error al cambiar el método de pago",
-                "error",
-            );
-        } finally {
-            setUpdatingPaymentMethodId(null);
+        } catch (error: any) {
+            showToast(error.message || "Error al actualizar", "error");
         }
     };
 
-    // Mutación para cerrar caja
-    const [closeCashMutation, { loading: closingCash }] = useMutation(
-        CLOSE_CASH,
-        {
-            onCompleted: async (data) => {
-                if (data?.closeCash?.success) {
-                    const summary = data.closeCash.summary;
-                    const closure = data.closeCash.closure;
-
-                    // Mostrar mensaje de éxito con información del cierre
-                    const message =
-                        data.closeCash.message || "Caja cerrada exitosamente";
-
-                    // Construir mensaje detallado
-                    let detailMessage = message;
-                    if (closure) {
-                        detailMessage += `\n\n📊 Resumen del Cierre #${closure.closureNumber}:`;
-                        detailMessage += `\n• Total Ingresos: ${currencyFormatter.format(closure.totalIncome)}`;
-                        detailMessage += `\n• Total Egresos: ${currencyFormatter.format(closure.totalExpense)}`;
-                        detailMessage += `\n• Neto Total: ${currencyFormatter.format(closure.netTotal)}`;
-
-                        // Imprimir solo si el backend devolvió datos para impresión local (evita doble impresión).
-                        // Si no devolvió printLocally/documentData, el backend ya encoló la impresión (Raspberry).
-                        const printLocally =
-                            data.closeCash.printLocally &&
-                            data.closeCash.documentData;
-                        if (printLocally) {
-                            try {
-                                const doc =
-                                    typeof data.closeCash.documentData ===
-                                    "string"
-                                        ? JSON.parse(
-                                              data.closeCash.documentData,
-                                          )
-                                        : data.closeCash.documentData;
-                                if (
-                                    typeof (window as any)
-                                        .printClosureDocument === "function"
-                                ) {
-                                    (window as any).printClosureDocument(doc);
-                                    console.log("✅ Cierre impreso en local");
-                                }
-                            } catch (printError) {
-                                console.error(
-                                    "❌ Error al imprimir cierre en local:",
-                                    printError,
-                                );
-                            }
-                        } else {
-                            console.log(
-                                "✅ Cierre realizado (impresión encolada en servidor o no requerida)",
-                            );
-                        }
-                    }
-                    console.log(detailMessage);
-
-                    // Si hay summary, mostrar información adicional en consola
-                    if (summary) {
-                        try {
-                            const summaryData =
-                                typeof summary === "string"
-                                    ? JSON.parse(summary)
-                                    : summary;
-                            console.log(
-                                "📊 Resumen completo del cierre:",
-                                summaryData,
-                            );
-                        } catch (e) {
-                            console.log("📊 Resumen del cierre:", summary);
-                        }
-                    }
-
-                    // Limpiar estado y refrescar datos
-                    setShowPreview(false);
-                    setSelectedCashRegister("");
-                    setSelectedUserId(null);
-                    setShowMovements(false);
-                    setShowTotalesGenerales(true);
-
-                    // Refrescar todas las queries relacionadas
-                    refetchCashRegisters();
-                    refetchClosures();
-                } else {
-                    const errorMessage =
-                        data?.closeCash?.message || "No se pudo cerrar la caja";
-                    alert(`❌ Error: ${errorMessage}`);
-                }
-            },
-            onError: (error) => {
-                console.error("❌ Error al cerrar la caja:", error);
-                const errorMessage =
-                    error.message ||
-                    "Ocurrió un error al intentar cerrar la caja";
-                alert(`❌ Error al cerrar la caja: ${errorMessage}`);
-            },
-        },
-    );
-
-    const cashRegisters: CashRegister[] =
-        cashRegistersData?.cashRegistersByBranch || [];
-    const preview: CashClosurePreview | null =
-        previewData?.cashClosurePreview || null;
-    // Intentar ambos nombres por si hay diferencia entre snake_case y camelCase
-    const closures: CashClosure[] =
-        closuresData?.cashClosures || closuresData?.cash_closures || [];
-    const movements: PaymentMovement[] =
-        movementsData?.paymentsPendingClosure ||
-        movementsData?.payments_pending_closure ||
-        [];
-
-    /** Suma cobros ligados a ventas (tienen operación); excluye ingresos/egresos manuales y anulados. */
-    const totalVentasSinManual = useMemo(() => {
-        let total = 0;
-        for (const mov of movements) {
-            if (isCancelledCashMovement(mov)) continue;
-            const opId = mov.operation?.id ?? (mov as any).operation?.id;
-            if (opId == null || opId === "") continue;
-            const amount = Number(
-                (mov as any).paidAmount ??
-                    (mov as any).paid_amount ??
-                    mov.paidAmount ??
-                    0,
-            );
-            const type = String(
-                (mov as any).transactionType ??
-                    (mov as any).transaction_type ??
-                    mov.transactionType ??
-                    "",
-            ).toUpperCase();
-            if (type === "INCOME") total += amount;
-            else if (type === "EXPENSE") total -= amount;
-        }
-        return Math.round(total * 100) / 100;
-    }, [movements]);
-
-    // Obtiene el total vendido acumulado por cada caja usando el preview de cierre.
-    useEffect(() => {
-        let cancelled = false;
-
-        const loadSalesTotals = async () => {
-            if (!branchId || cashRegisters.length === 0) {
-                setSalesTotalsByRegister({});
-                return;
-            }
-
-            try {
-                const entries = await Promise.all(
-                    cashRegisters.map(async (cashRegister) => {
-                        try {
-                            const { data } = await apolloClient.query({
-                                query: GET_CASH_CLOSURE_PREVIEW,
-                                variables: {
-                                    branchId,
-                                    cashRegisterId: cashRegister.id,
-                                    userId: null,
-                                },
-                                fetchPolicy: "network-only",
-                            });
-
-                            return [
-                                cashRegister.id,
-                                Number(
-                                    data?.cashClosurePreview?.totalIncome ?? 0,
-                                ),
-                            ] as const;
-                        } catch {
-                            return [
-                                cashRegister.id,
-                                Number(cashRegister.currentBalance ?? 0),
-                            ] as const;
-                        }
-                    }),
-                );
-
-                if (!cancelled) {
-                    setSalesTotalsByRegister(Object.fromEntries(entries));
-                }
-            } catch {
-                if (!cancelled) {
-                    const fallbackEntries = cashRegisters.map(
-                        (cashRegister) =>
-                            [
-                                cashRegister.id,
-                                Number(cashRegister.currentBalance ?? 0),
-                            ] as const,
-                    );
-                    setSalesTotalsByRegister(
-                        Object.fromEntries(fallbackEntries),
-                    );
-                }
-            }
-        };
-
-        loadSalesTotals();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [apolloClient, branchId, cashRegisters]);
-
-    // Debug: Log para verificar datos de cierres
-    useEffect(() => {
-        if (closuresData) {
-            console.log("📜 closuresData completo:", closuresData);
-            console.log("📜 cashClosures:", closuresData.cashClosures);
-            console.log("📜 cash_closures:", closuresData.cash_closures);
-            console.log("📜 closures array:", closures);
-        }
-        if (closuresError) {
-            console.error("❌ Error en query de cierres:", closuresError);
-        }
-    }, [closuresData, closuresError, closures]);
-
-    const getCashTypeLabel = (type: string) => {
-        switch (type) {
-            case "CASH":
-                return "Efectivo";
-            case "DIGITAL":
-                return "Digital";
-            case "BANK":
-                return "Bancario";
+    const getStatusStyles = (status?: string) => {
+        if (!status)
+            return "bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800/50";
+        switch (status) {
+            case "CLOSED":
+                return "bg-slate-50 text-slate-500 border-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700/50";
             default:
-                return type;
+                return "bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800/50";
         }
     };
-
-    const getCashTypeColor = (type: string) => {
-        switch (type) {
-            case "CASH":
-                return { bg: "#dcfce7", color: "#166534", border: "#86efac" };
-            case "DIGITAL":
-                return { bg: "#dbeafe", color: "#1e40af", border: "#93c5fd" };
-            case "BANK":
-                return { bg: "#fef3c7", color: "#92400e", border: "#fde68a" };
-            default:
-                return { bg: "#f3f4f6", color: "#374151", border: "#d1d5db" };
-        }
-    };
-
-    const getPaymentMethodLabel = (method: string) => {
-        const labels: Record<string, string> = {
-            CASH: "Efectivo",
-            YAPE: "Yape",
-            PLIN: "Plin",
-            CARD: "Tarjeta",
-            TRANSFER: "Transferencia",
-            OTROS: "Otros",
-        };
-        return labels[method] || method;
-    };
-
-    /** Mismos colores que el reporte de ventas (`reportSale.tsx` → Totales por Método de Pago). */
-    const getPaymentMethodCardTheme = (methodCode: string) => {
-        const code = (methodCode || "").toUpperCase();
-        const themes: Record<
-            string,
-            { color: string; bg: string; border: string }
-        > = {
-            CASH: { color: "#0369a1", bg: "#f0f9ff", border: "#0ea5e9" },
-            YAPE: { color: "#047857", bg: "#f0fdf4", border: "#10b981" },
-            PLIN: { color: "#b45309", bg: "#fef3c7", border: "#f59e0b" },
-            CARD: { color: "#b91c1c", bg: "#fef2f2", border: "#ef4444" },
-            TRANSFER: { color: "#7e22ce", bg: "#f3e8ff", border: "#a855f7" },
-            OTROS: { color: "#334155", bg: "#f1f5f9", border: "#64748b" },
-        };
-        return (
-            themes[code] ?? {
-                color: "#334155",
-                bg: "#f1f5f9",
-                border: "#64748b",
-            }
-        );
-    };
-
-    const getTransactionTypeLabel = (type: string) => {
-        return type === "INCOME"
-            ? "Ingreso"
-            : type === "EXPENSE"
-              ? "Egreso"
-              : type;
-    };
-
-    const handleShowPreview = (cashRegisterId: string) => {
-        if (!canOpenClosePreview) {
-            showToast(
-                "No tienes permiso para abrir el detalle de caja.",
-                "error",
-            );
-            return;
-        }
-        setSelectedCashRegister(cashRegisterId);
-        setShowPreview(true);
-        setShowHistory(false);
-    };
-
-    const handleCloseCashClick = () => {
-        if (!canCloseCashRegister) {
-            showToast("No tienes permiso para cerrar caja.", "error");
-            return;
-        }
-        if (!selectedCashRegister || !branchId || !user?.id) {
-            alert(
-                "❌ Por favor selecciona una caja y verifica que estés autenticado",
-            );
-            return;
-        }
-
-        if (!preview?.canClose) {
-            alert("❌ No se puede cerrar la caja. Revisa las advertencias.");
-            return;
-        }
-
-        // Mostrar modal de confirmación
-        setShowConfirmModal(true);
-    };
-
-    const handleConfirmCloseCash = async () => {
-        setShowConfirmModal(false);
-
-        if (!canCloseCashRegister) {
-            showToast("No tienes permiso para cerrar caja.", "error");
-            return;
-        }
-
-        if (!selectedCashRegister || !branchId || !user?.id) {
-            return;
-        }
-
-        try {
-            const mac = await getMacAddress();
-            if (!mac) {
-                showToast(
-                    "No se pudo obtener la MAC de la PC. Intenta nuevamente.",
-                    "error",
-                );
-                return;
-            }
-
-            await closeCashMutation({
-                variables: {
-                    userId: user.id,
-                    branchId: branchId,
-                    deviceId: mac,
-                    cashRegisterId: selectedCashRegister,
-                },
-            });
-        } catch (error) {
-            console.error("Error al cerrar caja:", error);
-        }
-    };
-
-    const formatDate = (dateString: string) => {
-        const date = new Date(dateString);
-        return date.toLocaleString("es-PE", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-        });
-    };
-
-    if (!branchId) {
-        return (
-            <div
-                style={{
-                    padding: containerPadding,
-                    textAlign: "center",
-                    color: "#dc2626",
-                }}
-            >
-                No se encontró información de la sucursal. Por favor, inicia
-                sesión nuevamente.
-            </div>
-        );
-    }
 
     return (
-        <div
-            style={{
-                padding: containerPadding,
-                backgroundColor: "#f8fafc",
-                minHeight: "100vh",
-            }}
-        >
-            {/* Header */}
-            <div
-                style={{
-                    backgroundColor: "white",
-                    borderRadius: "16px",
-                    padding: cardPadding,
-                    marginBottom: gridGap,
-                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-                    border: "1px solid #e2e8f0",
-                }}
-            >
-                <h2
-                    style={{
-                        margin: "0 0 1rem",
-                        fontSize: titleFontSize,
-                        fontWeight: 700,
-                        color: "#1e293b",
-                    }}
-                >
-                    💰 Gestión de Cajas
-                </h2>
-                <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-                    <button
-                        onClick={() => {
-                            setShowPreview(false);
-                            setShowHistory(false);
-                            setSelectedCashRegister("");
-                            setShowMovements(false);
-                            setShowTotalesGenerales(true);
-                        }}
-                        style={{
-                            padding: buttonPadding,
-                            borderRadius: "8px",
-                            border: "1px solid #e2e8f0",
-                            backgroundColor:
-                                showPreview || showHistory
-                                    ? "white"
-                                    : "#3b82f6",
-                            color:
-                                showPreview || showHistory
-                                    ? "#64748b"
-                                    : "white",
-                            cursor: "pointer",
-                            fontWeight: 600,
-                            fontSize: buttonFontSize,
-                            transition: "all 0.2s",
-                        }}
-                    >
-                        Cajas
-                    </button>
-                    {canCloseCashRegister && (
+        <div className="flex  w-full flex-col bg-slate-50 p-4 transition-colors duration-300 dark:bg-slate-950 sm:p-6 lg:p-8">
+            <div className="mx-auto w-full max-w-7xl space-y-8">
+                {/* Header Section */}
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-500/20">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-6 w-6"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+                                    />
+                                </svg>
+                            </div>
+                            <h1 className="text-3xl font-black tracking-tight text-slate-800 dark:text-slate-100">
+                                Gestión de Cajas
+                            </h1>
+                        </div>
+                        <p className="pl-[60px] text-sm font-medium text-slate-500 dark:text-slate-400">
+                            Control de aperturas, cierres y movimientos en
+                            tiempo real
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 lg:self-end">
+                        <button
+                            onClick={() => setIsManualModalOpen(true)}
+                            className="flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm transition-all hover:bg-slate-50 active:scale-95 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5 text-indigo-500"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2.5}
+                                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                                />
+                            </svg>
+                            Nuevo Movimiento
+                        </button>
+                        <button
+                            onClick={() => setShowHistory(!showHistory)}
+                            className={`flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-[10px] font-black uppercase tracking-widest transition-all ${
+                                showHistory
+                                    ? "border-indigo-100 bg-indigo-50 text-indigo-600 dark:border-indigo-800/30 dark:bg-indigo-900/20 dark:text-indigo-400"
+                                    : "border-slate-100 bg-white text-slate-400 dark:border-slate-800 dark:bg-slate-900"
+                            }`}
+                            title={
+                                showHistory
+                                    ? "Ocultar Historial"
+                                    : "Mostrar Historial"
+                            }
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2.5}
+                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
+                            </svg>
+                            {showHistory
+                                ? "Ocultar Historial"
+                                : "Ver Historial"}
+                        </button>
                         <button
                             onClick={() => {
-                                setShowHistory(true);
-                                setShowPreview(false);
+                                refetchRegisters();
+                                refetchHistory();
                             }}
-                            style={{
-                                padding: buttonPadding,
-                                borderRadius: "8px",
-                                border: "1px solid #e2e8f0",
-                                backgroundColor: showHistory
-                                    ? "#3b82f6"
-                                    : "white",
-                                color: showHistory ? "white" : "#64748b",
-                                cursor: "pointer",
-                                fontWeight: 600,
-                                fontSize: buttonFontSize,
-                                transition: "all 0.2s",
-                            }}
+                            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-600 dark:bg-slate-900 dark:text-slate-500 dark:hover:bg-slate-800"
                         >
-                            Historial de Cierres
-                        </button>
-                    )}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (!canRegisterManualMovements) {
-                                showToast(
-                                    "No tienes permiso para registrar ingresos o egresos manuales.",
-                                    "error",
-                                );
-                                return;
-                            }
-                            setShowManualTransactionModal(true);
-                        }}
-                        disabled={!canRegisterManualMovements}
-                        style={{
-                            padding: buttonPadding,
-                            borderRadius: "8px",
-                            border: "1px solid #e2e8f0",
-                            backgroundColor: canRegisterManualMovements
-                                ? "white"
-                                : "#f1f5f9",
-                            color: canRegisterManualMovements
-                                ? "#64748b"
-                                : "#94a3b8",
-                            cursor: canRegisterManualMovements
-                                ? "pointer"
-                                : "not-allowed",
-                            fontWeight: 600,
-                            fontSize: buttonFontSize,
-                            transition: "all 0.2s",
-                            opacity: canRegisterManualMovements ? 1 : 0.85,
-                        }}
-                        onMouseEnter={(e) => {
-                            if (!canRegisterManualMovements) return;
-                            e.currentTarget.style.backgroundColor = "#f1f5f9";
-                            e.currentTarget.style.color = "#1e293b";
-                        }}
-                        onMouseLeave={(e) => {
-                            if (!canRegisterManualMovements) return;
-                            e.currentTarget.style.backgroundColor = "white";
-                            e.currentTarget.style.color = "#64748b";
-                        }}
-                        title={
-                            !canRegisterManualMovements
-                                ? "Requiere permiso: registrar movimientos en caja o cierre de caja"
-                                : undefined
-                        }
-                    >
-                        ➕ Ingreso/Egreso
-                    </button>
-                </div>
-            </div>
-
-            {/* Vista de Cajas */}
-            {!showPreview && !showHistory && (
-                <>
-                    {/* Lista de Cajas */}
-                    {cashRegistersLoading ? (
-                        <div
-                            style={{
-                                padding: "2rem",
-                                textAlign: "center",
-                                color: "#64748b",
-                            }}
-                        >
-                            Cargando cajas...
-                        </div>
-                    ) : (
-                        <div
-                            style={{
-                                backgroundColor: "white",
-                                borderRadius: "16px",
-                                padding: cardPadding,
-                                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-                                border: "1px solid #e2e8f0",
-                            }}
-                        >
-                            <div
-                                style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    marginBottom: summaryVisible.cajas
-                                        ? "1rem"
-                                        : 0,
-                                }}
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
                             >
-                                <h3
-                                    style={{
-                                        margin: 0,
-                                        fontSize: sectionTitleFontSize,
-                                        fontWeight: 600,
-                                        color: "#334155",
-                                    }}
-                                >
-                                    🏪 Cajas Registradoras (
-                                    {cashRegisters.length})
-                                </h3>
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setSummaryVisible((v) => ({
-                                            ...v,
-                                            cajas: !v.cajas,
-                                        }))
-                                    }
-                                    style={{
-                                        padding: "0.4rem 0.75rem",
-                                        borderRadius: "8px",
-                                        border: "1px solid #e2e8f0",
-                                        backgroundColor: "#f8fafc",
-                                        color: "#64748b",
-                                        fontSize: "0.875rem",
-                                        fontWeight: 600,
-                                        cursor: "pointer",
-                                    }}
-                                >
-                                    {summaryVisible.cajas
-                                        ? "Ocultar"
-                                        : "Mostrar"}
-                                </button>
-                            </div>
-                            {summaryVisible.cajas && (
-                                <>
-                                    {cashRegisters.length === 0 ? (
-                                        <div
-                                            style={{
-                                                textAlign: "center",
-                                                padding: isSmall
-                                                    ? "1.5rem"
-                                                    : isMedium
-                                                      ? "2rem"
-                                                      : isSmallDesktop
-                                                        ? "2rem"
-                                                        : "3rem",
-                                                color: "#64748b",
-                                            }}
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2.5}
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+                    {/* Left Column: Registers and Preview */}
+                    <div
+                        className={`space-y-8 transition-all duration-500 ${showHistory ? "lg:col-span-8" : "lg:col-span-12"}`}
+                    >
+                        {/* Registers Grid */}
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            {loadingRegisters
+                                ? Array(2)
+                                      .fill(0)
+                                      .map((_, i) => (
+                                          <div
+                                              key={i}
+                                              className="h-48 animate-pulse rounded-3xl bg-slate-200 dark:bg-slate-800"
+                                          />
+                                      ))
+                                : cashRegisters.map((register) => (
+                                      <div
+                                          key={register.id}
+                                          onClick={() =>
+                                              setSelectedRegister(
+                                                  selectedRegister?.id ===
+                                                      register.id
+                                                      ? null
+                                                      : register,
+                                              )
+                                          }
+                                          className={`group relative overflow-hidden rounded-3xl border-2 p-6 transition-all cursor-pointer ${
+                                              selectedRegister?.id ===
+                                              register.id
+                                                  ? "border-indigo-500 bg-white shadow-2xl shadow-indigo-500/10 dark:bg-slate-900"
+                                                  : "border-transparent bg-white shadow-sm hover:border-slate-200 dark:bg-slate-900 dark:hover:border-slate-800"
+                                          }`}
+                                      >
+                                          <div className="flex flex-col gap-4">
+                                              <div className="flex items-start justify-between">
+                                                  <div className="flex flex-col gap-1">
+                                                      <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                                                          {register.name}
+                                                      </h3>
+                                                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                                          {register.cashType ===
+                                                          "MAIN"
+                                                              ? "Caja Principal"
+                                                              : "Caja Secundaria"}
+                                                      </span>
+                                                  </div>
+                                                  <span
+                                                      className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-wider ${getStatusStyles(register.status)}`}
+                                                  >
+                                                      {register.status ===
+                                                      "CLOSED"
+                                                          ? "Cerrada"
+                                                          : "Activa"}
+                                                  </span>
+                                              </div>
+
+                                              <div className="mt-2 flex items-center justify-between gap-4">
+                                                  <button
+                                                      onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          if (!isElectron)
+                                                              return;
+                                                          handleCloseRegister(
+                                                              register.id,
+                                                          );
+                                                      }}
+                                                      disabled={!isElectron}
+                                                      className={`flex flex-1 items-center justify-center gap-2 rounded-2xl py-3 text-xs font-black text-white shadow-lg transition-all ${
+                                                          isElectron
+                                                              ? "bg-rose-600 shadow-rose-500/20 hover:bg-rose-700 active:scale-95"
+                                                              : "bg-slate-400 opacity-50 cursor-not-allowed"
+                                                      }`}
+                                                      title={
+                                                          !isElectron
+                                                              ? "El cierre de caja solo está disponible en la aplicación de escritorio"
+                                                              : ""
+                                                      }
+                                                  >
+                                                      <svg
+                                                          xmlns="http://www.w3.org/2000/svg"
+                                                          className="h-4 w-4"
+                                                          viewBox="0 0 20 20"
+                                                          fill="currentColor"
+                                                      >
+                                                          <path
+                                                              fillRule="evenodd"
+                                                              d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                                                              clipRule="evenodd"
+                                                          />
+                                                      </svg>
+                                                      {isElectron
+                                                          ? "Cerrar Caja"
+                                                          : "Solo en App"}
+                                                  </button>
+                                              </div>
+                                          </div>
+                                          {/* Selected Indicator */}
+                                          {selectedRegister?.id ===
+                                              register.id && (
+                                              <div className="absolute right-0 top-0 p-3 text-indigo-500">
+                                                  <svg
+                                                      xmlns="http://www.w3.org/2000/svg"
+                                                      className="h-5 w-5"
+                                                      viewBox="0 0 20 20"
+                                                      fill="currentColor"
+                                                  >
+                                                      <path
+                                                          fillRule="evenodd"
+                                                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                                          clipRule="evenodd"
+                                                      />
+                                                  </svg>
+                                              </div>
+                                          )}
+                                      </div>
+                                  ))}
+                        </div>
+
+                        {/* Preview Section */}
+                        <div className="overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+                            <div className="border-b border-slate-50 p-8 dark:border-slate-800/50">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex flex-col gap-1">
+                                        <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">
+                                            {selectedRegister
+                                                ? `Resumen: ${selectedRegister.name}`
+                                                : "Resumen de Cierre"}
+                                        </h2>
+                                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                            Selecciona una caja abierta para ver
+                                            el resumen de cierre
+                                        </p>
+                                    </div>
+                                    {selectedRegister && (
+                                        <button
+                                            onClick={() =>
+                                                setSelectedRegister(null)
+                                            }
+                                            className="text-[10px] font-black uppercase tracking-widest text-indigo-500 hover:text-indigo-600 dark:text-indigo-400"
                                         >
-                                            <p
-                                                style={{
-                                                    fontSize: isSmall
-                                                        ? "0.875rem"
-                                                        : isMedium
-                                                          ? "0.9375rem"
-                                                          : isSmallDesktop
-                                                            ? "0.9375rem"
-                                                            : "1rem",
-                                                    margin: 0,
-                                                }}
+                                            Limpiar
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="p-8">
+                                {!selectedRegister ? (
+                                    <div className="flex flex-col items-center justify-center py-10 text-center text-slate-400">
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            className="mb-4 h-12 w-12 opacity-20"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                            />
+                                        </svg>
+                                        <p className="text-sm font-bold uppercase tracking-widest">
+                                            Selecciona una caja para ver la
+                                            vista previa del cierre
+                                        </p>
+                                    </div>
+                                ) : loadingPreview ? (
+                                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+                                        {Array(3)
+                                            .fill(0)
+                                            .map((_, i) => (
+                                                <div
+                                                    key={i}
+                                                    className="h-32 animate-pulse rounded-3xl bg-slate-50 dark:bg-slate-800/50"
+                                                />
+                                            ))}
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-8">
+                                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+                                            {/* Income */}
+                                            <div className="flex flex-col gap-3 rounded-3xl bg-emerald-50/50 p-6 dark:bg-emerald-900/10">
+                                                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-slate-800">
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            className="h-4 w-4"
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                strokeWidth={
+                                                                    2.5
+                                                                }
+                                                                d="M12 4v16m8-8H4"
+                                                            />
+                                                        </svg>
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">
+                                                        Ingresos
+                                                    </span>
+                                                </div>
+                                                <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400">
+                                                    {currencyFormatter.format(
+                                                        preview?.totalIncome ||
+                                                            0,
+                                                    )}
+                                                </span>
+                                            </div>
+
+                                            {/* Expense */}
+                                            <div className="flex flex-col gap-3 rounded-3xl bg-rose-50/50 p-6 dark:bg-rose-900/10">
+                                                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-slate-800">
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            className="h-4 w-4"
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                strokeWidth={
+                                                                    2.5
+                                                                }
+                                                                d="M20 12H4"
+                                                            />
+                                                        </svg>
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">
+                                                        Egresos
+                                                    </span>
+                                                </div>
+                                                <span className="text-2xl font-black text-rose-700 dark:text-rose-400">
+                                                    {currencyFormatter.format(
+                                                        preview?.totalExpense ||
+                                                            0,
+                                                    )}
+                                                </span>
+                                            </div>
+
+                                            {/* Net */}
+                                            <div className="flex flex-col gap-3 rounded-3xl bg-indigo-50/50 p-6 dark:bg-indigo-900/10">
+                                                <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-slate-800">
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            className="h-4 w-4"
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                strokeWidth={
+                                                                    2.5
+                                                                }
+                                                                d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                                                            />
+                                                        </svg>
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">
+                                                        Saldo Neto
+                                                    </span>
+                                                </div>
+                                                <span className="text-2xl font-black text-indigo-700 dark:text-indigo-400">
+                                                    {currencyFormatter.format(
+                                                        preview?.netTotal || 0,
+                                                    )}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Resumen por método de pago */}
+                                        <div className="flex flex-col gap-4">
+                                            <h3 className="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                                                Resumen por método de pago
+                                            </h3>
+                                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                                                {(
+                                                    preview?.generalPaymentMethods ||
+                                                    []
+                                                ).map((p) => {
+                                                    const config: Record<
+                                                        string,
+                                                        {
+                                                            color: string;
+                                                            bg: string;
+                                                            border: string;
+                                                            darkBg: string;
+                                                            darkBorder: string;
+                                                        }
+                                                    > = {
+                                                        CASH: {
+                                                            color: "text-blue-600",
+                                                            bg: "bg-blue-50/50",
+                                                            border: "border-blue-100",
+                                                            darkBg: "bg-blue-900/10",
+                                                            darkBorder:
+                                                                "border-blue-800/30",
+                                                        },
+                                                        YAPE: {
+                                                            color: "text-emerald-600",
+                                                            bg: "bg-emerald-50/50",
+                                                            border: "border-emerald-100",
+                                                            darkBg: "bg-emerald-900/10",
+                                                            darkBorder:
+                                                                "border-emerald-800/30",
+                                                        },
+                                                        PLIN: {
+                                                            color: "text-amber-600",
+                                                            bg: "bg-amber-50/50",
+                                                            border: "border-amber-100",
+                                                            darkBg: "bg-amber-900/10",
+                                                            darkBorder:
+                                                                "border-amber-800/30",
+                                                        },
+                                                        CARD: {
+                                                            color: "text-rose-600",
+                                                            bg: "bg-rose-50/50",
+                                                            border: "border-rose-100",
+                                                            darkBg: "bg-rose-900/10",
+                                                            darkBorder:
+                                                                "border-rose-800/30",
+                                                        },
+                                                        TRANSFER: {
+                                                            color: "text-purple-600",
+                                                            bg: "bg-purple-50/50",
+                                                            border: "border-purple-100",
+                                                            darkBg: "bg-purple-900/10",
+                                                            darkBorder:
+                                                                "border-purple-800/30",
+                                                        },
+                                                    };
+                                                    const style = config[
+                                                        p.methodCode
+                                                    ] || {
+                                                        color: "text-slate-600",
+                                                        bg: "bg-slate-50/50",
+                                                        border: "border-slate-100",
+                                                        darkBg: "bg-slate-800/10",
+                                                        darkBorder:
+                                                            "border-slate-700/30",
+                                                    };
+
+                                                    return (
+                                                        <div
+                                                            key={p.methodCode}
+                                                            className={`flex flex-col gap-3 rounded-3xl border ${style.bg} ${style.border} p-5 transition-all hover:shadow-md dark:${style.darkBg} dark:${style.darkBorder}`}
+                                                        >
+                                                            <span
+                                                                className={`text-sm font-black ${style.color}`}
+                                                            >
+                                                                {p.methodName}
+                                                            </span>
+                                                            <div className="flex flex-col gap-1 text-[11px] font-bold">
+                                                                <div className="flex justify-between text-slate-400">
+                                                                    <span>
+                                                                        Ingresos:
+                                                                    </span>
+                                                                    <span className="text-emerald-600 dark:text-emerald-400">
+                                                                        {currencyFormatter.format(
+                                                                            p.income,
+                                                                        )}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex justify-between text-slate-400">
+                                                                    <span>
+                                                                        Egresos:
+                                                                    </span>
+                                                                    <span className="text-rose-600 dark:text-rose-400">
+                                                                        {currencyFormatter.format(
+                                                                            p.expense,
+                                                                        )}
+                                                                    </span>
+                                                                </div>
+                                                                <div
+                                                                    className={`mt-1 flex justify-between border-t border-slate-100 pt-1 dark:border-slate-800`}
+                                                                >
+                                                                    <span className="text-slate-500 dark:text-slate-400">
+                                                                        Neto:
+                                                                    </span>
+                                                                    <span
+                                                                        className={`text-[13px] font-black ${style.color}`}
+                                                                    >
+                                                                        {currencyFormatter.format(
+                                                                            p.net,
+                                                                        )}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* Movements Table */}
+                                        <div className="flex flex-col gap-4">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400">
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            className="h-4 w-4"
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                strokeWidth={2}
+                                                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                                                            />
+                                                        </svg>
+                                                    </div>
+                                                    <h3 className="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                                                        Movimientos de caja
+                                                    </h3>
+                                                </div>
+                                                <button
+                                                    onClick={() =>
+                                                        setShowMovements(
+                                                            !showMovements,
+                                                        )
+                                                    }
+                                                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-500 transition-all hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                                                >
+                                                    {showMovements
+                                                        ? "Ocultar"
+                                                        : "Mostrar"}
+                                                </button>
+                                            </div>
+
+                                            {showMovements && (
+                                                <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left text-xs">
+                                                            <thead>
+                                                                <tr className="border-b border-slate-50 bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:border-slate-800 dark:bg-slate-800/30">
+                                                                    <th className="px-6 py-4">
+                                                                        Fecha /
+                                                                        Hora
+                                                                    </th>
+                                                                    <th className="px-6 py-4 text-center">
+                                                                        Tipo
+                                                                    </th>
+                                                                    <th className="px-6 py-4">
+                                                                        Método
+                                                                        de pago
+                                                                    </th>
+                                                                    <th className="px-6 py-4">
+                                                                        Monto
+                                                                    </th>
+                                                                    <th className="px-6 py-4 text-center">
+                                                                        Documento
+                                                                    </th>
+                                                                    <th className="px-6 py-4">
+                                                                        Usuario
+                                                                    </th>
+                                                                    <th className="px-6 py-4">
+                                                                        Referencia
+                                                                        / Notas
+                                                                    </th>
+                                                                    <th className="px-6 py-4 text-center">
+                                                                        Imprimir
+                                                                    </th>
+                                                                    <th className="px-6 py-4 text-center">
+                                                                        Anular
+                                                                    </th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                                                {movements.length ===
+                                                                0 ? (
+                                                                    <tr>
+                                                                        <td
+                                                                            colSpan={
+                                                                                9
+                                                                            }
+                                                                            className="py-10 text-center text-slate-400 italic"
+                                                                        >
+                                                                            No
+                                                                            hay
+                                                                            movimientos
+                                                                            registrados
+                                                                        </td>
+                                                                    </tr>
+                                                                ) : (
+                                                                    movements.map(
+                                                                        (m) => (
+                                                                            <tr
+                                                                                key={
+                                                                                    m.id
+                                                                                }
+                                                                                className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30"
+                                                                            >
+                                                                                <td className="px-6 py-4 font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                                                                    {formatLocalDateYYYYMMDD(
+                                                                                        m.paymentDate,
+                                                                                    )}
+                                                                                </td>
+                                                                                <td className="px-6 py-4 text-center">
+                                                                                    <span
+                                                                                        className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wider ${
+                                                                                            m.transactionType ===
+                                                                                            "INCOME"
+                                                                                                ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
+                                                                                                : "bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400"
+                                                                                        }`}
+                                                                                    >
+                                                                                        {m.transactionType ===
+                                                                                        "INCOME"
+                                                                                            ? "Ingreso"
+                                                                                            : "Egreso"}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="px-6 py-4">
+                                                                                    <select
+                                                                                        value={
+                                                                                            m.paymentMethod
+                                                                                        }
+                                                                                        onChange={(
+                                                                                            e,
+                                                                                        ) =>
+                                                                                            handleUpdatePaymentMethod(
+                                                                                                m.id,
+                                                                                                e
+                                                                                                    .target
+                                                                                                    .value,
+                                                                                            )
+                                                                                        }
+                                                                                        className="rounded-lg border border-slate-200 bg-transparent px-2 py-1 text-[11px] font-bold text-slate-600 transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:text-slate-300"
+                                                                                    >
+                                                                                        <option value="CASH">
+                                                                                            Efectivo
+                                                                                        </option>
+                                                                                        <option value="YAPE">
+                                                                                            Yape
+                                                                                        </option>
+                                                                                        <option value="PLIN">
+                                                                                            Plin
+                                                                                        </option>
+                                                                                        <option value="CARD">
+                                                                                            Tarjeta
+                                                                                        </option>
+                                                                                        <option value="TRANSFER">
+                                                                                            Transferencia
+                                                                                        </option>
+                                                                                    </select>
+                                                                                </td>
+                                                                                <td className="px-6 py-4 font-black text-slate-700 dark:text-slate-200">
+                                                                                    {currencyFormatter.format(
+                                                                                        m.paidAmount,
+                                                                                    )}
+                                                                                </td>
+                                                                                <td className="px-6 py-4 text-center font-bold text-slate-400">
+                                                                                    {m.issuedDocument
+                                                                                        ? `${m.issuedDocument.serial}-${m.issuedDocument.number}`
+                                                                                        : m
+                                                                                                .operation
+                                                                                                ?.order
+                                                                                          ? `Orden #${m.operation.order}`
+                                                                                          : "—"}
+                                                                                </td>
+                                                                                <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
+                                                                                    {
+                                                                                        m
+                                                                                            .user
+                                                                                            ?.fullName
+                                                                                    }
+                                                                                </td>
+                                                                                <td className="px-6 py-4">
+                                                                                    <p
+                                                                                        className="max-w-[200px] truncate text-slate-500 dark:text-slate-400"
+                                                                                        title={
+                                                                                            m.notes
+                                                                                        }
+                                                                                    >
+                                                                                        {m.notes ||
+                                                                                            "—"}
+                                                                                    </p>
+                                                                                </td>
+                                                                                <td className="px-6 py-4 text-center">
+                                                                                    <button
+                                                                                        onClick={() =>
+                                                                                            handlePrintPayment(
+                                                                                                m.id,
+                                                                                            )
+                                                                                        }
+                                                                                        className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 transition-all hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 mx-auto"
+                                                                                    >
+                                                                                        <svg
+                                                                                            xmlns="http://www.w3.org/2000/svg"
+                                                                                            className="h-4 w-4"
+                                                                                            viewBox="0 0 20 20"
+                                                                                            fill="currentColor"
+                                                                                        >
+                                                                                            <path
+                                                                                                fillRule="evenodd"
+                                                                                                d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2-2zm8 2H7V4h6v2zM7 14v2h6v-2H7z"
+                                                                                                clipRule="evenodd"
+                                                                                            />
+                                                                                        </svg>
+                                                                                    </button>
+                                                                                </td>
+                                                                                <td className="px-6 py-4 text-center">
+                                                                                    <button
+                                                                                        onClick={() =>
+                                                                                            handleCancelPayment(
+                                                                                                m.id,
+                                                                                            )
+                                                                                        }
+                                                                                        className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 text-rose-600 transition-all hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400 dark:hover:bg-rose-900/40 mx-auto"
+                                                                                    >
+                                                                                        <svg
+                                                                                            xmlns="http://www.w3.org/2000/svg"
+                                                                                            className="h-4 w-4"
+                                                                                            viewBox="0 0 20 20"
+                                                                                            fill="currentColor"
+                                                                                        >
+                                                                                            <path
+                                                                                                fillRule="evenodd"
+                                                                                                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                                                                                clipRule="evenodd"
+                                                                                            />
+                                                                                        </svg>
+                                                                                    </button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        ),
+                                                                    )
+                                                                )}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Column: History */}
+                    {showHistory && (
+                        <div className="lg:col-span-4">
+                            <div className="flex h-full flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+                                <div className="border-b border-slate-50 p-6 dark:border-slate-800/50">
+                                    <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                                        Historial Reciente
+                                    </h2>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                        Últimos 10 cierres
+                                    </p>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto p-4">
+                                    {loadingHistory ? (
+                                        <div className="space-y-4">
+                                            {Array(5)
+                                                .fill(0)
+                                                .map((_, i) => (
+                                                    <div
+                                                        key={i}
+                                                        className="h-20 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50"
+                                                    />
+                                                ))}
+                                        </div>
+                                    ) : history.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center py-20 text-center text-slate-400">
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                className="mb-4 h-12 w-12 opacity-20"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
                                             >
-                                                No hay cajas registradas
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                />
+                                            </svg>
+                                            <p className="text-xs font-black uppercase tracking-widest">
+                                                Sin cierres previos
                                             </p>
                                         </div>
                                     ) : (
-                                        <div
-                                            style={{
-                                                display: "grid",
-                                                gridTemplateColumns: `repeat(auto-fill, minmax(${cashCardMinWidth}, 1fr))`,
-                                                gap: gridGap,
-                                            }}
-                                        >
-                                            {cashRegisters.map(
-                                                (cashRegister) => {
-                                                    const typeColors =
-                                                        getCashTypeColor(
-                                                            cashRegister.cashType,
-                                                        );
-                                                    return (
-                                                        <div
-                                                            key={
-                                                                cashRegister.id
-                                                            }
-                                                            style={{
-                                                                padding:
-                                                                    cardPadding,
-                                                                borderRadius:
-                                                                    "12px",
-                                                                border: `2px solid ${typeColors.border}`,
-                                                                backgroundColor:
-                                                                    typeColors.bg,
-                                                                cursor: "pointer",
-                                                                transition:
-                                                                    "all 0.2s",
-                                                                boxShadow:
-                                                                    "0 2px 8px rgba(0, 0, 0, 0.05)",
-                                                            }}
-                                                            onClick={() =>
-                                                                handleShowPreview(
-                                                                    cashRegister.id,
-                                                                )
-                                                            }
-                                                            onMouseEnter={(
-                                                                e,
-                                                            ) => {
-                                                                e.currentTarget.style.transform =
-                                                                    "translateY(-2px)";
-                                                                e.currentTarget.style.boxShadow =
-                                                                    "0 4px 12px rgba(0, 0, 0, 0.1)";
-                                                            }}
-                                                            onMouseLeave={(
-                                                                e,
-                                                            ) => {
-                                                                e.currentTarget.style.transform =
-                                                                    "translateY(0)";
-                                                                e.currentTarget.style.boxShadow =
-                                                                    "0 2px 8px rgba(0, 0, 0, 0.05)";
-                                                            }}
-                                                        >
-                                                            <div
-                                                                style={{
-                                                                    display:
-                                                                        "flex",
-                                                                    justifyContent:
-                                                                        "space-between",
-                                                                    alignItems:
-                                                                        "flex-start",
-                                                                    marginBottom:
-                                                                        "1rem",
-                                                                }}
-                                                            >
-                                                                <div>
-                                                                    <h4
-                                                                        style={{
-                                                                            margin: "0 0 0.5rem",
-                                                                            fontSize:
-                                                                                isSmall
-                                                                                    ? "0.9375rem"
-                                                                                    : isMedium
-                                                                                      ? "1rem"
-                                                                                      : isSmallDesktop
-                                                                                        ? "1rem"
-                                                                                        : "1.125rem",
-                                                                            fontWeight: 700,
-                                                                            color: typeColors.color,
-                                                                        }}
-                                                                    >
-                                                                        {
-                                                                            cashRegister.name
-                                                                        }
-                                                                    </h4>
-                                                                    <span
-                                                                        style={{
-                                                                            padding:
-                                                                                "0.25rem 0.75rem",
-                                                                            borderRadius:
-                                                                                "9999px",
-                                                                            fontSize:
-                                                                                "0.75rem",
-                                                                            fontWeight: 600,
-                                                                            backgroundColor:
-                                                                                "white",
-                                                                            color: typeColors.color,
-                                                                            display:
-                                                                                "inline-block",
-                                                                        }}
-                                                                    >
-                                                                        {getCashTypeLabel(
-                                                                            cashRegister.cashType,
-                                                                        )}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            <div
-                                                                style={{
-                                                                    marginTop:
-                                                                        "1rem",
-                                                                    paddingTop:
-                                                                        "1rem",
-                                                                    borderTop: `1px solid ${typeColors.border}`,
-                                                                }}
-                                                            >
-                                                                <div
-                                                                    style={{
-                                                                        fontSize:
-                                                                            "0.875rem",
-                                                                        color: typeColors.color,
-                                                                        marginBottom:
-                                                                            "0.5rem",
-                                                                    }}
-                                                                >
-                                                                    Total
-                                                                    vendido
-                                                                    (hasta
-                                                                    ahora)
-                                                                </div>
-                                                                <div
-                                                                    style={{
-                                                                        fontSize:
-                                                                            "1.75rem",
-                                                                        fontWeight: 700,
-                                                                        color: typeColors.color,
-                                                                    }}
-                                                                >
-                                                                    {currencyFormatter.format(
-                                                                        salesTotalsByRegister[
-                                                                            cashRegister
-                                                                                .id
-                                                                        ] ??
-                                                                            cashRegister.currentBalance,
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                            {canOpenClosePreview && (
-                                                                <div
-                                                                    style={{
-                                                                        marginTop:
-                                                                            "1rem",
-                                                                        textAlign:
-                                                                            "center",
-                                                                    }}
-                                                                >
-                                                                    <button
-                                                                        type="button"
-                                                                        style={{
-                                                                            padding:
-                                                                                buttonPadding,
-                                                                            borderRadius:
-                                                                                "8px",
-                                                                            border: "none",
-                                                                            backgroundColor:
-                                                                                typeColors.color,
-                                                                            color: "white",
-                                                                            cursor: "pointer",
-                                                                            fontWeight: 600,
-                                                                            fontSize:
-                                                                                buttonFontSize,
-                                                                            width: "100%",
-                                                                        }}
-                                                                        onClick={(
-                                                                            e,
-                                                                        ) => {
-                                                                            e.stopPropagation();
-                                                                            handleShowPreview(
-                                                                                cashRegister.id,
-                                                                            );
-                                                                        }}
-                                                                    >
-                                                                        {canCloseCashRegister
-                                                                            ? "Ver Detalles / Cerrar Caja"
-                                                                            : "Ver detalles y movimientos"}
-                                                                    </button>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                },
-                                            )}
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    )}
-                </>
-            )}
-
-            {/* Vista de Preview de Cierre */}
-            {showPreview && selectedCashRegister && (
-                <div
-                    style={{
-                        backgroundColor: "white",
-                        borderRadius: "16px",
-                        padding: cardPadding,
-                        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-                        border: "1px solid #e2e8f0",
-                    }}
-                >
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            marginBottom: "1.5rem",
-                            flexWrap: "wrap",
-                            gap: "1rem",
-                        }}
-                    >
-                        <h3
-                            style={{
-                                margin: 0,
-                                fontSize: isSmall
-                                    ? "1rem"
-                                    : isMedium
-                                      ? "1.125rem"
-                                      : isSmallDesktop
-                                        ? "1.125rem"
-                                        : "1.25rem",
-                                fontWeight: 700,
-                                color: "#1e293b",
-                            }}
-                        >
-                            🔍 Preview de Cierre de Caja
-                        </h3>
-                        <button
-                            onClick={() => {
-                                setShowPreview(false);
-                                setSelectedCashRegister("");
-                                setSelectedUserId(null);
-                                setShowMovements(false);
-                                setShowTotalesGenerales(true);
-                            }}
-                            style={{
-                                padding: buttonPadding,
-                                borderRadius: "8px",
-                                border: "1px solid #e2e8f0",
-                                backgroundColor: "white",
-                                color: "#64748b",
-                                cursor: "pointer",
-                                fontWeight: 600,
-                                fontSize: buttonFontSize,
-                            }}
-                        >
-                            ← Volver
-                        </button>
-                    </div>
-
-                    {previewLoading ? (
-                        <div
-                            style={{
-                                padding: "2rem",
-                                textAlign: "center",
-                                color: "#64748b",
-                            }}
-                        >
-                            Cargando preview...
-                        </div>
-                    ) : preview ? (
-                        <>
-                            {/* Información General */}
-                            <div
-                                style={{
-                                    padding: cardPadding,
-                                    borderRadius: "12px",
-                                    backgroundColor: "#f0f9ff",
-                                    border: "1px solid #bae6fd",
-                                    marginBottom: gridGap,
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        display: "grid",
-                                        gridTemplateColumns: `repeat(auto-fit, minmax(${statCardMinWidth}, 1fr))`,
-                                        gap: gridGap,
-                                    }}
-                                >
-                                    <div>
-                                        <div
-                                            style={{
-                                                fontSize: "0.875rem",
-                                                color: "#64748b",
-                                                marginBottom: "0.25rem",
-                                            }}
-                                        >
-                                            Caja
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontSize: "1rem",
-                                                fontWeight: 600,
-                                                color: "#1e293b",
-                                            }}
-                                        >
-                                            {preview.cashRegisterName}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div
-                                            style={{
-                                                fontSize: "0.875rem",
-                                                color: "#64748b",
-                                                marginBottom: "0.25rem",
-                                            }}
-                                        >
-                                            N° Cierre
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontSize: "1rem",
-                                                fontWeight: 600,
-                                                color: "#1e293b",
-                                            }}
-                                        >
-                                            #{preview.nextClosureNumber}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div
-                                            style={{
-                                                fontSize: "0.875rem",
-                                                color: "#64748b",
-                                                marginBottom: "0.25rem",
-                                            }}
-                                        >
-                                            Pagos Pendientes
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Advertencias */}
-                            {preview.warnings &&
-                                preview.warnings.length > 0 && (
-                                    <div style={{ marginBottom: "1.5rem" }}>
-                                        {preview.warnings.map(
-                                            (warning, idx) => (
+                                        <div className="flex flex-col gap-3">
+                                            {history.map((closure) => (
                                                 <div
-                                                    key={idx}
-                                                    style={{
-                                                        padding: "1rem",
-                                                        borderRadius: "8px",
-                                                        marginBottom: "0.5rem",
-                                                        backgroundColor:
-                                                            warning.type ===
-                                                            "ERROR"
-                                                                ? "#fef2f2"
-                                                                : warning.type ===
-                                                                    "WARNING"
-                                                                  ? "#fffbeb"
-                                                                  : "#f0f9ff",
-                                                        border: `1px solid ${
-                                                            warning.type ===
-                                                            "ERROR"
-                                                                ? "#fecaca"
-                                                                : warning.type ===
-                                                                    "WARNING"
-                                                                  ? "#fde68a"
-                                                                  : "#bae6fd"
-                                                        }`,
-                                                        color:
-                                                            warning.type ===
-                                                            "ERROR"
-                                                                ? "#991b1b"
-                                                                : warning.type ===
-                                                                    "WARNING"
-                                                                  ? "#92400e"
-                                                                  : "#1e40af",
-                                                    }}
+                                                    key={closure.id}
+                                                    className="group relative flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:border-indigo-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-slate-700"
                                                 >
-                                                    <strong>
-                                                        {warning.type ===
-                                                        "ERROR"
-                                                            ? "❌"
-                                                            : warning.type ===
-                                                                "WARNING"
-                                                              ? "⚠️"
-                                                              : "ℹ️"}
-                                                    </strong>{" "}
-                                                    {warning.message}
-                                                </div>
-                                            ),
-                                        )}
-                                    </div>
-                                )}
-
-                            {/* Totales Generales — mostrar/ocultar con botón */}
-                            <div
-                                style={{
-                                    padding: cardPadding,
-                                    borderRadius: "12px",
-                                    backgroundColor: "#f8fafc",
-                                    border: "1px solid #e2e8f0",
-                                    marginBottom: gridGap,
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        alignItems: "center",
-                                        flexWrap: "wrap",
-                                        gap: "0.75rem",
-                                        marginBottom: showTotalesGenerales
-                                            ? "1rem"
-                                            : 0,
-                                    }}
-                                >
-                                    <h4
-                                        style={{
-                                            margin: 0,
-                                            fontSize: isSmall
-                                                ? "0.875rem"
-                                                : isMedium
-                                                  ? "0.9375rem"
-                                                  : isSmallDesktop
-                                                    ? "0.9375rem"
-                                                    : "1rem",
-                                            fontWeight: 600,
-                                            color: "#475569",
-                                        }}
-                                    >
-                                        Totales Generales
-                                    </h4>
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setShowTotalesGenerales((v) => !v)
-                                        }
-                                        style={{
-                                            padding: buttonPadding,
-                                            borderRadius: "8px",
-                                            border: "1px solid #e2e8f0",
-                                            backgroundColor:
-                                                showTotalesGenerales
-                                                    ? "#64748b"
-                                                    : "#3b82f6",
-                                            color: "white",
-                                            cursor: "pointer",
-                                            fontWeight: 600,
-                                            fontSize: buttonFontSize,
-                                        }}
-                                    >
-                                        {showTotalesGenerales
-                                            ? "Ocultar"
-                                            : "Visualizar"}
-                                    </button>
-                                </div>
-                                {showTotalesGenerales && (
-                                    <div
-                                        style={{
-                                            display: "grid",
-                                            gridTemplateColumns: `repeat(auto-fit, minmax(${statCardMinWidth}, 1fr))`,
-                                            gap: gridGap,
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                gridColumn: "1 / -1",
-                                                padding: "1rem",
-                                                borderRadius: "12px",
-                                                backgroundColor: "#ecfdf5",
-                                                border: "1px solid #6ee7b7",
-                                                marginBottom: "0.25rem",
-                                            }}
-                                        >
-                                            <div
-                                                style={{
-                                                    fontSize: "0.875rem",
-                                                    color: "#047857",
-                                                    marginBottom: "0.35rem",
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Total ventas (solo cobros de
-                                                pedidos)
-                                            </div>
-                                            <div
-                                                style={{
-                                                    fontSize: "1.6rem",
-                                                    fontWeight: 800,
-                                                    color: "#065f46",
-                                                }}
-                                            >
-                                                {movementsLoading
-                                                    ? "…"
-                                                    : currencyFormatter.format(
-                                                          totalVentasSinManual,
-                                                      )}
-                                            </div>
-                                            <div
-                                                style={{
-                                                    fontSize: "0.75rem",
-                                                    color: "#059669",
-                                                    marginTop: "0.35rem",
-                                                    lineHeight: 1.4,
-                                                }}
-                                            >
-                                                Sin ingresos ni egresos manuales
-                                                de caja
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div
-                                                style={{
-                                                    fontSize: "0.875rem",
-                                                    color: "#64748b",
-                                                    marginBottom: "0.5rem",
-                                                }}
-                                            >
-                                                Total Ingresos
-                                            </div>
-                                            <div
-                                                style={{
-                                                    fontSize: "1.5rem",
-                                                    fontWeight: 700,
-                                                    color: "#16a34a",
-                                                }}
-                                            >
-                                                {currencyFormatter.format(
-                                                    preview.totalIncome,
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div
-                                                style={{
-                                                    fontSize: "0.875rem",
-                                                    color: "#64748b",
-                                                    marginBottom: "0.5rem",
-                                                }}
-                                            >
-                                                Total Egresos
-                                            </div>
-                                            <div
-                                                style={{
-                                                    fontSize: "1.5rem",
-                                                    fontWeight: 700,
-                                                    color: "#dc2626",
-                                                }}
-                                            >
-                                                {currencyFormatter.format(
-                                                    preview.totalExpense,
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div
-                                                style={{
-                                                    fontSize: "0.875rem",
-                                                    color: "#64748b",
-                                                    marginBottom: "0.5rem",
-                                                }}
-                                            >
-                                                Neto Total
-                                            </div>
-                                            <div
-                                                style={{
-                                                    fontSize: "1.5rem",
-                                                    fontWeight: 700,
-                                                    color:
-                                                        preview.netTotal >= 0
-                                                            ? "#16a34a"
-                                                            : "#dc2626",
-                                                }}
-                                            >
-                                                {currencyFormatter.format(
-                                                    preview.netTotal,
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Movimientos de caja (pagos pendientes de cierre) — mostrar/ocultar con botón */}
-                            <div
-                                style={{
-                                    padding: cardPadding,
-                                    borderRadius: "12px",
-                                    backgroundColor: "#f8fafc",
-                                    border: "1px solid #e2e8f0",
-                                    marginBottom: gridGap,
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        alignItems: "center",
-                                        flexWrap: "wrap",
-                                        gap: "0.75rem",
-                                        marginBottom: showMovements
-                                            ? "1rem"
-                                            : 0,
-                                    }}
-                                >
-                                    <h4
-                                        style={{
-                                            margin: 0,
-                                            fontSize: isSmall
-                                                ? "0.875rem"
-                                                : isMedium
-                                                  ? "0.9375rem"
-                                                  : isSmallDesktop
-                                                    ? "0.9375rem"
-                                                    : "1rem",
-                                            fontWeight: 600,
-                                            color: "#475569",
-                                        }}
-                                    >
-                                        📋 Movimientos de caja
-                                    </h4>
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setShowMovements((v) => !v)
-                                        }
-                                        style={{
-                                            padding: buttonPadding,
-                                            borderRadius: "8px",
-                                            border: "1px solid #e2e8f0",
-                                            backgroundColor: showMovements
-                                                ? "#64748b"
-                                                : "#3b82f6",
-                                            color: "white",
-                                            cursor: "pointer",
-                                            fontWeight: 600,
-                                            fontSize: buttonFontSize,
-                                        }}
-                                    >
-                                        {showMovements
-                                            ? "Ocultar"
-                                            : "Visualizar"}
-                                    </button>
-                                </div>
-                                {showMovements && (
-                                    <>
-                                        {!movementsLoading &&
-                                            movements.length > 0 &&
-                                            canEditPaymentMethodInMovementsList && (
-                                                <p
-                                                    style={{
-                                                        margin: "0 0 0.75rem",
-                                                        fontSize: "0.75rem",
-                                                        color: "#64748b",
-                                                        lineHeight: 1.4,
-                                                    }}
-                                                >
-                                                    El desplegable solo aparece
-                                                    si tu usuario tiene el
-                                                    permiso{" "}
-                                                    <strong>
-                                                        cash.change_payment_method
-                                                    </strong>{" "}
-                                                    (en la app y en Django). No
-                                                    modifica montos.
-                                                </p>
-                                            )}
-                                        {movementsLoading ? (
-                                            <div
-                                                style={{
-                                                    padding: cardPadding,
-                                                    textAlign: "center",
-                                                    color: "#64748b",
-                                                }}
-                                            >
-                                                Cargando movimientos...
-                                            </div>
-                                        ) : movements.length === 0 ? (
-                                            <div
-                                                style={{
-                                                    padding: "1.5rem",
-                                                    textAlign: "center",
-                                                    color: "#64748b",
-                                                    fontSize: "0.875rem",
-                                                }}
-                                            >
-                                                No hay movimientos pendientes de
-                                                cierre
-                                            </div>
-                                        ) : (
-                                            <div
-                                                style={{
-                                                    overflowX: "auto",
-                                                    borderRadius: "8px",
-                                                }}
-                                            >
-                                                {!isXs && !isSmall ? (
-                                                    <table
-                                                        style={{
-                                                            width: "100%",
-                                                            borderCollapse:
-                                                                "collapse",
-                                                            fontSize:
-                                                                "0.8125rem",
-                                                        }}
-                                                    >
-                                                        <thead>
-                                                            <tr
-                                                                style={{
-                                                                    borderBottom:
-                                                                        "2px solid #e2e8f0",
-                                                                    backgroundColor:
-                                                                        "#f1f5f9",
-                                                                }}
-                                                            >
-                                                                <th
-                                                                    style={{
-                                                                        padding:
-                                                                            "0.75rem",
-                                                                        textAlign:
-                                                                            "center",
-                                                                        color: "#475569",
-                                                                        fontWeight: 600,
-                                                                    }}
-                                                                >
-                                                                    Fecha / Hora
-                                                                </th>
-                                                                <th
-                                                                    style={{
-                                                                        padding:
-                                                                            "0.75rem",
-                                                                        textAlign:
-                                                                            "center",
-                                                                        color: "#475569",
-                                                                        fontWeight: 600,
-                                                                    }}
-                                                                >
-                                                                    Tipo
-                                                                </th>
-                                                                <th
-                                                                    style={{
-                                                                        padding:
-                                                                            "0.75rem",
-                                                                        textAlign:
-                                                                            "center",
-                                                                        color: "#475569",
-                                                                        fontWeight: 600,
-                                                                    }}
-                                                                >
-                                                                    Método de
-                                                                    pago
-                                                                </th>
-                                                                <th
-                                                                    style={{
-                                                                        padding:
-                                                                            "0.75rem",
-                                                                        textAlign:
-                                                                            "center",
-                                                                        color: "#475569",
-                                                                        fontWeight: 600,
-                                                                    }}
-                                                                >
-                                                                    Monto
-                                                                </th>
-                                                                <th
-                                                                    style={{
-                                                                        padding:
-                                                                            "0.75rem",
-                                                                        textAlign:
-                                                                            "center",
-                                                                        color: "#475569",
-                                                                        fontWeight: 600,
-                                                                    }}
-                                                                >
-                                                                    Usuario
-                                                                </th>
-                                                                <th
-                                                                    style={{
-                                                                        padding:
-                                                                            "0.75rem",
-                                                                        textAlign:
-                                                                            "center",
-                                                                        color: "#475569",
-                                                                        fontWeight: 600,
-                                                                    }}
-                                                                >
-                                                                    Referencia /
-                                                                    Notas
-                                                                </th>
-                                                                <th
-                                                                    style={{
-                                                                        padding:
-                                                                            "0.75rem",
-                                                                        textAlign:
-                                                                            "center",
-                                                                        color: "#475569",
-                                                                        fontWeight: 600,
-                                                                    }}
-                                                                >
-                                                                    Documento
-                                                                </th>
-                                                                <th
-                                                                    style={{
-                                                                        padding:
-                                                                            "0.75rem",
-                                                                        textAlign:
-                                                                            "center",
-                                                                        color: "#475569",
-                                                                        fontWeight: 600,
-                                                                    }}
-                                                                >
-                                                                    Imprimir
-                                                                </th>
-                                                                <th
-                                                                    style={{
-                                                                        padding:
-                                                                            "0.75rem",
-                                                                        textAlign:
-                                                                            "center",
-                                                                        color: "#475569",
-                                                                        fontWeight: 600,
-                                                                    }}
-                                                                >
-                                                                    Anular
-                                                                </th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {movements.map(
-                                                                (mov) => {
-                                                                    const dateStr =
-                                                                        (
-                                                                            mov as any
-                                                                        )
-                                                                            .paymentDate ??
-                                                                        (
-                                                                            mov as any
-                                                                        )
-                                                                            .payment_date ??
-                                                                        mov.paymentDate;
-                                                                    const amount =
-                                                                        Number(
-                                                                            (
-                                                                                mov as any
-                                                                            )
-                                                                                .paidAmount ??
-                                                                                (
-                                                                                    mov as any
-                                                                                )
-                                                                                    .paid_amount ??
-                                                                                mov.paidAmount ??
-                                                                                0,
-                                                                        );
-                                                                    const type =
-                                                                        (
-                                                                            mov as any
-                                                                        )
-                                                                            .transactionType ??
-                                                                        (
-                                                                            mov as any
-                                                                        )
-                                                                            .transaction_type ??
-                                                                        mov.transactionType ??
-                                                                        "";
-                                                                    const method =
-                                                                        (
-                                                                            mov as any
-                                                                        )
-                                                                            .paymentMethod ??
-                                                                        (
-                                                                            mov as any
-                                                                        )
-                                                                            .payment_method ??
-                                                                        mov.paymentMethod ??
-                                                                        "";
-                                                                    const doc =
-                                                                        mov.issuedDocument ??
-                                                                        (
-                                                                            mov as any
-                                                                        )
-                                                                            .issued_document;
-                                                                    const docLabel =
-                                                                        doc
-                                                                            ? `${doc.serial ?? ""}-${doc.number ?? ""}`.replace(
-                                                                                  /^-|-$/g,
-                                                                                  "",
-                                                                              ) ||
-                                                                              "—"
-                                                                            : "—";
-                                                                    const isCancelled =
-                                                                        isCancelledCashMovement(
-                                                                            mov,
-                                                                        );
-                                                                    const canCancel =
-                                                                        canCancelManualCashMovement(
-                                                                            mov,
-                                                                        );
-                                                                    return (
-                                                                        <tr
-                                                                            key={
-                                                                                mov.id
-                                                                            }
-                                                                            style={{
-                                                                                borderBottom:
-                                                                                    "1px solid #f1f5f9",
-                                                                                opacity:
-                                                                                    isCancelled
-                                                                                        ? 0.48
-                                                                                        : 1,
-                                                                                backgroundColor:
-                                                                                    isCancelled
-                                                                                        ? "rgba(241, 245, 249, 0.65)"
-                                                                                        : undefined,
-                                                                                filter: isCancelled
-                                                                                    ? "grayscale(0.35)"
-                                                                                    : undefined,
-                                                                                transition:
-                                                                                    "opacity 0.15s ease",
-                                                                            }}
-                                                                            title={
-                                                                                isCancelled
-                                                                                    ? "Movimiento anulado (no cuenta en caja)"
-                                                                                    : undefined
-                                                                            }
-                                                                        >
-                                                                            <td
-                                                                                style={{
-                                                                                    padding:
-                                                                                        "0.75rem",
-                                                                                    color: "#334155",
-                                                                                }}
-                                                                            >
-                                                                                {dateStr
-                                                                                    ? formatDate(
-                                                                                          dateStr,
-                                                                                      )
-                                                                                    : "—"}
-                                                                            </td>
-                                                                            <td
-                                                                                style={{
-                                                                                    padding:
-                                                                                        "0.75rem",
-                                                                                }}
-                                                                            >
-                                                                                <span
-                                                                                    style={{
-                                                                                        padding:
-                                                                                            "0.2rem 0.5rem",
-                                                                                        borderRadius:
-                                                                                            "6px",
-                                                                                        fontSize:
-                                                                                            "0.75rem",
-                                                                                        fontWeight: 600,
-                                                                                        backgroundColor:
-                                                                                            isCancelled
-                                                                                                ? "#e2e8f0"
-                                                                                                : type ===
-                                                                                                    "INCOME"
-                                                                                                  ? "#dcfce7"
-                                                                                                  : "#fee2e2",
-                                                                                        color: isCancelled
-                                                                                            ? "#64748b"
-                                                                                            : type ===
-                                                                                                "INCOME"
-                                                                                              ? "#166534"
-                                                                                              : "#991b1b",
-                                                                                    }}
-                                                                                >
-                                                                                    {getTransactionTypeLabel(
-                                                                                        type,
-                                                                                    )}
-                                                                                </span>
-                                                                            </td>
-                                                                            <td
-                                                                                style={{
-                                                                                    padding:
-                                                                                        "0.75rem",
-                                                                                    color: isCancelled
-                                                                                        ? "#94a3b8"
-                                                                                        : "#475569",
-                                                                                    verticalAlign:
-                                                                                        "middle",
-                                                                                }}
-                                                                            >
-                                                                                {(() => {
-                                                                                    const raw =
-                                                                                        String(
-                                                                                            method ??
-                                                                                                "",
-                                                                                        ).trim();
-                                                                                    const m =
-                                                                                        raw
-                                                                                            .toUpperCase()
-                                                                                            .replace(
-                                                                                                /\s+/g,
-                                                                                                "_",
-                                                                                            );
-                                                                                    const codes =
-                                                                                        EDITABLE_PAYMENT_METHOD_CODES as readonly string[];
-                                                                                    const isKnownCode =
-                                                                                        codes.includes(
-                                                                                            m,
-                                                                                        );
-                                                                                    /** Valor controlado: código estándar, código raro del API, o CASH por defecto. */
-                                                                                    const valueForSelect =
-                                                                                        isKnownCode
-                                                                                            ? m
-                                                                                            : m
-                                                                                              ? m
-                                                                                              : "CASH";
-                                                                                    const canEditMethod =
-                                                                                        canEditPaymentMethodInMovementsList &&
-                                                                                        !isCancelled;
-                                                                                    if (
-                                                                                        canEditMethod
-                                                                                    ) {
-                                                                                        return (
-                                                                                            <select
-                                                                                                value={
-                                                                                                    valueForSelect
-                                                                                                }
-                                                                                                disabled={
-                                                                                                    updatingPaymentMethodId ===
-                                                                                                    mov.id
-                                                                                                }
-                                                                                                title="Corregir método de pago (no cambia montos ni saldo)"
-                                                                                                onChange={(
-                                                                                                    e,
-                                                                                                ) =>
-                                                                                                    handleUpdatePaymentMethod(
-                                                                                                        mov.id,
-                                                                                                        e
-                                                                                                            .target
-                                                                                                            .value,
-                                                                                                        raw ||
-                                                                                                            method,
-                                                                                                    )
-                                                                                                }
-                                                                                                style={{
-                                                                                                    maxWidth:
-                                                                                                        "168px",
-                                                                                                    width: "100%",
-                                                                                                    minHeight:
-                                                                                                        "30px",
-                                                                                                    fontSize:
-                                                                                                        "0.8125rem",
-                                                                                                    padding:
-                                                                                                        "0.35rem 0.45rem",
-                                                                                                    borderRadius:
-                                                                                                        "8px",
-                                                                                                    border: "2px solid #64748b",
-                                                                                                    background:
-                                                                                                        updatingPaymentMethodId ===
-                                                                                                        mov.id
-                                                                                                            ? "#f1f5f9"
-                                                                                                            : "#ffffff",
-                                                                                                    color: "#0f172a",
-                                                                                                    cursor:
-                                                                                                        updatingPaymentMethodId ===
-                                                                                                        mov.id
-                                                                                                            ? "wait"
-                                                                                                            : "pointer",
-                                                                                                    boxShadow:
-                                                                                                        "0 1px 2px rgba(15,23,42,0.08)",
-                                                                                                    appearance:
-                                                                                                        "auto",
-                                                                                                }}
-                                                                                            >
-                                                                                                {!isKnownCode &&
-                                                                                                Boolean(
-                                                                                                    m,
-                                                                                                ) ? (
-                                                                                                    <option
-                                                                                                        value={
-                                                                                                            m
-                                                                                                        }
-                                                                                                    >
-                                                                                                        {getPaymentMethodLabel(
-                                                                                                            raw,
-                                                                                                        ) ||
-                                                                                                            raw ||
-                                                                                                            m}
-                                                                                                    </option>
-                                                                                                ) : null}
-                                                                                                {EDITABLE_PAYMENT_METHOD_CODES.map(
-                                                                                                    (
-                                                                                                        code,
-                                                                                                    ) => (
-                                                                                                        <option
-                                                                                                            key={
-                                                                                                                code
-                                                                                                            }
-                                                                                                            value={
-                                                                                                                code
-                                                                                                            }
-                                                                                                        >
-                                                                                                            {getPaymentMethodLabel(
-                                                                                                                code,
-                                                                                                            )}
-                                                                                                        </option>
-                                                                                                    ),
-                                                                                                )}
-                                                                                            </select>
-                                                                                        );
-                                                                                    }
-                                                                                    return getPaymentMethodLabel(
-                                                                                        method,
-                                                                                    );
-                                                                                })()}
-                                                                            </td>
-                                                                            <td
-                                                                                style={{
-                                                                                    padding:
-                                                                                        "0.75rem",
-                                                                                    textAlign:
-                                                                                        "center",
-                                                                                    fontWeight: 600,
-                                                                                    color: isCancelled
-                                                                                        ? "#94a3b8"
-                                                                                        : type ===
-                                                                                            "INCOME"
-                                                                                          ? "#16a34a"
-                                                                                          : "#dc2626",
-                                                                                    textDecoration:
-                                                                                        isCancelled
-                                                                                            ? "line-through"
-                                                                                            : undefined,
-                                                                                }}
-                                                                            >
-                                                                                {type ===
-                                                                                "EXPENSE"
-                                                                                    ? "-"
-                                                                                    : ""}
-                                                                                {currencyFormatter.format(
-                                                                                    amount,
-                                                                                )}
-                                                                            </td>
-                                                                            <td
-                                                                                style={{
-                                                                                    padding:
-                                                                                        "0.75rem",
-                                                                                    color: isCancelled
-                                                                                        ? "#94a3b8"
-                                                                                        : "#64748b",
-                                                                                }}
-                                                                            >
-                                                                                {mov
-                                                                                    .user
-                                                                                    ?.fullName ??
-                                                                                    (
-                                                                                        mov as any
-                                                                                    )
-                                                                                        .user
-                                                                                        ?.full_name ??
-                                                                                    "—"}
-                                                                            </td>
-                                                                            <td
-                                                                                style={{
-                                                                                    padding:
-                                                                                        "0.75rem",
-                                                                                    color: isCancelled
-                                                                                        ? "#94a3b8"
-                                                                                        : "#64748b",
-                                                                                    fontSize:
-                                                                                        "0.75rem",
-                                                                                }}
-                                                                            >
-                                                                                <div
-                                                                                    style={{
-                                                                                        fontWeight: 600,
-                                                                                        color: isCancelled
-                                                                                            ? "#94a3b8"
-                                                                                            : "#475569",
-                                                                                    }}
-                                                                                >
-                                                                                    {mov
-                                                                                        .operation
-                                                                                        ?.order
-                                                                                        ? `Op: ${mov.operation.order}`
-                                                                                        : "—"}
-                                                                                </div>
-                                                                                <div
-                                                                                    style={{
-                                                                                        fontStyle:
-                                                                                            "italic",
-                                                                                        marginTop:
-                                                                                            "0.1rem",
-                                                                                    }}
-                                                                                >
-                                                                                    {mov.notes ||
-                                                                                        "—"}
-                                                                                </div>
-                                                                            </td>
-                                                                            <td
-                                                                                style={{
-                                                                                    padding:
-                                                                                        "0.75rem",
-                                                                                    color: isCancelled
-                                                                                        ? "#94a3b8"
-                                                                                        : "#64748b",
-                                                                                    fontSize:
-                                                                                        "0.75rem",
-                                                                                }}
-                                                                            >
-                                                                                {
-                                                                                    docLabel
-                                                                                }
-                                                                            </td>
-                                                                            <td
-                                                                                style={{
-                                                                                    padding:
-                                                                                        "0.75rem",
-                                                                                    textAlign:
-                                                                                        "center",
-                                                                                    verticalAlign:
-                                                                                        "middle",
-                                                                                }}
-                                                                            >
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={(
-                                                                                        e,
-                                                                                    ) => {
-                                                                                        e.stopPropagation();
-                                                                                        handlePrintPayment(
-                                                                                            mov.id,
-                                                                                        );
-                                                                                    }}
-                                                                                    disabled={
-                                                                                        printingPaymentId ===
-                                                                                        mov.id
-                                                                                    }
-                                                                                    title="Imprimir este movimiento (incluye anulados)"
-                                                                                    style={{
-                                                                                        padding:
-                                                                                            "0.35rem 0.6rem",
-                                                                                        borderRadius:
-                                                                                            "8px",
-                                                                                        border: "none",
-                                                                                        backgroundColor:
-                                                                                            printingPaymentId ===
-                                                                                            mov.id
-                                                                                                ? "#94a3b8"
-                                                                                                : "#2563eb",
-                                                                                        color: "white",
-                                                                                        fontSize:
-                                                                                            "0.75rem",
-                                                                                        cursor:
-                                                                                            printingPaymentId ===
-                                                                                            mov.id
-                                                                                                ? "not-allowed"
-                                                                                                : "pointer",
-                                                                                        opacity:
-                                                                                            printingPaymentId ===
-                                                                                            mov.id
-                                                                                                ? 0.8
-                                                                                                : 1,
-                                                                                    }}
-                                                                                >
-                                                                                    {printingPaymentId ===
-                                                                                    mov.id
-                                                                                        ? "Imprimiendo..."
-                                                                                        : "🖨️"}
-                                                                                </button>
-                                                                            </td>
-                                                                            <td
-                                                                                style={{
-                                                                                    padding:
-                                                                                        "0.75rem",
-                                                                                    textAlign:
-                                                                                        "center",
-                                                                                    verticalAlign:
-                                                                                        "middle",
-                                                                                }}
-                                                                            >
-                                                                                {isCancelled ? (
-                                                                                    <span
-                                                                                        style={{
-                                                                                            display:
-                                                                                                "inline-block",
-                                                                                            padding:
-                                                                                                "0.25rem 0.5rem",
-                                                                                            borderRadius:
-                                                                                                "6px",
-                                                                                            fontSize:
-                                                                                                "0.7rem",
-                                                                                            fontWeight: 700,
-                                                                                            backgroundColor:
-                                                                                                "#f1f5f9",
-                                                                                            color: "#64748b",
-                                                                                            border: "1px dashed #cbd5e1",
-                                                                                        }}
-                                                                                        title="Este movimiento fue anulado"
-                                                                                    >
-                                                                                        Anulado
-                                                                                    </span>
-                                                                                ) : canCancel &&
-                                                                                  canVoidManualMovementInList ? (
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={(
-                                                                                            e,
-                                                                                        ) => {
-                                                                                            e.stopPropagation();
-                                                                                            handleCancelManualPayment(
-                                                                                                mov.id,
-                                                                                            );
-                                                                                        }}
-                                                                                        disabled={
-                                                                                            cancelingPaymentId ===
-                                                                                            mov.id
-                                                                                        }
-                                                                                        title="Anular solo ingreso/egreso manual"
-                                                                                        style={{
-                                                                                            padding:
-                                                                                                "0.35rem 0.55rem",
-                                                                                            borderRadius:
-                                                                                                "8px",
-                                                                                            border: "none",
-                                                                                            backgroundColor:
-                                                                                                cancelingPaymentId ===
-                                                                                                mov.id
-                                                                                                    ? "#94a3b8"
-                                                                                                    : "#b91c1c",
-                                                                                            color: "white",
-                                                                                            fontSize:
-                                                                                                "0.75rem",
-                                                                                            fontWeight: 600,
-                                                                                            cursor:
-                                                                                                cancelingPaymentId ===
-                                                                                                mov.id
-                                                                                                    ? "not-allowed"
-                                                                                                    : "pointer",
-                                                                                            opacity:
-                                                                                                cancelingPaymentId ===
-                                                                                                mov.id
-                                                                                                    ? 0.85
-                                                                                                    : 1,
-                                                                                        }}
-                                                                                    >
-                                                                                        {cancelingPaymentId ===
-                                                                                        mov.id
-                                                                                            ? "…"
-                                                                                            : "Anular"}
-                                                                                    </button>
-                                                                                ) : canCancel &&
-                                                                                  !canVoidManualMovementInList ? (
-                                                                                    <span
-                                                                                        style={{
-                                                                                            color: "#94a3b8",
-                                                                                            fontSize:
-                                                                                                "0.7rem",
-                                                                                        }}
-                                                                                        title="Sin permiso para anular movimientos en caja"
-                                                                                    >
-                                                                                        —
-                                                                                    </span>
-                                                                                ) : (
-                                                                                    <span
-                                                                                        style={{
-                                                                                            color: "#94a3b8",
-                                                                                            fontSize:
-                                                                                                "0.7rem",
-                                                                                        }}
-                                                                                        title="Ventas, compras u operaciones con orden no se anulan aquí"
-                                                                                    >
-                                                                                        —
-                                                                                    </span>
-                                                                                )}
-                                                                            </td>
-                                                                        </tr>
-                                                                    );
-                                                                },
-                                                            )}
-                                                        </tbody>
-                                                    </table>
-                                                ) : (
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            flexDirection:
-                                                                "column",
-                                                            gap: "1rem",
-                                                        }}
-                                                    >
-                                                        {movements.map(
-                                                            (mov) => {
-                                                                const dateStr =
-                                                                    (mov as any)
-                                                                        .paymentDate ??
-                                                                    (mov as any)
-                                                                        .payment_date ??
-                                                                    mov.paymentDate;
-                                                                const amount =
-                                                                    Number(
-                                                                        (
-                                                                            mov as any
-                                                                        )
-                                                                            .paidAmount ??
-                                                                            (
-                                                                                mov as any
-                                                                            )
-                                                                                .paid_amount ??
-                                                                            mov.paidAmount ??
-                                                                            0,
-                                                                    );
-                                                                const type =
-                                                                    (mov as any)
-                                                                        .transactionType ??
-                                                                    (mov as any)
-                                                                        .transaction_type ??
-                                                                    mov.transactionType ??
-                                                                    "";
-                                                                const method =
-                                                                    (mov as any)
-                                                                        .paymentMethod ??
-                                                                    (mov as any)
-                                                                        .payment_method ??
-                                                                    mov.paymentMethod ??
-                                                                    "";
-                                                                const doc =
-                                                                    mov.issuedDocument ??
-                                                                    (mov as any)
-                                                                        .issued_document;
-                                                                const docLabel =
-                                                                    doc
-                                                                        ? `${doc.serial ?? ""}-${doc.number ?? ""}`.replace(
-                                                                              /^-|-$/g,
-                                                                              "",
-                                                                          ) ||
-                                                                          "—"
-                                                                        : (
-                                                                              mov as any
-                                                                          )
-                                                                              .reference ||
-                                                                          (
-                                                                              mov as any
-                                                                          )
-                                                                              .referenceNumber ||
-                                                                          "";
-                                                                const isCancelled =
-                                                                    isCancelledCashMovement(
-                                                                        mov,
-                                                                    );
-                                                                const canCancel =
-                                                                    canCancelManualCashMovement(
-                                                                        mov,
-                                                                    );
-                                                                return (
-                                                                    <div
-                                                                        key={
-                                                                            mov.id
-                                                                        }
-                                                                        style={{
-                                                                            padding:
-                                                                                "1rem",
-                                                                            borderRadius:
-                                                                                "12px",
-                                                                            border: "1px solid #e2e8f0",
-                                                                            backgroundColor:
-                                                                                isCancelled
-                                                                                    ? "#f8fafc"
-                                                                                    : "white",
-                                                                            opacity:
-                                                                                isCancelled
-                                                                                    ? 0.7
-                                                                                    : 1,
-                                                                        }}
-                                                                    >
-                                                                        <div
-                                                                            style={{
-                                                                                display:
-                                                                                    "flex",
-                                                                                justifyContent:
-                                                                                    "space-between",
-                                                                                marginBottom:
-                                                                                    "0.5rem",
-                                                                            }}
-                                                                        >
-                                                                            <span
-                                                                                style={{
-                                                                                    fontSize:
-                                                                                        "0.75rem",
-                                                                                    color: "#64748b",
-                                                                                }}
-                                                                            >
-                                                                                {dateStr
-                                                                                    ? formatDate(
-                                                                                          dateStr,
-                                                                                      )
-                                                                                    : "—"}
-                                                                            </span>
-                                                                            <span
-                                                                                style={{
-                                                                                    padding:
-                                                                                        "0.2rem 0.5rem",
-                                                                                    borderRadius:
-                                                                                        "6px",
-                                                                                    fontSize:
-                                                                                        "0.7rem",
-                                                                                    fontWeight: 700,
-                                                                                    backgroundColor:
-                                                                                        isCancelled
-                                                                                            ? "#e2e8f0"
-                                                                                            : type ===
-                                                                                                "INCOME"
-                                                                                              ? "#dcfce7"
-                                                                                              : "#fee2e2",
-                                                                                    color: isCancelled
-                                                                                        ? "#64748b"
-                                                                                        : type ===
-                                                                                            "INCOME"
-                                                                                          ? "#166534"
-                                                                                          : "#991b1b",
-                                                                                }}
-                                                                            >
-                                                                                {getTransactionTypeLabel(
-                                                                                    type,
-                                                                                )}
-                                                                            </span>
-                                                                        </div>
-                                                                        <div
-                                                                            style={{
-                                                                                display:
-                                                                                    "flex",
-                                                                                justifyContent:
-                                                                                    "space-between",
-                                                                                alignItems:
-                                                                                    "center",
-                                                                                marginBottom:
-                                                                                    "0.5rem",
-                                                                            }}
-                                                                        >
-                                                                            <span
-                                                                                style={{
-                                                                                    fontWeight: 600,
-                                                                                    color: "#1e293b",
-                                                                                }}
-                                                                            >
-                                                                                {getPaymentMethodLabel(
-                                                                                    method,
-                                                                                )}
-                                                                            </span>
-                                                                            <span
-                                                                                style={{
-                                                                                    fontWeight: 800,
-                                                                                    fontSize:
-                                                                                        "1.1rem",
-                                                                                    color:
-                                                                                        type ===
-                                                                                        "INCOME"
-                                                                                            ? "#16a34a"
-                                                                                            : "#dc2626",
-                                                                                }}
-                                                                            >
-                                                                                {currencyFormatter.format(
-                                                                                    amount,
-                                                                                )}
-                                                                            </span>
-                                                                        </div>
-                                                                        <div
-                                                                            style={{
-                                                                                fontSize:
-                                                                                    "0.8rem",
-                                                                                color: "#64748b",
-                                                                                marginBottom:
-                                                                                    "0.75rem",
-                                                                            }}
-                                                                        >
-                                                                            {docLabel ||
-                                                                                mov.notes ||
-                                                                                "Sin referencia"}
-                                                                        </div>
-                                                                        <div
-                                                                            style={{
-                                                                                display:
-                                                                                    "flex",
-                                                                                gap: "0.5rem",
-                                                                            }}
-                                                                        >
-                                                                            <button
-                                                                                onClick={() =>
-                                                                                    handlePrintPayment(
-                                                                                        mov.id,
-                                                                                    )
-                                                                                }
-                                                                                style={{
-                                                                                    flex: 1,
-                                                                                    padding:
-                                                                                        "0.6rem",
-                                                                                    borderRadius:
-                                                                                        "8px",
-                                                                                    border: "1px solid #e2e8f0",
-                                                                                    backgroundColor:
-                                                                                        "#f8fafc",
-                                                                                    fontSize:
-                                                                                        "0.8rem",
-                                                                                    fontWeight: 600,
-                                                                                }}
-                                                                            >
-                                                                                🖨️
-                                                                                Ticket
-                                                                            </button>
-                                                                            {!isCancelled &&
-                                                                                canCancel &&
-                                                                                canVoidManualMovementInList && (
-                                                                                    <button
-                                                                                        onClick={() =>
-                                                                                            handleCancelManualPayment(
-                                                                                                mov.id,
-                                                                                            )
-                                                                                        }
-                                                                                        style={{
-                                                                                            flex: 1,
-                                                                                            padding:
-                                                                                                "0.6rem",
-                                                                                            borderRadius:
-                                                                                                "8px",
-                                                                                            border: "none",
-                                                                                            backgroundColor:
-                                                                                                "#fee2e2",
-                                                                                            color: "#dc2626",
-                                                                                            fontSize:
-                                                                                                "0.8rem",
-                                                                                            fontWeight: 600,
-                                                                                        }}
-                                                                                    >
-                                                                                        Anular
-                                                                                    </button>
-                                                                                )}
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            },
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-
-                            {/* Resumen por método de pago (total caja, del preview) */}
-                            {preview.generalPaymentMethods &&
-                                preview.generalPaymentMethods.length > 0 && (
-                                    <div style={{ marginBottom: gridGap }}>
-                                        <h4
-                                            style={{
-                                                margin: "0 0 1rem",
-                                                fontSize: isSmall
-                                                    ? "0.875rem"
-                                                    : isMedium
-                                                      ? "0.9375rem"
-                                                      : isSmallDesktop
-                                                        ? "0.9375rem"
-                                                        : "1rem",
-                                                fontWeight: 600,
-                                                color: "#475569",
-                                            }}
-                                        >
-                                            Resumen por método de pago
-                                        </h4>
-                                        <div
-                                            style={{
-                                                padding: cardPadding,
-                                                borderRadius: "12px",
-                                                backgroundColor: "#f8fafc",
-                                                border: "1px solid #e2e8f0",
-                                            }}
-                                        >
-                                            <div
-                                                style={{
-                                                    display: "flex",
-                                                    flexWrap: "wrap",
-                                                    gap: "0.75rem",
-                                                }}
-                                            >
-                                                {preview.generalPaymentMethods.map(
-                                                    (method, methodIdx) => {
-                                                        const pmTheme =
-                                                            getPaymentMethodCardTheme(
-                                                                method.methodCode,
-                                                            );
-                                                        return (
-                                                            <div
-                                                                key={`${method.methodCode}-${methodIdx}`}
-                                                                style={{
-                                                                    flex: "1 1 160px",
-                                                                    minWidth:
-                                                                        "140px",
-                                                                    padding:
-                                                                        "0.75rem 1rem",
-                                                                    borderRadius:
-                                                                        "8px",
-                                                                    backgroundColor:
-                                                                        pmTheme.bg,
-                                                                    border: `1px solid ${pmTheme.border}`,
-                                                                }}
-                                                            >
-                                                                <div
-                                                                    style={{
-                                                                        fontWeight: 700,
-                                                                        color: pmTheme.color,
-                                                                        marginBottom:
-                                                                            "0.5rem",
-                                                                        fontSize:
-                                                                            "0.9rem",
-                                                                        opacity: 0.95,
-                                                                    }}
-                                                                >
-                                                                    {
-                                                                        method.methodName
-                                                                    }
-                                                                </div>
-                                                                <div
-                                                                    style={{
-                                                                        fontSize:
-                                                                            "0.72rem",
-                                                                        color: "#64748b",
-                                                                        marginBottom:
-                                                                            "0.2rem",
-                                                                    }}
-                                                                >
-                                                                    Ingresos:{" "}
-                                                                    <span
-                                                                        style={{
-                                                                            color: "#16a34a",
-                                                                            fontWeight: 600,
-                                                                        }}
-                                                                    >
-                                                                        {currencyFormatter.format(
-                                                                            method.income,
-                                                                        )}
-                                                                    </span>
-                                                                </div>
-                                                                <div
-                                                                    style={{
-                                                                        fontSize:
-                                                                            "0.72rem",
-                                                                        color: "#64748b",
-                                                                        marginBottom:
-                                                                            "0.35rem",
-                                                                    }}
-                                                                >
-                                                                    Egresos:{" "}
-                                                                    <span
-                                                                        style={{
-                                                                            color: "#dc2626",
-                                                                            fontWeight: 600,
-                                                                        }}
-                                                                    >
-                                                                        {currencyFormatter.format(
-                                                                            method.expense,
-                                                                        )}
-                                                                    </span>
-                                                                </div>
-                                                                <div
-                                                                    style={{
-                                                                        fontSize:
-                                                                            "0.8rem",
-                                                                        fontWeight: 700,
-                                                                        color:
-                                                                            method.net >=
-                                                                            0
-                                                                                ? pmTheme.color
-                                                                                : "#dc2626",
-                                                                    }}
-                                                                >
-                                                                    Neto:{" "}
-                                                                    {currencyFormatter.format(
-                                                                        method.net,
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    },
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                            {/* Botón de Cerrar Caja (solo con permiso sales.close / admin) */}
-                            <div
-                                style={{
-                                    display: "flex",
-                                    justifyContent: "flex-end",
-                                    gap: "1rem",
-                                    marginTop: gridGap,
-                                    flexWrap: "wrap",
-                                }}
-                            >
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowPreview(false);
-                                        setSelectedCashRegister("");
-                                        setSelectedUserId(null);
-                                    }}
-                                    style={{
-                                        padding: buttonPadding,
-                                        borderRadius: "8px",
-                                        border: "1px solid #e2e8f0",
-                                        backgroundColor: "white",
-                                        color: "#64748b",
-                                        cursor: "pointer",
-                                        fontWeight: 600,
-                                        fontSize: buttonFontSize,
-                                    }}
-                                >
-                                    {canCloseCashRegister
-                                        ? "Cancelar"
-                                        : "Volver"}
-                                </button>
-                                {canCloseCashRegister && (
-                                    <button
-                                        type="button"
-                                        onClick={handleCloseCashClick}
-                                        disabled={
-                                            !preview.canClose || closingCash
-                                        }
-                                        style={{
-                                            padding: buttonPadding,
-                                            borderRadius: "8px",
-                                            border: "none",
-                                            backgroundColor: preview.canClose
-                                                ? "#16a34a"
-                                                : "#94a3b8",
-                                            color: "white",
-                                            cursor:
-                                                preview.canClose && !closingCash
-                                                    ? "pointer"
-                                                    : "not-allowed",
-                                            fontWeight: 600,
-                                            fontSize: buttonFontSize,
-                                            opacity:
-                                                preview.canClose && !closingCash
-                                                    ? 1
-                                                    : 0.6,
-                                        }}
-                                    >
-                                        {closingCash
-                                            ? "Cerrando..."
-                                            : "✅ Cerrar Caja"}
-                                    </button>
-                                )}
-                            </div>
-                        </>
-                    ) : (
-                        <div
-                            style={{
-                                padding: "2rem",
-                                textAlign: "center",
-                                color: "#64748b",
-                            }}
-                        >
-                            No se pudo cargar el preview de cierre
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Vista de Historial de Cierres */}
-            {showHistory && (
-                <div
-                    style={{
-                        backgroundColor: "white",
-                        borderRadius: "16px",
-                        padding: cardPadding,
-                        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-                        border: "1px solid #e2e8f0",
-                    }}
-                >
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            marginBottom: "1.5rem",
-                            flexWrap: "wrap",
-                            gap: "1rem",
-                        }}
-                    >
-                        <div>
-                            <h3
-                                style={{
-                                    margin: "0 0 0.5rem",
-                                    fontSize: isSmall
-                                        ? "1rem"
-                                        : isMedium
-                                          ? "1.125rem"
-                                          : isSmallDesktop
-                                            ? "1.125rem"
-                                            : "1.25rem",
-                                    fontWeight: 700,
-                                    color: "#1e293b",
-                                }}
-                            >
-                                📜 Historial de Cierres de Caja
-                            </h3>
-                            <p
-                                style={{
-                                    margin: 0,
-                                    fontSize: subtitleFontSize,
-                                    color: "#64748b",
-                                }}
-                            >
-                                {closures.length > 0
-                                    ? `${closures.length} cierre(s) registrado(s)`
-                                    : "No hay cierres registrados"}
-                            </p>
-                        </div>
-                        <div
-                            style={{
-                                display: "flex",
-                                gap: "0.5rem",
-                                flexWrap: "wrap",
-                            }}
-                        >
-                            <button
-                                onClick={() => refetchClosures()}
-                                style={{
-                                    padding: buttonPadding,
-                                    borderRadius: "8px",
-                                    border: "1px solid #e2e8f0",
-                                    backgroundColor: "white",
-                                    color: "#64748b",
-                                    cursor: "pointer",
-                                    fontWeight: 600,
-                                    fontSize: buttonFontSize,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.5rem",
-                                }}
-                                title="Actualizar historial"
-                            >
-                                🔄 Actualizar
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setShowHistory(false);
-                                }}
-                                style={{
-                                    padding: buttonPadding,
-                                    borderRadius: "8px",
-                                    border: "1px solid #e2e8f0",
-                                    backgroundColor: "white",
-                                    color: "#64748b",
-                                    cursor: "pointer",
-                                    fontWeight: 600,
-                                    fontSize: buttonFontSize,
-                                }}
-                            >
-                                ← Volver
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Filtro de fechas */}
-                    <div
-                        style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                            gap: "0.75rem",
-                            marginBottom: "1.5rem",
-                            padding: "1rem",
-                            backgroundColor: "#f8fafc",
-                            borderRadius: "12px",
-                            border: "1px solid #e2e8f0",
-                        }}
-                    >
-                        <span
-                            style={{
-                                fontSize: "0.875rem",
-                                fontWeight: 600,
-                                color: "#475569",
-                            }}
-                        >
-                            Filtrar por fechas:
-                        </span>
-                        <label
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.5rem",
-                                fontSize: "0.875rem",
-                                color: "#64748b",
-                            }}
-                        >
-                            Desde
-                            <input
-                                type="date"
-                                value={closureFilterStart}
-                                onChange={(e) =>
-                                    setClosureFilterStart(e.target.value)
-                                }
-                                style={{
-                                    padding: "0.5rem 0.75rem",
-                                    borderRadius: "8px",
-                                    border: "1px solid #e2e8f0",
-                                    fontSize: "0.875rem",
-                                    color: "#334155",
-                                }}
-                            />
-                        </label>
-                        <label
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.5rem",
-                                fontSize: "0.875rem",
-                                color: "#64748b",
-                            }}
-                        >
-                            Hasta
-                            <input
-                                type="date"
-                                value={closureFilterEnd}
-                                onChange={(e) =>
-                                    setClosureFilterEnd(e.target.value)
-                                }
-                                style={{
-                                    padding: "0.5rem 0.75rem",
-                                    borderRadius: "8px",
-                                    border: "1px solid #e2e8f0",
-                                    fontSize: "0.875rem",
-                                    color: "#334155",
-                                }}
-                            />
-                        </label>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setClosureFilterStart("");
-                                setClosureFilterEnd("");
-                            }}
-                            style={{
-                                padding: "0.5rem 1rem",
-                                borderRadius: "8px",
-                                border: "1px solid #e2e8f0",
-                                backgroundColor: "white",
-                                color: "#64748b",
-                                fontSize: "0.875rem",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                            }}
-                        >
-                            Limpiar filtro
-                        </button>
-                    </div>
-
-                    {closuresLoading ? (
-                        <div
-                            style={{
-                                padding: "3rem",
-                                textAlign: "center",
-                                color: "#64748b",
-                            }}
-                        >
-                            <div
-                                style={{
-                                    fontSize: "2rem",
-                                    marginBottom: "1rem",
-                                }}
-                            >
-                                ⏳
-                            </div>
-                            <p style={{ fontSize: "1rem", margin: 0 }}>
-                                Cargando historial de cierres...
-                            </p>
-                        </div>
-                    ) : closures.length === 0 ? (
-                        <div
-                            style={{
-                                textAlign: "center",
-                                padding: "4rem 2rem",
-                                color: "#64748b",
-                            }}
-                        >
-                            <div
-                                style={{
-                                    fontSize: "3rem",
-                                    marginBottom: "1rem",
-                                }}
-                            >
-                                📋
-                            </div>
-                            <p
-                                style={{
-                                    fontSize: "1.125rem",
-                                    margin: "0 0 0.5rem",
-                                    fontWeight: 600,
-                                }}
-                            >
-                                No hay cierres registrados
-                            </p>
-                            <p style={{ fontSize: "0.875rem", margin: 0 }}>
-                                Los cierres de caja aparecerán aquí una vez que
-                                se realicen
-                            </p>
-                        </div>
-                    ) : (
-                        <>
-                            {/* Resumen del historial */}
-                            <div
-                                style={{
-                                    display: "grid",
-                                    gridTemplateColumns: `repeat(auto-fit, minmax(${statCardMinWidth}, 1fr))`,
-                                    gap: gridGap,
-                                    marginBottom: gridGap,
-                                    padding: cardPadding,
-                                    backgroundColor: "#f8fafc",
-                                    borderRadius: "12px",
-                                    border: "1px solid #e2e8f0",
-                                }}
-                            >
-                                <div>
-                                    <div
-                                        style={{
-                                            fontSize: "0.75rem",
-                                            color: "#64748b",
-                                            marginBottom: "0.25rem",
-                                        }}
-                                    >
-                                        Total Cierres
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: "1.5rem",
-                                            fontWeight: 700,
-                                            color: "#334155",
-                                        }}
-                                    >
-                                        {closures.length}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div
-                                        style={{
-                                            fontSize: "0.75rem",
-                                            color: "#64748b",
-                                            marginBottom: "0.25rem",
-                                        }}
-                                    >
-                                        Total Ingresos
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: "1.5rem",
-                                            fontWeight: 700,
-                                            color: "#16a34a",
-                                        }}
-                                    >
-                                        {currencyFormatter.format(
-                                            closures.reduce(
-                                                (sum, c) =>
-                                                    sum +
-                                                    Number(
-                                                        (c as any)
-                                                            .totalIncome ??
-                                                            (c as any)
-                                                                .total_income ??
-                                                            0,
-                                                    ),
-                                                0,
-                                            ),
-                                        )}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div
-                                        style={{
-                                            fontSize: "0.75rem",
-                                            color: "#64748b",
-                                            marginBottom: "0.25rem",
-                                        }}
-                                    >
-                                        Total Egresos
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: "1.5rem",
-                                            fontWeight: 700,
-                                            color: "#dc2626",
-                                        }}
-                                    >
-                                        {currencyFormatter.format(
-                                            closures.reduce(
-                                                (sum, c) =>
-                                                    sum +
-                                                    Number(
-                                                        (c as any)
-                                                            .totalExpense ??
-                                                            (c as any)
-                                                                .total_expense ??
-                                                            0,
-                                                    ),
-                                                0,
-                                            ),
-                                        )}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div
-                                        style={{
-                                            fontSize: "0.75rem",
-                                            color: "#64748b",
-                                            marginBottom: "0.25rem",
-                                        }}
-                                    >
-                                        Neto Total
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: "1.5rem",
-                                            fontWeight: 700,
-                                            color: "#334155",
-                                        }}
-                                    >
-                                        {currencyFormatter.format(
-                                            closures.reduce(
-                                                (sum, c) =>
-                                                    sum +
-                                                    Number(
-                                                        (c as any).netTotal ??
-                                                            (c as any)
-                                                                .net_total ??
-                                                            0,
-                                                    ),
-                                                0,
-                                            ),
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Tabla de cierres */}
-                            <div
-                                style={{
-                                    overflowX: "auto",
-                                    borderRadius: "12px",
-                                }}
-                            >
-                                {!isXs && !isSmall ? (
-                                    <table
-                                        style={{
-                                            width: "100%",
-                                            borderCollapse: "collapse",
-                                            fontSize: "0.875rem",
-                                        }}
-                                    >
-                                        <thead>
-                                            <tr
-                                                style={{
-                                                    borderBottom:
-                                                        "2px solid #e2e8f0",
-                                                    backgroundColor: "#f8fafc",
-                                                }}
-                                            >
-                                                <th
-                                                    style={{
-                                                        padding: "1rem",
-                                                        textAlign: "center",
-                                                        color: "#64748b",
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    N° Cierre
-                                                </th>
-                                                <th
-                                                    style={{
-                                                        padding: "1rem",
-                                                        textAlign: "center",
-                                                        color: "#64748b",
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    Caja
-                                                </th>
-                                                <th
-                                                    style={{
-                                                        padding: "1rem",
-                                                        textAlign: "center",
-                                                        color: "#64748b",
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    Usuario
-                                                </th>
-                                                <th
-                                                    style={{
-                                                        padding: "1rem",
-                                                        textAlign: "center",
-                                                        color: "#64748b",
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    Fecha y Hora
-                                                </th>
-                                                <th
-                                                    style={{
-                                                        padding: "1rem",
-                                                        textAlign: "center",
-                                                        color: "#64748b",
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    Ingresos
-                                                </th>
-                                                <th
-                                                    style={{
-                                                        padding: "1rem",
-                                                        textAlign: "center",
-                                                        color: "#64748b",
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    Egresos
-                                                </th>
-                                                <th
-                                                    style={{
-                                                        padding: "1rem",
-                                                        textAlign: "center",
-                                                        color: "#64748b",
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    Neto
-                                                </th>
-                                                <th
-                                                    style={{
-                                                        padding: "1rem",
-                                                        textAlign: "center",
-                                                        color: "#64748b",
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    Acciones
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {closures.map((closure, index) => {
-                                                const {
-                                                    bg: cashBg,
-                                                    color: cashColor,
-                                                } = getCashTypeColor(
-                                                    closure.cashRegister
-                                                        .cashType,
-                                                );
-                                                return (
-                                                    <tr
-                                                        key={closure.id}
-                                                        style={{
-                                                            borderBottom:
-                                                                index <
-                                                                closures.length -
-                                                                    1
-                                                                    ? "1px solid #f1f5f9"
-                                                                    : "none",
-                                                            transition:
-                                                                "background-color 0.2s",
-                                                            cursor: "pointer",
-                                                        }}
-                                                        onClick={() =>
-                                                            setSelectedClosureForDetail(
-                                                                closure as CashClosureForDetail,
-                                                            )
-                                                        }
-                                                        onMouseEnter={(e) => {
-                                                            e.currentTarget.style.backgroundColor =
-                                                                "#f8fafc";
-                                                        }}
-                                                        onMouseLeave={(e) => {
-                                                            e.currentTarget.style.backgroundColor =
-                                                                "transparent";
-                                                        }}
-                                                    >
-                                                        <td
-                                                            style={{
-                                                                padding: "1rem",
-                                                                color: "#334155",
-                                                                fontWeight: 700,
-                                                            }}
-                                                        >
-                                                            <span
-                                                                style={{
-                                                                    display:
-                                                                        "inline-block",
-                                                                    padding:
-                                                                        "0.25rem 0.75rem",
-                                                                    borderRadius:
-                                                                        "6px",
-                                                                    backgroundColor:
-                                                                        "#eff6ff",
-                                                                    color: "#2563eb",
-                                                                    fontSize:
-                                                                        "0.75rem",
-                                                                }}
-                                                            >
-                                                                #
+                                                    <div className="flex items-start justify-between">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs font-black text-slate-700 dark:text-slate-200">
+                                                                Cierre #
                                                                 {
                                                                     closure.closureNumber
                                                                 }
                                                             </span>
-                                                        </td>
-                                                        <td
-                                                            style={{
-                                                                padding: "1rem",
-                                                                color: "#334155",
-                                                                textAlign:
-                                                                    "center",
-                                                            }}
-                                                        >
-                                                            <div
-                                                                style={{
-                                                                    display:
-                                                                        "flex",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    gap: "0.5rem",
-                                                                }}
-                                                            >
-                                                                <span
-                                                                    style={{
-                                                                        textAlign:
-                                                                            "center",
-                                                                        fontWeight: 500,
-                                                                        padding:
-                                                                            "0.25rem 0.5rem",
-                                                                        borderRadius:
-                                                                            "6px",
-                                                                        backgroundColor:
-                                                                            cashBg,
-                                                                        color: cashColor,
-                                                                    }}
-                                                                >
-                                                                    {
-                                                                        closure
-                                                                            .cashRegister
-                                                                            .name
-                                                                    }
-                                                                </span>
-                                                            </div>
-                                                        </td>
-                                                        <td
-                                                            style={{
-                                                                padding: "1rem",
-                                                                color: "#334155",
-                                                            }}
-                                                        >
-                                                            <div>
-                                                                <div
-                                                                    style={{
-                                                                        fontWeight: 500,
-                                                                    }}
-                                                                >
-                                                                    {
-                                                                        closure
-                                                                            .user
-                                                                            .fullName
-                                                                    }
-                                                                </div>
-                                                                <div
-                                                                    style={{
-                                                                        fontSize:
-                                                                            "0.75rem",
-                                                                        color: "#64748b",
-                                                                        marginTop:
-                                                                            "0.25rem",
-                                                                    }}
-                                                                >
-                                                                    {
-                                                                        closure
-                                                                            .user
-                                                                            .role
-                                                                    }
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td
-                                                            style={{
-                                                                padding: "1rem",
-                                                                color: "#64748b",
-                                                            }}
-                                                        >
-                                                            <div>
-                                                                <div>
-                                                                    {formatDate(
-                                                                        closure.closedAt,
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td
-                                                            style={{
-                                                                padding: "1rem",
-                                                                textAlign:
-                                                                    "center",
-                                                                color: "#16a34a",
-                                                                fontWeight: 600,
-                                                            }}
+                                                            <span className="text-[10px] font-medium text-slate-500">
+                                                                {formatLocalDateYYYYMMDD(
+                                                                    closure.closedAt,
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                        <span
+                                                            className={`text-sm font-black ${closure.netTotal >= 0 ? "text-emerald-600" : "text-rose-600"}`}
                                                         >
                                                             {currencyFormatter.format(
-                                                                Number(
-                                                                    (
-                                                                        closure as any
-                                                                    )
-                                                                        .totalIncome ??
-                                                                        (
-                                                                            closure as any
-                                                                        )
-                                                                            .total_income ??
-                                                                        0,
-                                                                ),
+                                                                closure.netTotal ||
+                                                                    0,
                                                             )}
-                                                        </td>
-                                                        <td
-                                                            style={{
-                                                                padding: "1rem",
-                                                                textAlign:
-                                                                    "center",
-                                                                color: "#dc2626",
-                                                                fontWeight: 600,
-                                                            }}
-                                                        >
-                                                            {currencyFormatter.format(
-                                                                Number(
-                                                                    (
-                                                                        closure as any
-                                                                    )
-                                                                        .totalExpense ??
-                                                                        (
-                                                                            closure as any
-                                                                        )
-                                                                            .total_expense ??
-                                                                        0,
-                                                                ),
-                                                            )}
-                                                        </td>
-                                                        <td
-                                                            style={{
-                                                                padding: "1rem",
-                                                                textAlign:
-                                                                    "center",
-                                                                fontWeight: 700,
-                                                                fontSize:
-                                                                    "1rem",
-                                                                color:
-                                                                    Number(
-                                                                        (
-                                                                            closure as any
-                                                                        )
-                                                                            .netTotal ??
-                                                                            (
-                                                                                closure as any
-                                                                            )
-                                                                                .net_total ??
-                                                                            0,
-                                                                    ) >= 0
-                                                                        ? "#16a34a"
-                                                                        : "#dc2626",
-                                                            }}
-                                                        >
-                                                            {currencyFormatter.format(
-                                                                Number(
-                                                                    (
-                                                                        closure as any
-                                                                    )
-                                                                        .netTotal ??
-                                                                        (
-                                                                            closure as any
-                                                                        )
-                                                                            .net_total ??
-                                                                        0,
-                                                                ),
-                                                            )}
-                                                        </td>
-                                                        <td
-                                                            style={{
-                                                                padding: "1rem",
-                                                                textAlign:
-                                                                    "center",
-                                                                verticalAlign:
-                                                                    "middle",
-                                                            }}
-                                                            onClick={(e) =>
-                                                                e.stopPropagation()
-                                                            }
-                                                        >
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between border-t border-slate-50 pt-3 dark:border-slate-800/50">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[8px] font-black dark:bg-slate-800">
+                                                                {closure.user?.fullName?.charAt(
+                                                                    0,
+                                                                ) || "U"}
+                                                            </div>
+                                                            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                                                                {
+                                                                    closure.user?.fullName?.split(
+                                                                        " ",
+                                                                    )[0]
+                                                                }
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
                                                             <button
-                                                                type="button"
                                                                 onClick={() =>
-                                                                    handleReprintClosure(
+                                                                    handleReprint(
                                                                         closure,
                                                                     )
                                                                 }
                                                                 disabled={
                                                                     reprintingClosureId ===
-                                                                        closure.id ||
-                                                                    reprintingClosure
+                                                                    closure.id
                                                                 }
-                                                                title="Reimprimir este cierre"
-                                                                style={{
-                                                                    padding:
-                                                                        "0.4rem 0.75rem",
-                                                                    borderRadius:
-                                                                        "8px",
-                                                                    border: "none",
-                                                                    backgroundColor:
-                                                                        reprintingClosureId ===
-                                                                        closure.id
-                                                                            ? "#94a3b8"
-                                                                            : "#2563eb",
-                                                                    color: "white",
-                                                                    fontSize:
-                                                                        "0.75rem",
-                                                                    fontWeight: 600,
-                                                                    cursor:
-                                                                        reprintingClosureId ===
-                                                                        closure.id
-                                                                            ? "not-allowed"
-                                                                            : "pointer",
-                                                                    opacity:
-                                                                        reprintingClosureId ===
-                                                                        closure.id
-                                                                            ? 0.8
-                                                                            : 1,
-                                                                }}
+                                                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-all hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:hover:bg-slate-700"
+                                                                title="Reimprimir Ticket"
                                                             >
                                                                 {reprintingClosureId ===
-                                                                closure.id
-                                                                    ? "Imprimiendo..."
-                                                                    : "Reimprimir"}
+                                                                closure.id ? (
+                                                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-500/30 border-t-indigo-500" />
+                                                                ) : (
+                                                                    <svg
+                                                                        xmlns="http://www.w3.org/2000/svg"
+                                                                        className="h-4 w-4"
+                                                                        fill="none"
+                                                                        viewBox="0 0 24 24"
+                                                                        stroke="currentColor"
+                                                                    >
+                                                                        <path
+                                                                            strokeLinecap="round"
+                                                                            strokeLinejoin="round"
+                                                                            strokeWidth={
+                                                                                2
+                                                                            }
+                                                                            d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                                                                        />
+                                                                    </svg>
+                                                                )}
                                                             </button>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                ) : (
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            gap: "1rem",
-                                            padding: "0.5rem",
-                                        }}
-                                    >
-                                        {closures.map((closure) => {
-                                            const {
-                                                bg: cashBg,
-                                                color: cashColor,
-                                            } = getCashTypeColor(
-                                                closure.cashRegister.cashType,
-                                            );
-                                            const net = Number(
-                                                (closure as any).netTotal ??
-                                                    (closure as any)
-                                                        .net_total ??
-                                                    0,
-                                            );
-                                            return (
-                                                <div
-                                                    key={closure.id}
-                                                    onClick={() =>
-                                                        setSelectedClosureForDetail(
-                                                            closure as CashClosureForDetail,
-                                                        )
-                                                    }
-                                                    style={{
-                                                        padding: "1rem",
-                                                        borderRadius: "12px",
-                                                        border: "1px solid #e2e8f0",
-                                                        backgroundColor:
-                                                            "white",
-                                                    }}
-                                                >
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            justifyContent:
-                                                                "space-between",
-                                                            marginBottom:
-                                                                "0.75rem",
-                                                        }}
-                                                    >
-                                                        <span
-                                                            style={{
-                                                                fontWeight: 800,
-                                                                color: "#2563eb",
-                                                            }}
-                                                        >
-                                                            Cierre #
-                                                            {
-                                                                closure.closureNumber
-                                                            }
-                                                        </span>
-                                                        <span
-                                                            style={{
-                                                                fontSize:
-                                                                    "0.75rem",
-                                                                color: "#64748b",
-                                                            }}
-                                                        >
-                                                            {formatDate(
-                                                                closure.closedAt,
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            justifyContent:
-                                                                "space-between",
-                                                            alignItems:
-                                                                "center",
-                                                            marginBottom:
-                                                                "1rem",
-                                                        }}
-                                                    >
-                                                        <span
-                                                            style={{
-                                                                padding:
-                                                                    "0.25rem 0.5rem",
-                                                                borderRadius:
-                                                                    "6px",
-                                                                fontSize:
-                                                                    "0.8rem",
-                                                                fontWeight: 600,
-                                                                backgroundColor:
-                                                                    cashBg,
-                                                                color: cashColor,
-                                                            }}
-                                                        >
-                                                            {
-                                                                closure
-                                                                    .cashRegister
-                                                                    .name
-                                                            }
-                                                        </span>
-                                                        <span
-                                                            style={{
-                                                                fontWeight: 700,
-                                                                fontSize:
-                                                                    "1.1rem",
-                                                                color:
-                                                                    net >= 0
-                                                                        ? "#16a34a"
-                                                                        : "#dc2626",
-                                                            }}
-                                                        >
-                                                            {currencyFormatter.format(
-                                                                net,
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            justifyContent:
-                                                                "space-between",
-                                                            alignItems:
-                                                                "center",
-                                                            fontSize: "0.85rem",
-                                                        }}
-                                                    >
-                                                        <div
-                                                            style={{
-                                                                color: "#475569",
-                                                            }}
-                                                        >
-                                                            <strong>
-                                                                Usuario:
-                                                            </strong>{" "}
-                                                            {
-                                                                closure.user
-                                                                    .fullName
-                                                            }
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedClosureDetail(
+                                                                        closure,
+                                                                    );
+                                                                    setIsDetailModalOpen(
+                                                                        true,
+                                                                    );
+                                                                }}
+                                                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-all hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:hover:bg-slate-700"
+                                                                title="Ver Detalle"
+                                                            >
+                                                                <svg
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                    className="h-4 w-4"
+                                                                    fill="none"
+                                                                    viewBox="0 0 24 24"
+                                                                    stroke="currentColor"
+                                                                >
+                                                                    <path
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        strokeWidth={
+                                                                            2.5
+                                                                        }
+                                                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                                                    />
+                                                                    <path
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        strokeWidth={
+                                                                            2
+                                                                        }
+                                                                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                                                    />
+                                                                </svg>
+                                                            </button>
                                                         </div>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleReprintClosure(
-                                                                    closure,
-                                                                );
-                                                            }}
-                                                            style={{
-                                                                padding:
-                                                                    "0.5rem 1rem",
-                                                                borderRadius:
-                                                                    "8px",
-                                                                border: "1px solid #e2e8f0",
-                                                                backgroundColor:
-                                                                    "#f8fafc",
-                                                                fontSize:
-                                                                    "0.8rem",
-                                                                fontWeight: 600,
-                                                            }}
-                                                        >
-                                                            🖨️ Ticket
-                                                        </button>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </>
+                        </div>
                     )}
                 </div>
-            )}
+            </div>
 
-            {/* Modal de Confirmación para Cerrar Caja */}
-            {showConfirmModal && canCloseCashRegister && (
-                <div
-                    style={{
-                        position: "fixed",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: "rgba(0, 0, 0, 0.5)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        zIndex: 10000,
-                        padding: "1rem",
-                    }}
-                    onClick={() => setShowConfirmModal(false)}
-                >
-                    <div
-                        style={{
-                            backgroundColor: "white",
-                            borderRadius: "16px",
-                            padding: cardPadding,
-                            maxWidth: isSmall
-                                ? "400px"
-                                : isMedium
-                                  ? "450px"
-                                  : isSmallDesktop
-                                    ? "450px"
-                                    : "500px",
-                            width: "100%",
-                            boxShadow:
-                                "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-                            border: "1px solid #e2e8f0",
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div style={{ marginBottom: "1.5rem" }}>
-                            <div
-                                style={{
-                                    fontSize: isSmall
-                                        ? "2rem"
-                                        : isMedium
-                                          ? "2.5rem"
-                                          : isSmallDesktop
-                                            ? "2.5rem"
-                                            : "3rem",
-                                    textAlign: "center",
-                                    marginBottom: "1rem",
-                                }}
-                            >
-                                ⚠️
-                            </div>
-                            <h3
-                                style={{
-                                    margin: "0 0 0.5rem",
-                                    fontSize: isSmall
-                                        ? "1.125rem"
-                                        : isMedium
-                                          ? "1.25rem"
-                                          : isSmallDesktop
-                                            ? "1.25rem"
-                                            : "1.5rem",
-                                    fontWeight: 700,
-                                    color: "#1e293b",
-                                    textAlign: "center",
-                                }}
-                            >
-                                Confirmar Cierre de Caja
-                            </h3>
-                            <p
-                                style={{
-                                    margin: 0,
-                                    fontSize: isSmall
-                                        ? "0.875rem"
-                                        : isMedium
-                                          ? "0.9375rem"
-                                          : isSmallDesktop
-                                            ? "0.9375rem"
-                                            : "1rem",
-                                    color: "#64748b",
-                                    textAlign: "center",
-                                    lineHeight: "1.5",
-                                }}
-                            >
-                                ¿Estás seguro de que deseas cerrar esta caja?
-                                Esta acción agrupará todos los pagos pendientes
-                                en un cierre.
-                            </p>
-                        </div>
-
-                        {preview && (
-                            <div
-                                style={{
-                                    backgroundColor: "#f8fafc",
-                                    borderRadius: "12px",
-                                    padding: cardPadding,
-                                    marginBottom: "1.5rem",
-                                    border: "1px solid #e2e8f0",
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        fontSize: "0.875rem",
-                                        color: "#64748b",
-                                        marginBottom: "0.5rem",
-                                    }}
-                                >
-                                    Resumen del cierre:
-                                </div>
-                                <div
-                                    style={{
-                                        display: "grid",
-                                        gridTemplateColumns: "1fr 1fr",
-                                        gap: "0.75rem",
-                                        fontSize: "0.875rem",
-                                    }}
-                                >
-                                    <div>
-                                        <div style={{ color: "#64748b" }}>
-                                            Ingresos:
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontWeight: 600,
-                                                color: "#16a34a",
-                                            }}
-                                        >
-                                            {currencyFormatter.format(
-                                                preview.totalIncome,
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div style={{ color: "#64748b" }}>
-                                            Egresos:
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontWeight: 600,
-                                                color: "#dc2626",
-                                            }}
-                                        >
-                                            {currencyFormatter.format(
-                                                preview.totalExpense,
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div
-                                        style={{
-                                            gridColumn: "1 / -1",
-                                            paddingTop: "0.5rem",
-                                            borderTop: "1px solid #e2e8f0",
-                                        }}
-                                    >
-                                        <div style={{ color: "#64748b" }}>
-                                            Neto Total:
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontWeight: 700,
-                                                fontSize: "1.125rem",
-                                                color:
-                                                    preview.netTotal >= 0
-                                                        ? "#16a34a"
-                                                        : "#dc2626",
-                                            }}
-                                        >
-                                            {currencyFormatter.format(
-                                                preview.netTotal,
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        <div
-                            style={{
-                                display: "flex",
-                                gap: "1rem",
-                                justifyContent: "flex-end",
-                                flexWrap: "wrap",
-                            }}
-                        >
-                            <button
-                                onClick={() => setShowConfirmModal(false)}
-                                style={{
-                                    padding: buttonPadding,
-                                    borderRadius: "8px",
-                                    border: "1px solid #e2e8f0",
-                                    backgroundColor: "white",
-                                    color: "#64748b",
-                                    cursor: "pointer",
-                                    fontWeight: 600,
-                                    fontSize: buttonFontSize,
-                                    transition: "all 0.2s",
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor =
-                                        "#f8fafc";
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor =
-                                        "white";
-                                }}
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleConfirmCloseCash}
-                                disabled={closingCash}
-                                style={{
-                                    padding: buttonPadding,
-                                    borderRadius: "8px",
-                                    border: "none",
-                                    backgroundColor: closingCash
-                                        ? "#94a3b8"
-                                        : "#16a34a",
-                                    color: "white",
-                                    cursor: closingCash
-                                        ? "not-allowed"
-                                        : "pointer",
-                                    fontWeight: 600,
-                                    fontSize: buttonFontSize,
-                                    transition: "all 0.2s",
-                                    opacity: closingCash ? 0.6 : 1,
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!closingCash) {
-                                        e.currentTarget.style.backgroundColor =
-                                            "#15803d";
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (!closingCash) {
-                                        e.currentTarget.style.backgroundColor =
-                                            "#16a34a";
-                                    }
-                                }}
-                            >
-                                {closingCash
-                                    ? "Cerrando..."
-                                    : "✅ Confirmar y Cerrar"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal de detalle de cierre de caja */}
-            <CashDetailModal
-                isOpen={!!selectedClosureForDetail}
-                onClose={() => setSelectedClosureForDetail(null)}
-                closure={selectedClosureForDetail}
-                onReprint={handleReprintClosure}
-                reprintingClosureId={reprintingClosureId}
+            {/* Modals */}
+            <ManualTransactionModal
+                isOpen={isManualModalOpen}
+                onClose={() => setIsManualModalOpen(false)}
+                onSuccess={() => {
+                    refetchRegisters();
+                    refetchPreview();
+                    refetchMovements();
+                }}
+                cashRegisters={cashRegisters.filter(
+                    (r: CashRegister) => r.isActive,
+                )}
+                userId={userId}
+                branchId={branchId}
             />
 
-            {/* Modal de Transacción Manual */}
-            <ManualTransactionModal
-                isOpen={showManualTransactionModal}
-                onClose={() => setShowManualTransactionModal(false)}
-                onSuccess={() => {
-                    void refetchCashRegisters();
-                    if (showPreview && selectedCashRegister) {
-                        void refetchPreview();
-                        void refetchMovements();
-                    }
-                }}
-                cashRegisters={cashRegisters}
-                userId={user?.id || ""}
-                branchId={branchId || ""}
-                allowChangePaymentMethod={canChangeManualPaymentMethod}
+            <CashDetailModal
+                isOpen={isDetailModalOpen}
+                onClose={() => setIsDetailModalOpen(false)}
+                closure={selectedClosureDetail}
+                onReprint={handleReprint}
+                reprintingClosureId={reprintingClosureId}
             />
         </div>
     );

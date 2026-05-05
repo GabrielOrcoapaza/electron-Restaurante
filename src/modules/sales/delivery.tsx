@@ -871,12 +871,13 @@ const Delivery: React.FC = () => {
                                 <>
                                     <button
                                         onClick={() => { setSelectedCategory(null); setSelectedSubcategory(null); }}
-                                        className={`inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-bold transition-all duration-150 ${
+                                        className={`inline-flex items-center gap-2 justify-center rounded-xl border px-4 py-2 text-sm font-bold transition-all duration-150 ${
                                             !selectedCategory
                                                 ? 'border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300'
                                                 : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300'
                                         }`}
                                     >
+                                        <CategoryIcon iconId="grid_view" type="category" size="1.1rem" />
                                         Categorías
                                     </button>
                                     {selectedCategory && (
@@ -884,12 +885,17 @@ const Delivery: React.FC = () => {
                                             <span className="text-slate-300 dark:text-slate-700">/</span>
                                             <button
                                                 onClick={() => setSelectedSubcategory(null)}
-                                                className={`inline-flex max-w-[12rem] items-center justify-center truncate rounded-xl border px-4 py-2 text-sm font-bold transition-all duration-150 ${
+                                                className={`inline-flex max-w-[12rem] items-center gap-2 justify-center truncate rounded-xl border px-4 py-2 text-sm font-bold transition-all duration-150 ${
                                                     !selectedSubcategory
                                                         ? 'border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300'
                                                         : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300'
                                                 }`}
                                             >
+                                                <CategoryIcon 
+                                                    iconId={categories.find((c: any) => c.id === selectedCategory)?.icon} 
+                                                    type="category" 
+                                                    size="1.1rem" 
+                                                />
                                                 {categories.find((c: any) => c.id === selectedCategory)?.name || 'Categoría'}
                                             </button>
                                         </>
@@ -897,7 +903,12 @@ const Delivery: React.FC = () => {
                                     {selectedSubcategory && (
                                         <>
                                             <span className="text-slate-300 dark:text-slate-700">/</span>
-                                            <span className="inline-flex max-w-[12rem] items-center justify-center truncate rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                                            <span className="inline-flex max-w-[12rem] items-center gap-2 justify-center truncate rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                                                <CategoryIcon 
+                                                    iconId={subcategoriesOfCategory.find((s: any) => s.id === selectedSubcategory)?.icon} 
+                                                    type="subcategory" 
+                                                    size="1.1rem" 
+                                                />
                                                 {subcategoriesOfCategory.find((s: any) => s.id === selectedSubcategory)?.name || 'Subcategoría'}
                                             </span>
                                         </>
@@ -938,7 +949,7 @@ const Delivery: React.FC = () => {
                                         style={{ minHeight: isSmall ? '100px' : '130px' }}
                                     >
                                         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20 md:h-16 md:w-16">
-                                            <CategoryIcon iconId={category.icon} type="category" size={isSmall ? '1.5rem' : '2rem'} />
+                                            <CategoryIcon iconId={category.icon} type="category" size={isSmall ? '1.25rem' : '1.75rem'} />
                                         </div>
                                         <div className="text-xs font-bold text-slate-800 transition-colors duration-200 group-hover:text-indigo-600 dark:text-slate-100 dark:group-hover:text-indigo-400 md:text-sm">
                                             {category.name}
@@ -962,7 +973,7 @@ const Delivery: React.FC = () => {
                                         style={{ minHeight: isSmall ? '90px' : '110px' }}
                                     >
                                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20 md:h-12 md:w-12">
-                                            <CategoryIcon iconId={sub.icon} type="subcategory" size={isSmall ? '1.25rem' : '1.5rem'} />
+                                            <CategoryIcon iconId={sub.icon} type="subcategory" size={isSmall ? '1.1rem' : '1.25rem'} />
                                         </div>
                                         <div className="text-xs font-semibold text-slate-700 transition-colors duration-200 group-hover:text-indigo-600 dark:text-slate-200 dark:group-hover:text-indigo-400">
                                             {sub.name}

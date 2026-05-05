@@ -39,12 +39,10 @@ import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
 import { isElectronRenderer } from "../../utils/electronPrint";
 import {
     fetchSystemPrinters,
-    type SystemPrinterInfo,
 } from "../../utils/systemPrinters";
 import {
     getIntegratedPrinterCashUiEnabled,
     getLocalTicketPrinterStorage,
-    setLocalTicketPrinterStorage,
 } from "../../utils/localPrinterPreference";
 
 type CashPayProps = {
@@ -164,13 +162,9 @@ const CashPay: React.FC<CashPayProps> = ({
     const [isRemovingItem, setIsRemovingItem] = useState(false);
 
     /** Impresora del equipo para ticket cuando el backend devuelve print_locally (nombre `name` de Chromium). */
-    const [selectedLocalPrinterName, setSelectedLocalPrinterName] = useState(
+    const [selectedLocalPrinterName] = useState(
         () => getLocalTicketPrinterStorage(),
     );
-    const [localPrintersOptions, setLocalPrintersOptions] = useState<
-        SystemPrinterInfo[]
-    >([]);
-    const [localPrintersLoading, setLocalPrintersLoading] = useState(false);
 
     /**
      * Preferencia solo en este equipo (localStorage). Actívala en Configuración → Impresoras locales
@@ -194,49 +188,16 @@ const CashPay: React.FC<CashPayProps> = ({
         };
     }, []);
 
-    const refreshLocalPrintersForCash = async () => {
-        setLocalPrintersLoading(true);
-        try {
-            const res = await fetchSystemPrinters();
-            if (res.ok) {
-                setLocalPrintersOptions(res.printers);
-                if (res.printers.length === 0) {
-                    showToast(
-                        "No se detectaron impresoras en este equipo (¿SumApp escritorio?).",
-                        "warning",
-                    );
-                }
-            } else {
-                setLocalPrintersOptions([]);
-                showToast(
-                    res.message ||
-                        "No se pudieron cargar las impresoras locales.",
-                    "warning",
-                );
-            }
-        } catch (e: any) {
-            setLocalPrintersOptions([]);
-            showToast(e?.message || "Error al cargar impresoras", "error");
-        } finally {
-            setLocalPrintersLoading(false);
-        }
-    };
 
     useEffect(() => {
         if (!showLocalPrinterPicker || !table?.currentOperationId) return;
-        let cancelled = false;
         (async () => {
-            setLocalPrintersLoading(true);
             try {
-                const res = await fetchSystemPrinters();
-                if (!cancelled && res.ok) setLocalPrintersOptions(res.printers);
-            } finally {
-                if (!cancelled) setLocalPrintersLoading(false);
+                await fetchSystemPrinters();
+            } catch (e) {
+                console.warn("Error fetching printers", e);
             }
         })();
-        return () => {
-            cancelled = true;
-        };
     }, [table?.currentOperationId, showLocalPrinterPicker]);
 
     const { data, refetch } = useQuery(GET_OPERATION_BY_ID, {

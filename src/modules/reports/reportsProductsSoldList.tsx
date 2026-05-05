@@ -13,207 +13,126 @@ interface ReportsProductsSoldListProps {
   summary: SoldProductsSummary | null;
   loading: boolean;
   error?: ApolloError;
-  isSmall?: boolean;
-  isXs?: boolean;
 }
 
 const ReportsProductsSoldList: React.FC<ReportsProductsSoldListProps> = ({
   products,
-  summary,
   loading,
   error,
-  isSmall = false,
-  isXs = false
 }) => {
-  const tableFontSize = isXs ? '0.8rem' : isSmall ? '0.85rem' : '0.875rem';
-  const headerFontSize = isXs ? '0.75rem' : isSmall ? '0.8rem' : '0.8125rem';
-  const cellPadding = isXs ? '0.6rem' : isSmall ? '0.75rem' : '1rem';
-
-  if (loading) {
-    return (
-      <div style={{
-        padding: '2rem',
-        textAlign: 'center',
-        color: '#64748b',
-        fontSize: tableFontSize,
-        background: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-      }}>
-        Cargando datos...
-      </div>
-    );
-  }
+  if (loading) return null; // Handled by parent skeleton
 
   if (error) {
     return (
-      <div style={{
-        padding: '2rem',
-        textAlign: 'center',
-        color: '#ef4444',
-        background: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-      }}>
-        Error al cargar reporte: {error.message}
-      </div>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-rose-50 text-rose-500 dark:bg-rose-900/20">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <h3 className="text-lg font-black text-slate-800 dark:text-slate-200">Error en la consulta</h3>
+            <p className="max-w-xs text-sm font-bold text-slate-400">{error.message}</p>
+        </div>
     );
   }
 
   if (!products.length) {
     return (
-      <div style={{
-        padding: '3rem',
-        textAlign: 'center',
-        color: '#94a3b8',
-        background: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-      }}>
-        <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🛒</div>
-        <div style={{ fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>Sin registros</div>
-        No se encontraron productos vendidos en el periodo seleccionado.
-      </div>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-slate-50 text-slate-300 dark:bg-slate-800/50 dark:text-slate-600">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+            </div>
+            <h3 className="text-lg font-black text-slate-800 dark:text-slate-200">Sin ventas</h3>
+            <p className="max-w-xs text-sm font-bold text-slate-400">No se registraron ventas de productos en este periodo.</p>
+        </div>
     );
   }
 
+  // Calculate max quantity for popularity bar
+  const maxQty = Math.max(...products.map(p => p.totalQuantity));
+
   return (
-    <div style={{
-      background: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-      overflow: 'hidden'
-    }}>
-      {!isXs ? (
-        <div style={{
-          overflow: 'auto',
-          maxHeight: '60vh',
-          minHeight: '200px'
-        }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isSmall ? '560px' : '700px', fontSize: tableFontSize }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1, boxShadow: '0 1px 0 0 #e2e8f0' }}>
-                <th style={{ padding: cellPadding, textAlign: 'left', fontSize: headerFontSize, fontWeight: 700, color: '#475569', background: '#f8fafc' }}>Código</th>
-                <th style={{ padding: cellPadding, textAlign: 'left', fontSize: headerFontSize, fontWeight: 700, color: '#475569', background: '#f8fafc' }}>Producto</th>
-                <th style={{ padding: cellPadding, textAlign: 'center', fontSize: headerFontSize, fontWeight: 700, color: '#475569', background: '#f8fafc' }}>Cantidad</th>
-                <th style={{ padding: cellPadding, textAlign: 'right', fontSize: headerFontSize, fontWeight: 700, color: '#475569', background: '#f8fafc' }}>Precio prom.</th>
-                <th style={{ padding: cellPadding, textAlign: 'right', fontSize: headerFontSize, fontWeight: 700, color: '#475569', background: '#f8fafc' }}>Total (S/)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((item, index) => (
-                <tr
-                  key={`${item.code}-${item.name}-${index}`}
-                  style={{
-                    borderBottom: index < products.length - 1 ? '1px solid #f1f5f9' : 'none',
-                    transition: 'background 0.15s'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <td style={{ padding: cellPadding, color: '#64748b', fontWeight: 600 }}>{item.code}</td>
-                  <td style={{ padding: cellPadding, color: '#334155', fontWeight: 500 }}>{item.name}</td>
-                  <td style={{ padding: cellPadding, textAlign: 'center', color: '#1e293b', fontWeight: 600 }}>
-                    {Number(item.totalQuantity).toLocaleString('es-PE', { maximumFractionDigits: 2 })}
-                  </td>
-                  <td style={{ padding: cellPadding, textAlign: 'right', color: '#64748b' }}>
-                    {currencyFormatter.format(Number(item.avgUnitPrice ?? 0))}
-                  </td>
-                  <td style={{ padding: cellPadding, textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>
-                    {currencyFormatter.format(Number(item.totalAmount ?? 0))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {products.map((item, index) => (
-            <div key={`${item.code}-${item.name}-${index}`} style={{
-              padding: '1rem',
-              borderBottom: index < products.length - 1 ? '1px solid #f1f5f9' : 'none',
-              background: 'white'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                <div style={{ flex: 1, paddingRight: '0.75rem' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.1rem' }}>
-                    {item.code}
-                  </div>
-                  <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b', lineHeight: 1.3 }}>
-                    {item.name}
-                  </div>
+    <div className="grid grid-cols-1 gap-4">
+      {products.map((item, index) => {
+        const popularity = (item.totalQuantity / maxQty) * 100;
+        const rank = index + 1;
+
+        return (
+            <div 
+                key={`${item.code}-${index}`}
+                className="group relative overflow-hidden rounded-[24px] border border-slate-100 bg-white p-5 transition-all hover:border-emerald-100 hover:shadow-xl hover:shadow-emerald-500/5 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:border-emerald-900/30"
+            >
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-5">
+                        {/* Rank Number */}
+                        <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl text-lg font-black ${
+                            rank === 1 ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/20' : 
+                            rank === 2 ? 'bg-slate-100 text-slate-500 dark:bg-slate-800' :
+                            rank === 3 ? 'bg-orange-50 text-orange-600 dark:bg-orange-900/20' :
+                            'bg-slate-50 text-slate-300 dark:bg-slate-800/30 dark:text-slate-600'
+                        }`}>
+                            {rank}
+                        </div>
+
+                        <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{item.code}</span>
+                                {rank === 1 && (
+                                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[8px] font-black uppercase text-amber-600 dark:bg-amber-900/30">TOP VENTAS</span>
+                                )}
+                            </div>
+                            <h3 className="text-base font-black text-slate-800 dark:text-slate-100 leading-tight">
+                                {item.name}
+                            </h3>
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                                <span>P.U. PROMEDIO:</span>
+                                <span className="text-slate-600 dark:text-slate-300">{currencyFormatter.format(item.avgUnitPrice)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-8 self-end sm:self-center">
+                        <div className="text-right">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cantidad</div>
+                            <div className="text-xl font-black text-slate-800 dark:text-slate-100">
+                                {item.totalQuantity} <small className="text-[10px] text-slate-400 uppercase tracking-tighter">und</small>
+                            </div>
+                        </div>
+
+                        <div className="text-right min-w-[100px]">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Recaudado</div>
+                            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+                                {currencyFormatter.format(item.totalAmount)}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#16a34a' }}>
-                    {currencyFormatter.format(Number(item.totalAmount ?? 0))}
-                  </div>
+
+                {/* Popularity Bar */}
+                <div className="mt-5">
+                    <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nivel de Demanda</span>
+                        <span className="text-[10px] font-black text-slate-400">{Math.round(popularity)}%</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                        <div 
+                            className={`h-full transition-all duration-1000 ${
+                                rank === 1 ? 'bg-amber-400' : 'bg-emerald-500'
+                            }`}
+                            style={{ width: `${popularity}%` }}
+                        />
+                    </div>
                 </div>
-              </div>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '0.5rem 0.75rem', borderRadius: '6px' }}>
-                <div style={{ fontSize: '0.8rem', color: '#475569' }}>
-                  <strong>Cant:</strong> {Number(item.totalQuantity).toLocaleString('es-PE', { maximumFractionDigits: 2 })}
-                </div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                  <strong>Prom:</strong> {currencyFormatter.format(Number(item.avgUnitPrice ?? 0))}
-                </div>
-              </div>
             </div>
-          ))}
-        </div>
-      )}
+        );
+      })}
 
-      {summary && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: isSmall ? '1fr' : 'repeat(2, 1fr)',
-          gap: isSmall ? '0.5rem' : '1.5rem',
-          padding: '1.25rem',
-          borderTop: '2px solid #e2e8f0',
-          background: 'linear-gradient(to right, #f8fafc, #f1f5f9)',
-        }}>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            padding: '0.75rem',
-            background: 'white',
-            borderRadius: '8px',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-          }}>
-            <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.25rem' }}>Total Unidades</span>
-            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>
-              {Number(summary.totalItemsSold).toLocaleString('es-PE', { maximumFractionDigits: 2 })}
-            </span>
-          </div>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            padding: '0.75rem',
-            background: 'white',
-            borderRadius: '8px',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-            borderLeft: '4px solid #16a34a'
-          }}>
-            <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.25rem' }}>Gran Total</span>
-            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#16a34a' }}>
-              {currencyFormatter.format(Number(summary.grandTotal ?? 0))}
-            </span>
-          </div>
-        </div>
-      )}
-
-      <div style={{
-        padding: '0.75rem',
-        borderTop: '1px solid #e5e7eb',
-        textAlign: 'center',
-        fontSize: '0.8rem',
-        color: '#64748b',
-        fontWeight: 500
-      }}>
-        Reporte generado para {products.length} productos distintos
+      <div className="mt-4 text-center">
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+            Análisis basado en {products.length} productos diferentes
+        </span>
       </div>
     </div>
   );

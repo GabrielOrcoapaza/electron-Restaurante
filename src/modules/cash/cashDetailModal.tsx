@@ -1,7 +1,6 @@
 import React from "react";
 import { useQuery } from "@apollo/client";
 import { GET_PAYMENTS_BY_CLOSURE } from "../../graphql/queries";
-import { useResponsive } from "../../hooks/useResponsive";
 
 export interface CashClosureForDetail {
     id: string;
@@ -70,40 +69,6 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
     onReprint,
     reprintingClosureId,
 }) => {
-    const { breakpoint, isMobile } = useResponsive();
-    const isSmall = breakpoint === "sm" || isMobile;
-    const isMedium = breakpoint === "md";
-    const isSmallDesktop = breakpoint === "lg";
-
-    // Responsive: pantalla completa en todos los tamaños; valores de padding/fuentes adaptados para sm, md, lg y xl
-    const headerPadding = isSmall
-        ? "0.75rem 1rem"
-        : isMedium
-          ? "1rem 1.5rem"
-          : isSmallDesktop
-            ? "1.25rem 2rem"
-            : "1.5rem 2.5rem";
-    const titleFontSize = isSmall
-        ? "1.1rem"
-        : isMedium
-          ? "1.25rem"
-          : isSmallDesktop
-            ? "1.35rem"
-            : "1.5rem";
-    const contentPadding = isSmall
-        ? "1rem"
-        : isMedium
-          ? "1.5rem"
-          : isSmallDesktop
-            ? "2rem"
-            : "2.5rem";
-    const btnPadding = isSmall
-        ? "0.4rem 0.8rem"
-        : isMedium
-          ? "0.5rem 1rem"
-          : "0.6rem 1.25rem";
-    const btnFontSize = isSmall ? "0.8rem" : isMedium ? "0.85rem" : "0.9rem";
-
     const { data, loading } = useQuery(GET_PAYMENTS_BY_CLOSURE, {
         variables: { cashClosureId: closure?.id ?? "" },
         skip: !isOpen || !closure?.id,
@@ -146,852 +111,229 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
 
     return (
         <div
-            style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.6)",
-                display: "flex",
-                alignItems: isSmall ? "flex-end" : "center",
-                justifyContent: "center",
-                zIndex: 10000,
-                backdropFilter: "blur(4px)",
-            }}
+            className="fixed inset-0 z-[11000] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-300 sm:p-6"
             onClick={onClose}
         >
             <div
-                style={{
-                    backgroundColor: "#f8fafc",
-                    width: "100%",
-                    maxWidth: isSmall ? "100%" : "1000px",
-                    height: isSmall ? "95vh" : "85vh",
-                    borderRadius: isSmall ? "20px 20px 0 0" : "20px",
-                    display: "flex",
-                    flexDirection: "column",
-                    overflow: "hidden",
-                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-                    animation: isSmall
-                        ? "slideUp 0.3s ease-out"
-                        : "fadeIn 0.2s ease-out",
-                }}
+                className="relative flex h-full max-h-[95vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-300 dark:bg-slate-900"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div
-                    style={{
-                        background: "linear-gradient(135deg, #1e293b, #334155)",
-                        padding: headerPadding,
-                        color: "white",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        flexShrink: 0,
-                    }}
-                >
-                    <div>
-                        <h3
-                            style={{
-                                margin: 0,
-                                fontSize: titleFontSize,
-                                fontWeight: 700,
-                            }}
-                        >
-                            📄 Detalle de Cierre #
-                            {closure?.closureNumber ?? "—"}
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-6 dark:border-slate-800/50 dark:bg-slate-800/20">
+                    <div className="flex flex-col gap-1">
+                        <h3 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100">
+                            Detalle de Cierre
                         </h3>
-                        <p
-                            style={{
-                                margin: "0.25rem 0 0",
-                                fontSize: "0.75rem",
-                                color: "#cbd5e1",
-                            }}
-                        >
-                            Historial de movimientos y resumen final
-                        </p>
+                        <span className="text-xs font-mono font-black text-indigo-500 dark:text-indigo-400">
+                            #{closure?.closureNumber ?? "—"}
+                        </span>
                     </div>
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.75rem",
-                        }}
-                    >
+                    <div className="flex items-center gap-3">
                         {onReprint && closure && (
                             <button
                                 type="button"
                                 onClick={() => onReprint(closure)}
                                 disabled={reprintingClosureId === closure.id}
-                                style={{
-                                    padding: btnPadding,
-                                    borderRadius: "10px",
-                                    border: "none",
-                                    backgroundColor: "#3b82f6",
-                                    color: "white",
-                                    cursor:
-                                        reprintingClosureId === closure.id
-                                            ? "not-allowed"
-                                            : "pointer",
-                                    fontWeight: 700,
-                                    fontSize: btnFontSize,
-                                    display: isSmall ? "none" : "block",
-                                }}
+                                className="hidden items-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-black text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-700 active:scale-95 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 sm:flex"
                             >
-                                {reprintingClosureId === closure.id
-                                    ? "..."
-                                    : "🖨️ Ticket"}
+                                {reprintingClosureId === closure.id ? (
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                )}
+                                <span>Ticket</span>
                             </button>
                         )}
                         <button
                             onClick={onClose}
-                            style={{
-                                width: "36px",
-                                height: "36px",
-                                borderRadius: "50%",
-                                border: "none",
-                                backgroundColor: "rgba(255,255,255,0.1)",
-                                color: "white",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: "1.25rem",
-                            }}
+                            className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-600 dark:bg-slate-800 dark:text-slate-500 dark:hover:bg-slate-700"
                         >
-                            &times;
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
                         </button>
                     </div>
                 </div>
 
-                <div
-                    style={{
-                        flex: 1,
-                        overflowY: "auto",
-                        padding: contentPadding,
-                    }}
-                >
-                    <div style={{ maxWidth: "100%", margin: "0 auto" }}>
-                        {closure && (
-                            <>
-                                <div
-                                    style={{
-                                        display: "grid",
-                                        gridTemplateColumns: isSmall
-                                            ? "1fr"
-                                            : "repeat(auto-fit, minmax(240px, 1fr))",
-                                        gap: "1rem",
-                                        marginBottom: "1.5rem",
-                                    }}
-                                >
-                                    {/* Cards de resumen superior */}
-                                    <div
-                                        style={{
-                                            padding: "1.25rem",
-                                            borderRadius: "16px",
-                                            backgroundColor: "white",
-                                            border: "1px solid #e2e8f0",
-                                            boxShadow:
-                                                "0 1px 3px rgba(0,0,0,0.05)",
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                fontSize: "0.8rem",
-                                                color: "#64748b",
-                                                fontWeight: 600,
-                                                marginBottom: "0.5rem",
-                                            }}
-                                        >
-                                            INFORMACIÓN
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+                    {closure && (
+                        <div className="flex flex-col gap-8">
+                            {/* Stats Grid */}
+                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                                <div className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-800/40">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Información General</span>
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-medium text-slate-500">Caja:</span>
+                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{closure.cashRegister.name}</span>
                                         </div>
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                marginBottom: "0.5rem",
-                                            }}
-                                        >
-                                            <span style={{ color: "#64748b" }}>
-                                                Caja:
-                                            </span>
-                                            <span
-                                                style={{
-                                                    fontWeight: 700,
-                                                    color: "#1e293b",
-                                                }}
-                                            >
-                                                {closure.cashRegister.name}
-                                            </span>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-medium text-slate-500">Responsable:</span>
+                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{closure.user.fullName}</span>
                                         </div>
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                marginBottom: "0.5rem",
-                                            }}
-                                        >
-                                            <span style={{ color: "#64748b" }}>
-                                                Usuario:
-                                            </span>
-                                            <span
-                                                style={{
-                                                    fontWeight: 600,
-                                                    color: "#1e293b",
-                                                }}
-                                            >
-                                                {closure.user.fullName}
-                                            </span>
-                                        </div>
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                            }}
-                                        >
-                                            <span style={{ color: "#64748b" }}>
-                                                Fecha:
-                                            </span>
-                                            <span
-                                                style={{
-                                                    fontSize: "0.85rem",
-                                                    color: "#1e293b",
-                                                }}
-                                            >
-                                                {formatDate(closure.closedAt)}
-                                            </span>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-medium text-slate-500">Fecha Cierre:</span>
+                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatDate(closure.closedAt)}</span>
                                         </div>
                                     </div>
+                                </div>
 
-                                    <div
-                                        style={{
-                                            padding: "1.25rem",
-                                            borderRadius: "16px",
-                                            backgroundColor: "white",
-                                            border: "1px solid #e2e8f0",
-                                            boxShadow:
-                                                "0 1px 3px rgba(0,0,0,0.05)",
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                fontSize: "0.8rem",
-                                                color: "#64748b",
-                                                fontWeight: 600,
-                                                marginBottom: "0.5rem",
-                                            }}
-                                        >
-                                            TOTALES
+                                <div className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-800/40">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Balance de Efectivo</span>
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-500">Total Ingresos:</span>
+                                            <span className="text-sm font-black text-emerald-700 dark:text-emerald-400">{currencyFormatter.format(totalIncome)}</span>
                                         </div>
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                marginBottom: "0.5rem",
-                                            }}
-                                        >
-                                            <span
-                                                style={{
-                                                    color: "#16a34a",
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Ingresos:
-                                            </span>
-                                            <span
-                                                style={{
-                                                    fontWeight: 800,
-                                                    color: "#16a34a",
-                                                }}
-                                            >
-                                                {currencyFormatter.format(
-                                                    totalIncome,
-                                                )}
-                                            </span>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-medium text-rose-600 dark:text-rose-500">Total Egresos:</span>
+                                            <span className="text-sm font-black text-rose-700 dark:text-rose-400">{currencyFormatter.format(totalExpense)}</span>
                                         </div>
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                marginBottom: "0.75rem",
-                                            }}
-                                        >
-                                            <span
-                                                style={{
-                                                    color: "#dc2626",
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Egresos:
-                                            </span>
-                                            <span
-                                                style={{
-                                                    fontWeight: 800,
-                                                    color: "#dc2626",
-                                                }}
-                                            >
-                                                {currencyFormatter.format(
-                                                    totalExpense,
-                                                )}
-                                            </span>
-                                        </div>
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                paddingTop: "0.5rem",
-                                                borderTop: "2px dashed #f1f5f9",
-                                            }}
-                                        >
-                                            <span
-                                                style={{
-                                                    fontWeight: 700,
-                                                    color: "#1e293b",
-                                                }}
-                                            >
-                                                Neto Final:
-                                            </span>
-                                            <span
-                                                style={{
-                                                    fontWeight: 900,
-                                                    fontSize: "1.1rem",
-                                                    color:
-                                                        netTotal >= 0
-                                                            ? "#16a34a"
-                                                            : "#dc2626",
-                                                }}
-                                            >
-                                                {currencyFormatter.format(
-                                                    netTotal,
-                                                )}
+                                        <div className="mt-2 flex items-center justify-between border-t border-slate-50 pt-2 dark:border-slate-800/50">
+                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100">Saldo Neto:</span>
+                                            <span className={`text-base font-black ${netTotal >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                {currencyFormatter.format(netTotal)}
                                             </span>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Resumen por método de pago */}
-                                {!loading && payments.length > 0 && (
-                                    <div style={{ marginBottom: "2rem" }}>
-                                        <h4
-                                            style={{
-                                                margin: "0 0 1rem",
-                                                fontSize: "0.9rem",
-                                                fontWeight: 700,
-                                                color: "#334155",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: "0.5rem",
-                                            }}
-                                        >
-                                            💳 Resumen por Método
-                                        </h4>
-                                        <div
-                                            style={{
-                                                display: "grid",
-                                                gridTemplateColumns: isSmall
-                                                    ? "repeat(2, 1fr)"
-                                                    : "repeat(auto-fit, minmax(150px, 1fr))",
-                                                gap: "0.75rem",
-                                            }}
-                                        >
-                                            {(
-                                                [
-                                                    "CASH",
-                                                    "CARD",
-                                                    "YAPE",
-                                                    "PLIN",
-                                                    "TRANSFER",
-                                                    "OTROS",
-                                                ] as const
-                                            ).map((method) => {
-                                                const total = payments.reduce(
-                                                    (acc, mov) => {
-                                                        const movMethod =
-                                                            mov.paymentMethod ??
-                                                            mov.payment_method ??
-                                                            "";
-                                                        if (
-                                                            movMethod !== method
-                                                        )
-                                                            return acc;
-                                                        const amount = Number(
-                                                            mov.paidAmount ??
-                                                                mov.paid_amount ??
-                                                                0,
-                                                        );
-                                                        const type =
-                                                            mov.transactionType ??
-                                                            mov.transaction_type ??
-                                                            "";
-                                                        return type === "INCOME"
-                                                            ? acc + amount
-                                                            : acc - amount;
-                                                    },
-                                                    0,
-                                                );
-                                                if (total === 0) return null;
-                                                return (
-                                                    <div
-                                                        key={method}
-                                                        style={{
-                                                            padding: "1rem",
-                                                            backgroundColor:
-                                                                "white",
-                                                            borderRadius:
-                                                                "12px",
-                                                            border: "1px solid #e2e8f0",
-                                                            textAlign: "center",
-                                                        }}
-                                                    >
-                                                        <div
-                                                            style={{
-                                                                fontSize:
-                                                                    "0.75rem",
-                                                                color: "#64748b",
-                                                                marginBottom:
-                                                                    "0.25rem",
-                                                                fontWeight: 600,
-                                                            }}
-                                                        >
-                                                            {getPaymentMethodLabel(
-                                                                method,
-                                                            )}
-                                                        </div>
-                                                        <div
-                                                            style={{
-                                                                fontWeight: 800,
-                                                                color:
-                                                                    total >= 0
-                                                                        ? "#16a34a"
-                                                                        : "#dc2626",
-                                                                fontSize:
-                                                                    "1.05rem",
-                                                            }}
-                                                        >
-                                                            {currencyFormatter.format(
-                                                                total,
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                <div className="hidden flex-col gap-4 rounded-3xl border border-indigo-100 bg-indigo-50/30 p-6 shadow-sm dark:border-indigo-900/30 dark:bg-indigo-900/10 lg:flex">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Resumen Rápido</span>
+                                    <div className="flex flex-col gap-3">
+                                        <div className="flex flex-col">
+                                            <span className="text-2xl font-black text-indigo-700 dark:text-indigo-300">
+                                                {payments.length}
+                                            </span>
+                                            <span className="text-[10px] font-bold uppercase text-indigo-500/70">Movimientos Registrados</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {onReprint && (
+                                                <button
+                                                    onClick={() => onReprint(closure)}
+                                                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white py-2 text-[10px] font-black uppercase tracking-wider text-indigo-600 shadow-sm transition-all hover:bg-indigo-50 dark:bg-slate-800 dark:text-indigo-400 dark:hover:bg-slate-700"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                                    </svg>
+                                                    Imprimir
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
-                                )}
+                                </div>
+                            </div>
 
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        alignItems: "center",
-                                        marginBottom: "1rem",
-                                    }}
-                                >
-                                    <h4
-                                        style={{
-                                            margin: 0,
-                                            fontSize: "1rem",
-                                            fontWeight: 700,
-                                            color: "#334155",
-                                        }}
-                                    >
-                                        📊 Movimientos ({payments.length})
-                                    </h4>
-                                    {isSmall && onReprint && closure && (
-                                        <button
-                                            onClick={() => onReprint(closure)}
-                                            style={{
-                                                padding: "0.5rem 0.75rem",
-                                                borderRadius: "8px",
-                                                border: "1px solid #e2e8f0",
-                                                backgroundColor: "white",
-                                                fontSize: "0.8rem",
-                                                fontWeight: 600,
-                                            }}
-                                        >
-                                            🖨️ Reimprimir
-                                        </button>
+                            {/* Resumen por método de pago */}
+                            {!loading && payments.length > 0 && (
+                                <div className="flex flex-col gap-4">
+                                    <h4 className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Distribución por Método</h4>
+                                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
+                                        {(["CASH", "CARD", "YAPE", "PLIN", "TRANSFER", "OTROS"] as const).map((method) => {
+                                            const total = payments.reduce((acc, mov) => {
+                                                const movMethod = mov.paymentMethod ?? mov.payment_method ?? "";
+                                                if (movMethod !== method) return acc;
+                                                const amount = Number(mov.paidAmount ?? mov.paid_amount ?? 0);
+                                                const type = mov.transactionType ?? mov.transaction_type ?? "";
+                                                return type === "INCOME" ? acc + amount : acc - amount;
+                                            }, 0);
+                                            if (total === 0) return null;
+                                            return (
+                                                <div key={method} className="flex flex-col gap-1 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 text-center dark:border-slate-800 dark:bg-slate-800/20">
+                                                    <span className="text-[10px] font-bold text-slate-400">{getPaymentMethodLabel(method)}</span>
+                                                    <span className={`text-sm font-black ${total >= 0 ? 'text-slate-700 dark:text-slate-200' : 'text-rose-600'}`}>
+                                                        {currencyFormatter.format(total)}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Tabla de movimientos */}
+                            <div className="flex flex-col gap-4">
+                                <h4 className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Historial de Movimientos</h4>
+                                <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+                                    {loading ? (
+                                        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                                            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-indigo-500/20 border-t-indigo-500" />
+                                            <p className="text-xs font-bold uppercase tracking-widest">Cargando movimientos...</p>
+                                        </div>
+                                    ) : payments.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center py-20 text-center text-slate-400">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="mb-4 h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                            <p className="text-sm font-bold uppercase tracking-widest">No hay movimientos</p>
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left text-xs">
+                                                <thead>
+                                                    <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:bg-slate-800/30 dark:text-slate-400">
+                                                        <th className="px-6 py-4">Fecha/Hora</th>
+                                                        <th className="px-6 py-4 text-center">Tipo</th>
+                                                        <th className="px-6 py-4 text-center">Método</th>
+                                                        <th className="px-6 py-4 text-right">Monto</th>
+                                                        <th className="px-6 py-4">Referencia / Notas</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                                                    {payments.map((mov) => (
+                                                        <tr key={mov.id} className="transition-colors hover:bg-slate-50/30 dark:hover:bg-slate-800/20">
+                                                            <td className="whitespace-nowrap px-6 py-4 font-medium text-slate-600 dark:text-slate-400">
+                                                                {mov.paymentDate || mov.payment_date ? formatDate(mov.paymentDate || mov.payment_date!) : "—"}
+                                                            </td>
+                                                            <td className="px-6 py-4 text-center">
+                                                                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+                                                                    (mov.transactionType || mov.transaction_type) === "INCOME"
+                                                                        ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
+                                                                        : "bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400"
+                                                                }`}>
+                                                                    <div className={`h-1 w-1 rounded-full ${(mov.transactionType || mov.transaction_type) === "INCOME" ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                                                    {getTransactionTypeLabel(mov.transactionType || mov.transaction_type || "")}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-center">
+                                                                <span className="font-bold text-slate-700 dark:text-slate-200">
+                                                                    {getPaymentMethodLabel(mov.paymentMethod || mov.payment_method || "")}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-right">
+                                                                <span className={`text-sm font-black ${(mov.transactionType || mov.transaction_type) === "INCOME" ? 'text-slate-800 dark:text-slate-100' : 'text-rose-600'}`}>
+                                                                    {currencyFormatter.format(Number(mov.paidAmount || mov.paid_amount || 0))}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex flex-col gap-1">
+                                                                    <span className="font-bold text-slate-700 dark:text-slate-300">
+                                                                        {mov.operation?.order ? `Pedido #${mov.operation.order}` : 
+                                                                         mov.issuedDocument?.number ? `Doc: ${mov.issuedDocument.serial}-${mov.issuedDocument.number}` : 
+                                                                         mov.issued_document?.number ? `Doc: ${mov.issued_document.serial}-${mov.issued_document.number}` :
+                                                                         "Movimiento Manual"}
+                                                                    </span>
+                                                                    {mov.notes && (
+                                                                        <span className="text-[10px] font-medium text-slate-400">
+                                                                            {mov.notes}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     )}
                                 </div>
-
-                                {loading ? (
-                                    <div
-                                        style={{
-                                            padding: "3rem",
-                                            textAlign: "center",
-                                            color: "#64748b",
-                                        }}
-                                    >
-                                        Cargando movimientos...
-                                    </div>
-                                ) : payments.length === 0 ? (
-                                    <div
-                                        style={{
-                                            padding: "2rem",
-                                            textAlign: "center",
-                                            color: "#64748b",
-                                            backgroundColor: "white",
-                                            borderRadius: "16px",
-                                            border: "1px solid #e2e8f0",
-                                        }}
-                                    >
-                                        No hay movimientos en este cierre
-                                    </div>
-                                ) : (
-                                    <div
-                                        style={{
-                                            overflow: "hidden",
-                                            borderRadius: "16px",
-                                            border: "1px solid #e2e8f0",
-                                            backgroundColor: "white",
-                                        }}
-                                    >
-                                        {!isSmall ? (
-                                            <div
-                                                style={{
-                                                    overflowX: "auto",
-                                                    maxHeight: "400px",
-                                                }}
-                                            >
-                                                <table
-                                                    style={{
-                                                        width: "100%",
-                                                        borderCollapse:
-                                                            "collapse",
-                                                        fontSize: "0.85rem",
-                                                    }}
-                                                >
-                                                    <thead
-                                                        style={{
-                                                            position: "sticky",
-                                                            top: 0,
-                                                            backgroundColor:
-                                                                "#f8fafc",
-                                                            zIndex: 1,
-                                                        }}
-                                                    >
-                                                        <tr
-                                                            style={{
-                                                                borderBottom:
-                                                                    "2px solid #e2e8f0",
-                                                            }}
-                                                        >
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "1rem",
-                                                                    textAlign:
-                                                                        "left",
-                                                                    color: "#64748b",
-                                                                }}
-                                                            >
-                                                                Fecha/Hora
-                                                            </th>
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "1rem",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    color: "#64748b",
-                                                                }}
-                                                            >
-                                                                Tipo
-                                                            </th>
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "1rem",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    color: "#64748b",
-                                                                }}
-                                                            >
-                                                                Método
-                                                            </th>
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "1rem",
-                                                                    textAlign:
-                                                                        "right",
-                                                                    color: "#64748b",
-                                                                }}
-                                                            >
-                                                                Monto
-                                                            </th>
-                                                            <th
-                                                                style={{
-                                                                    padding:
-                                                                        "1rem",
-                                                                    textAlign:
-                                                                        "left",
-                                                                    color: "#64748b",
-                                                                }}
-                                                            >
-                                                                Referencia
-                                                            </th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {payments.map((mov) => (
-                                                            <tr
-                                                                key={mov.id}
-                                                                style={{
-                                                                    borderBottom:
-                                                                        "1px solid #f1f5f9",
-                                                                }}
-                                                            >
-                                                                <td
-                                                                    style={{
-                                                                        padding:
-                                                                            "1rem",
-                                                                    }}
-                                                                >
-                                                                    {mov.paymentDate
-                                                                        ? formatDate(
-                                                                              mov.paymentDate,
-                                                                          )
-                                                                        : "—"}
-                                                                </td>
-                                                                <td
-                                                                    style={{
-                                                                        padding:
-                                                                            "1rem",
-                                                                        textAlign:
-                                                                            "center",
-                                                                    }}
-                                                                >
-                                                                    <span
-                                                                        style={{
-                                                                            padding:
-                                                                                "0.2rem 0.5rem",
-                                                                            borderRadius:
-                                                                                "6px",
-                                                                            fontSize:
-                                                                                "0.75rem",
-                                                                            fontWeight: 700,
-                                                                            backgroundColor:
-                                                                                (mov.transactionType ||
-                                                                                    mov.transaction_type) ===
-                                                                                "INCOME"
-                                                                                    ? "#dcfce7"
-                                                                                    : "#fee2e2",
-                                                                            color:
-                                                                                (mov.transactionType ||
-                                                                                    mov.transaction_type) ===
-                                                                                "INCOME"
-                                                                                    ? "#166534"
-                                                                                    : "#991b1b",
-                                                                        }}
-                                                                    >
-                                                                        {getTransactionTypeLabel(
-                                                                            mov.transactionType ||
-                                                                                mov.transaction_type ||
-                                                                                "",
-                                                                        )}
-                                                                    </span>
-                                                                </td>
-                                                                <td
-                                                                    style={{
-                                                                        padding:
-                                                                            "1rem",
-                                                                        textAlign:
-                                                                            "center",
-                                                                    }}
-                                                                >
-                                                                    {getPaymentMethodLabel(
-                                                                        mov.paymentMethod ||
-                                                                            mov.payment_method ||
-                                                                            "",
-                                                                    )}
-                                                                </td>
-                                                                <td
-                                                                    style={{
-                                                                        padding:
-                                                                            "1rem",
-                                                                        textAlign:
-                                                                            "right",
-                                                                        fontWeight: 700,
-                                                                        color:
-                                                                            (mov.transactionType ||
-                                                                                mov.transaction_type) ===
-                                                                            "INCOME"
-                                                                                ? "#16a34a"
-                                                                                : "#dc2626",
-                                                                    }}
-                                                                >
-                                                                    {currencyFormatter.format(
-                                                                        mov.paidAmount ||
-                                                                            mov.paid_amount ||
-                                                                            0,
-                                                                    )}
-                                                                </td>
-                                                                <td
-                                                                    style={{
-                                                                        padding:
-                                                                            "1rem",
-                                                                        color: "#64748b",
-                                                                        fontSize:
-                                                                            "0.75rem",
-                                                                    }}
-                                                                >
-                                                                    {mov
-                                                                        .issuedDocument
-                                                                        ?.number ||
-                                                                        mov.notes ||
-                                                                        "—"}
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        ) : (
-                                            <div
-                                                style={{
-                                                    padding: "1rem",
-                                                    display: "flex",
-                                                    flexDirection: "column",
-                                                    gap: "0.75rem",
-                                                    maxHeight: "50vh",
-                                                    overflowY: "auto",
-                                                }}
-                                            >
-                                                {payments.map((mov) => (
-                                                    <div
-                                                        key={mov.id}
-                                                        style={{
-                                                            padding: "1rem",
-                                                            borderRadius:
-                                                                "12px",
-                                                            backgroundColor:
-                                                                "#f8fafc",
-                                                            border: "1px solid #f1f5f9",
-                                                        }}
-                                                    >
-                                                        <div
-                                                            style={{
-                                                                display: "flex",
-                                                                justifyContent:
-                                                                    "space-between",
-                                                                marginBottom:
-                                                                    "0.5rem",
-                                                            }}
-                                                        >
-                                                            <span
-                                                                style={{
-                                                                    fontSize:
-                                                                        "0.75rem",
-                                                                    color: "#64748b",
-                                                                }}
-                                                            >
-                                                                {mov.paymentDate
-                                                                    ? formatDate(
-                                                                          mov.paymentDate,
-                                                                      )
-                                                                    : "—"}
-                                                            </span>
-                                                            <span
-                                                                style={{
-                                                                    padding:
-                                                                        "0.2rem 0.5rem",
-                                                                    borderRadius:
-                                                                        "6px",
-                                                                    fontSize:
-                                                                        "0.7rem",
-                                                                    fontWeight: 700,
-                                                                    backgroundColor:
-                                                                        (mov.transactionType ||
-                                                                            mov.transaction_type) ===
-                                                                        "INCOME"
-                                                                            ? "#dcfce7"
-                                                                            : "#fee2e2",
-                                                                    color:
-                                                                        (mov.transactionType ||
-                                                                            mov.transaction_type) ===
-                                                                        "INCOME"
-                                                                            ? "#166534"
-                                                                            : "#991b1b",
-                                                                }}
-                                                            >
-                                                                {getTransactionTypeLabel(
-                                                                    mov.transactionType ||
-                                                                        mov.transaction_type ||
-                                                                        "",
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                        <div
-                                                            style={{
-                                                                display: "flex",
-                                                                justifyContent:
-                                                                    "space-between",
-                                                                alignItems:
-                                                                    "center",
-                                                            }}
-                                                        >
-                                                            <div
-                                                                style={{
-                                                                    fontWeight: 600,
-                                                                    color: "#334155",
-                                                                }}
-                                                            >
-                                                                {getPaymentMethodLabel(
-                                                                    mov.paymentMethod ||
-                                                                        mov.payment_method ||
-                                                                        "",
-                                                                )}
-                                                            </div>
-                                                            <div
-                                                                style={{
-                                                                    fontWeight: 800,
-                                                                    color:
-                                                                        (mov.transactionType ||
-                                                                            mov.transaction_type) ===
-                                                                        "INCOME"
-                                                                            ? "#16a34a"
-                                                                            : "#dc2626",
-                                                                }}
-                                                            >
-                                                                {currencyFormatter.format(
-                                                                    mov.paidAmount ||
-                                                                        mov.paid_amount ||
-                                                                        0,
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        <div
-                                                            style={{
-                                                                fontSize:
-                                                                    "0.75rem",
-                                                                color: "#94a3b8",
-                                                                marginTop:
-                                                                    "0.5rem",
-                                                            }}
-                                                        >
-                                                            {mov.issuedDocument
-                                                                ?.number ||
-                                                                mov.notes ||
-                                                                "Sin referencia"}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
-                <style
-                    dangerouslySetInnerHTML={{
-                        __html: `
-          @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-          @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        `,
-                    }}
-                />
             </div>
         </div>
     );

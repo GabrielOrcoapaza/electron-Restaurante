@@ -11,7 +11,7 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { useUserPermissions } from "../../hooks/useUserPermissions";
 import { useWebSocket } from "../../context/WebSocketContext";
 import { useToast } from "../../context/ToastContext";
-import type { Table, ProcessedTableColors } from "../../types/table";
+import type { Table } from "../../types/table";
 import {
     GET_FLOORS_BY_BRANCH,
     GET_TABLES_BY_FLOOR,
@@ -147,7 +147,6 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     const isSmall = breakpoint === "sm";
     const isMedium = breakpoint === "md";
     const isSmallDesktop = breakpoint === "lg";
-    const isNarrowScreen = isXs || isSmall;
 
     const tablesGridColumns = isXs
         ? "repeat(2, 1fr)"

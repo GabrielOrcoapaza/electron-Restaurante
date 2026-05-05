@@ -2,13 +2,8 @@ import React, { useState } from 'react';
 import { useMutation } from '@apollo/client';
 import { UPDATE_USER } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
-import { useResponsive } from '../../hooks/useResponsive';
+import { useToast } from '../../context/ToastContext';
 
-interface Branch {
-  id: string;
-  name: string;
-  isActive: boolean;
-}
 
 interface User {
   id: string;
@@ -31,20 +26,7 @@ type EditUserProps = {
 
 const EditUser: React.FC<EditUserProps> = ({ user, onSuccess, onClose }) => {
   const { companyData } = useAuth();
-  const { breakpoint, isMobile, isXs } = useResponsive();
-
-  const isSmall = breakpoint === 'sm' || isMobile;
-  const isMedium = breakpoint === 'md';
-
-  const modalPadding = isXs ? '1rem' : isSmall ? '1.25rem' : '2rem';
-  const modalMaxWidth = isSmall ? '100%' : isMedium ? '500px' : '650px';
-  const titleFontSize = isXs ? '1.1rem' : isSmall ? '1.25rem' : '1.5rem';
-  const labelFontSize = isXs ? '0.7rem' : isSmall ? '0.75rem' : '0.875rem';
-  const inputFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '1rem';
-  const inputPadding = isXs ? '0.6rem' : isSmall ? '0.75rem' : '0.875rem';
-  const buttonPadding = isXs ? '0.6rem 1rem' : isSmall ? '0.75rem 1.25rem' : '0.8rem 1.5rem';
-  const buttonFontSize = isXs ? '0.8rem' : isSmall ? '0.85rem' : '0.9rem';
-  const gapSize = isXs ? '0.6rem' : isSmall ? '0.75rem' : '1rem';
+  const { showToast } = useToast();
 
   const [formData, setFormData] = useState({
     email: user.email || '',
@@ -57,26 +39,22 @@ const EditUser: React.FC<EditUserProps> = ({ user, onSuccess, onClose }) => {
     isActive: user.isActive ?? true,
   });
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [updateUser, { loading }] = useMutation(UPDATE_USER, {
     onCompleted: (data) => {
       if (data.updateUser?.success) {
-        setMessage({ type: 'success', text: data.updateUser.message || 'Usuario actualizado exitosamente' });
+        showToast(data.updateUser.message || 'Empleado actualizado exitosamente', 'success');
         if (onSuccess) {
-          setTimeout(() => {
             onSuccess();
-            onClose();
-          }, 1200);
         } else {
-          setTimeout(() => onClose(), 1200);
+            onClose();
         }
       } else {
-        setMessage({ type: 'error', text: data.updateUser?.message || 'Error al actualizar' });
+        showToast(data.updateUser?.message || 'Error al actualizar', 'error');
       }
     },
     onError: (error) => {
-      setMessage({ type: 'error', text: error.message || 'Error al actualizar el usuario' });
+      showToast(error.message || 'Error de conexión', 'error');
     },
   });
 
@@ -110,7 +88,6 @@ const EditUser: React.FC<EditUserProps> = ({ user, onSuccess, onClose }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage(null);
 
     const variables: Record<string, unknown> = {
       id: user.id,
@@ -139,329 +116,170 @@ const EditUser: React.FC<EditUserProps> = ({ user, onSuccess, onClose }) => {
     { value: 'COOK', label: 'Cocinero' },
   ];
 
-  const branches: Branch[] = companyData?.branch
-    ? [{ id: companyData.branch.id, name: companyData.branch.name, isActive: true }]
-    : [];
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: isSmall ? 'flex-end' : 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: isSmall ? 0 : '1rem',
-        backdropFilter: 'blur(4px)',
-        animation: 'fadeIn 0.3s ease'
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <div 
+        className="fixed inset-0 z-[11000] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-300 sm:p-6"
+        onClick={onClose}
     >
-      <style>
-        {`
-          @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
-          }
-          @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-        `}
-      </style>
-      <div
-        style={{
-          backgroundColor: 'white',
-          borderRadius: isSmall ? '24px 24px 0 0' : '16px',
-          padding: modalPadding,
-          maxWidth: modalMaxWidth,
-          width: '100%',
-          maxHeight: isSmall ? '92vh' : '90vh',
-          overflow: 'auto',
-          boxShadow: '0 -10px 25px -5px rgba(0, 0, 0, 0.1), 0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          animation: isSmall ? 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)' : 'fadeIn 0.3s ease'
-        }}
+      <div 
+        className="relative flex h-full max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-300 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-          <h2 style={{ margin: 0, fontSize: titleFontSize, fontWeight: 700, color: '#1e293b' }}>
-            ✏️ Editar Empleado
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '1.5rem',
-              cursor: 'pointer',
-              color: '#64748b',
-              padding: '0.25rem 0.5rem',
-              borderRadius: '4px',
-            }}
-          >
-            ×
-          </button>
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-6 dark:border-slate-800/50 dark:bg-slate-800/20">
+            <div className="flex flex-col gap-1">
+                <h3 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100">
+                    Editar Empleado
+                </h3>
+                <span className="text-xs font-mono font-black text-indigo-500 dark:text-indigo-400">
+                    DNI: {user.dni}
+                </span>
+            </div>
+            <button
+                onClick={onClose}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-600 dark:bg-slate-800 dark:text-slate-500 dark:hover:bg-slate-700"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
         </div>
 
-        <p style={{ margin: '0 0 1rem', color: '#64748b', fontSize: isSmall ? '0.75rem' : '0.8125rem' }}>
-          DNI: {user.dni}
-        </p>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Email *</label>
+                        <input
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                            required
+                            className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                        />
+                    </div>
 
-        {message && (
-          <div
-            style={{
-              padding: '0.75rem',
-              borderRadius: '8px',
-              marginBottom: '1rem',
-              backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-              color: message.type === 'success' ? '#166534' : '#991b1b',
-              border: `1px solid ${message.type === 'success' ? '#86efac' : '#fecaca'}`,
-              fontSize: inputFontSize,
-            }}
-          >
-            {message.text}
-          </div>
-        )}
+                    <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nueva Contraseña</label>
+                        <input
+                            type="password"
+                            name="password"
+                            value={formData.password}
+                            onChange={handleChange}
+                            placeholder="••••••••"
+                            className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                        />
+                        <span className="text-[10px] font-medium text-slate-400 italic px-1">Dejar vacío para no cambiar</span>
+                    </div>
 
-        <form onSubmit={handleSubmit}>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: isSmall ? '1fr' : 'repeat(2, 1fr)',
-              gap: gapSize,
-              marginBottom: '1rem',
-            }}
-          >
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
-                Email *
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                required
-                style={{
-                  width: '100%',
-                  padding: inputPadding,
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: inputFontSize,
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nombre *</label>
+                        <input
+                            type="text"
+                            name="firstName"
+                            value={formData.firstName}
+                            onChange={handleChange}
+                            required
+                            className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                        />
+                    </div>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
-                Nueva contraseña (dejar vacío para mantener)
-              </label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                style={{
-                  width: '100%',
-                  padding: inputPadding,
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: inputFontSize,
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Apellido *</label>
+                        <input
+                            type="text"
+                            name="lastName"
+                            value={formData.lastName}
+                            onChange={handleChange}
+                            required
+                            className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                        />
+                    </div>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
-                Nombre *
-              </label>
-              <input
-                type="text"
-                name="firstName"
-                value={formData.firstName}
-                onChange={handleChange}
-                required
-                style={{
-                  width: '100%',
-                  padding: inputPadding,
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: inputFontSize,
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Teléfono</label>
+                        <input
+                            type="text"
+                            name="phone"
+                            value={formData.phone}
+                            onChange={handleChange}
+                            className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                        />
+                    </div>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
-                Apellido *
-              </label>
-              <input
-                type="text"
-                name="lastName"
-                value={formData.lastName}
-                onChange={handleChange}
-                required
-                style={{
-                  width: '100%',
-                  padding: inputPadding,
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: inputFontSize,
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Rol *</label>
+                        <select
+                            name="role"
+                            value={formData.role}
+                            onChange={handleChange}
+                            required
+                            className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                        >
+                            {roles.map((r) => (
+                                <option key={r.value} value={r.value}>{r.label}</option>
+                            ))}
+                        </select>
+                    </div>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
-                Teléfono
-              </label>
-              <input
-                type="text"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                style={{
-                  width: '100%',
-                  padding: inputPadding,
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: inputFontSize,
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Foto</label>
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handlePhotoChange}
+                            className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-2.5 text-xs font-bold text-slate-500 file:mr-4 file:rounded-xl file:border-0 file:bg-indigo-50 file:px-4 file:py-1 file:text-[10px] file:font-black file:uppercase file:text-indigo-600 dark:border-slate-800 dark:bg-slate-800/40 dark:file:bg-indigo-500/20 dark:file:text-indigo-400"
+                        />
+                    </div>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
-                Sucursal
-              </label>
-              <select
-                name="branchId"
-                value={formData.branchId}
-                onChange={handleChange}
-                style={{
-                  width: '100%',
-                  padding: inputPadding,
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: inputFontSize,
-                  backgroundColor: 'white',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <option value="">Seleccionar sucursal</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-            </div>
+                    <div className="flex items-center gap-3 pt-4 sm:pt-6">
+                        <label className="relative inline-flex cursor-pointer items-center">
+                            <input
+                                type="checkbox"
+                                name="isActive"
+                                checked={formData.isActive}
+                                onChange={handleChange}
+                                className="peer sr-only"
+                            />
+                            <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-slate-700"></div>
+                            <span className="ml-3 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                                {formData.isActive ? 'Usuario Activo' : 'Usuario Inactivo'}
+                            </span>
+                        </label>
+                    </div>
+                </div>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
-                Rol *
-              </label>
-              <select
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                required
-                style={{
-                  width: '100%',
-                  padding: inputPadding,
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: inputFontSize,
-                  backgroundColor: 'white',
-                  boxSizing: 'border-box',
-                }}
-              >
-                {roles.map((r) => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', paddingTop: '1.5rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: labelFontSize }}>
-                <input
-                  type="checkbox"
-                  name="isActive"
-                  checked={formData.isActive}
-                  onChange={handleChange}
-                  style={{ width: '1.125rem', height: '1.125rem' }}
-                />
-                <span style={{ color: '#475569', fontWeight: 500 }}>Usuario activo</span>
-              </label>
-            </div>
-
-            <div style={{ gridColumn: isSmall ? '1' : '1 / -1' }}>
-              <label style={{ display: 'block', marginBottom: '0.375rem', fontWeight: 500, fontSize: labelFontSize, color: '#475569' }}>
-                Foto (opcional)
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoChange}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: inputFontSize,
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              style={{
-                padding: buttonPadding,
-                borderRadius: '10px',
-                border: '1px solid #e2e8f0',
-                backgroundColor: 'white',
-                color: '#64748b',
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontSize: buttonFontSize,
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                padding: buttonPadding,
-                borderRadius: '10px',
-                border: 'none',
-                background: loading ? '#94a3b8' : 'linear-gradient(135deg, #667eea, #764ba2)',
-                color: 'white',
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontSize: buttonFontSize,
-              }}
-            >
-              {loading ? 'Actualizando...' : '💾 Actualizar'}
-            </button>
-          </div>
-        </form>
+                <div className="flex items-center justify-end gap-3 border-t border-slate-50 pt-8 dark:border-slate-800/50">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={loading}
+                        className="rounded-2xl bg-slate-50 px-8 py-3 text-sm font-black text-slate-500 transition-all hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-10 py-3 text-sm font-black text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-700 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
+                    >
+                        {loading ? (
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        ) : (
+                            <>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                </svg>
+                                <span>Actualizar</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+            </form>
+        </div>
       </div>
     </div>
   );

@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
-import { useResponsive } from '../../hooks/useResponsive';
 import { GET_CATEGORY_SALES_REPORT, GET_CATEGORIES_BY_BRANCH } from '../../graphql/queries';
 import ReportCategorySalesList from './reportCategorySalesList';
 import type { CategorySalesGroup, CategorySalesSummary } from './reportCategorySalesList';
@@ -38,23 +37,15 @@ function mapReport(
   return { categories, summary };
 }
 
+const currencyFormatter = new Intl.NumberFormat('es-PE', {
+    style: 'currency',
+    currency: 'PEN',
+    minimumFractionDigits: 2,
+});
+
 const ReportCategorySales: React.FC = () => {
   const { companyData } = useAuth();
-  const { breakpoint, isMobile, isXs } = useResponsive();
   const branchId = companyData?.branch?.id;
-
-  // Adaptar según tamaño de pantalla
-  const isSmall = breakpoint === 'sm' || isMobile;
-  const isMedium = breakpoint === 'md';
-  const isSmallDesktop = breakpoint === 'lg';
-
-  const containerPadding = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
-  const containerGap = isXs ? '0.75rem' : isSmall ? '1rem' : '1.5rem';
-  const titleFontSize = isXs ? '1.1rem' : isSmall ? '1.25rem' : '1.5rem';
-  const subtitleFontSize = isXs ? '0.7rem' : isSmall ? '0.75rem' : '0.875rem';
-  const cardPadding = isXs ? '0.85rem' : isSmall ? '1rem' : '1.5rem';
-  const inputFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
-  const buttonFontSize = isXs ? '0.85rem' : isSmall ? '0.9rem' : '0.875rem';
 
   const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
   const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
@@ -65,6 +56,7 @@ const ReportCategorySales: React.FC = () => {
     skip: !branchId,
     fetchPolicy: 'cache-first',
   });
+
   const categoryOptions = useMemo(() => {
     const list = categoriesMeta?.categoriesByBranch ?? [];
     return list.filter((c: { isActive?: boolean }) => c.isActive !== false);
@@ -85,7 +77,14 @@ const ReportCategorySales: React.FC = () => {
     (data as { categorySalesReport?: Record<string, unknown>; category_sales_report?: Record<string, unknown> } | undefined)
       ?.categorySalesReport ??
     (data as { category_sales_report?: Record<string, unknown> } | undefined)?.category_sales_report;
+  
   const { categories, summary } = mapReport(root);
+
+  // Top Category calculation
+  const topCategory = useMemo(() => {
+    if (!categories.length) return null;
+    return [...categories].sort((a, b) => b.totalAmount - a.totalAmount)[0];
+  }, [categories]);
 
   const handleSearch = () => {
     refetch();
@@ -93,199 +92,169 @@ const ReportCategorySales: React.FC = () => {
 
   if (!branchId) {
     return (
-      <div
-        style={{
-          padding: containerPadding,
-          textAlign: 'center',
-          color: '#dc2626',
-          fontSize: subtitleFontSize,
-        }}
-      >
-        No se encontró información de la sucursal. Por favor, inicia sesión nuevamente.
-      </div>
+        <div className="flex min-h-[400px] items-center justify-center rounded-[32px] bg-white p-8 shadow-sm dark:bg-slate-900">
+            <div className="text-center text-rose-500 font-bold">
+                No se encontró información de la sucursal activa.
+            </div>
+        </div>
     );
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: containerGap,
-        background: 'linear-gradient(160deg, #eff6ff 0%, #f9fafb 45%, #ffffff 100%)',
-        padding: containerPadding,
-        borderRadius: '18px',
-        boxShadow: '0 25px 50px -12px rgba(15,23,42,0.18)',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          top: '-120px',
-          right: '-120px',
-          width: isSmall ? '180px' : isMedium ? '220px' : isSmallDesktop ? '220px' : '260px',
-          height: isSmall ? '180px' : isMedium ? '220px' : isSmallDesktop ? '220px' : '260px',
-          background: 'radial-gradient(circle at center, rgba(59,130,246,0.2), transparent 70%)',
-          filter: 'blur(2px)',
-          zIndex: 0,
-        }}
-      />
-
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: isSmall ? 'flex-start' : 'center',
-            flexDirection: isSmall ? 'column' : 'row',
-            marginBottom: containerGap,
-            flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap',
-            gap: isSmall || isMedium ? '1rem' : '0',
-          }}
-        >
-          <div>
-            <h1 style={{ fontSize: titleFontSize, fontWeight: 700, color: '#1e293b', margin: 0, marginBottom: '0.5rem' }}>
-              Ventas por categoría
-            </h1>
-            <p style={{ fontSize: subtitleFontSize, color: '#64748b', margin: 0 }}>
-              Platos y bebidas facturados en documentos emitidos (no anulados), agrupados por categoría
-            </p>
-          </div>
-        </div>
-
-        <div
-          style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: cardPadding,
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-            marginBottom: containerGap,
-          }}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: isSmall ? '1fr' : isMedium ? '1fr 1fr' : isSmallDesktop ? '1fr 1fr 1fr' : '1fr 1fr 1fr auto',
-              gap: '1rem',
-              alignItems: 'end',
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: inputFontSize,
-                  fontWeight: 500,
-                  color: '#374151',
-                  marginBottom: '0.5rem',
-                }}
-              >
-                Fecha inicio
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem',
-                  fontSize: inputFontSize,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                }}
-              />
-            </div>
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: inputFontSize,
-                  fontWeight: 500,
-                  color: '#374151',
-                  marginBottom: '0.5rem',
-                }}
-              >
-                Fecha fin
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem',
-                  fontSize: inputFontSize,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                }}
-              />
-            </div>
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: inputFontSize,
-                  fontWeight: 500,
-                  color: '#374151',
-                  marginBottom: '0.5rem',
-                }}
-              >
-                Categoría (opcional)
-              </label>
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem',
-                  fontSize: inputFontSize,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  background: 'white',
-                }}
-              >
-                <option value="">Todas las categorías</option>
-                {categoryOptions.map((c: { id: string; name: string }) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+    <div className="flex w-full flex-col gap-6 p-4 sm:p-6 lg:p-8">
+        {/* Header */}
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[22px] bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100 sm:text-3xl">
+                        Ventas por Categoría
+                    </h1>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 sm:text-sm">
+                        Distribución estratégica de ingresos por grupos de menú
+                    </p>
+                </div>
             </div>
             <button
-              type="button"
-              onClick={handleSearch}
-              style={{
-                padding: '0.625rem 1.5rem',
-                fontSize: buttonFontSize,
-                fontWeight: 600,
-                color: 'white',
-                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                height: '42px',
-              }}
+                onClick={() => refetch()}
+                disabled={loading}
+                className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              Buscar
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {loading ? "Actualizando" : "Refrescar"}
             </button>
-          </div>
         </div>
 
-        <ReportCategorySalesList
-          categories={categories}
-          summary={summary}
-          loading={loading}
-          error={error}
-          isSmall={isSmall}
-          isXs={isXs}
-        />
-      </div>
+        {/* Unified Filter Toolbar */}
+        <div className="rounded-[28px] border border-slate-100 bg-white p-2 shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0">
+                <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Desde</label>
+                    <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                    />
+                </div>
+
+                <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Hasta</label>
+                    <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                    />
+                </div>
+
+                <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Categoría</label>
+                    <select
+                        value={categoryId}
+                        onChange={(e) => setCategoryId(e.target.value)}
+                        className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200 cursor-pointer"
+                    >
+                        <option value="">Todas las categorías</option>
+                        {categoryOptions.map((c: any) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="flex items-center p-2">
+                    <button
+                        onClick={handleSearch}
+                        disabled={loading}
+                        className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-200 transition-all hover:bg-indigo-700 hover:shadow-indigo-300 disabled:opacity-50 dark:shadow-none"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        Filtrar Reporte
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {/* Summary Cards */}
+        {summary && (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="relative overflow-hidden rounded-[32px] bg-indigo-600 p-6 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
+                    <div className="relative z-10">
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Recaudación Total</span>
+                        <div className="mt-1 text-3xl font-black">{currencyFormatter.format(summary.grandTotalAmount)}</div>
+                    </div>
+                    <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+                </div>
+
+                <div className="relative overflow-hidden rounded-[32px] bg-slate-800 p-6 text-white shadow-lg shadow-slate-200 dark:shadow-none">
+                    <div className="relative z-10">
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Ítems Facturados</span>
+                        <div className="mt-1 text-3xl font-black">{summary.grandTotalQuantity}</div>
+                    </div>
+                    <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+                </div>
+
+                {topCategory && (
+                    <div className="col-span-1 flex flex-col justify-center gap-1 rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800/50 dark:bg-slate-900 sm:col-span-2">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/20">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                </svg>
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Categoría Líder</span>
+                                <div className="flex items-baseline gap-3">
+                                    <span className="text-xl font-black text-slate-800 dark:text-slate-100 truncate max-w-[200px]">{topCategory.categoryName}</span>
+                                    <span className="text-lg font-black text-indigo-600">{currencyFormatter.format(topCategory.totalAmount)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )}
+
+        {/* Results List Container */}
+        <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-50 p-6 dark:border-slate-800/50">
+                <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">Desglose por Categoría</h2>
+                <span className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800">
+                    {categories.length} Grupos detectados
+                </span>
+            </div>
+
+            <div className="p-4 sm:p-6">
+                {loading ? (
+                    <div className="flex min-h-[300px] flex-col gap-4">
+                        {Array(5).fill(0).map((_, i) => (
+                            <div key={i} className="h-20 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50" />
+                        ))}
+                    </div>
+                ) : (
+                    <ReportCategorySalesList
+                        categories={categories}
+                        summary={summary}
+                        loading={loading}
+                        error={error}
+                    />
+                )}
+            </div>
+        </div>
+
+        {error && (
+            <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600 dark:border-rose-900/30 dark:bg-rose-900/10">
+                Error al cargar el reporte: {error.message}
+            </div>
+        )}
     </div>
   );
 };

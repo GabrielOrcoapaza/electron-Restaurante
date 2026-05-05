@@ -25,86 +25,80 @@ const FloorList: React.FC<FloorListProps> = ({ floors, onEdit }) => {
   }, [totalPages, floors.length]);
 
   return (
-    <div
-      style={{
-        backgroundColor: 'white',
-        borderRadius: '12px',
-        padding: '1rem',
-        border: '1px solid #e2e8f0',
-      }}
-    >
-      <h3 style={{ margin: '0 0 0.75rem', color: '#334155' }}>
-        Pisos ({floors.length})
-      </h3>
+    <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
+      <div className="border-b border-slate-100 p-6 dark:border-slate-800/50">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            </svg>
+            Pisos Registrados
+          </h3>
+          <span className="rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+            {floors.length} TOTAL
+          </span>
+        </div>
+      </div>
 
       {floors.length === 0 ? (
-        <div style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem 1rem' }}>
-          No hay pisos registrados. Crea uno arriba.
+        <div className="flex flex-col items-center justify-center p-12 text-center">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 text-slate-300 dark:bg-slate-800/50 dark:text-slate-600">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+          </div>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">No hay pisos registrados. Crea uno arriba.</p>
         </div>
       ) : (
         <>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
               <thead>
-                <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ textAlign: 'left', padding: '0.65rem' }}>Nombre</th>
-                  <th style={{ textAlign: 'center', padding: '0.65rem' }}>Capacidad</th>
-                  <th style={{ textAlign: 'center', padding: '0.65rem' }}>Orden</th>
-                  <th style={{ textAlign: 'center', padding: '0.65rem' }}>Estado</th>
-                  {onEdit && <th style={{ textAlign: 'center', padding: '0.65rem', width: '80px' }}>Acción</th>}
+                <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:bg-slate-800/30 dark:text-slate-400">
+                  <th className="px-6 py-4">Nombre del Área</th>
+                  <th className="px-6 py-4 text-center">Capacidad</th>
+                  <th className="px-6 py-4 text-center">Orden</th>
+                  <th className="px-6 py-4 text-center">Estado</th>
+                  {onEdit && <th className="px-6 py-4 text-right">Acciones</th>}
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                 {floorsPaginated.map((floor) => (
-                  <tr key={floor.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '0.65rem', color: '#334155', fontWeight: 600 }}>{floor.name}</td>
-                    <td style={{ padding: '0.65rem', textAlign: 'center', color: '#334155' }}>{floor.capacity ?? 0}</td>
-                    <td style={{ padding: '0.65rem', textAlign: 'center', color: '#334155' }}>{floor.order ?? 0}</td>
-                    <td style={{ padding: '0.65rem', textAlign: 'center' }}>
+                  <tr key={floor.id} className="group transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                    <td className="px-6 py-4">
+                      <span className="font-bold text-slate-700 dark:text-slate-200">{floor.name}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-[11px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                        {floor.capacity ?? 0}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{floor.order ?? 0}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
                       {floor.isActive === false ? (
-                        <span
-                          style={{
-                            padding: '0.2rem 0.55rem',
-                            borderRadius: '9999px',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            backgroundColor: '#fee2e2',
-                            color: '#991b1b',
-                          }}
-                        >
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-black uppercase text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
+                          <div className="h-1 w-1 rounded-full bg-rose-500" />
                           Inactivo
                         </span>
                       ) : (
-                        <span
-                          style={{
-                            padding: '0.2rem 0.55rem',
-                            borderRadius: '9999px',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            backgroundColor: '#dcfce7',
-                            color: '#166534',
-                          }}
-                        >
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black uppercase text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                          <div className="h-1 w-1 rounded-full bg-emerald-500" />
                           Activo
                         </span>
                       )}
                     </td>
                     {onEdit && (
-                      <td style={{ padding: '0.65rem', textAlign: 'center' }}>
+                      <td className="px-6 py-4 text-right">
                         <button
                           type="button"
                           onClick={() => onEdit(floor)}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            color: '#6366f1',
-                            background: '#eef2ff',
-                            border: '1px solid #c7d2fe',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                          }}
+                          className="inline-flex h-8 items-center gap-2 rounded-lg bg-indigo-50 px-3 text-[11px] font-bold text-indigo-600 transition-all hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40"
                         >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
                           Editar
                         </button>
                       </td>
@@ -114,53 +108,34 @@ const FloorList: React.FC<FloorListProps> = ({ floors, onEdit }) => {
               </tbody>
             </table>
           </div>
+
           {totalPages > 1 && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.75rem',
-              padding: '0.75rem 0',
-              borderTop: '1px solid #e2e8f0',
-              marginTop: '0.5rem',
-            }}>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                style={{
-                  padding: '0.35rem 0.75rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '6px',
-                  background: page <= 1 ? '#f1f5f9' : 'white',
-                  color: page <= 1 ? '#94a3b8' : '#475569',
-                  cursor: page <= 1 ? 'not-allowed' : 'pointer',
-                  fontSize: '0.8125rem',
-                  fontWeight: 600,
-                }}
-              >
-                Anterior
-              </button>
-              <span style={{ fontSize: '0.8125rem', color: '#64748b', fontWeight: 500 }}>
+            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/30 p-4 dark:border-slate-800 dark:bg-slate-800/10">
+              <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight">
                 Página {page} de {totalPages}
               </span>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                style={{
-                  padding: '0.35rem 0.75rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '6px',
-                  background: page >= totalPages ? '#f1f5f9' : 'white',
-                  color: page >= totalPages ? '#94a3b8' : '#475569',
-                  cursor: page >= totalPages ? 'not-allowed' : 'pointer',
-                  fontSize: '0.8125rem',
-                  fontWeight: 600,
-                }}
-              >
-                Siguiente
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
             </div>
           )}
         </>

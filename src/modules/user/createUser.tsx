@@ -2,37 +2,15 @@ import React, { useState, useEffect } from "react";
 import { useMutation } from "@apollo/client";
 import { CREATE_USER } from "../../graphql/mutations";
 import { useAuth } from "../../hooks/useAuth";
-import { useResponsive } from "../../hooks/useResponsive";
 import ListUser from "./listUser";
+import { useToast } from "../../context/ToastContext";
 
-interface Branch {
-    id: string;
-    name: string;
-    isActive: boolean;
-}
 
 const CreateUser: React.FC = () => {
     const { companyData } = useAuth();
-    const { breakpoint, isMobile, isXs } = useResponsive();
+    const { showToast } = useToast();
     const [showForm, setShowForm] = useState(false);
 
-    // Adaptar según tamaño de pantalla
-    const isSmall = breakpoint === "sm" || isMobile; // < 768px
-    const isMedium = breakpoint === "md"; // 768px - 1023px
-    const isSmallDesktop = breakpoint === "lg"; // 1024px - 1279px
-
-    // Tamaños adaptativos
-    const containerPadding = isXs ? "0.75rem" : isSmall ? "1rem" : "1.5rem";
-    const containerGap = isXs ? "0.75rem" : isSmall ? "1rem" : "1.5rem";
-    const titleFontSize = isXs ? "1.1rem" : isSmall ? "1.25rem" : "1.5rem";
-    const subtitleFontSize = isXs ? "0.7rem" : isSmall ? "0.75rem" : "0.875rem";
-    const labelFontSize = isXs ? "0.7rem" : isSmall ? "0.75rem" : "0.875rem";
-    const inputFontSize = isXs ? "0.85rem" : isSmall ? "0.9rem" : "1rem";
-    const inputPadding = isXs ? "0.6rem" : isSmall ? "0.7rem" : "0.8rem";
-    const buttonPadding = isXs ? "0.6rem 1rem" : isSmall ? "0.75rem 1.25rem" : "0.8rem 1.5rem";
-    const buttonFontSize = isXs ? "0.8rem" : isSmall ? "0.85rem" : "0.9rem";
-    const cardPadding = isXs ? "0.85rem" : isSmall ? "1rem" : "1.5rem";
-    const gapSize = isXs ? "0.6rem" : isSmall ? "0.75rem" : "1rem";
     const [formData, setFormData] = useState({
         dni: "",
         email: "",
@@ -44,10 +22,6 @@ const CreateUser: React.FC = () => {
         phone: "",
     });
     const [photoBase64, setPhotoBase64] = useState<string | null>(null);
-    const [message, setMessage] = useState<{
-        type: "success" | "error";
-        text: string;
-    } | null>(null);
 
     // Usar la sucursal del contexto de autenticación
     const currentBranch = companyData?.branch;
@@ -63,14 +37,14 @@ const CreateUser: React.FC = () => {
     const [createUser, { loading }] = useMutation(CREATE_USER, {
         onCompleted: (data) => {
             if (data.createUser.success) {
-                setMessage({ type: "success", text: data.createUser.message });
+                showToast(data.createUser.message || "Empleado creado con éxito", "success");
                 setFormData({
                     dni: "",
                     email: "",
                     password: "",
                     firstName: "",
                     lastName: "",
-                    branchId: "",
+                    branchId: currentBranch?.id || "",
                     role: "",
                     phone: "",
                 });
@@ -78,11 +52,11 @@ const CreateUser: React.FC = () => {
                 setShowForm(false);
                 setRefreshKey((prev) => prev + 1);
             } else {
-                setMessage({ type: "error", text: data.createUser.message });
+                showToast(data.createUser.message || "Error al crear empleado", "error");
             }
         },
         onError: (error) => {
-            setMessage({ type: "error", text: error.message });
+            showToast(error.message || "Error de conexión", "error");
         },
     });
 
@@ -107,7 +81,6 @@ const CreateUser: React.FC = () => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        setMessage(null);
         createUser({
             variables: {
                 ...formData,
@@ -123,536 +96,202 @@ const CreateUser: React.FC = () => {
         { value: "COOK", label: "Cocinero" },
     ];
 
-    // Usar la sucursal actual del contexto
-    const branches: Branch[] = currentBranch
-        ? [{ id: currentBranch.id, name: currentBranch.name, isActive: true }]
-        : [];
 
     return (
-        <div
-            style={{
-                minHeight: "100%",
-                width: "100%",
-                maxWidth: "100%",
-                display: "flex",
-                flexDirection: "column",
-                gap: containerGap,
-                background:
-                    "linear-gradient(160deg, #f0f4ff 0%, #f9fafb 45%, #ffffff 100%)",
-                padding: containerPadding,
-                borderRadius: "18px",
-                boxShadow: "0 25px 50px -12px rgba(15,23,42,0.18)",
-                position: "relative",
-                overflow: "hidden",
-                boxSizing: "border-box",
-            }}
-        >
-            {/* Elementos decorativos de fondo */}
-            <div
-                style={{
-                    position: "absolute",
-                    top: "-120px",
-                    right: "-120px",
-                    width: "260px",
-                    height: "260px",
-                    background:
-                        "radial-gradient(circle at center, rgba(102,126,234,0.25), transparent 70%)",
-                    filter: "blur(2px)",
-                    zIndex: 0,
-                }}
-            />
-            <div
-                style={{
-                    position: "absolute",
-                    bottom: "-80px",
-                    left: "-80px",
-                    width: "220px",
-                    height: "220px",
-                    background:
-                        "radial-gradient(circle at center, rgba(72,219,251,0.18), transparent 70%)",
-                    filter: "blur(2px)",
-                    zIndex: 0,
-                }}
-            />
-
-            {/* Contenido principal */}
-            <div style={{ position: "relative", zIndex: 1 }}>
-                {/* Header */}
-                <div
-                    style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: isSmall ? "flex-start" : "center",
-                        flexDirection: isSmall ? "column" : "row",
-                        marginBottom: isSmall
-                            ? "1rem"
-                            : isMedium
-                              ? "1.5rem"
-                              : isSmallDesktop
-                                ? "1.5rem"
-                                : "2rem",
-                        gap: isSmall || isMedium ? "1rem" : "0",
-                    }}
-                >
-                    <div>
-                        <h2
-                            style={{
-                                margin: 0,
-                                fontSize: titleFontSize,
-                                fontWeight: 700,
-                                color: "#1e293b",
-                            }}
-                        >
-                            👥 Gestión de Empleados
-                        </h2>
-                        <p
-                            style={{
-                                margin: "0.25rem 0 0",
-                                color: "#64748b",
-                                fontSize: subtitleFontSize,
-                            }}
-                        >
-                            Administra los empleados de tu empresa
-                        </p>
-                    </div>
-                    <button
-                        onClick={() => setShowForm(!showForm)}
-                        style={{
-                            padding: buttonPadding,
-                            background: showForm
-                                ? "#64748b"
-                                : "linear-gradient(135deg, #667eea, #764ba2)",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "10px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            fontSize: buttonFontSize,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            transition: "all 0.2s ease",
-                            width: isSmall ? "100%" : "auto",
-                        }}
-                    >
-                        {showForm ? "✕ Cancelar" : "+ Nuevo Empleado"}
-                    </button>
+        <div className="flex min-h-full w-full flex-col gap-6 rounded-[32px] bg-slate-50/50 p-6 shadow-xl shadow-slate-200/50 dark:bg-slate-900/50 dark:shadow-none sm:p-8">
+            {/* Header */}
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                <div className="flex flex-col gap-1">
+                    <h2 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100">
+                        👥 Gestión de Empleados
+                    </h2>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                        Administra el equipo y sus accesos al sistema
+                    </p>
                 </div>
+                <button
+                    onClick={() => setShowForm(!showForm)}
+                    className={`flex items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-black transition-all active:scale-95 sm:w-auto ${
+                        showForm
+                            ? "bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+                            : "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+                    }`}
+                >
+                    {showForm ? (
+                        <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            <span>Cancelar</span>
+                        </>
+                    ) : (
+                        <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                            </svg>
+                            <span>Nuevo Empleado</span>
+                        </>
+                    )}
+                </button>
+            </div>
 
-                {/* Mensaje */}
-                {message && (
-                    <div
-                        style={{
-                            padding: "1rem",
-                            borderRadius: "10px",
-                            marginBottom: "1.5rem",
-                            backgroundColor:
-                                message.type === "success"
-                                    ? "#dcfce7"
-                                    : "#fee2e2",
-                            color:
-                                message.type === "success"
-                                    ? "#166534"
-                                    : "#991b1b",
-                            border: `1px solid ${message.type === "success" ? "#86efac" : "#fecaca"}`,
-                        }}
-                    >
-                        {message.text}
-                    </div>
-                )}
-
-                {/* Formulario */}
-                {showForm && (
-                    <div
-                        style={{
-                            backgroundColor: "white",
-                            borderRadius: "16px",
-                            padding: cardPadding,
-                            marginBottom: isSmall
-                                ? "1rem"
-                                : isMedium
-                                  ? "1.25rem"
-                                  : "1.5rem",
-                            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-                            border: "1px solid #e2e8f0",
-                        }}
-                    >
-                        <h3
-                            style={{
-                                margin: "0 0 1.25rem",
-                                fontSize: isSmall
-                                    ? "1rem"
-                                    : isMedium
-                                      ? "1.05rem"
-                                      : isSmallDesktop
-                                        ? "1.05rem"
-                                        : "1.1rem",
-                                fontWeight: 600,
-                                color: "#334155",
-                            }}
-                        >
-                            📝 Nuevo Empleado
+            {/* Formulario */}
+            {showForm && (
+                <div className="flex-shrink-0 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm animate-in zoom-in-95 duration-300 dark:border-slate-800/50 dark:bg-slate-900 sm:p-8">
+                    <div className="mb-8 flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                            Registro de Empleado
                         </h3>
-                        <form onSubmit={handleSubmit}>
-                            <div
-                                style={{
-                                    display: "grid",
-                                    gridTemplateColumns: isSmall
-                                        ? "1fr"
-                                        : isMedium
-                                          ? "repeat(auto-fit, minmax(180px, 1fr))"
-                                          : "repeat(auto-fit, minmax(200px, 1fr))",
-                                    gap: gapSize,
-                                }}
-                            >
-                                <div>
-                                    <label
-                                        style={{
-                                            display: "block",
-                                            marginBottom: "0.375rem",
-                                            fontWeight: 500,
-                                            fontSize: labelFontSize,
-                                            color: "#475569",
-                                        }}
-                                    >
-                                        DNI *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="dni"
-                                        value={formData.dni}
-                                        onChange={handleChange}
-                                        maxLength={8}
-                                        required
-                                        placeholder="12345678"
-                                        style={{
-                                            width: "100%",
-                                            padding: inputPadding,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            fontSize: inputFontSize,
-                                            boxSizing: "border-box",
-                                            transition: "border-color 0.2s",
-                                        }}
-                                    />
-                                </div>
+                    </div>
 
-                                <div>
-                                    <label
-                                        style={{
-                                            display: "block",
-                                            marginBottom: "0.375rem",
-                                            fontWeight: 500,
-                                            fontSize: labelFontSize,
-                                            color: "#475569",
-                                        }}
-                                    >
-                                        Email *
-                                    </label>
-                                    <input
-                                        type="email"
-                                        name="email"
-                                        value={formData.email}
-                                        onChange={handleChange}
-                                        required
-                                        placeholder="correo@ejemplo.com"
-                                        style={{
-                                            width: "100%",
-                                            padding: inputPadding,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            fontSize: inputFontSize,
-                                            boxSizing: "border-box",
-                                        }}
-                                    />
-                                </div>
+                    <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">DNI *</label>
+                                <input
+                                    type="text"
+                                    name="dni"
+                                    value={formData.dni}
+                                    onChange={handleChange}
+                                    maxLength={8}
+                                    required
+                                    placeholder="12345678"
+                                    className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                                />
+                            </div>
 
-                                <div>
-                                    <label
-                                        style={{
-                                            display: "block",
-                                            marginBottom: "0.375rem",
-                                            fontWeight: 500,
-                                            fontSize: labelFontSize,
-                                            color: "#475569",
-                                        }}
-                                    >
-                                        Contraseña *
-                                    </label>
-                                    <input
-                                        type="password"
-                                        name="password"
-                                        value={formData.password}
-                                        onChange={handleChange}
-                                        required
-                                        placeholder="••••••••"
-                                        style={{
-                                            width: "100%",
-                                            padding: inputPadding,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            fontSize: inputFontSize,
-                                            boxSizing: "border-box",
-                                        }}
-                                    />
-                                </div>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Email *</label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    required
+                                    placeholder="correo@ejemplo.com"
+                                    className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                                />
+                            </div>
 
-                                <div>
-                                    <label
-                                        style={{
-                                            display: "block",
-                                            marginBottom: "0.375rem",
-                                            fontWeight: 500,
-                                            fontSize: labelFontSize,
-                                            color: "#475569",
-                                        }}
-                                    >
-                                        Nombre *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="firstName"
-                                        value={formData.firstName}
-                                        onChange={handleChange}
-                                        required
-                                        placeholder="Juan"
-                                        style={{
-                                            width: "100%",
-                                            padding: inputPadding,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            fontSize: inputFontSize,
-                                            boxSizing: "border-box",
-                                        }}
-                                    />
-                                </div>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Contraseña *</label>
+                                <input
+                                    type="password"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    required
+                                    placeholder="••••••••"
+                                    className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                                />
+                            </div>
 
-                                <div>
-                                    <label
-                                        style={{
-                                            display: "block",
-                                            marginBottom: "0.375rem",
-                                            fontWeight: 500,
-                                            fontSize: labelFontSize,
-                                            color: "#475569",
-                                        }}
-                                    >
-                                        Apellido *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="lastName"
-                                        value={formData.lastName}
-                                        onChange={handleChange}
-                                        required
-                                        placeholder="Pérez"
-                                        style={{
-                                            width: "100%",
-                                            padding: inputPadding,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            fontSize: inputFontSize,
-                                            boxSizing: "border-box",
-                                        }}
-                                    />
-                                </div>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Rol *</label>
+                                <select
+                                    name="role"
+                                    value={formData.role}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                                >
+                                    <option value="">Seleccionar rol</option>
+                                    {roles.map((role) => (
+                                        <option key={role.value} value={role.value}>{role.label}</option>
+                                    ))}
+                                </select>
+                            </div>
 
-                                <div>
-                                    <label
-                                        style={{
-                                            display: "block",
-                                            marginBottom: "0.375rem",
-                                            fontWeight: 500,
-                                            fontSize: labelFontSize,
-                                            color: "#475569",
-                                        }}
-                                    >
-                                        Teléfono
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="phone"
-                                        value={formData.phone}
-                                        onChange={handleChange}
-                                        placeholder="987654321"
-                                        style={{
-                                            width: "100%",
-                                            padding: inputPadding,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            fontSize: inputFontSize,
-                                            boxSizing: "border-box",
-                                        }}
-                                    />
-                                </div>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Nombre *</label>
+                                <input
+                                    type="text"
+                                    name="firstName"
+                                    value={formData.firstName}
+                                    onChange={handleChange}
+                                    required
+                                    placeholder="Juan"
+                                    className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                                />
+                            </div>
 
-                                <div>
-                                    <label
-                                        style={{
-                                            display: "block",
-                                            marginBottom: "0.375rem",
-                                            fontWeight: 500,
-                                            fontSize: labelFontSize,
-                                            color: "#475569",
-                                        }}
-                                    >
-                                        Sucursal *
-                                    </label>
-                                    <select
-                                        name="branchId"
-                                        value={formData.branchId}
-                                        onChange={handleChange}
-                                        required
-                                        style={{
-                                            width: "100%",
-                                            padding: inputPadding,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            fontSize: inputFontSize,
-                                            boxSizing: "border-box",
-                                            backgroundColor: "white",
-                                        }}
-                                    >
-                                        <option value="">
-                                            Seleccionar sucursal
-                                        </option>
-                                        {branches.map((branch) => (
-                                            <option
-                                                key={branch.id}
-                                                value={branch.id}
-                                            >
-                                                {branch.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Apellido *</label>
+                                <input
+                                    type="text"
+                                    name="lastName"
+                                    value={formData.lastName}
+                                    onChange={handleChange}
+                                    required
+                                    placeholder="Pérez"
+                                    className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                                />
+                            </div>
 
-                                <div>
-                                    <label
-                                        style={{
-                                            display: "block",
-                                            marginBottom: "0.375rem",
-                                            fontWeight: 500,
-                                            fontSize: labelFontSize,
-                                            color: "#475569",
-                                        }}
-                                    >
-                                        Rol *
-                                    </label>
-                                    <select
-                                        name="role"
-                                        value={formData.role}
-                                        onChange={handleChange}
-                                        required
-                                        style={{
-                                            width: "100%",
-                                            padding: inputPadding,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            fontSize: inputFontSize,
-                                            boxSizing: "border-box",
-                                            backgroundColor: "white",
-                                        }}
-                                    >
-                                        <option value="">
-                                            Seleccionar rol
-                                        </option>
-                                        {roles.map((role) => (
-                                            <option
-                                                key={role.value}
-                                                value={role.value}
-                                            >
-                                                {role.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Teléfono</label>
+                                <input
+                                    type="text"
+                                    name="phone"
+                                    value={formData.phone}
+                                    onChange={handleChange}
+                                    placeholder="987654321"
+                                    className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
+                                />
+                            </div>
 
-                                <div>
-                                    <label
-                                        style={{
-                                            display: "block",
-                                            marginBottom: "0.375rem",
-                                            fontWeight: 500,
-                                            fontSize: labelFontSize,
-                                            color: "#475569",
-                                        }}
-                                    >
-                                        Foto (opcional)
-                                    </label>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Foto</label>
+                                <div className="relative">
                                     <input
                                         type="file"
                                         accept="image/*"
                                         onChange={handlePhotoChange}
-                                        style={{
-                                            width: "100%",
-                                            padding: isSmall
-                                                ? "0.4375rem"
-                                                : "0.5rem",
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            fontSize: inputFontSize,
-                                            boxSizing: "border-box",
-                                        }}
+                                        className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-2.5 text-xs font-bold text-slate-500 file:mr-4 file:rounded-xl file:border-0 file:bg-indigo-50 file:px-4 file:py-1 file:text-[10px] file:font-black file:uppercase file:text-indigo-600 dark:border-slate-800 dark:bg-slate-800/40 dark:file:bg-indigo-500/20 dark:file:text-indigo-400"
                                     />
                                 </div>
                             </div>
+                        </div>
 
-                            <div
-                                style={{
-                                    marginTop: "1.25rem",
-                                    display: "flex",
-                                    flexDirection: isSmall ? "column" : "row",
-                                    gap: "0.75rem",
-                                }}
+                        <div className="flex flex-col gap-4 border-t border-slate-50 pt-8 dark:border-slate-800/50 sm:flex-row sm:justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setShowForm(false)}
+                                className="rounded-2xl bg-slate-50 px-8 py-3 text-sm font-black text-slate-500 transition-all hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
                             >
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    style={{
-                                        flex: isSmall ? "none" : 1,
-                                        padding: buttonPadding,
-                                        background: loading
-                                            ? "#94a3b8"
-                                            : "linear-gradient(135deg, #667eea, #764ba2)",
-                                        color: "white",
-                                        border: "none",
-                                        borderRadius: "10px",
-                                        fontWeight: 600,
-                                        cursor: loading
-                                            ? "not-allowed"
-                                            : "pointer",
-                                        fontSize: buttonFontSize,
-                                    }}
-                                >
-                                    {loading
-                                        ? "Guardando..."
-                                        : "💾 Guardar Empleado"}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowForm(false)}
-                                    style={{
-                                        padding: buttonPadding,
-                                        background: "#f1f5f9",
-                                        color: "#475569",
-                                        border: "none",
-                                        borderRadius: "10px",
-                                        fontWeight: 600,
-                                        cursor: "pointer",
-                                        fontSize: buttonFontSize,
-                                    }}
-                                >
-                                    Cancelar
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                )}
+                                Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-10 py-3 text-sm font-black text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-700 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
+                            >
+                                {loading ? (
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                ) : (
+                                    <>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                        </svg>
+                                        <span>Guardar Empleado</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
 
-                {/* Lista de empleados */}
+            {/* Lista de empleados */}
+            <div className="w-full">
                 <ListUser key={refreshKey} />
             </div>
+
         </div>
     );
 };
