@@ -452,7 +452,17 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
         { code: "07", description: "Devolución por ítem" },
         { code: "08", description: "Bonificación" },
     ];
-
+    const paymentRegistrarLabel = (doc: IssuedDocument): string => {
+        const names = [
+            ...new Set(
+                doc.payments
+                    .map((p) => p.user?.fullName)
+                    .filter((n): n is string => Boolean(n && String(n).trim())),
+            ),
+        ];
+        if (names.length > 0) return names.join(", ");
+        return doc.user?.fullName ?? "—";
+    };
     if (loading)
         return (
             <div className="text-center py-10 font-bold text-slate-400">
@@ -530,6 +540,39 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                                     className={`h-1.5 w-1.5 rounded-full ${status.dot}`}
                                                 />
                                                 {status.label}
+                                            </div>
+                                        </div>
+                                        {/* Piso, mesa, cajero y mozo */}
+                                        <div className="mt-1.5 flex flex-col gap-1 text-[11px] leading-tight">
+                                            {(doc.operation?.table?.floor?.name || doc.operation?.table?.name) && (
+                                                <div className="flex items-center gap-1.5 font-bold text-slate-600 dark:text-slate-400">
+                                                    <span className="flex items-center gap-1">
+                                                        <span className="opacity-50">📍</span>
+                                                        {doc.operation?.table?.floor?.name ? `Piso ${doc.operation.table.floor.name}` : "Local"}
+                                                    </span>
+                                                    {doc.operation?.table?.name && (
+                                                        <>
+                                                            <span className="text-slate-300">|</span>
+                                                            <span className="flex items-center gap-1">
+                                                                <span className="opacity-50">🪑</span>
+                                                                Mesa {doc.operation.table.name}
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                                {doc.operation?.user?.fullName && (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="font-semibold text-slate-400 uppercase tracking-wider text-[9px]">Mozo:</span>
+                                                        <span className="text-slate-600 dark:text-slate-300">{doc.operation.user.fullName}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-semibold text-slate-400 uppercase tracking-wider text-[9px]">Caja:</span>
+                                                    <span className="text-slate-600 dark:text-slate-300">{paymentRegistrarLabel(doc)}</span>
+                                                </div>
                                             </div>
                                         </div>
                                         <span className="text-xs font-bold text-slate-400">
