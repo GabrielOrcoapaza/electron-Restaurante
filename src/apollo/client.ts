@@ -10,6 +10,44 @@ import { onError } from "@apollo/client/link/error";
 import { createClient } from "graphql-ws";
 import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { getMainDefinition } from "@apollo/client/utilities";
+
+// Helper para verificar si un token JWT ha expirado
+const isTokenExpired = (token: string | null): boolean => {
+    if (!token) return true;
+    try {
+        // Un JWT tiene 3 partes separadas por puntos. La segunda es el payload en base64.
+        const parts = token.split('.');
+        if (parts.length !== 3) return true;
+        
+        const payload = JSON.parse(atob(parts[1]));
+        const now = Math.floor(Date.now() / 1000);
+        
+        // El campo 'exp' es el timestamp de expiración
+        return payload.exp < now;
+    } catch (e) {
+        console.warn("⚠️ Error decodificando token para verificar expiración:", e);
+        return true;
+    }
+};
+
+// Función para limpiar el almacenamiento local de forma consistente
+const clearAllAuthStorage = () => {
+    console.log("🧹 Limpiando almacenamiento de autenticación por expiración...");
+    localStorage.removeItem("token");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("userData");
+    localStorage.removeItem("userPhoto");
+    
+    // Disparar un evento storage manualmente para que la misma pestaña lo escuche (vía AuthContext)
+    window.dispatchEvent(new StorageEvent('storage', {
+        key: null,
+        newValue: null,
+        oldValue: null,
+        storageArea: localStorage,
+        url: window.location.href
+    }));
+};
+
 const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL;
 const wsUrl = import.meta.env.VITE_WS_URL;
 // URL de tu backend Django GraphQL (ajusta según tu configuración)
@@ -30,22 +68,7 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
                 extensions?.code === "UNAUTHENTICATED" ||
                 extensions?.code === "UNAUTHORIZED"
             ) {
-                console.log(
-                    "🧹 Token expirado o inválido, limpiando localStorage...",
-                );
-                localStorage.removeItem("token");
-                localStorage.removeItem("refreshToken");
-                localStorage.removeItem("userData");
-                localStorage.removeItem("userPhoto");
-                
-                // Disparar un evento storage manualmente para que la misma pestaña lo escuche
-                window.dispatchEvent(new StorageEvent('storage', {
-                    key: null,
-                    newValue: null,
-                    oldValue: null,
-                    storageArea: localStorage,
-                    url: window.location.href
-                }));
+                clearAllAuthStorage();
             }
         });
     }
@@ -57,8 +80,15 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
 
 // Link para agregar headers de autenticación si es necesario
 const authLink = setContext((_, { headers }) => {
-    // Obtener el token del localStorage si existe
-    const token = localStorage.getItem("token");
+    // Obtener el token del localStorage
+    let token = localStorage.getItem("token");
+
+    // Si el token existe pero ya expiró, lo limpiamos antes de mandarlo
+    if (token && isTokenExpired(token)) {
+        console.warn("🚫 Token detectado como expirado antes de enviar la petición. Limpiando...");
+        clearAllAuthStorage();
+        token = null;
+    }
 
     return {
         headers: {
@@ -73,6 +103,10 @@ const wsClient = createClient({
     url: wsUrl,
     connectionParams: () => {
         const token = localStorage.getItem("token");
+        // No enviamos el token si sabemos que está expirado
+        if (token && isTokenExpired(token)) {
+            return {};
+        }
         return {
             authorization: token ? `JWT ${token}` : "",
         };
@@ -98,7 +132,7 @@ const splitLink = split(
 export const client = new ApolloClient({
     link: splitLink,
     cache: new InMemoryCache(),
-    connectToDevTools: false,
+    devtools: { enabled: false },
     defaultOptions: {
         watchQuery: {
             errorPolicy: "all",

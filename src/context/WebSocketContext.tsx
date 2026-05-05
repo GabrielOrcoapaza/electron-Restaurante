@@ -131,13 +131,32 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     // Guardar la URL actual para evitar reconexiones innecesarias
     const lastWsUrlRef = useRef<string>("");
 
+    // Helper para verificar si un token JWT ha expirado
+    const isTokenExpired = useCallback((jwtToken: string | null): boolean => {
+        if (!jwtToken) return true;
+        try {
+            const parts = jwtToken.split(".");
+            if (parts.length !== 3) return true;
+            const payload = JSON.parse(atob(parts[1]));
+            const now = Math.floor(Date.now() / 1000);
+            return payload.exp < now;
+        } catch (e) {
+            return true;
+        }
+    }, []);
+
     const connectWebSocket = useCallback(() => {
         if (!companyData?.branch.id || !user?.id) {
             return;
         }
 
         let tokenToUse = token || localStorage.getItem("token");
-        if (!tokenToUse) return;
+        if (!tokenToUse || isTokenExpired(tokenToUse)) {
+            if (tokenToUse && isTokenExpired(tokenToUse)) {
+                console.warn("🚫 WebSocket: Token expirado, no se intentará conectar.");
+            }
+            return;
+        }
 
         tokenToUse = tokenToUse.replace(/^(JWT|Bearer)\s+/i, "");
 

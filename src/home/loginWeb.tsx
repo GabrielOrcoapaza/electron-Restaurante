@@ -6,6 +6,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../context/ToastContext";
 import VirtualKeyboard from "../components/VirtualKeyboard";
 import { useResponsive } from "../hooks/useResponsive";
+import "./loginWeb.css";
 
 const LoginWeb: React.FC = () => {
     const navigate = useNavigate();
@@ -150,124 +151,43 @@ const LoginWeb: React.FC = () => {
             setFormData((prev) => ({
                 ...prev,
                 password: prev.password.slice(0, -1),
-            }));
+        }));
     };
 
     return (
-        <div className="fixed inset-0 z-[1000] flex h-screen w-screen items-center justify-center overflow-hidden font-['Outfit']">
-            <div
-                className="absolute inset-0 bg-cover bg-center"
-                style={{
-                    backgroundImage:
-                        "url('https://images.unsplash.com/photo-1517248135467-4c7ed9d42c77?auto=format&fit=crop&q=80&w=1920')",
-                    filter: "brightness(0.58)",
-                }}
-            />
-            <div
-                className={`absolute inset-0 backdrop-blur-md ${
-                    isDarkTheme
-                        ? "bg-gradient-to-br from-slate-900/70 via-slate-900/55 to-emerald-950/60"
-                        : "bg-gradient-to-br from-emerald-400/35 via-slate-900/65 to-emerald-900/45"
-                }`}
-            />
-
-            <div className="relative z-10 w-full max-w-6xl px-4 md:px-6">
-                <div
-                    className={`grid overflow-hidden rounded-3xl border shadow-2xl backdrop-blur-xl md:grid-cols-2 ${
-                        isDarkTheme
-                            ? "border-slate-700/80 bg-slate-900/80 text-slate-100"
-                            : "border-white/30 bg-white/90 text-slate-900"
-                    }`}
-                >
-                    <aside
-                        className="relative hidden h-full flex-col justify-between p-10 md:flex overflow-hidden"
-                    >
-                        {/* Background for Aside */}
-                        <div 
-                            className="absolute inset-0 z-0"
-                            style={{
-                                backgroundImage: "url('https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&q=80&w=1000')",
-                                backgroundSize: 'cover',
-                                backgroundPosition: 'center',
-                                filter: 'brightness(0.4) saturate(1.2)'
-                            }}
-                        />
-                        <div 
-                            className={`absolute inset-0 z-[1] ${
-                                isDarkTheme 
-                                ? "bg-emerald-950/80" 
-                                : "bg-emerald-800/70"
-                            }`}
-                        />
-
-                        <div className="absolute -right-16 -top-16 z-[2] h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-                        <div className="absolute -bottom-20 -left-10 z-[2] h-56 w-56 rounded-full bg-black/20 blur-3xl" />
+        <div className={`landing-container ${isDarkTheme ? "dark-mode" : ""}`}>
+            <div className="login-web-container">
+                <div className="login-card">
+                    {/* Aside Panel */}
+                    <aside className="login-aside" style={{ backgroundImage: `url(https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=1974)` }}>
+                        <div className="login-aside-overlay" />
                         
-                        <div className="relative z-10">
-                            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider">
-                                Plataforma Restaurantes
-                            </div>
-                            <h2 className="text-4xl font-black leading-tight">
-                                Gestiona tu operación en tiempo real
-                            </h2>
-                            <p className="mt-4 max-w-sm text-sm text-white/85">
-                                Pedidos, caja e inventario sincronizados en una
-                                sola experiencia.
-                            </p>
+                        <div className="aside-content">
+                            <span className="aside-badge">Plataforma Sumapp</span>
+                            <h2>Gestiona tu operación en tiempo real</h2>
+                            <p>Pedidos, caja e inventario sincronizados en una sola experiencia premium.</p>
                         </div>
-                        <div className="relative z-10 space-y-3 text-sm">
-                            <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-                                ✓ Inicio rápido y seguro
-                            </div>
-                            <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-                                ✓ Compatible con teclado virtual
-                            </div>
-                            <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-                                ✓ Soporte modo oscuro y claro
-                            </div>
+
+                        <div className="aside-features">
+                            <div className="feature-tag">✓ Inicio rápido y seguro</div>
+                            <div className="feature-tag">✓ Compatible con teclado virtual</div>
+                            <div className="feature-tag">✓ Soporte modo oscuro y claro</div>
                         </div>
                     </aside>
 
-                    <div className="p-6 md:p-10">
-                        <div className="mb-8 text-center">
-                            <div className="mb-4 flex items-center justify-center gap-2.5">
-                                <span className="text-4xl">🍽️</span>
-                                <h1 className="text-3xl font-black">
-                                    Sum
-                                    <span className="text-emerald-500">app</span>
-                                </h1>
+                    {/* Main Login Panel */}
+                    <main className="login-main">
+                        <header className="login-header">
+                            <div className="login-brand">
+                                🍽️ Sum<span>app</span>
                             </div>
-                            <div className="mx-auto mb-3 h-1 w-20 rounded-full bg-emerald-500" />
-                            <h2 className="text-2xl font-bold">
-                                Acceso al Sistema
-                            </h2>
-                            <p
-                                className={`mt-2 text-sm ${
-                                    isDarkTheme
-                                        ? "text-slate-300"
-                                        : "text-slate-500"
-                                }`}
-                            >
-                                Ingresa las credenciales de tu empresa
-                            </p>
-                        </div>
+                            <h2>Acceso al Sistema</h2>
+                            <p>Ingresa las credenciales de tu empresa</p>
+                        </header>
 
-                        <form
-                            className="flex flex-col gap-4"
-                            onSubmit={handleSubmit}
-                        >
-                            <div
-                                className={`group flex items-center rounded-xl border-2 transition-all ${
-                                    focusedInput === "ruc"
-                                        ? "border-emerald-500 bg-white shadow-[0_0_0_4px_rgba(16,185,129,0.18)]"
-                                        : isDarkTheme
-                                          ? "border-slate-700 bg-slate-800/90"
-                                          : "border-transparent bg-slate-100"
-                                }`}
-                            >
-                                <span className="pl-4 text-lg opacity-70">
-                                    🏢
-                                </span>
+                        <form className="login-form" onSubmit={handleSubmit}>
+                            <div className={`input-group ${focusedInput === "ruc" ? "focused" : ""}`}>
+                                <span className="input-icon">🏢</span>
                                 <input
                                     ref={rucRef}
                                     type="text"
@@ -279,26 +199,11 @@ const LoginWeb: React.FC = () => {
                                     onBlur={() => setFocusedInput(null)}
                                     maxLength={11}
                                     autoComplete="off"
-                                    className={`w-full bg-transparent px-4 py-3.5 text-base font-medium outline-none ${
-                                        isDarkTheme
-                                            ? "text-slate-100 placeholder:text-slate-400"
-                                            : "text-slate-800 placeholder:text-slate-500"
-                                    }`}
                                 />
                             </div>
 
-                            <div
-                                className={`group flex items-center rounded-xl border-2 transition-all ${
-                                    focusedInput === "usuario"
-                                        ? "border-emerald-500 bg-white shadow-[0_0_0_4px_rgba(16,185,129,0.18)]"
-                                        : isDarkTheme
-                                          ? "border-slate-700 bg-slate-800/90"
-                                          : "border-transparent bg-slate-100"
-                                }`}
-                            >
-                                <span className="pl-4 text-lg opacity-70">
-                                    👤
-                                </span>
+                            <div className={`input-group ${focusedInput === "usuario" ? "focused" : ""}`}>
+                                <span className="input-icon">👤</span>
                                 <input
                                     ref={usuarioRef}
                                     type="text"
@@ -309,26 +214,11 @@ const LoginWeb: React.FC = () => {
                                     onFocus={() => setFocusedInput("usuario")}
                                     onBlur={() => setFocusedInput(null)}
                                     autoComplete="off"
-                                    className={`w-full bg-transparent px-4 py-3.5 text-base font-medium outline-none ${
-                                        isDarkTheme
-                                            ? "text-slate-100 placeholder:text-slate-400"
-                                            : "text-slate-800 placeholder:text-slate-500"
-                                    }`}
                                 />
                             </div>
 
-                            <div
-                                className={`group flex items-center rounded-xl border-2 transition-all ${
-                                    focusedInput === "password"
-                                        ? "border-emerald-500 bg-white shadow-[0_0_0_4px_rgba(16,185,129,0.18)]"
-                                        : isDarkTheme
-                                          ? "border-slate-700 bg-slate-800/90"
-                                          : "border-transparent bg-slate-100"
-                                }`}
-                            >
-                                <span className="pl-4 text-lg opacity-70">
-                                    🔒
-                                </span>
+                            <div className={`input-group ${focusedInput === "password" ? "focused" : ""}`}>
+                                <span className="input-icon">🔒</span>
                                 <input
                                     ref={passwordRef}
                                     type={showPassword ? "text" : "password"}
@@ -338,82 +228,41 @@ const LoginWeb: React.FC = () => {
                                     placeholder="Contraseña"
                                     onFocus={() => setFocusedInput("password")}
                                     onBlur={() => setFocusedInput(null)}
-                                    className={`w-full bg-transparent px-4 py-3.5 text-base font-medium outline-none ${
-                                        isDarkTheme
-                                            ? "text-slate-100 placeholder:text-slate-400"
-                                            : "text-slate-800 placeholder:text-slate-500"
-                                    }`}
                                 />
                                 <button
                                     type="button"
-                                    className="pr-4 text-xl"
-                                    onClick={() =>
-                                        setShowPassword(!showPassword)
-                                    }
+                                    className="toggle-password"
+                                    onClick={() => setShowPassword(!showPassword)}
                                 >
                                     {showPassword ? "🙈" : "👁️"}
                                 </button>
                             </div>
 
-                            <div
-                                className="my-1 flex cursor-pointer items-center gap-2.5"
-                                onClick={() => setRememberMe(!rememberMe)}
-                            >
+                            <label className="remember-me">
                                 <input
                                     type="checkbox"
                                     checked={rememberMe}
-                                    onChange={(e) =>
-                                        setRememberMe(e.target.checked)
-                                    }
-                                    className="h-[18px] w-[18px] cursor-pointer accent-emerald-600"
+                                    onChange={(e) => setRememberMe(e.target.checked)}
                                 />
-                                <span
-                                    className={`text-sm font-semibold ${
-                                        isDarkTheme
-                                            ? "text-slate-300"
-                                            : "text-slate-500"
-                                    }`}
-                                >
-                                    Recuérdame
-                                </span>
-                            </div>
+                                <span>Recuérdame</span>
+                            </label>
 
-                            <button
-                                type="submit"
-                                className={`mt-2 flex items-center justify-center gap-2.5 rounded-xl bg-emerald-600 px-4 py-4 text-base font-bold text-white shadow-[0_10px_25px_-5px_rgba(5,150,105,0.4)] transition hover:-translate-y-0.5 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70`}
-                                disabled={loading}
-                            >
-                                {loading ? (
-                                    <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-white border-b-transparent" />
-                                ) : (
-                                    <>INICIAR SESIÓN</>
-                                )}
+                            <button type="submit" className="submit-btn" disabled={loading}>
+                                {loading ? <div className="spinner" /> : "INICIAR SESIÓN"}
                             </button>
                         </form>
 
-                        <div className="mt-6 text-center">
-                            <button
-                                className={`text-sm font-semibold transition ${
-                                    isDarkTheme
-                                        ? "text-slate-300 hover:text-rose-400"
-                                        : "text-slate-500 hover:text-rose-500"
-                                }`}
-                                onClick={() => navigate("/")}
-                            >
+                        <div className="back-link">
+                            <button onClick={() => navigate("/")}>
                                 ← Volver al inicio
                             </button>
                         </div>
-                    </div>
+                    </main>
                 </div>
 
+                {/* Virtual Keyboard */}
                 {virtualKeyboardOpen && (
-                    <div
-                        className={`fixed inset-x-0 bottom-0 z-[1000] border-t p-5 backdrop-blur-md ${
-                            isDarkTheme
-                                ? "border-slate-700 bg-slate-900/95"
-                                : "border-slate-200 bg-white/95"
-                        }`}
-                    >
+                    <div className="fixed inset-x-0 bottom-0 z-[1000] p-5 backdrop-blur-md border-t border-color glass-bg">
                         <VirtualKeyboard
                             onKeyPress={handleVirtualKeyPress}
                             onBackspace={handleVirtualBackspace}
