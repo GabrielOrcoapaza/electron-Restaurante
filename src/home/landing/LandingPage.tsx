@@ -7,10 +7,7 @@ import {
 } from "../../graphql/queries";
 import "./LandingPage.css";
 
-// Importar imágenes de banners
-import banner1 from "../../assets/landing/banner1.png";
-import banner2 from "../../assets/landing/banner2.png";
-import banner3 from "../../assets/landing/banner3.png";
+// Los banners ahora usan URLs de Unsplash directamente
 
 const GRAPHQL_URL = import.meta.env.VITE_GRAPHQL_URL || "";
 const API_MEDIA_URL = GRAPHQL_URL
@@ -128,11 +125,11 @@ const LandingPage: React.FC = () => {
     const [darkMode, setDarkMode] = useState(() => {
         return localStorage.getItem("sumaq-theme") === "dark";
     });
-    const [activeDownloadTab, setActiveDownloadTab] = useState<
+    const [activeDownloadTab] = useState<
         "downloads" | "guide"
     >("downloads");
 
-    const { data: companiesData } = useQuery(GET_ALL_COMPANIES, {
+    const { data: _companiesData } = useQuery(GET_ALL_COMPANIES, {
         onCompleted: (data) => {
             if (data?.allCompanies) {
                 setDisplayCompanies(data.allCompanies);
@@ -142,7 +139,7 @@ const LandingPage: React.FC = () => {
         fetchPolicy: 'cache-and-network'
     });
 
-    const { data: menuData } = useQuery(GET_COMPANIES_FOR_CARTA_DIGITAL, {
+    const { data: _menuData } = useQuery(GET_COMPANIES_FOR_CARTA_DIGITAL, {
         onCompleted: (data) => {
             if (data?.allCompanies) {
                 const companies = data.allCompanies;
@@ -203,13 +200,6 @@ const LandingPage: React.FC = () => {
         return () => clearInterval(timer);
     }, []);
 
-    const nextSlide = () => {
-        setCurrentSlide((prev) => (prev + 1) % banners.length);
-    };
-
-    const prevSlide = () => {
-        setCurrentSlide((prev) => (prev - 1 + banners.length) % banners.length);
-    };
 
     useEffect(() => {
         localStorage.setItem("sumaq-theme", darkMode ? "dark" : "light");
