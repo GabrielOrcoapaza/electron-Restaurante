@@ -125,9 +125,6 @@ const LandingPage: React.FC = () => {
     const [darkMode, setDarkMode] = useState(() => {
         return localStorage.getItem("sumaq-theme") === "dark";
     });
-    const [activeDownloadTab] = useState<
-        "downloads" | "guide"
-    >("downloads");
 
     const { data: _companiesData } = useQuery(GET_ALL_COMPANIES, {
         onCompleted: (data) => {
