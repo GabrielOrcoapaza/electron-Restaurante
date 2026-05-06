@@ -136,16 +136,30 @@ const ListUser: React.FC = () => {
             <p className="text-sm font-bold uppercase tracking-widest">No hay empleados registrados</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div
+            className="overflow-auto"
+            style={{
+              maxHeight: 'min(55vh, 620px)',
+              minHeight: 200,
+              width: '100%',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:bg-slate-800/30 dark:text-slate-400">
-                  <th className="px-6 py-4">DNI</th>
-                  <th className="px-6 py-4">Nombre Completo</th>
-                  <th className="px-6 py-4">Contacto</th>
-                  <th className="px-6 py-4 text-center">Rol</th>
-                  <th className="px-6 py-4 text-center">Estado</th>
-                  {isAdmin && <th className="px-6 py-4 text-right">Acciones</th>}
+                <tr className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  <th className="sticky top-0 z-10 bg-slate-50/95 px-6 py-4 backdrop-blur-sm dark:bg-slate-800/95">DNI</th>
+                  <th className="sticky top-0 z-10 bg-slate-50/95 px-6 py-4 backdrop-blur-sm dark:bg-slate-800/95">Nombre Completo</th>
+                  <th className="sticky top-0 z-10 bg-slate-50/95 px-6 py-4 backdrop-blur-sm dark:bg-slate-800/95">Contacto</th>
+                  <th className="sticky top-0 z-10 bg-slate-50/95 px-6 py-4 text-center backdrop-blur-sm dark:bg-slate-800/95">Rol</th>
+                  <th className="sticky top-0 z-10 bg-slate-50/95 px-6 py-4 text-center backdrop-blur-sm dark:bg-slate-800/95">Estado</th>
+                  {isAdmin && (
+                    <th className="sticky top-0 z-10 bg-slate-50/95 px-6 py-4 text-right backdrop-blur-sm dark:bg-slate-800/95">
+                      Acciones
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
