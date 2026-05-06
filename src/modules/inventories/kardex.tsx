@@ -5,9 +5,11 @@ import {
     GET_STOCK_MOVEMENTS_REPORT,
     GET_STOCKS_BY_BRANCH,
     SEARCH_PRODUCTS,
-    GET_PRODUCTS_BY_BRANCH,
+    GET_PRODUCTS_BY_BRANCH_LIGHT,
 } from "../../graphql/queries";
 import { formatLocalDateYYYYMMDD } from "../../utils/localDateTime";
+import { useLazyQuery } from "@apollo/client";
+import { useEffect } from "react";
 
 interface StockMovement {
     id: string;
@@ -63,7 +65,7 @@ const Kardex: React.FC = () => {
 
     const [startDate, setStartDate] = useState<string>(() => {
         const date = new Date();
-        date.setDate(date.getDate() - 30);
+        date.setDate(date.getDate() - 7);
         return formatLocalDateYYYYMMDD(date);
     });
     const [endDate, setEndDate] = useState<string>(() =>
@@ -88,7 +90,7 @@ const Kardex: React.FC = () => {
     );
 
     const { data: productsData, refetch: refetchProducts } = useQuery(
-        GET_PRODUCTS_BY_BRANCH,
+        GET_PRODUCTS_BY_BRANCH_LIGHT,
         {
             variables: { branchId: branchId! },
             skip: !branchId,
@@ -140,22 +142,30 @@ const Kardex: React.FC = () => {
         },
     );
 
-    const startDateTime = startDate ? `${startDate}T00:00:00` : null;
-    const endDateTime = endDate ? `${endDate}T23:59:59` : null;
-
-    const { data, loading, refetch } = useQuery(
+    const [fetchMovements, { data, loading, refetch }] = useLazyQuery(
         GET_STOCK_MOVEMENTS_REPORT,
         {
-            variables: {
-                branchId: branchId!,
-                productId: selectedProductId || null,
-                startDate: startDateTime,
-                endDate: endDateTime,
-            },
-            skip: !branchId || !startDate || !endDate,
             fetchPolicy: "network-only",
         },
     );
+
+    const handleSearch = () => {
+        if (!branchId || !startDate || !endDate) return;
+        fetchMovements({
+            variables: {
+                branchId: branchId,
+                productId: selectedProductId || null,
+                startDate: `${startDate}T00:00:00`,
+                endDate: `${endDate}T23:59:59`,
+            },
+        });
+    };
+
+    useEffect(() => {
+        if (branchId && startDate && endDate) {
+            handleSearch();
+        }
+    }, [branchId]);
 
     const movements: StockMovement[] =
         data?.stockMovementsReport?.movements ?? [];
@@ -285,7 +295,7 @@ const Kardex: React.FC = () => {
                 </div>
                 <button
                     onClick={() => {
-                        refetch();
+                        handleSearch();
                         refetchProducts();
                         refetchStocks();
                     }}
@@ -361,7 +371,10 @@ const Kardex: React.FC = () => {
                                     }
                                 }}
                                 onBlur={() =>
-                                    setTimeout(() => setSearchFocused(false), 200)
+                                    setTimeout(
+                                        () => setSearchFocused(false),
+                                        200,
+                                    )
                                 }
                                 placeholder="Cualquier producto..."
                                 className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-300 dark:text-slate-200 dark:placeholder:text-slate-600"
@@ -422,12 +435,25 @@ const Kardex: React.FC = () => {
 
                     <div className="flex items-center p-2">
                         <button
-                            onClick={() => refetch()}
+                            onClick={() => {
+                                handleSearch();
+                            }}
                             disabled={loading}
                             className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-200 transition-all hover:bg-blue-700 hover:shadow-blue-300 disabled:opacity-50 dark:shadow-none"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2.5}
+                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                />
                             </svg>
                             Buscar
                         </button>

@@ -384,6 +384,38 @@ export const GET_PRODUCTS_BY_BRANCH = gql`
     }
 `;
 
+// Query para obtener todos los productos de la sucursal (versión ligera sin imágenes)
+export const GET_PRODUCTS_BY_BRANCH_LIGHT = gql`
+    query GetProductsByBranchLight($branchId: ID!) {
+        productsByBranch(branchId: $branchId) {
+            id
+            code
+            name
+            description
+            salePrice
+            preparationTime
+            productType
+            isActive
+            subcategoryId
+            subcategory {
+                id
+                name
+                category {
+                    id
+                    name
+                }
+            }
+            purchasePrice
+            unitMeasure
+            currentStock
+            stockMin
+            stockMax
+            managesStock
+        }
+    }
+`;
+
+
 // Query para obtener productos con filtros opcionales (tipo y categoría)
 export const GET_PRODUCTS = gql`
     query GetProducts($branchId: ID!, $productType: String, $categoryId: ID) {
