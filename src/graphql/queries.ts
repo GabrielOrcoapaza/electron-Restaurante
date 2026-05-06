@@ -1179,6 +1179,7 @@ export const GET_SALES_REPORT = gql`
                 branch {
                     id
                     name
+                    igvPercentage
                 }
             }
             summary {

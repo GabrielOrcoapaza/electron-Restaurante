@@ -5,6 +5,10 @@ import { GET_CATEGORIES_BY_BRANCH } from "../../graphql/queries";
 import { useAuth } from "../../hooks/useAuth";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useToast } from "../../context/ToastContext";
+import {
+    PRODUCT_UNIT_MEASURE_OPTIONS,
+    normalizeProductUnitMeasure,
+} from "../../constants/productUnitMeasures";
 
 interface Product {
     id: string;
@@ -111,7 +115,7 @@ const EditProduct: React.FC<EditProductProps> = ({
         productType: product.productType || "DISH",
         salePrice: product.salePrice?.toString() || "0",
         purchasePrice: product.purchasePrice?.toString() || "0",
-        unitMeasure: product.unitMeasure || "NIU",
+        unitMeasure: normalizeProductUnitMeasure(product.unitMeasure),
         preparationTime: product.preparationTime?.toString() || "0",
         stockMin: product.stockMin?.toString() || "0",
         stockMax: product.stockMax?.toString() || "0",
@@ -238,7 +242,7 @@ const EditProduct: React.FC<EditProductProps> = ({
             purchasePrice: formData.purchasePrice
                 ? parseFloat(formData.purchasePrice)
                 : undefined,
-            unitMeasure: formData.unitMeasure,
+            unitMeasure: normalizeProductUnitMeasure(formData.unitMeasure),
             preparationTime: formData.preparationTime
                 ? parseInt(formData.preparationTime)
                 : undefined,
@@ -705,10 +709,11 @@ const EditProduct: React.FC<EditProductProps> = ({
                                         boxSizing: "border-box",
                                     }}
                                 >
-                                    <option value="NIU">NIU - Unidad</option>
-                                    <option value="KG">KG - Kilogramo</option>
-                                    <option value="LTR">LTR - Litro</option>
-                                    <option value="MTR">MTR - Metro</option>
+                                    {PRODUCT_UNIT_MEASURE_OPTIONS.map((o) => (
+                                        <option key={o.value} value={o.value}>
+                                            {o.label}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 

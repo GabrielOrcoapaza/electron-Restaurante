@@ -4,6 +4,10 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { CREATE_PRODUCT } from "../../graphql/mutations";
 import { GET_CATEGORIES_BY_BRANCH } from "../../graphql/queries";
 import { useAuth } from "../../hooks/useAuth";
+import {
+    PRODUCT_UNIT_MEASURE_OPTIONS,
+    normalizeProductUnitMeasure,
+} from "../../constants/productUnitMeasures";
 
 interface CreateProductProps {
     onClose: () => void;
@@ -233,7 +237,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                 productType: formData.productType,
                 salePrice: toFloat(formData.salePrice),
                 purchasePrice: toFloat(formData.purchasePrice),
-                unitMeasure: formData.unitMeasure,
+                unitMeasure: normalizeProductUnitMeasure(formData.unitMeasure),
                 preparationTime: toInt(formData.preparationTime),
                 stockMin: toFloat(formData.stockMin),
                 stockMax: toFloat(formData.stockMax),
@@ -658,10 +662,11 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                         boxSizing: "border-box",
                                     }}
                                 >
-                                    <option value="NIU">NIU - Unidad</option>
-                                    <option value="KG">KG - Kilogramo</option>
-                                    <option value="LTR">LTR - Litro</option>
-                                    <option value="MTR">MTR - Metro</option>
+                                    {PRODUCT_UNIT_MEASURE_OPTIONS.map((o) => (
+                                        <option key={o.value} value={o.value}>
+                                            {o.label}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 

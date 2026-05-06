@@ -4,6 +4,10 @@ import { GET_RECIPES_BY_PRODUCT, GET_PRODUCTS_WITH_STOCK } from '../../graphql/q
 import { ADD_RECIPE, REMOVE_RECIPE } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../context/ToastContext';
+import {
+  PRODUCT_UNIT_MEASURES_TUPLES,
+  normalizeProductUnitMeasure,
+} from '../../constants/productUnitMeasures';
 
 interface Recipe {
   id: string;
@@ -36,13 +40,6 @@ interface RecipeModalProps {
   productType?: string;
   onClose: () => void;
 }
-
-// Unidades de medida válidas en el backend (ProductsRecipeUnitMeasureChoices)
-const UNIT_MEASURES: Array<[string, string]> = [
-  ['NIU', 'Unidad'],
-  ['KGM', 'Kilogramo'],
-  ['LTR', 'Litro'],
-];
 
 const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, productType, onClose }) => {
   const isDish = productType === 'DISH';
@@ -80,7 +77,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
       id: p.id,
       name: p.name,
       code: p.code,
-      unitMeasure: p.unitMeasure
+      unitMeasure: normalizeProductUnitMeasure(p.unitMeasure),
     }));
 
   const ingredientIdsInRecipe = recipes.map(r => r.ingredient!.id);
@@ -139,7 +136,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
         productId,
         ingredientId: formData.ingredientId,
         quantity: quantity,
-        unitMeasure: formData.unitMeasure,
+        unitMeasure: normalizeProductUnitMeasure(formData.unitMeasure),
         notes: formData.notes || null
       }
     });
@@ -281,7 +278,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
                       required
                       className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                     >
-                      {UNIT_MEASURES.map(([value, label]) => (
+                      {PRODUCT_UNIT_MEASURES_TUPLES.map(([value, label]) => (
                         <option key={value} value={value}>{value} ({label})</option>
                       ))}
                     </select>
@@ -386,7 +383,11 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span className="inline-flex items-center rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-black text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400">
-                            {recipe.quantity} {recipe.unitMeasure || recipe.ingredient.unitMeasure || 'NIU'}
+                            {recipe.quantity}{' '}
+                            {normalizeProductUnitMeasure(
+                              recipe.unitMeasure ||
+                                recipe.ingredient.unitMeasure,
+                            )}
                           </span>
                         </td>
                         <td className="px-6 py-4">

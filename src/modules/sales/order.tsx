@@ -2994,36 +2994,7 @@ const Order: React.FC<OrderProps> = ({
                     </div>
                 </div>
 
-                {/* Footer hints */}
-                <div
-                    style={{
-                        padding: isSmall
-                            ? "0.375rem 0.5rem"
-                            : isMedium
-                              ? "0.5rem 0.75rem"
-                              : "0.6rem 1rem",
-                        display: "flex",
-                        justifyContent: "center",
-                        gap: "1rem",
-                        borderTop: "1px solid #e2e8f0",
-                        background: "rgba(255,255,255,0.85)",
-                    }}
-                >
-                    <span
-                        style={{
-                            color: "#718096",
-                            fontSize: isSmall
-                                ? "10px"
-                                : isMedium
-                                  ? "11px"
-                                  : "12px",
-                        }}
-                    >
-                        {isSmall || isMedium
-                            ? "Atajos: Esc Cerrar"
-                            : "Atajos: Ctrl+K Buscar • Esc Cerrar"}
-                    </span>
-                </div>
+                
             </div>
 
             {/* Modal de Observaciones */}

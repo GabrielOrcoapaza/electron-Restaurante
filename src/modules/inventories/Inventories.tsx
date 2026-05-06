@@ -6,6 +6,7 @@ import {
     GET_PRODUCTS,
 } from "../../graphql/queries";
 import { useAuth } from "../../hooks/useAuth";
+import { normalizeProductUnitMeasure } from "../../constants/productUnitMeasures";
 
 interface Product {
     id: string;
@@ -492,7 +493,9 @@ const Inventories: React.FC = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 font-bold text-slate-500 dark:text-slate-400">
-                                                    {p.unitMeasure}
+                                                    {normalizeProductUnitMeasure(
+                                                        p.unitMeasure,
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4 text-center">
                                                     <div

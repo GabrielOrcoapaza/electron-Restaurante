@@ -90,6 +90,7 @@ interface IssuedDocument {
     branch: {
         id: string;
         name: string;
+        igvPercentage?: number;
     };
 }
 

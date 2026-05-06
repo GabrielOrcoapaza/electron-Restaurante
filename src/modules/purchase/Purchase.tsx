@@ -12,6 +12,7 @@ import { CREATE_PURCHASE_OPERATION } from '../../graphql/mutations';
 import CreateSupplierModal from './createSupplier';
 import PurchaseList from './purchaseList';
 import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
+import { normalizeProductUnitMeasure } from '../../constants/productUnitMeasures';
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
   style: 'currency',
@@ -220,7 +221,7 @@ const Purchase: React.FC = () => {
       productName: product.name,
       productCode: product.code,
       quantity: qty,
-      unitMeasure: product.unitMeasure || 'NIU',
+      unitMeasure: normalizeProductUnitMeasure(product.unitMeasure),
       unitValue: price,
       unitPrice: price,
       subtotal: subtotal,
@@ -275,7 +276,7 @@ const Purchase: React.FC = () => {
     const details = purchaseDetails.map(detail => ({
       productId: detail.productId,
       quantity: detail.quantity,
-      unitMeasure: detail.unitMeasure,
+      unitMeasure: normalizeProductUnitMeasure(detail.unitMeasure),
       unitValue: detail.unitValue,
       unitPrice: detail.unitPrice,
       notes: detail.notes || ''

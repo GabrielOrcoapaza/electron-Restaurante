@@ -85,6 +85,7 @@ interface IssuedDocument {
     branch: {
         id: string;
         name: string;
+        igvPercentage?: number;
     };
 }
 
@@ -134,7 +135,10 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     error,
     onRefetch,
 }) => {
-    const { user, deviceId, getMacAddress, getDeviceId } = useAuth();
+    const { user, deviceId, getMacAddress, getDeviceId, companyData } =
+        useAuth();
+    const igvPercentageForLabel =
+        Number(companyData?.branch?.igvPercentage) || 10.5;
     const { hasPermission } = useUserPermissions();
     const isElectron = isElectronRenderer();
 
@@ -825,7 +829,13 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                             <div className="mt-auto flex flex-col gap-2 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/50">
                                                 <div className="flex justify-between text-xs">
                                                     <span className="font-bold text-slate-400">
-                                                        IGV (18%)
+                                                        IGV (
+                                                        {Number(
+                                                            doc.branch
+                                                                ?.igvPercentage ??
+                                                                igvPercentageForLabel,
+                                                        ) || 10.5}
+                                                        %)
                                                     </span>
                                                     <span className="font-black text-slate-600 dark:text-slate-300">
                                                         {currencyFormatter.format(

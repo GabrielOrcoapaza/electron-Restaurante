@@ -23,6 +23,11 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
 }) => {
     const { companyData, user, deviceId, getMacAddress } = useAuth();
     const branchId = companyData?.branch?.id;
+    /** IGV de la sede del documento anulado; si no viene en el reporte, sede de sesión (misma sucursal). */
+    const igvPercentForSale = Number(
+        annulledDocument?.branch?.igvPercentage ??
+            companyData?.branch?.igvPercentage,
+    ) || 10.5;
 
     const [targetDocumentId, setTargetDocumentId] = useState('');
     const [targetSerial, setTargetSerial] = useState('');
@@ -272,7 +277,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                     globalDiscount: 0,
                     globalDiscountPercent: 0,
                     totalDiscount: totals.totalDiscount,
-                    igvPercent: 18.0,
+                    igvPercent: igvPercentForSale,
                     igvAmount: totals.igvAmount,
                     totalTaxable: totals.totalTaxable,
                     totalUnaffected: totals.totalUnaffected,
@@ -501,11 +506,23 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
 
                     {/* Footer Summary & Actions */}
                     <div className="mt-4 flex flex-col gap-6 rounded-[24px] bg-slate-50 p-6 dark:bg-slate-800/50">
-                        <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-700">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Nuevo Documento</span>
-                            <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
-                                S/ {totals.totalAmount.toFixed(2)}
-                            </span>
+                        <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 dark:border-slate-700">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    IGV (sede)
+                                </span>
+                                <span className="text-sm font-black text-slate-600 dark:text-slate-300">
+                                    {igvPercentForSale}%
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    Total Nuevo Documento
+                                </span>
+                                <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+                                    S/ {totals.totalAmount.toFixed(2)}
+                                </span>
+                            </div>
                         </div>
 
                         <div className="flex gap-3">
