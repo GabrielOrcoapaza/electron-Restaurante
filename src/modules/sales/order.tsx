@@ -113,53 +113,53 @@ const Order: React.FC<OrderProps> = ({
     const gridMinCol = isXs
         ? "100px"
         : isSmall
-          ? "110px"
-          : isMedium
-            ? "125px"
-            : "150px";
+            ? "110px"
+            : isMedium
+                ? "125px"
+                : "150px";
     const gridGap = isXs
         ? "0.4rem"
         : isSmall
-          ? "0.5rem"
-          : isMedium
-            ? "0.75rem"
-            : "1rem";
+            ? "0.5rem"
+            : isMedium
+                ? "0.75rem"
+                : "1rem";
     const gridPadding = isXs
         ? "0.5rem"
         : isSmall
-          ? "0.6rem"
-          : isMedium
-            ? "0.8rem"
-            : "1.25rem";
+            ? "0.6rem"
+            : isMedium
+                ? "0.8rem"
+                : "1.25rem";
     const breadcrumbFontSize = isXs
         ? "0.7rem"
         : isSmall
-          ? "0.75rem"
-          : isMedium
-            ? "0.875rem"
-            : "1rem";
+            ? "0.75rem"
+            : isMedium
+                ? "0.875rem"
+                : "1rem";
     /** Encabezado de navegación categorías: botones grandes para uso táctil en salón */
     const breadcrumbBtnMinH = isXs ? 44 : isSmall ? 48 : 52;
     const breadcrumbBtnFont = isXs
         ? "0.8rem"
         : isSmall
-          ? "0.85rem"
-          : "0.875rem";
+            ? "0.85rem"
+            : "0.875rem";
     const breadcrumbBtnPadX = isXs ? "0.75rem" : isSmall ? "1rem" : "1.25rem";
     const breadcrumbBtnPadY = isXs
         ? "0.5rem"
         : isSmall
-          ? "0.625rem"
-          : "0.75rem";
+            ? "0.625rem"
+            : "0.75rem";
     const breadcrumbBtnRadius = isXs ? "8px" : isSmall ? "10px" : "12px";
     /** Ancho máximo en migas de pan: más flexible para evitar recortes agresivos */
     const breadcrumbLabelMaxWidth = isXs
         ? "9rem"
         : isSmall
-          ? "12rem"
-          : isMedium
-            ? "16rem"
-            : "22rem";
+            ? "12rem"
+            : isMedium
+                ? "16rem"
+                : "22rem";
 
     // Función para verificar si el usuario puede acceder a esta mesa (por permisos)
     const canAccessTable = (): { canAccess: boolean; reason?: string } => {
@@ -203,7 +203,7 @@ const Order: React.FC<OrderProps> = ({
         if (!accessCheck.canAccess) {
             showToast(
                 accessCheck.reason ||
-                    "No tiene permiso para acceder a esta mesa.",
+                "No tiene permiso para acceder a esta mesa.",
                 "error",
             );
             setTimeout(() => onClose(), 3000);
@@ -287,8 +287,8 @@ const Order: React.FC<OrderProps> = ({
 
     const subcategoriesOfCategory = selectedCategory
         ? (subcategoriesData?.subcategoriesByCategory || []).filter(
-              (s: any) => s.isActive !== false,
-          )
+            (s: any) => s.isActive !== false,
+        )
         : [];
 
     /** Hay subs pero el usuario aún no eligió una: mostrar grid de subs, no productos. */
@@ -370,9 +370,9 @@ const Order: React.FC<OrderProps> = ({
         variables: shouldUseId
             ? { operationId: table.currentOperationId }
             : {
-                  tableId: table?.id || "",
-                  branchId: companyData?.branch.id || "",
-              },
+                tableId: table?.id || "",
+                branchId: companyData?.branch.id || "",
+            },
         skip: !hasSelection,
         fetchPolicy: "network-only",
     });
@@ -523,7 +523,7 @@ const Order: React.FC<OrderProps> = ({
                 return {
                     id: String(
                         detail.id ??
-                            `${detail.productId}-${Date.now()}-${Math.random()}`,
+                        `${detail.productId}-${Date.now()}-${Math.random()}`,
                     ),
                     productId: String(detail.productId ?? ""),
                     name: detail.productName || "Producto sin nombre",
@@ -881,23 +881,23 @@ const Order: React.FC<OrderProps> = ({
     }, 0);
     const subtotal =
         isExistingOrder &&
-        existingOperation &&
-        existingOperation.subtotal !== undefined &&
-        existingOperation.subtotal !== null
+            existingOperation &&
+            existingOperation.subtotal !== undefined &&
+            existingOperation.subtotal !== null
             ? Number(existingOperation.subtotal)
             : orderItemsTotal;
     const taxes =
         isExistingOrder &&
-        existingOperation &&
-        existingOperation.igvAmount !== undefined &&
-        existingOperation.igvAmount !== null
+            existingOperation &&
+            existingOperation.igvAmount !== undefined &&
+            existingOperation.igvAmount !== null
             ? Number(existingOperation.igvAmount)
             : 0; // Para nuevas órdenes seguimos mostrando 0 hasta calcular
     const total =
         isExistingOrder &&
-        existingOperation &&
-        existingOperation.total !== undefined &&
-        existingOperation.total !== null
+            existingOperation &&
+            existingOperation.total !== undefined &&
+            existingOperation.total !== null
             ? Number(existingOperation.total)
             : subtotal + taxes;
 
@@ -971,12 +971,12 @@ const Order: React.FC<OrderProps> = ({
                     const unitValue =
                         igvRate > 0
                             ? parseFloat(
-                                  (
-                                      Math.round(
-                                          (unitPrice / (1 + igvRate)) * 100,
-                                      ) / 100
-                                  ).toFixed(2),
-                              )
+                                (
+                                    Math.round(
+                                        (unitPrice / (1 + igvRate)) * 100,
+                                    ) / 100
+                                ).toFixed(2),
+                            )
                             : unitPrice;
                     const notes =
                         typeof item.notes === "string" ? item.notes.trim() : "";
@@ -1043,7 +1043,7 @@ const Order: React.FC<OrderProps> = ({
                 } else {
                     throw new Error(
                         result.data?.addItemsToOperation?.message ||
-                            "Error al agregar los productos a la orden existente",
+                        "Error al agregar los productos a la orden existente",
                     );
                 }
 
@@ -1359,7 +1359,7 @@ const Order: React.FC<OrderProps> = ({
             } else {
                 showToast(
                     result.data?.createOperation?.message ||
-                        "Error al guardar la orden",
+                    "Error al guardar la orden",
                     "error",
                 );
             }
@@ -1440,27 +1440,27 @@ const Order: React.FC<OrderProps> = ({
                 const finalCurrentOperationId =
                     (table?.currentOperationId || existingOperation?.id) != null
                         ? typeof (
-                              table?.currentOperationId ?? existingOperation?.id
-                          ) === "string"
+                            table?.currentOperationId ?? existingOperation?.id
+                        ) === "string"
                             ? Number(
-                                  table?.currentOperationId ??
-                                      existingOperation?.id,
-                              )
+                                table?.currentOperationId ??
+                                existingOperation?.id,
+                            )
                             : (table?.currentOperationId ??
-                              existingOperation?.id)
+                                existingOperation?.id)
                         : existingOperation?.id
-                          ? typeof existingOperation.id === "string"
-                              ? Number(existingOperation.id)
-                              : existingOperation.id
-                          : undefined;
+                            ? typeof existingOperation.id === "string"
+                                ? Number(existingOperation.id)
+                                : existingOperation.id
+                            : undefined;
                 const finalOccupiedById =
                     table?.occupiedById != null
                         ? typeof table.occupiedById === "string"
                             ? Number(table.occupiedById)
                             : table.occupiedById
                         : user?.id
-                          ? Number(user.id)
-                          : undefined;
+                            ? Number(user.id)
+                            : undefined;
                 const finalUserName = table?.userName || user?.fullName;
 
                 if (updateTableInContext) {
@@ -1522,7 +1522,7 @@ const Order: React.FC<OrderProps> = ({
             } else {
                 showToast(
                     result.data?.printAccount?.message ||
-                        "Error al imprimir la precuenta",
+                    "Error al imprimir la precuenta",
                     "error",
                 );
             }
@@ -1669,11 +1669,10 @@ const Order: React.FC<OrderProps> = ({
                                     onClick={() =>
                                         setSearchByCodeOnly((v) => !v)
                                     }
-                                    className={`flex items-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-semibold transition-all duration-200 ${
-                                        searchByCodeOnly
+                                    className={`flex items-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-semibold transition-all duration-200 ${searchByCodeOnly
                                             ? "border-blue-500 bg-blue-600 text-white dark:border-blue-400 dark:bg-blue-500"
                                             : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
-                                    }`}
+                                        }`}
                                 >
                                     Búsqueda solo código
                                 </button>
@@ -1720,8 +1719,8 @@ const Order: React.FC<OrderProps> = ({
                                 borderRadius: isSmall
                                     ? "10px"
                                     : isMedium
-                                      ? "12px"
-                                      : "14px",
+                                        ? "12px"
+                                        : "14px",
                                 display: "flex",
                                 flexDirection: "column",
                                 overflow: "hidden",
@@ -1775,11 +1774,10 @@ const Order: React.FC<OrderProps> = ({
                                                         null,
                                                     );
                                                 }}
-                                                className={`inline-flex items-center gap-2 justify-center border text-center transition-all duration-150 ${
-                                                    !selectedCategory
+                                                className={`inline-flex items-center gap-2 justify-center border text-center transition-all duration-150 ${!selectedCategory
                                                         ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-200"
                                                         : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
-                                                }`}
+                                                    }`}
                                                 style={{
                                                     minHeight:
                                                         breadcrumbBtnMinH,
@@ -1830,11 +1828,10 @@ const Order: React.FC<OrderProps> = ({
                                                                 null,
                                                             )
                                                         }
-                                                        className={`inline-flex items-center gap-2 justify-center border text-center transition-all duration-150 ${
-                                                            !selectedSubcategory
+                                                        className={`inline-flex items-center gap-2 justify-center border text-center transition-all duration-150 ${!selectedSubcategory
                                                                 ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-200"
                                                                 : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
-                                                        }`}
+                                                            }`}
                                                         style={{
                                                             minHeight:
                                                                 breadcrumbBtnMinH,
@@ -2034,8 +2031,8 @@ const Order: React.FC<OrderProps> = ({
                                                                         isXs
                                                                             ? "1.25rem"
                                                                             : isSmall
-                                                                              ? "1.5rem"
-                                                                              : "1.75rem"
+                                                                                ? "1.5rem"
+                                                                                : "1.75rem"
                                                                     }
                                                                 />
                                                             </div>
@@ -2050,7 +2047,7 @@ const Order: React.FC<OrderProps> = ({
                                         {/* Subcategorías */}
                                         {showSubcategoriesInGrid &&
                                             (subcategoriesLoading &&
-                                            subcategoriesOfCategory.length ===
+                                                subcategoriesOfCategory.length ===
                                                 0 ? (
                                                 <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
                                                     Cargando subcategorías...
@@ -2118,8 +2115,8 @@ const Order: React.FC<OrderProps> = ({
                                                                         height: isSmall
                                                                             ? "60px"
                                                                             : isMedium
-                                                                              ? "70px"
-                                                                              : "80px",
+                                                                                ? "70px"
+                                                                                : "80px",
                                                                         objectFit:
                                                                             "cover",
                                                                         borderRadius:
@@ -2138,8 +2135,8 @@ const Order: React.FC<OrderProps> = ({
                                                                         height: isSmall
                                                                             ? "60px"
                                                                             : isMedium
-                                                                              ? "70px"
-                                                                              : "80px",
+                                                                                ? "70px"
+                                                                                : "80px",
                                                                         display:
                                                                             "flex",
                                                                         alignItems:
@@ -2191,37 +2188,37 @@ const Order: React.FC<OrderProps> = ({
                                                                 S/{" "}
                                                                 {parseFloat(
                                                                     product.salePrice ||
-                                                                        0,
+                                                                    0,
                                                                 ).toFixed(2)}
                                                             </div>
                                                             {product.preparationTime >
                                                                 0 && (
-                                                                <div
-                                                                    style={{
-                                                                        fontSize:
-                                                                            isSmall
-                                                                                ? "0.7rem"
-                                                                                : "0.8125rem",
-                                                                        color: "#64748b",
-                                                                        display:
-                                                                            "flex",
-                                                                        alignItems:
-                                                                            "center",
-                                                                        justifyContent:
-                                                                            "center",
-                                                                        gap: "0.25rem",
-                                                                        marginTop:
-                                                                            "0.25rem",
-                                                                    }}
-                                                                    className="dark:text-slate-400"
-                                                                >
-                                                                    ⏱️{" "}
-                                                                    {
-                                                                        product.preparationTime
-                                                                    }{" "}
-                                                                    min
-                                                                </div>
-                                                            )}
+                                                                    <div
+                                                                        style={{
+                                                                            fontSize:
+                                                                                isSmall
+                                                                                    ? "0.7rem"
+                                                                                    : "0.8125rem",
+                                                                            color: "#64748b",
+                                                                            display:
+                                                                                "flex",
+                                                                            alignItems:
+                                                                                "center",
+                                                                            justifyContent:
+                                                                                "center",
+                                                                            gap: "0.25rem",
+                                                                            marginTop:
+                                                                                "0.25rem",
+                                                                        }}
+                                                                        className="dark:text-slate-400"
+                                                                    >
+                                                                        ⏱️{" "}
+                                                                        {
+                                                                            product.preparationTime
+                                                                        }{" "}
+                                                                        min
+                                                                    </div>
+                                                                )}
                                                         </div>
                                                     ),
                                                 )
@@ -2240,10 +2237,10 @@ const Order: React.FC<OrderProps> = ({
                             gap: isXs
                                 ? "0.4rem"
                                 : isSmall
-                                  ? "0.5rem"
-                                  : isMedium
-                                    ? "0.75rem"
-                                    : "1rem",
+                                    ? "0.5rem"
+                                    : isMedium
+                                        ? "0.75rem"
+                                        : "1rem",
                             order: isXs || isSmall || isMedium ? 1 : 2,
                             overflow: "hidden",
                             minHeight: 0,
@@ -2256,17 +2253,17 @@ const Order: React.FC<OrderProps> = ({
                                 borderRadius: isXs
                                     ? "8px"
                                     : isSmall
-                                      ? "10px"
-                                      : isMedium
-                                        ? "12px"
-                                        : "14px",
+                                        ? "10px"
+                                        : isMedium
+                                            ? "12px"
+                                            : "14px",
                                 padding: isXs
                                     ? "0.4rem"
                                     : isSmall
-                                      ? "0.5rem"
-                                      : isMedium
-                                        ? "0.75rem"
-                                        : "1rem",
+                                        ? "0.5rem"
+                                        : isMedium
+                                            ? "0.75rem"
+                                            : "1rem",
                                 flex: "1 1 auto",
                                 overflowY: "auto",
                                 minHeight: 0,
@@ -2279,10 +2276,10 @@ const Order: React.FC<OrderProps> = ({
                                     fontSize: isXs
                                         ? "0.8rem"
                                         : isSmall
-                                          ? "0.875rem"
-                                          : isMedium
-                                            ? "1rem"
-                                            : "1.25rem",
+                                            ? "0.875rem"
+                                            : isMedium
+                                                ? "1rem"
+                                                : "1.25rem",
                                 }}
                             >
                                 Detalle
@@ -2329,8 +2326,8 @@ const Order: React.FC<OrderProps> = ({
                                         gap: isSmall
                                             ? "0.2rem"
                                             : isMedium
-                                              ? "0.3rem"
-                                              : "0.4rem",
+                                                ? "0.3rem"
+                                                : "0.4rem",
                                     }}
                                 >
                                     {orderItems.map((item) => {
@@ -2355,17 +2352,17 @@ const Order: React.FC<OrderProps> = ({
                                                     borderRadius: isXs
                                                         ? "8px"
                                                         : isSmall
-                                                          ? "6px"
-                                                          : isMedium
-                                                            ? "8px"
-                                                            : "10px",
+                                                            ? "6px"
+                                                            : isMedium
+                                                                ? "8px"
+                                                                : "10px",
                                                     padding: isXs
                                                         ? "0.5rem"
                                                         : isSmall
-                                                          ? "0.2rem"
-                                                          : isMedium
-                                                            ? "0.3rem"
-                                                            : "0.35rem",
+                                                            ? "0.2rem"
+                                                            : isMedium
+                                                                ? "0.3rem"
+                                                                : "0.35rem",
                                                 }}
                                             >
                                                 {/* Una sola fila: Cantidad, Producto, Precio + Tachito, Botón notas */}
@@ -2376,8 +2373,8 @@ const Order: React.FC<OrderProps> = ({
                                                         gap: isSmall
                                                             ? "0.2rem"
                                                             : isMedium
-                                                              ? "0.3rem"
-                                                              : "0.35rem",
+                                                                ? "0.3rem"
+                                                                : "0.35rem",
                                                         justifyContent:
                                                             "flex-start",
                                                         flexWrap: "nowrap",
@@ -2395,10 +2392,10 @@ const Order: React.FC<OrderProps> = ({
                                                             gap: isXs
                                                                 ? "0.4rem"
                                                                 : isSmall
-                                                                  ? "0.1rem"
-                                                                  : isMedium
-                                                                    ? "0.15rem"
-                                                                    : "0.2rem",
+                                                                    ? "0.1rem"
+                                                                    : isMedium
+                                                                        ? "0.15rem"
+                                                                        : "0.2rem",
                                                             flexShrink: 0,
                                                         }}
                                                     >
@@ -2407,7 +2404,7 @@ const Order: React.FC<OrderProps> = ({
                                                                 handleUpdateQuantity(
                                                                     item.id,
                                                                     item.quantity -
-                                                                        1,
+                                                                    1,
                                                                 )
                                                             }
                                                             disabled={
@@ -2418,33 +2415,33 @@ const Order: React.FC<OrderProps> = ({
                                                                 width: isXs
                                                                     ? "32px"
                                                                     : isSmall
-                                                                      ? "16px"
-                                                                      : isMedium
-                                                                        ? "18px"
-                                                                        : "20px",
+                                                                        ? "16px"
+                                                                        : isMedium
+                                                                            ? "18px"
+                                                                            : "20px",
                                                                 height: isXs
                                                                     ? "32px"
                                                                     : isSmall
-                                                                      ? "16px"
-                                                                      : isMedium
-                                                                        ? "18px"
-                                                                        : "20px",
+                                                                        ? "16px"
+                                                                        : isMedium
+                                                                            ? "18px"
+                                                                            : "20px",
                                                                 borderRadius:
                                                                     isXs
                                                                         ? "6px"
                                                                         : isSmall
-                                                                          ? "4px"
-                                                                          : "6px",
+                                                                            ? "4px"
+                                                                            : "6px",
                                                                 cursor: isEditable
                                                                     ? "pointer"
                                                                     : "not-allowed",
                                                                 fontSize: isXs
                                                                     ? "1rem"
                                                                     : isSmall
-                                                                      ? "0.7rem"
-                                                                      : isMedium
-                                                                        ? "0.75rem"
-                                                                        : "0.8rem",
+                                                                        ? "0.7rem"
+                                                                        : isMedium
+                                                                            ? "0.75rem"
+                                                                            : "0.8rem",
                                                                 display: "flex",
                                                                 alignItems:
                                                                     "center",
@@ -2479,33 +2476,33 @@ const Order: React.FC<OrderProps> = ({
                                                                 width: isXs
                                                                     ? "44px"
                                                                     : isSmall
-                                                                      ? "28px"
-                                                                      : isMedium
-                                                                        ? "32px"
-                                                                        : "36px",
+                                                                        ? "28px"
+                                                                        : isMedium
+                                                                            ? "32px"
+                                                                            : "36px",
                                                                 textAlign:
                                                                     "center",
                                                                 borderRadius:
                                                                     isXs
                                                                         ? "6px"
                                                                         : isSmall
-                                                                          ? "4px"
-                                                                          : "6px",
+                                                                            ? "4px"
+                                                                            : "6px",
                                                                 padding: isXs
                                                                     ? "0.4rem"
                                                                     : isSmall
-                                                                      ? "0.1rem"
-                                                                      : isMedium
-                                                                        ? "0.15rem"
-                                                                        : "0.2rem",
+                                                                        ? "0.1rem"
+                                                                        : isMedium
+                                                                            ? "0.15rem"
+                                                                            : "0.2rem",
                                                                 fontWeight: 700,
                                                                 fontSize: isXs
                                                                     ? "1rem"
                                                                     : isSmall
-                                                                      ? "0.6rem"
-                                                                      : isMedium
-                                                                        ? "0.65rem"
-                                                                        : "0.7rem",
+                                                                        ? "0.6rem"
+                                                                        : isMedium
+                                                                            ? "0.65rem"
+                                                                            : "0.7rem",
                                                                 flexShrink: 0,
                                                             }}
                                                         />
@@ -2514,7 +2511,7 @@ const Order: React.FC<OrderProps> = ({
                                                                 handleUpdateQuantity(
                                                                     item.id,
                                                                     item.quantity +
-                                                                        1,
+                                                                    1,
                                                                 )
                                                             }
                                                             disabled={
@@ -2525,33 +2522,33 @@ const Order: React.FC<OrderProps> = ({
                                                                 width: isXs
                                                                     ? "32px"
                                                                     : isSmall
-                                                                      ? "16px"
-                                                                      : isMedium
-                                                                        ? "18px"
-                                                                        : "20px",
+                                                                        ? "16px"
+                                                                        : isMedium
+                                                                            ? "18px"
+                                                                            : "20px",
                                                                 height: isXs
                                                                     ? "32px"
                                                                     : isSmall
-                                                                      ? "16px"
-                                                                      : isMedium
-                                                                        ? "18px"
-                                                                        : "20px",
+                                                                        ? "16px"
+                                                                        : isMedium
+                                                                            ? "18px"
+                                                                            : "20px",
                                                                 borderRadius:
                                                                     isXs
                                                                         ? "6px"
                                                                         : isSmall
-                                                                          ? "4px"
-                                                                          : "6px",
+                                                                            ? "4px"
+                                                                            : "6px",
                                                                 cursor: isEditable
                                                                     ? "pointer"
                                                                     : "not-allowed",
                                                                 fontSize: isXs
                                                                     ? "1rem"
                                                                     : isSmall
-                                                                      ? "0.7rem"
-                                                                      : isMedium
-                                                                        ? "0.75rem"
-                                                                        : "0.8rem",
+                                                                        ? "0.7rem"
+                                                                        : isMedium
+                                                                            ? "0.75rem"
+                                                                            : "0.8rem",
                                                                 display: "flex",
                                                                 alignItems:
                                                                     "center",
@@ -2582,8 +2579,8 @@ const Order: React.FC<OrderProps> = ({
                                                                     isSmall
                                                                         ? "0.7rem"
                                                                         : isMedium
-                                                                          ? "0.75rem"
-                                                                          : "0.8125rem",
+                                                                            ? "0.75rem"
+                                                                            : "0.8125rem",
                                                                 overflow:
                                                                     "hidden",
                                                                 whiteSpace:
@@ -2611,18 +2608,18 @@ const Order: React.FC<OrderProps> = ({
                                                             gap: isXs
                                                                 ? "0.5rem"
                                                                 : isSmall
-                                                                  ? "0.2rem"
-                                                                  : isMedium
-                                                                    ? "0.3rem"
-                                                                    : "0.35rem",
+                                                                    ? "0.2rem"
+                                                                    : isMedium
+                                                                        ? "0.3rem"
+                                                                        : "0.35rem",
                                                             flexShrink: 0,
                                                             minWidth: isXs
                                                                 ? "70px"
                                                                 : isSmall
-                                                                  ? "55px"
-                                                                  : isMedium
-                                                                    ? "65px"
-                                                                    : "75px",
+                                                                    ? "55px"
+                                                                    : isMedium
+                                                                        ? "65px"
+                                                                        : "75px",
                                                             marginLeft: "auto",
                                                         }}
                                                     >
@@ -2633,10 +2630,10 @@ const Order: React.FC<OrderProps> = ({
                                                                 fontSize: isXs
                                                                     ? "0.85rem"
                                                                     : isSmall
-                                                                      ? "0.7rem"
-                                                                      : isMedium
-                                                                        ? "0.75rem"
-                                                                        : "0.8125rem",
+                                                                        ? "0.7rem"
+                                                                        : isMedium
+                                                                            ? "0.75rem"
+                                                                            : "0.8125rem",
                                                                 textAlign:
                                                                     "right",
                                                             }}
@@ -2666,10 +2663,10 @@ const Order: React.FC<OrderProps> = ({
                                                                 fontSize: isXs
                                                                     ? "1.25rem"
                                                                     : isSmall
-                                                                      ? "0.75rem"
-                                                                      : isMedium
-                                                                        ? "0.8rem"
-                                                                        : "0.875rem",
+                                                                        ? "0.75rem"
+                                                                        : isMedium
+                                                                            ? "0.8rem"
+                                                                            : "0.875rem",
                                                                 padding: isXs
                                                                     ? "0.4rem"
                                                                     : "0.1rem",
@@ -2697,28 +2694,27 @@ const Order: React.FC<OrderProps> = ({
                                                             }
                                                         }}
                                                         disabled={!canEditNotes}
-                                                        className={`border ${
-                                                            item.notes ||
-                                                            selectedObservations[
-                                                                item.id
-                                                            ]?.size > 0
+                                                        className={`border ${item.notes ||
+                                                                selectedObservations[
+                                                                    item.id
+                                                                ]?.size > 0
                                                                 ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
                                                                 : canEditNotes
-                                                                  ? "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                                                                  : "border-slate-200 bg-slate-100 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-600"
-                                                        }`}
+                                                                    ? "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                                                    : "border-slate-200 bg-slate-100 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-600"
+                                                            }`}
                                                         style={{
                                                             padding: isSmall
                                                                 ? "0.1rem 0.35rem"
                                                                 : isMedium
-                                                                  ? "0.15rem 0.4rem"
-                                                                  : "0.15rem 0.45rem",
+                                                                    ? "0.15rem 0.4rem"
+                                                                    : "0.15rem 0.45rem",
                                                             borderRadius: 999,
                                                             fontSize: isSmall
                                                                 ? "0.6rem"
                                                                 : isMedium
-                                                                  ? "0.65rem"
-                                                                  : "0.65rem",
+                                                                    ? "0.65rem"
+                                                                    : "0.65rem",
                                                             fontWeight: 600,
                                                             cursor: canEditNotes
                                                                 ? "pointer"
@@ -2734,9 +2730,9 @@ const Order: React.FC<OrderProps> = ({
                                                         }}
                                                         title={
                                                             item.notes ||
-                                                            selectedObservations[
-                                                                item.id
-                                                            ]?.size > 0
+                                                                selectedObservations[
+                                                                    item.id
+                                                                ]?.size > 0
                                                                 ? item.notes
                                                                     ? "Editar observaciones"
                                                                     : `${selectedObservations[item.id].size} observación(es) seleccionada(s)`
@@ -2748,38 +2744,38 @@ const Order: React.FC<OrderProps> = ({
                                                             selectedObservations[
                                                                 item.id
                                                             ]?.size > 0) && (
-                                                            <span
-                                                                style={{
-                                                                    position:
-                                                                        "absolute",
-                                                                    top: "-4px",
-                                                                    right: "-4px",
-                                                                    background:
-                                                                        "#3b82f6",
-                                                                    color: "white",
-                                                                    borderRadius:
-                                                                        "50%",
-                                                                    width: "12px",
-                                                                    height: "12px",
-                                                                    fontSize:
-                                                                        "8px",
-                                                                    display:
-                                                                        "flex",
-                                                                    alignItems:
-                                                                        "center",
-                                                                    justifyContent:
-                                                                        "center",
-                                                                    fontWeight: 700,
-                                                                }}
-                                                            >
-                                                                {item.notes
-                                                                    ? "!"
-                                                                    : selectedObservations[
-                                                                          item
-                                                                              .id
-                                                                      ]?.size}
-                                                            </span>
-                                                        )}
+                                                                <span
+                                                                    style={{
+                                                                        position:
+                                                                            "absolute",
+                                                                        top: "-4px",
+                                                                        right: "-4px",
+                                                                        background:
+                                                                            "#3b82f6",
+                                                                        color: "white",
+                                                                        borderRadius:
+                                                                            "50%",
+                                                                        width: "12px",
+                                                                        height: "12px",
+                                                                        fontSize:
+                                                                            "8px",
+                                                                        display:
+                                                                            "flex",
+                                                                        alignItems:
+                                                                            "center",
+                                                                        justifyContent:
+                                                                            "center",
+                                                                        fontWeight: 700,
+                                                                    }}
+                                                                >
+                                                                    {item.notes
+                                                                        ? "!"
+                                                                        : selectedObservations[
+                                                                            item
+                                                                                .id
+                                                                        ]?.size}
+                                                                </span>
+                                                            )}
                                                     </button>
                                                 </div>
                                             </div>
@@ -2795,21 +2791,21 @@ const Order: React.FC<OrderProps> = ({
                                 borderRadius: isSmall
                                     ? "10px"
                                     : isMedium
-                                      ? "12px"
-                                      : "14px",
+                                        ? "12px"
+                                        : "14px",
                                 borderWidth: "1px",
                                 borderStyle: "solid",
                                 padding: isSmall
                                     ? "0.5rem"
                                     : isMedium
-                                      ? "0.625rem"
-                                      : "0.75rem",
+                                        ? "0.625rem"
+                                        : "0.75rem",
                                 display: "grid",
                                 gap: isSmall
                                     ? "0.25rem"
                                     : isMedium
-                                      ? "0.375rem"
-                                      : "0.5rem",
+                                        ? "0.375rem"
+                                        : "0.5rem",
                                 flexShrink: 0,
                             }}
                         >
@@ -2821,8 +2817,8 @@ const Order: React.FC<OrderProps> = ({
                                     fontSize: isSmall
                                         ? "0.75rem"
                                         : isMedium
-                                          ? "0.8125rem"
-                                          : "0.875rem",
+                                            ? "0.8125rem"
+                                            : "0.875rem",
                                 }}
                             >
                                 <span>Subtotal</span>
@@ -2836,8 +2832,8 @@ const Order: React.FC<OrderProps> = ({
                                     fontSize: isSmall
                                         ? "0.75rem"
                                         : isMedium
-                                          ? "0.8125rem"
-                                          : "0.875rem",
+                                            ? "0.8125rem"
+                                            : "0.875rem",
                                 }}
                             >
                                 <span>Impuestos</span>
@@ -2850,8 +2846,8 @@ const Order: React.FC<OrderProps> = ({
                                     margin: isSmall
                                         ? "0.125rem 0"
                                         : isMedium
-                                          ? "0.25rem 0"
-                                          : "0.25rem 0",
+                                            ? "0.25rem 0"
+                                            : "0.25rem 0",
                                 }}
                             />
                             <div
@@ -2862,8 +2858,8 @@ const Order: React.FC<OrderProps> = ({
                                     fontSize: isSmall
                                         ? "1rem"
                                         : isMedium
-                                          ? "1.125rem"
-                                          : "1.25rem",
+                                            ? "1.125rem"
+                                            : "1.25rem",
                                     fontWeight: 900,
                                 }}
                             >
@@ -2892,8 +2888,8 @@ const Order: React.FC<OrderProps> = ({
                                 gap: isSmall
                                     ? "0.5rem"
                                     : isMedium
-                                      ? "0.625rem"
-                                      : "0.75rem",
+                                        ? "0.625rem"
+                                        : "0.75rem",
                                 flexShrink: 0,
                             }}
                         >
@@ -2907,19 +2903,19 @@ const Order: React.FC<OrderProps> = ({
                                     padding: isSmall
                                         ? "0.5rem"
                                         : isMedium
-                                          ? "0.625rem"
-                                          : "0.75rem",
+                                            ? "0.625rem"
+                                            : "0.75rem",
                                     borderRadius: isSmall
                                         ? "8px"
                                         : isMedium
-                                          ? "10px"
-                                          : "12px",
+                                            ? "10px"
+                                            : "12px",
                                     fontWeight: 800,
                                     fontSize: isSmall
                                         ? "0.75rem"
                                         : isMedium
-                                          ? "0.8125rem"
-                                          : "0.875rem",
+                                            ? "0.8125rem"
+                                            : "0.875rem",
                                 }}
                             >
                                 {isSaving ? "Guardando..." : "Enviar orden"}
@@ -2934,19 +2930,19 @@ const Order: React.FC<OrderProps> = ({
                                     padding: isSmall
                                         ? "0.5rem"
                                         : isMedium
-                                          ? "0.625rem"
-                                          : "0.75rem",
+                                            ? "0.625rem"
+                                            : "0.75rem",
                                     borderRadius: isSmall
                                         ? "8px"
                                         : isMedium
-                                          ? "10px"
-                                          : "12px",
+                                            ? "10px"
+                                            : "12px",
                                     fontWeight: 800,
                                     fontSize: isSmall
                                         ? "0.7rem"
                                         : isMedium
-                                          ? "0.75rem"
-                                          : "0.8125rem",
+                                            ? "0.75rem"
+                                            : "0.8125rem",
                                 }}
                             >
                                 {isSaving
@@ -2961,7 +2957,7 @@ const Order: React.FC<OrderProps> = ({
                                     disabled={
                                         !existingOperation ||
                                         existingOperation.status ===
-                                            "COMPLETED" ||
+                                        "COMPLETED" ||
                                         isPrintingPrecuenta ||
                                         isLoadingExistingOrder
                                     }
@@ -2970,19 +2966,19 @@ const Order: React.FC<OrderProps> = ({
                                         padding: isSmall
                                             ? "0.5rem"
                                             : isMedium
-                                              ? "0.625rem"
-                                              : "0.75rem",
+                                                ? "0.625rem"
+                                                : "0.75rem",
                                         borderRadius: isSmall
                                             ? "8px"
                                             : isMedium
-                                              ? "10px"
-                                              : "12px",
+                                                ? "10px"
+                                                : "12px",
                                         fontWeight: 800,
                                         fontSize: isSmall
                                             ? "0.75rem"
                                             : isMedium
-                                              ? "0.8125rem"
-                                              : "0.875rem",
+                                                ? "0.8125rem"
+                                                : "0.875rem",
                                     }}
                                 >
                                     {isPrintingPrecuenta
@@ -2994,7 +2990,7 @@ const Order: React.FC<OrderProps> = ({
                     </div>
                 </div>
 
-                
+
             </div>
 
             {/* Modal de Observaciones */}
@@ -3056,16 +3052,16 @@ const Order: React.FC<OrderProps> = ({
                         borderTopRightRadius: keyboardCompact
                             ? 0
                             : isMedium
-                              ? 10
-                              : 12,
+                                ? 10
+                                : 12,
                         boxShadow: "4px -8px 32px rgba(0,0,0,0.08)",
                         padding: keyboardTight
                             ? "0.35rem 0.3rem"
                             : isXs || isSmall
-                              ? "0.5rem 0.5rem"
-                              : isMedium
-                                ? "0.65rem 0.85rem"
-                                : "0.75rem 1rem",
+                                ? "0.5rem 0.5rem"
+                                : isMedium
+                                    ? "0.65rem 0.85rem"
+                                    : "0.75rem 1rem",
                         paddingBottom: `max(${keyboardTight ? "0.35rem" : "0.5rem"}, env(safe-area-inset-bottom))`,
                         animation: "slideUp 0.3s ease-out",
                         boxSizing: "border-box",
