@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
+import {
+    useQuery,
+    useMutation,
+    useLazyQuery,
+    useApolloClient,
+} from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { useUserPermissions } from "../../hooks/useUserPermissions";
 import { useWebSocket } from "../../context/WebSocketContext";
@@ -95,6 +100,7 @@ const CashPay: React.FC<CashPayProps> = ({
     const canVoidInCashPay =
         hasPermission("cash.view") || hasPermission("cash.void");
     const { sendMessage, subscribe } = useWebSocket();
+    const apolloClient = useApolloClient();
     const { showToast } = useToast();
     const { breakpoint } = useResponsive();
     const isXs = breakpoint === "xs";
@@ -114,6 +120,9 @@ const CashPay: React.FC<CashPayProps> = ({
     const [showCreateClientModal, setShowCreateClientModal] = useState(false);
     const [showEditClientModal, setShowEditClientModal] = useState(false);
     const [clientSearchTerm, setClientSearchTerm] = useState("");
+    /** Evita cargar toda la lista de personas al abrir caja (suele ser la query más pesada). */
+    const [enableBranchClientsQuery, setEnableBranchClientsQuery] =
+        useState(false);
 
     // Estado para múltiples pagos
     type Payment = {
@@ -205,19 +214,19 @@ const CashPay: React.FC<CashPayProps> = ({
             operationId: table?.currentOperationId || "",
         },
         skip: !table?.currentOperationId,
-        fetchPolicy: "network-only",
+        fetchPolicy: "cache-and-network",
     });
 
     const { data: documentsData } = useQuery(GET_DOCUMENTS, {
         variables: { branchId: companyData?.branch.id || "" },
         skip: !companyData?.branch.id,
-        fetchPolicy: "no-cache",
+        fetchPolicy: "cache-and-network",
     });
 
     const { data: cashRegistersData } = useQuery(GET_CASH_REGISTERS, {
         variables: { branchId: companyData?.branch.id || "" },
         skip: !companyData?.branch.id,
-        fetchPolicy: "network-only",
+        fetchPolicy: "cache-and-network",
     });
 
     const { data: floorsData } = useQuery(GET_FLOORS_BY_BRANCH, {
@@ -248,8 +257,8 @@ const CashPay: React.FC<CashPayProps> = ({
         GET_PERSONS_BY_BRANCH,
         {
             variables: { branchId: companyData?.branch.id || "" },
-            skip: !companyData?.branch.id,
-            fetchPolicy: "network-only",
+            skip: !companyData?.branch.id || !enableBranchClientsQuery,
+            fetchPolicy: "cache-and-network",
         },
     );
 
@@ -627,15 +636,26 @@ const CashPay: React.FC<CashPayProps> = ({
                 },
             });
             if (createData?.createPerson?.success) {
+                setEnableBranchClientsQuery(true);
                 const newPerson = createData.createPerson.person;
                 setSelectedClientId(newPerson.id);
                 setClientSearchTerm(newPerson.name || "");
-                await refetchClients();
+                queueMicrotask(() => {
+                    void refetchClients();
+                });
             }
         } catch (err: any) {
             showToast(err?.message, "error");
         }
     };
+
+    /** Reset filas locales al cambiar mesa u operación (debe ir ANTES del efecto que marca checkboxes). */
+    useEffect(() => {
+        if (table?.id) {
+            setItemAssignments({});
+            setModifiedDetails([]);
+        }
+    }, [table?.id, table?.currentOperationId]);
 
     useEffect(() => {
         if (operation?.details && operation?.id) {
@@ -653,16 +673,6 @@ const CashPay: React.FC<CashPayProps> = ({
             }
         }
     }, [operation?.details, operation?.id]);
-
-    useEffect(() => {
-        if (table?.id) {
-            setTimeout(() => {
-                refetch();
-            }, 500);
-            setItemAssignments({});
-            setModifiedDetails([]);
-        }
-    }, [table?.id]);
 
     const handleSplitItem = (detailId: string) => {
         const idx = modifiedDetails.findIndex(
@@ -740,6 +750,18 @@ const CashPay: React.FC<CashPayProps> = ({
             else n[id] = true;
             return n;
         });
+    };
+
+    const handleSelectAllLineItems = () => {
+        const next: Record<string, boolean> = {};
+        detailsToUse.forEach((d: any) => {
+            if (d.id != null && d.id !== "") next[String(d.id)] = true;
+        });
+        setItemAssignments(next);
+    };
+
+    const handleDeselectAllLineItems = () => {
+        setItemAssignments({});
     };
 
     const handleDeleteItem = (detailId: string) => {
@@ -994,7 +1016,8 @@ const CashPay: React.FC<CashPayProps> = ({
             const emissionDate = formatLocalDateYYYYMMDD(now);
             const emissionTime = formatLocalTimeHHMMSS(now);
 
-            // Preparar items del documento usando los detalles modificados (evitar doble resta si ya están en modifiedDetails)
+            // Solo lo que el cajero ve en pantalla (como en celular). Nada de mezclar ítems del servidor
+            // que aún no se renderizaron: eso inflaba payment Total y fallaba la validación de montos.
             const availableDetails =
                 modifiedDetails.length > 0
                     ? modifiedDetails
@@ -1003,16 +1026,55 @@ const CashPay: React.FC<CashPayProps> = ({
                           operation?.id,
                       );
 
-            // Obtener los IDs de los productos seleccionados (checkboxes marcados)
-            const selectedDetailIds = Object.keys(itemAssignments).filter(
-                (id) => itemAssignments[id],
+            const { data: freshPayData } = await apolloClient.query({
+                query: GET_OPERATION_BY_ID,
+                variables: {
+                    operationId: table?.currentOperationId || "",
+                },
+                fetchPolicy: "no-cache",
+            });
+            const freshOp = freshPayData?.operationById;
+            if (!freshOp) {
+                showToast(
+                    "No se pudo verificar la orden antes del pago. Intente de nuevo.",
+                    "error",
+                );
+                return;
+            }
+            if (freshOp.status === "COMPLETED") {
+                showToast(
+                    "Esta orden ya está completada en el servidor. Vuelva al plano de mesas.",
+                    "error",
+                );
+                return;
+            }
+
+            const freshAvailable = filterCanceledDetails(
+                freshOp.details || [],
+                freshOp.id,
+            );
+            const visibleRealIds = new Set(
+                availableDetails
+                    .map((d) => getRealOperationDetailId(d))
+                    .filter((id): id is string => Boolean(id)),
+            );
+            const serverHasUnseenUnpaidLines = freshAvailable.some((fr) => {
+                const rid = getRealOperationDetailId(fr);
+                return rid && !visibleRealIds.has(rid);
+            });
+
+            const payAssignments: Record<string, boolean> = {
+                ...itemAssignments,
+            };
+
+            const selectedDetailIds = Object.keys(payAssignments).filter(
+                (id) => payAssignments[id],
             );
 
             // Si hay productos seleccionados, filtrar solo esos
             let detailsToPay = availableDetails;
             if (selectedDetailIds.length > 0) {
                 detailsToPay = availableDetails.filter((detail: any) => {
-                    // Verificar si el detail.id está en los seleccionados
                     return selectedDetailIds.includes(String(detail.id));
                 });
 
@@ -1025,17 +1087,13 @@ const CashPay: React.FC<CashPayProps> = ({
                 }
             }
 
-            // ✅ VERIFICAR SI ES PAGO PARCIAL O COMPLETO
-            // Si se están pagando TODOS los productos disponibles, usar la operación existente
-            // Si se están pagando SOLO ALGUNOS productos, también usar la operación existente (NO crear nueva)
-            // El backend se encargará de manejar el pago parcial correctamente
+            // Parcial si no cubre todo lo visible o en el servidor hay líneas que esta pantalla aún no muestra
             const isPartialPayment =
-                selectedDetailIds.length > 0 &&
-                selectedDetailIds.length < availableDetails.length;
+                (selectedDetailIds.length > 0 &&
+                    selectedDetailIds.length < availableDetails.length) ||
+                serverHasUnseenUnpaidLines;
 
-            // ✅ SIEMPRE usar la operación existente - NO crear nuevas operaciones
-            // El backend maneja los pagos parciales a nivel de documento emitido
-            const operationToPay = operation;
+            const operationToPay = freshOp;
 
             // Preparar items para el documento usando los detalles seleccionados
             // Agrupar detalles por ID original (sin el sufijo -split si existe)
@@ -1233,13 +1291,9 @@ const CashPay: React.FC<CashPayProps> = ({
                 return;
             }
 
-            // Para pagos parciales: NO pasar table_id si hay productos restantes
-            // Esto evita que el backend libere la mesa cuando todavía hay productos por pagar
-            // Solo pasamos tableId si se está pagando toda la operación (no hay productos restantes)
-            const hasRemainingProducts = isPartialPayment;
-            const tableIdForPayment = hasRemainingProducts
-                ? null
-                : table?.id || null;
+            // Igual que SumApp Android (CashViewModel): siempre enviar tableId de la mesa.
+            // El backend solo libera la mesa si is_fully_paid(); no usar null en parciales en web.
+            const tableIdForPayment = table?.id || null;
 
             const variables = {
                 operationId: operationToPay.id,
@@ -1289,7 +1343,7 @@ const CashPay: React.FC<CashPayProps> = ({
             );
             console.log(`   - Mesa ID: ${table?.id || "N/A"}`);
             console.log(
-                `   - TableId para pago: ${tableIdForPayment || "null (no liberar mesa)"}`,
+                `   - TableId para pago (siempre si hay mesa, como Android): ${tableIdForPayment || "null"}`,
             );
             console.log("");
             console.log("📄 INFORMACIÓN DEL DOCUMENTO:");
@@ -1588,68 +1642,43 @@ const CashPay: React.FC<CashPayProps> = ({
                         newTotal,
                     );
                 } else {
-                    // Pago completo (toda la operación): liberar mesa en UI y volver al piso
-                    const wasTableFreed =
-                        result.data?.createIssuedDocument?.wasTableFreed;
+                    // Pago que en la UI se interpretó como "completo" (todos los checks).
+                    // Liberar mesa en UI solo si el backend lo indicó (como LaunchedEffect en Android).
+                    const wasTableFreedFlag =
+                        result.data?.createIssuedDocument?.wasTableFreed ===
+                        true;
+                    const wasCompletedFlag =
+                        result.data?.createIssuedDocument?.wasCompleted ===
+                        true;
                     const refetchedOperation =
                         refetchResult.data?.operationById;
 
-                    // Si el backend indicó que liberó la mesa, usar su respuesta para estado/colores
                     if (
-                        tableIdForPayment &&
-                        table?.id &&
-                        updateTableInContext
-                    ) {
-                        updateTableInContext({
-                            id: table.id,
-                            status: "AVAILABLE",
-                            currentOperationId: null,
-                            occupiedById: null,
-                            userName: null,
-                        });
-                        notifyTableUpdate(
-                            table.id,
-                            "AVAILABLE",
-                            null,
-                            null,
-                            null,
-                        );
-                        console.log(
-                            "✅ Mesa liberada (pago completo con tableId) - mesa:",
-                            table.id,
-                        );
-                    }
-                    // Siempre que fue pago completo (enviamos tableId), marcar mesa como libre en la UI
-                    // (el backend a veces no retorna wasTableFreed p. ej. cuando hay descuento y is_fully_paid() es false)
-                    else if (
-                        wasTableFreed &&
-                        result.data?.createIssuedDocument?.table &&
+                        (wasTableFreedFlag || wasCompletedFlag) &&
                         table?.id &&
                         updateTableInContext
                     ) {
                         const freedTable =
-                            result.data.createIssuedDocument.table;
+                            result.data?.createIssuedDocument?.table;
                         updateTableInContext({
                             id: table.id,
-                            status: freedTable.status || "AVAILABLE",
+                            status: freedTable?.status || "AVAILABLE",
                             currentOperationId: null,
                             occupiedById: null,
                             userName: null,
                         });
                         notifyTableUpdate(
                             table.id,
-                            freedTable.status || "AVAILABLE",
+                            freedTable?.status || "AVAILABLE",
                             null,
                             null,
                             null,
                         );
                         console.log(
-                            "✅ Mesa liberada (wasTableFreed del backend) - mesa:",
+                            "✅ Mesa liberada (wasTableFreed/wasCompleted del backend) - mesa:",
                             table.id,
                         );
-                    }
-                    // Operación ya no existe: asegurar mesa libre
-                    else if (
+                    } else if (
                         !refetchedOperation &&
                         table?.id &&
                         updateTableInContext
@@ -2133,6 +2162,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                 type="text"
                                 placeholder={isXs ? "DNI/RUC..." : "Buscar cliente (DNI/RUC)..."}
                                 value={clientSearchTerm}
+                                onFocus={() => setEnableBranchClientsQuery(true)}
                                 onChange={(e) => {
                                     setClientSearchTerm(e.target.value);
                                     setSelectedClientId("");
@@ -2189,7 +2219,10 @@ const CashPay: React.FC<CashPayProps> = ({
                         </button>
                         <button
                             type="button"
-                            onClick={() => setShowCreateClientModal(true)}
+                            onClick={() => {
+                                setEnableBranchClientsQuery(true);
+                                setShowCreateClientModal(true);
+                            }}
                             title="Nuevo Cliente"
                             className="rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/45"
                             style={{
@@ -2308,6 +2341,101 @@ const CashPay: React.FC<CashPayProps> = ({
                         <div style={{ textAlign: "right" }}>{isNarrow ? "TOTAL" : "UNIT"}</div>
                         {!isNarrow && <div style={{ textAlign: "right" }}>TOTAL</div>}
                         {!isNarrow && <div style={{ textAlign: "center" }}>OPC</div>}
+                    </div>
+                    <div
+                        className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/80"
+                        style={{
+                            padding: "0.35rem 0.5rem",
+                            display: "flex",
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                            gap: "0.5rem 0.75rem",
+                            fontSize: "0.7rem",
+                        }}
+                    >
+                        <span className="text-slate-500 dark:text-slate-400" style={{ fontWeight: 600 }}>
+                            Selección:
+                        </span>
+                        <label
+                            className="inline-flex cursor-pointer items-center gap-1.5 text-slate-700 dark:text-slate-200"
+                            style={{ userSelect: "none" }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={
+                                    detailsToUse.length > 0 &&
+                                    detailsToUse.every(
+                                        (d: any) =>
+                                            !!itemAssignments[String(d.id)],
+                                    )
+                                }
+                                ref={(el) => {
+                                    if (!el) return;
+                                    const anyChecked = detailsToUse.some(
+                                        (d: any) =>
+                                            !!itemAssignments[String(d.id)],
+                                    );
+                                    const allChecked =
+                                        detailsToUse.length > 0 &&
+                                        detailsToUse.every(
+                                            (d: any) =>
+                                                !!itemAssignments[
+                                                    String(d.id)
+                                                ],
+                                        );
+                                    el.indeterminate =
+                                        anyChecked && !allChecked;
+                                }}
+                                onChange={() => {
+                                    const allOn =
+                                        detailsToUse.length > 0 &&
+                                        detailsToUse.every(
+                                            (d: any) =>
+                                                !!itemAssignments[
+                                                    String(d.id)
+                                                ],
+                                        );
+                                    if (allOn) handleDeselectAllLineItems();
+                                    else handleSelectAllLineItems();
+                                }}
+                                disabled={
+                                    !operation ||
+                                    operation.status === "COMPLETED" ||
+                                    detailsToUse.length === 0 ||
+                                    isProcessing
+                                }
+                                style={{
+                                    width: "16px",
+                                    height: "16px",
+                                    accentColor: "#4f46e5",
+                                }}
+                            />
+                            Marcar todo
+                        </label>
+                        <label
+                            className="inline-flex cursor-pointer items-center gap-1.5 text-slate-700 dark:text-slate-200"
+                            style={{ userSelect: "none" }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={false}
+                                onChange={() => {
+                                    handleDeselectAllLineItems();
+                                }}
+                                disabled={
+                                    !operation ||
+                                    operation.status === "COMPLETED" ||
+                                    detailsToUse.length === 0 ||
+                                    isProcessing
+                                }
+                                style={{
+                                    width: "16px",
+                                    height: "16px",
+                                    accentColor: "#64748b",
+                                }}
+                            />
+                            Desmarcar todo
+                        </label>
                     </div>
                     <div style={{ flex: 1, overflowY: "auto" }}>
                         {detailsToUse.map((d: any) => (
@@ -3309,7 +3437,12 @@ const CashPay: React.FC<CashPayProps> = ({
 
             {showCreateClientModal && (
                 <CreateClient
-                    onSuccess={() => setShowCreateClientModal(false)}
+                    onSuccess={() => {
+                        setEnableBranchClientsQuery(true);
+                        queueMicrotask(() => {
+                            void refetchClients();
+                        });
+                    }}
                     onClose={() => setShowCreateClientModal(false)}
                 />
             )}
