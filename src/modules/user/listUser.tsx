@@ -35,6 +35,8 @@ const ListUser: React.FC = () => {
   const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<User | null>(null);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
   const [selectedPermissionCodes, setSelectedPermissionCodes] = useState<Set<string>>(new Set());
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRole, setSelectedRole] = useState('ALL');
   const permissionOptions = getPermissionOptions();
 
   const [setUserPermissionsMutation, { loading: savingPermissions }] = useMutation(SET_USER_PERMISSIONS, {
@@ -103,15 +105,57 @@ const ListUser: React.FC = () => {
 
   const users: User[] = data?.usersByBranch || [];
 
+  const filteredUsers = users.filter((u) => {
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = 
+      u.fullName.toLowerCase().includes(searchLower) || 
+      u.dni.toLowerCase().includes(searchLower) || 
+      u.email.toLowerCase().includes(searchLower);
+    
+    const matchesRole = selectedRole === 'ALL' || u.role === selectedRole;
+    
+    return matchesSearch && matchesRole;
+  });
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between px-2">
         <h3 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100">
           📋 Lista de Empleados
           <span className="ml-2 text-xs font-mono font-black text-indigo-500 dark:text-indigo-400">
-            {users.length}
+            {filteredUsers.length} / {users.length}
           </span>
         </h3>
+      </div>
+
+      <div className="flex flex-col gap-4 px-2 md:flex-row md:items-center md:justify-between">
+        <div className="relative flex-1">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+            <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            placeholder="Buscar por nombre, DNI o email..."
+            className="w-full rounded-2xl border border-slate-100 bg-white py-2.5 pl-10 pr-4 text-sm font-medium text-slate-700 outline-none transition-all focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-indigo-400/50"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <select
+            className="rounded-2xl border border-slate-100 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 outline-none transition-all focus:border-indigo-500/50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
+          >
+            <option value="ALL">Todos los Roles</option>
+            {roles.map((r) => (
+              <option key={r.value} value={r.value}>{r.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
@@ -128,12 +172,20 @@ const ListUser: React.FC = () => {
             <p className="text-sm font-black">Error al cargar empleados</p>
             <p className="mt-1 text-xs">{error.message}</p>
           </div>
-        ) : users.length === 0 ? (
+        ) : filteredUsers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center text-slate-400">
             <svg xmlns="http://www.w3.org/2000/svg" className="mb-4 h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
-            <p className="text-sm font-bold uppercase tracking-widest">No hay empleados registrados</p>
+            <p className="text-sm font-bold uppercase tracking-widest">No se encontraron empleados</p>
+            {(searchTerm || selectedRole !== 'ALL') && (
+              <button 
+                onClick={() => { setSearchTerm(''); setSelectedRole('ALL'); }}
+                className="mt-4 text-xs font-black text-indigo-500 hover:underline"
+              >
+                Limpiar filtros
+              </button>
+            )}
           </div>
         ) : (
           <div
@@ -163,7 +215,7 @@ const ListUser: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                {users.map((user) => (
+                {filteredUsers.map((user) => (
                   <tr key={user.id} className="group transition-colors hover:bg-slate-50/30 dark:hover:bg-slate-800/20">
                     <td className="whitespace-nowrap px-6 py-4 font-mono text-slate-500 dark:text-slate-400">
                       {user.dni}

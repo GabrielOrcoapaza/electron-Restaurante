@@ -61,8 +61,9 @@ const PurchaseList: React.FC<PurchaseListProps> = ({
 }) => {
   const { user } = useAuth();
 
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState<string>(todayStr);
+  const [endDate, setEndDate] = useState<string>(todayStr);
   const [selectedOperationId, setSelectedOperationId] = useState<string>('');
   const [cancellationReason, setCancellationReason] = useState<string>('');
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -162,8 +163,8 @@ const PurchaseList: React.FC<PurchaseListProps> = ({
   };
 
   const clearDateFilter = () => {
-    setStartDate('');
-    setEndDate('');
+    setStartDate(todayStr);
+    setEndDate(todayStr);
   };
 
   return (

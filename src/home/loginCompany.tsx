@@ -1,308 +1,546 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@apollo/client';
-import { COMPANY_LOGIN } from '../graphql/mutations';
-import { useAuth } from '../hooks/useAuth';
-import { useResponsive } from '../hooks/useResponsive';
-import { useToast } from '../context/ToastContext';
-import VirtualKeyboard from '../components/VirtualKeyboard';
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMutation } from "@apollo/client";
+import { COMPANY_LOGIN } from "../graphql/mutations";
+import { useAuth } from "../hooks/useAuth";
+import { useResponsive } from "../hooks/useResponsive";
+import { useToast } from "../context/ToastContext";
+import VirtualKeyboard from "../components/VirtualKeyboard";
 
 const LoginCompany: React.FC = () => {
-  const navigate = useNavigate();
-  const { loginCompany, getMacAddress } = useAuth();
-  const { isMobile, isTablet } = useResponsive();
-  const { showToast } = useToast();
-  const isElectron = navigator.userAgent.toLowerCase().includes('electron');
-  
-  const [formData, setFormData] = useState({
-    ruc: '',
-    email: '',
-    password: ''
-  });
-  
-  const [macAddress, setMacAddress] = useState<string>('Cargando...');
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [focusedInput, setFocusedInput] = useState<'ruc' | 'email' | 'password' | null>(null);
-  const keyboardRef = useRef<HTMLDivElement>(null);
-  
-  const [companyLoginMutation, { loading }] = useMutation(COMPANY_LOGIN);
+    const navigate = useNavigate();
+    const { loginCompany, getMacAddress } = useAuth();
+    const { isMobile, isTablet } = useResponsive();
+    const { showToast } = useToast();
+    const isElectron = navigator.userAgent.toLowerCase().includes("electron");
 
-  useEffect(() => {
-    const fetchMacAddress = async () => {
-      try {
-        const mac = await getMacAddress();
-        setMacAddress(mac);
-      } catch (error) {
-        showToast('Error al obtener la dirección MAC del dispositivo', 'error');
-        setMacAddress('No disponible');
-      }
+    const [formData, setFormData] = useState({
+        ruc: "",
+        email: "",
+        password: "",
+    });
+
+    const [macAddress, setMacAddress] = useState<string>("Cargando...");
+    const [showPassword, setShowPassword] = useState<boolean>(false);
+    const [focusedInput, setFocusedInput] = useState<
+        "ruc" | "email" | "password" | null
+    >(null);
+    const keyboardRef = useRef<HTMLDivElement>(null);
+
+    const [companyLoginMutation, { loading }] = useMutation(COMPANY_LOGIN);
+
+    useEffect(() => {
+        const fetchMacAddress = async () => {
+            try {
+                const mac = await getMacAddress();
+                setMacAddress(mac);
+            } catch (error) {
+                showToast(
+                    "Error al obtener la dirección MAC del dispositivo",
+                    "error",
+                );
+                setMacAddress("No disponible");
+            }
+        };
+        fetchMacAddress();
+    }, [getMacAddress, showToast]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // Validación previa con toast
+        const rucClean = formData.ruc.trim().replace(/\D/g, "");
+        if (rucClean.length !== 11) {
+            showToast("El RUC debe tener exactamente 11 dígitos", "error");
+            return;
+        }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.email.trim())) {
+            showToast("Ingresa un correo electrónico válido", "error");
+            return;
+        }
+        if (!formData.password.trim()) {
+            showToast("Ingresa tu contraseña", "error");
+            return;
+        }
+
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("userData");
+        localStorage.removeItem("userPhoto");
+
+        try {
+            const { data } = await companyLoginMutation({
+                variables: {
+                    ruc: formData.ruc,
+                    email: formData.email,
+                    password: formData.password,
+                },
+            });
+
+            if (data?.companyLogin?.success) {
+                const allTables = (
+                    data.companyLogin.branch.floors || []
+                ).flatMap((floor: any) =>
+                    (floor.tables || []).map((table: any) => ({
+                        ...table,
+                        floorId: floor.id,
+                        floorName: floor.name,
+                    })),
+                );
+
+                showToast("Empresa validada correctamente", "success");
+
+                loginCompany({
+                    company: data.companyLogin.company,
+                    branch: {
+                        ...data.companyLogin.branch,
+                        users: data.companyLogin.branch.users || [],
+                        floors: data.companyLogin.branch.floors || [],
+                        categories: data.companyLogin.branch.categories || [],
+                        tables: allTables,
+                        igvPercentage: data.companyLogin.branch.igvPercentage,
+                    },
+                    companyLogo: data.companyLogin.companyLogoBase64,
+                    branchLogo: data.companyLogin.branchLogoBase64,
+                    availableBranches: data.companyLogin.availableBranches,
+                });
+
+                navigate("/login-employee");
+            } else {
+                showToast(
+                    data?.companyLogin?.message ||
+                        "RUC, correo o contraseña incorrectos",
+                    "error",
+                );
+            }
+        } catch (err: any) {
+            let errorMessage = "RUC, correo o contraseña incorrectos";
+            if (err.graphQLErrors && err.graphQLErrors.length > 0) {
+                const firstMsg = err.graphQLErrors[0]?.message;
+                if (firstMsg) errorMessage = firstMsg;
+            } else if (err.networkError) {
+                if (err.networkError.message?.includes("Failed to fetch")) {
+                    errorMessage =
+                        "No se pudo conectar con el servidor. Verifica tu conexión a internet.";
+                } else {
+                    errorMessage = "Error de conexión con el servidor";
+                }
+            } else if (err.message) {
+                errorMessage = err.message;
+            }
+            showToast(errorMessage, "error");
+        }
     };
-    fetchMacAddress();
-  }, [getMacAddress, showToast]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
 
-    // Validación previa con toast
-    const rucClean = formData.ruc.trim().replace(/\D/g, '');
-    if (rucClean.length !== 11) {
-      showToast('El RUC debe tener exactamente 11 dígitos', 'error');
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email.trim())) {
-      showToast('Ingresa un correo electrónico válido', 'error');
-      return;
-    }
-    if (!formData.password.trim()) {
-      showToast('Ingresa tu contraseña', 'error');
-      return;
-    }
+    const handleVirtualKeyPress = (key: string) => {
+        if (focusedInput === "ruc")
+            setFormData((prev) => ({ ...prev, ruc: prev.ruc + key }));
+        if (focusedInput === "email")
+            setFormData((prev) => ({ ...prev, email: prev.email + key }));
+        if (focusedInput === "password")
+            setFormData((prev) => ({ ...prev, password: prev.password + key }));
+    };
 
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('userData');
-    localStorage.removeItem('userPhoto');
+    const handleVirtualBackspace = () => {
+        if (focusedInput === "ruc")
+            setFormData((prev) => ({ ...prev, ruc: prev.ruc.slice(0, -1) }));
+        if (focusedInput === "email")
+            setFormData((prev) => ({
+                ...prev,
+                email: prev.email.slice(0, -1),
+            }));
+        if (focusedInput === "password")
+            setFormData((prev) => ({
+                ...prev,
+                password: prev.password.slice(0, -1),
+            }));
+    };
 
-    try {
-      const { data } = await companyLoginMutation({
-        variables: {
-          ruc: formData.ruc,
-          email: formData.email,
-          password: formData.password
-        }
-      });
+    return (
+        <div className="login-wrapper">
+            <div className="login-bg-image"></div>
+            <div className="login-overlay"></div>
 
-      if (data?.companyLogin?.success) {
-        const allTables = (data.companyLogin.branch.floors || []).flatMap((floor: any) =>
-          (floor.tables || []).map((table: any) => ({
-            ...table,
-            floorId: floor.id,
-            floorName: floor.name
-          }))
-        );
+            <div className="glass-card">
+                {/* PANEL IZQUIERDO (Branding) */}
+                {!isMobile && (
+                    <div className="left-panel">
+                        <div className="brand-content">
+                            <div className="brand-icon-container">
+                                <span className="brand-icon">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="40"
+                                        height="40"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="white"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" />
+                                        <path d="M7 2v20" />
+                                        <path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
+                                    </svg>
+                                </span>
+                            </div>
+                            <h1 className="brand-title">SumApp</h1>
+                            <p className="brand-subtitle">
+                                Gestión inteligente para restaurantes modernos.
+                                Controla todo en tiempo real.
+                            </p>
 
-        showToast('Empresa validada correctamente', 'success');
+                            <div className="mac-address-pill">
+                                <span className="pill-icon">🖥️</span>
+                                <span className="pill-text">
+                                    MAC: {macAddress}
+                                </span>
+                            </div>
+                        </div>
 
-        loginCompany({
-          company: data.companyLogin.company,
-          branch: {
-            ...data.companyLogin.branch,
-            users: data.companyLogin.branch.users || [],
-            floors: data.companyLogin.branch.floors || [],
-            categories: data.companyLogin.branch.categories || [],
-            tables: allTables,
-            igvPercentage: data.companyLogin.branch.igvPercentage
-          },
-          companyLogo: data.companyLogin.companyLogoBase64,
-          branchLogo: data.companyLogin.branchLogoBase64,
-          availableBranches: data.companyLogin.availableBranches
-        });
+                        <div className="features-grid">
+                            <div className="feature-item">
+                                <span className="feature-icon">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="var(--primary)"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.71-2.13.09-2.91a2.18 2.18 0 0 0-3.18-.09Zm5.92-5.92L4.5 16.5" />
+                                        <path d="M6.76 12.11c.88.42 1.94.1 2.51-.7l.15-.21C11.03 9.04 12.83 8 14.75 8a6.26 6.26 0 0 1 5.47 3.12c.27.47.91.5 1.28.07l.72-.8c.37-.41.33-1.07-.09-1.45A10.71 10.71 0 0 0 16.25 6c-2.96 0-5.76 1.58-7.3 4.2l-.19.33c-.5.89-1.44 1.24-2.32.96L4.85 11c-.61-.17-1.25.21-1.38.84a.63.63 0 0 0 .42.74l2.87.53Z" />
+                                        <path d="M14 11a2 2 0 1 0-4 0 2 2 0 0 0 4 0Z" />
+                                    </svg>
+                                </span>
+                                <span className="feature-text">
+                                    Ultra Rápido
+                                </span>
+                            </div>
+                            <div className="feature-item">
+                                <span className="feature-icon">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="var(--primary)"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+                                        <path d="m9 12 2 2 4-4" />
+                                    </svg>
+                                </span>
+                                <span className="feature-text">
+                                    100% Seguro
+                                </span>
+                            </div>
+                            <div className="feature-item">
+                                <span className="feature-icon">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="var(--primary)"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <path d="m12 3 1.912 5.885h6.19l-5.007 3.638 1.912 5.885L12 14.77l-5.007 3.638 1.912-5.885L3.898 8.885h6.19z" />
+                                    </svg>
+                                </span>
+                                <span className="feature-text">Fácil uso</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
-        navigate('/login-employee');
-      } else {
-        showToast(data?.companyLogin?.message || 'RUC, correo o contraseña incorrectos', 'error');
-      }
-    } catch (err: any) {
-      let errorMessage = 'RUC, correo o contraseña incorrectos';
-      if (err.graphQLErrors && err.graphQLErrors.length > 0) {
-        const firstMsg = err.graphQLErrors[0]?.message;
-        if (firstMsg) errorMessage = firstMsg;
-      } else if (err.networkError) {
-        if (err.networkError.message?.includes('Failed to fetch')) {
-          errorMessage = 'No se pudo conectar con el servidor. Verifica tu conexión a internet.';
-        } else {
-          errorMessage = 'Error de conexión con el servidor';
-        }
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      showToast(errorMessage, 'error');
-    }
-  };
+                {/* PANEL DERECHO (Formulario) */}
+                <div className="right-panel">
+                    <div className="form-container">
+                        <div className="form-header">
+                            <h2>Bienvenido</h2>
+                            <p>Ingresa los datos de tu empresa para comenzar</p>
+                            {!isElectron && (
+                                <button
+                                    type="button"
+                                    onClick={() => navigate("/")}
+                                    style={{
+                                        background: "none",
+                                        border: "none",
+                                        color: "var(--primary)",
+                                        cursor: "pointer",
+                                        fontSize: "0.9rem",
+                                        fontWeight: 600,
+                                        marginTop: "1rem",
+                                        textDecoration: "underline",
+                                    }}
+                                >
+                                    ← Volver al inicio
+                                </button>
+                            )}
+                        </div>
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+                        {/* Mac Address Mobile Only */}
+                        {isMobile && (
+                            <div className="mac-address-pill mobile-mac mx-auto">
+                                <span className="pill-icon">🖥️</span>
+                                <span className="pill-text">
+                                    MAC: {macAddress}
+                                </span>
+                            </div>
+                        )}
 
-  const handleVirtualKeyPress = (key: string) => {
-    if (focusedInput === 'ruc') setFormData(prev => ({ ...prev, ruc: prev.ruc + key }));
-    if (focusedInput === 'email') setFormData(prev => ({ ...prev, email: prev.email + key }));
-    if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password + key }));
-  };
+                        <form onSubmit={handleSubmit} className="login-form">
+                            <div className="input-group">
+                                <span className="input-icon">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <rect
+                                            width="16"
+                                            height="20"
+                                            x="4"
+                                            y="2"
+                                            rx="2"
+                                            ry="2"
+                                        />
+                                        <path d="M9 22v-4h6v4" />
+                                        <path d="M8 6h.01" />
+                                        <path d="M16 6h.01" />
+                                        <path d="M8 10h.01" />
+                                        <path d="M16 10h.01" />
+                                        <path d="M8 14h.01" />
+                                        <path d="M16 14h.01" />
+                                    </svg>
+                                </span>
+                                <input
+                                    type="text"
+                                    name="ruc"
+                                    value={formData.ruc}
+                                    onChange={handleChange}
+                                    placeholder="RUC de la Empresa"
+                                    required
+                                    className={`input-field ${focusedInput === "ruc" ? "focused" : ""}`}
+                                    onFocus={() => setFocusedInput("ruc")}
+                                    onBlur={(e) => {
+                                        if (
+                                            !keyboardRef.current?.contains(
+                                                e.relatedTarget as Node,
+                                            )
+                                        ) {
+                                            setTimeout(() => {
+                                                if (
+                                                    !keyboardRef.current?.contains(
+                                                        document.activeElement,
+                                                    )
+                                                ) {
+                                                    // Solo quitar foco si sale
+                                                }
+                                            }, 100);
+                                        }
+                                    }}
+                                />
+                            </div>
 
-  const handleVirtualBackspace = () => {
-    if (focusedInput === 'ruc') setFormData(prev => ({ ...prev, ruc: prev.ruc.slice(0, -1) }));
-    if (focusedInput === 'email') setFormData(prev => ({ ...prev, email: prev.email.slice(0, -1) }));
-    if (focusedInput === 'password') setFormData(prev => ({ ...prev, password: prev.password.slice(0, -1) }));
-  };
+                            <div className="input-group">
+                                <span className="input-icon">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <rect
+                                            width="20"
+                                            height="16"
+                                            x="2"
+                                            y="4"
+                                            rx="2"
+                                        />
+                                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                                    </svg>
+                                </span>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    placeholder="Email corporativo"
+                                    required
+                                    className={`input-field ${focusedInput === "email" ? "focused" : ""}`}
+                                    onFocus={() => setFocusedInput("email")}
+                                />
+                            </div>
 
-  return (
-    <div className="login-wrapper">
-      <div className="login-bg-image"></div>
-      <div className="login-overlay"></div>
-      
-      <div className="glass-card">
-        {/* PANEL IZQUIERDO (Branding) */}
-        {!isMobile && (
-          <div className="left-panel">
-            <div className="brand-content">
-              <div className="brand-icon-container">
-                <span className="brand-icon">🍽️</span>
-              </div>
-              <h1 className="brand-title">SumApp</h1>
-              <p className="brand-subtitle">Gestión inteligente para restaurantes modernos. Controla todo en tiempo real.</p>
-              
-              <div className="mac-address-pill">
-                <span className="pill-icon">🖥️</span>
-                <span className="pill-text">MAC: {macAddress}</span>
-              </div>
+                            <div className="input-group">
+                                <span className="input-icon">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <rect
+                                            width="18"
+                                            height="11"
+                                            x="3"
+                                            y="11"
+                                            rx="2"
+                                            ry="2"
+                                        />
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                    </svg>
+                                </span>
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    placeholder="Contraseña"
+                                    required
+                                    className={`input-field ${focusedInput === "password" ? "focused" : ""}`}
+                                    onFocus={() => setFocusedInput("password")}
+                                />
+                                <button
+                                    type="button"
+                                    className="password-toggle"
+                                    onClick={() =>
+                                        setShowPassword(!showPassword)
+                                    }
+                                >
+                                    {showPassword ? (
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="20"
+                                            height="20"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                                            <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                                            <path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                                            <line
+                                                x1="2"
+                                                y1="2"
+                                                x2="22"
+                                                y2="22"
+                                            />
+                                        </svg>
+                                    ) : (
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="20"
+                                            height="20"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                                            <circle cx="12" cy="12" r="3" />
+                                        </svg>
+                                    )}
+                                </button>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className={`submit-btn ${loading ? "loading" : ""}`}
+                            >
+                                <span className="btn-text">
+                                    {loading
+                                        ? "Verificando..."
+                                        : "Acceder al Sistema"}
+                                </span>
+                                {!loading && (
+                                    <span className="btn-icon">
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="20"
+                                            height="20"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2.5"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="M5 12h14" />
+                                            <path d="m12 5 7 7-7 7" />
+                                        </svg>
+                                    </span>
+                                )}
+                            </button>
+                        </form>
+
+                        {/* Teclado animado en base al focus */}
+                        <div
+                            ref={keyboardRef}
+                            className={`keyboard-wrapper \${focusedInput ? 'visible' : ''}`}
+                            onMouseDown={(e) => e.preventDefault()}
+                        >
+                            <div className="keyboard-header">
+                                <span>⌨️ Teclado Virtual</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setFocusedInput(null)}
+                                    className="close-keyboard"
+                                >
+                                    ✖
+                                </button>
+                            </div>
+                            <VirtualKeyboard
+                                onKeyPress={handleVirtualKeyPress}
+                                onBackspace={handleVirtualBackspace}
+                                compact={isMobile || isTablet}
+                            />
+                        </div>
+                    </div>
+                </div>
             </div>
-            
-            <div className="features-grid">
-              <div className="feature-item">
-                <span className="feature-icon">🚀</span>
-                <span className="feature-text">Ultra Rápido</span>
-              </div>
-              <div className="feature-item">
-                <span className="feature-icon">🔒</span>
-                <span className="feature-text">100% Seguro</span>
-              </div>
-              <div className="feature-item">
-                <span className="feature-icon">✨</span>
-                <span className="feature-text">Fácil uso</span>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* PANEL DERECHO (Formulario) */}
-        <div className="right-panel">
-          <div className="form-container">
-            <div className="form-header">
-              <h2>Bienvenido</h2>
-              <p>Ingresa los datos de tu empresa para comenzar</p>
-              {!isElectron && (
-                <button 
-                  type="button" 
-                  onClick={() => navigate('/')} 
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--primary)',
-                    cursor: 'pointer',
-                    fontSize: '0.9rem',
-                    fontWeight: 600,
-                    marginTop: '1rem',
-                    textDecoration: 'underline'
-                  }}
-                >
-                  ← Volver al inicio
-                </button>
-              )}
-            </div>
-
-            {/* Mac Address Mobile Only */}
-            {isMobile && (
-              <div className="mac-address-pill mobile-mac mx-auto">
-                <span className="pill-icon">🖥️</span>
-                <span className="pill-text">MAC: {macAddress}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="login-form">
-              <div className="input-group">
-                <span className="input-icon">🏢</span>
-                <input
-                  type="text"
-                  name="ruc"
-                  value={formData.ruc}
-                  onChange={handleChange}
-                  placeholder="RUC de la Empresa"
-                  required
-                  className={`input-field \${focusedInput === 'ruc' ? 'focused' : ''}`}
-                  onFocus={() => setFocusedInput('ruc')}
-                  onBlur={(e) => {
-                     if (!keyboardRef.current?.contains(e.relatedTarget as Node)) {
-                       setTimeout(() => {
-                         if (!keyboardRef.current?.contains(document.activeElement)) {
-                            // Solo quitar foco si sale
-                         }
-                       }, 100);
-                     }
-                  }}
-                />
-              </div>
-
-              <div className="input-group">
-                <span className="input-icon">📧</span>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="Email corporativo"
-                  required
-                  className={`input-field \${focusedInput === 'email' ? 'focused' : ''}`}
-                  onFocus={() => setFocusedInput('email')}
-                />
-              </div>
-
-              <div className="input-group">
-                <span className="input-icon">🔒</span>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="Contraseña"
-                  required
-                  className={`input-field \${focusedInput === 'password' ? 'focused' : ''}`}
-                  onFocus={() => setFocusedInput('password')}
-                />
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? '🙈' : '👁️'}
-                </button>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className={`submit-btn \${loading ? 'loading' : ''}`}
-              >
-                <span className="btn-text">
-                  {loading ? 'Verificando...' : 'Acceder al Sistema'}
-                </span>
-                {!loading && <span className="btn-icon">→</span>}
-              </button>
-            </form>
-
-            {/* Teclado animado en base al focus */}
-            <div 
-              ref={keyboardRef} 
-              className={`keyboard-wrapper \${focusedInput ? 'visible' : ''}`}
-              onMouseDown={(e) => e.preventDefault()}
-            >
-              <div className="keyboard-header">
-                <span>⌨️ Teclado Virtual</span>
-                <button type="button" onClick={() => setFocusedInput(null)} className="close-keyboard">✖</button>
-              </div>
-              <VirtualKeyboard
-                onKeyPress={handleVirtualKeyPress}
-                onBackspace={handleVirtualBackspace}
-                compact={isMobile || isTablet}
-              />
-            </div>
-
-          </div>
-        </div>
-      </div>
-
-      <style>{`
+            <style>{`
         * {
           box-sizing: border-box;
           margin: 0;
@@ -526,23 +764,12 @@ const LoginCompany: React.FC = () => {
           margin-bottom: 1rem;
         }
 
-        .input-icon {
-          position: absolute;
-          left: 1.25rem;
-          top: 50%;
-          transform: translateY(-50%);
-          font-size: 1.25rem;
-          z-index: 2;
-          color: var(--text-muted);
-          transition: all 0.3s ease;
-        }
-
-        .input-field {
+        .input-group .input-field {
           width: 100%;
           padding: 1.25rem 1.25rem 1.25rem 3.5rem;
           background: var(--bg-light);
           border: 2px solid #e2e8f0;
-          border-radius: 1rem;
+          border-radius: 1.25rem;
           color: var(--text-dark);
           font-size: 1.05rem;
           font-weight: 600;
@@ -550,16 +777,32 @@ const LoginCompany: React.FC = () => {
           outline: none;
         }
 
-        .input-field::placeholder {
+        .input-group .input-field::placeholder {
           color: #a0aec0;
           font-weight: 500;
         }
 
-        .input-field:focus {
+        .input-group .input-field:focus, 
+        .input-group .input-field.focused {
           border-color: var(--primary);
           background: white;
           box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.15);
           transform: translateY(-2px);
+        }
+
+        .input-icon {
+          position: absolute;
+          left: 0.25rem;
+          top: 50%;
+          transform: translateY(-50%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 2.5rem;
+          height: 2.5rem;
+          z-index: 2;
+          color: var(--text-muted);
+          transition: all 0.3s ease;
         }
 
         .password-toggle {
@@ -571,12 +814,18 @@ const LoginCompany: React.FC = () => {
           border: none;
           color: var(--text-muted);
           cursor: pointer;
-          font-size: 1.25rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.5rem;
+          border-radius: 0.5rem;
+          transition: all 0.2s ease;
           z-index: 2;
-          transition: transform 0.2s ease;
         }
 
         .password-toggle:hover {
+          background: rgba(0, 0, 0, 0.05);
+          color: var(--primary);
           transform: translateY(-50%) scale(1.1);
         }
 
@@ -787,8 +1036,8 @@ const LoginCompany: React.FC = () => {
           }
         }
       `}</style>
-    </div>
-  );
+        </div>
+    );
 };
 
 export default LoginCompany;
