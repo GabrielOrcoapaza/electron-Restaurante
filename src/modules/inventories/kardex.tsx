@@ -142,7 +142,7 @@ const Kardex: React.FC = () => {
         },
     );
 
-    const [fetchMovements, { data, loading, refetch }] = useLazyQuery(
+    const [fetchMovements, { data, loading }] = useLazyQuery(
         GET_STOCK_MOVEMENTS_REPORT,
         {
             fetchPolicy: "network-only",
