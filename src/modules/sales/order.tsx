@@ -103,6 +103,7 @@ const Order: React.FC<OrderProps> = ({
     // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil en grid)
     const isXs = breakpoint === "xs";
     const isSmall = breakpoint === "sm"; // 640px - 767px
+    const isMobile = isXs || isSmall;
     const isMedium = breakpoint === "md"; // 768px - 1023px
     /** Teclado virtual: compacto en móvil/tablet (&lt; 1024); más denso en pantallas muy estrechas */
     const keyboardCompact = viewportWidth < 1024;
@@ -1594,54 +1595,56 @@ const Order: React.FC<OrderProps> = ({
 			`}</style>
             <div className="flex h-full w-full flex-col overflow-hidden bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
                 {/* Header */}
-                <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-4 text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                <div className={`flex ${isXs ? "flex-col items-start gap-4" : "items-center justify-between gap-4"} border-b border-slate-200 bg-white ${isXs ? "px-4 py-3" : "px-6 py-4"} text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100`}>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <div className={`flex items-center gap-2 rounded-xl bg-slate-100 ${isXs ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"} font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200`}>
                             Piso {resolvedFloorName ?? "—"}
                         </div>
                         <span className="text-slate-400 dark:text-slate-500">
                             •
                         </span>
-                        <div className="flex items-center gap-2 rounded-xl bg-indigo-50 px-4 py-2 text-base font-bold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                        <div className={`flex items-center gap-2 rounded-xl bg-indigo-50 ${isXs ? "px-3 py-1.5 text-sm" : "px-4 py-2 text-base"} font-bold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300`}>
                             Mesa {table.name.replace("MESA ", "")}
                         </div>
                         <span className="text-slate-400 dark:text-slate-500">
                             •
                         </span>
-                        <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        <div className={`flex items-center gap-2 rounded-xl bg-slate-100 ${isXs ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"} font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200`}>
                             {headerWaiterName ?? "—"}
                         </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className={`flex items-center gap-3 ${isXs ? "w-full justify-between" : ""}`}>
                         {onOpenCash && canNavigateToCashPay && (
                             <button
                                 type="button"
                                 onClick={handleOpenCashFromOrder}
-                                className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition-all hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                                className={`flex items-center gap-2 rounded-xl bg-emerald-50 ${isXs ? "flex-1 justify-center px-3 py-2" : "px-4 py-2.5"} text-sm font-bold text-emerald-700 transition-all hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30`}
                                 title="Ir a cobrar en Caja"
                             >
                                 <span>💵</span>
                                 Caja
                             </button>
                         )}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setIsKeyboardVisible(true);
-                                setTimeout(
-                                    () => searchInputRef.current?.focus(),
-                                    50,
-                                );
-                            }}
-                            className="flex items-center gap-2 rounded-xl bg-violet-50 px-4 py-2.5 text-sm font-bold text-violet-700 transition-all hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-400 dark:hover:bg-violet-900/30"
-                            title="Mostrar teclado en pantalla"
-                        >
-                            <span>⌨️</span>
-                            Teclado virtual
-                        </button>
+                        {!isMobile && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsKeyboardVisible(true);
+                                    setTimeout(
+                                        () => searchInputRef.current?.focus(),
+                                        50,
+                                    );
+                                }}
+                                className="flex items-center gap-2 rounded-xl bg-violet-50 px-4 py-2.5 text-sm font-bold text-violet-700 transition-all hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-400 dark:hover:bg-violet-900/30"
+                                title="Mostrar teclado en pantalla"
+                            >
+                                <span>⌨️</span>
+                                Teclado virtual
+                            </button>
+                        )}
                         <button
                             onClick={onClose}
-                            className="rounded-xl border border-slate-200 bg-slate-50 px-6 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                            className={`rounded-xl border border-slate-200 bg-slate-50 ${isXs ? "flex-1 px-3 py-2" : "px-6 py-2.5"} text-sm font-bold text-slate-700 transition-all hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700`}
                         >
                             Cerrar
                         </button>

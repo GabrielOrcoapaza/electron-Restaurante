@@ -159,7 +159,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
               : "repeat(8, 1fr)";
 
     const floorsGridColumns = isXs
-        ? "repeat(3, 1fr)"
+        ? "repeat(2, 1fr)"
         : isSmall
           ? "repeat(4, 1fr)"
           : isMedium
@@ -428,7 +428,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                         </p>
                     </div>
                 ) : (
-                    <div className="max-h-44 overflow-y-auto pb-1">
+                    <div className="max-h-44 overflow-y-auto pb-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
                         <div
                             className="grid gap-3"
                             style={{ gridTemplateColumns: floorsGridColumns }}
@@ -449,17 +449,17 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                                                 : "border-slate-200 bg-slate-50 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/20"
                                         }`}
                                     >
-                                        <span className="mb-1 text-2xl">
+                                        <span className={`mb-1 ${isXs ? "text-3xl" : "text-2xl"}`}>
                                             🏢
                                         </span>
-                                        <span className="line-clamp-2 w-full text-xs font-semibold leading-tight">
+                                        <span className={`line-clamp-2 w-full ${isXs ? "text-sm" : "text-xs"} font-semibold leading-tight`}>
                                             {floor.name}
                                         </span>
                                         {isFloorSelected && (
                                             <div className="absolute right-2 top-2 flex h-2 w-2 rounded-full bg-indigo-500 dark:bg-indigo-400" />
                                         )}
                                         <span
-                                            className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                                            className={`absolute right-2 top-2 flex ${isXs ? "h-8 w-8 text-sm" : "h-6 w-6 text-xs"} items-center justify-center rounded-full font-bold ${
                                                 isFloorSelected
                                                     ? "bg-indigo-500 text-white dark:bg-indigo-400"
                                                     : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
@@ -502,7 +502,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                                 </p>
                             </div>
                         ) : (
-                            <div className="flex-1 overflow-y-auto pb-1">
+                            <div className="flex-1 overflow-y-auto pb-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
                                 <div
                                     className="grid gap-3"
                                     style={{
@@ -587,7 +587,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                                                     table.status !==
                                                         "AVAILABLE" && (
                                                         <div
-                                                            className={`mt-1 max-w-full truncate rounded-lg px-2 py-0.5 text-xs font-bold ${classes.badgeBg} ${classes.badgeText}`}
+                                                            className={`mt-1 max-w-full truncate rounded-lg px-2 py-0.5 ${isXs ? "text-sm" : "text-[11px]"} font-bold ${classes.badgeBg} ${classes.badgeText}`}
                                                         >
                                                             {table.userName}
                                                         </div>

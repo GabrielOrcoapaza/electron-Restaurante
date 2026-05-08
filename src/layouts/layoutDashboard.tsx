@@ -85,7 +85,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 }) => {
     const navigate = useNavigate();
     const { user, companyData, logout, getMacAddress } = useAuth();
-    // useIntegratedPrinterSyncFromServer();
+    const [macAddress, setMacAddress] = useState<string>("");
     const { disconnect, subscribe } = useWebSocket();
     const { switchToBranch, loading: switchingBranch } = useSwitchBranch();
     const { breakpoint, isMobile } = useResponsive();
@@ -125,7 +125,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 
     const sidebarWidth = sidebarOpen ? sidebarWidthValue : "0px";
     const displayedSidebarWidth = isOverlay ? sidebarWidthValue : sidebarWidth;
-
 
     const headerFontSize = isMobileOnly
         ? "1.125rem"
@@ -269,7 +268,13 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     const [markMessageReadMutation] = useMutation(MARK_MESSAGE_READ);
 
     useEffect(() => {
-        getMacAddress();
+        let cancelled = false;
+        getMacAddress().then((mac) => {
+            if (!cancelled && mac) setMacAddress(mac);
+        });
+        return () => {
+            cancelled = true;
+        };
     }, [getMacAddress]);
 
     useEffect(() => {
@@ -561,20 +566,20 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     }) => (
         <button
             onClick={() => handleMenuClick(view)}
-            className={`group relative flex w-full items-center gap-4 px-8 py-4 text-left transition-all duration-200 ${
+            className={`group relative flex w-full items-center gap-4 px-8 ${isMobile ? "py-5" : "py-4"} text-left transition-all duration-200 ${
                 isActive
                     ? "text-indigo-600 dark:text-indigo-400"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
             }`}
         >
             <span
-                className={`text-xl transition-transform duration-200 ${isActive ? "scale-110" : ""}`}
+                className={`${isMobile ? "text-2xl" : "text-xl"} transition-transform duration-200 ${isActive ? "scale-110" : ""}`}
             >
                 {icon}
             </span>
             {sidebarOpen && (
                 <span
-                    className={`text-sm font-medium tracking-wide ${
+                    className={`${isMobile ? "text-base" : "text-sm"} font-medium tracking-wide ${
                         isActive ? "font-semibold" : ""
                     }`}
                 >
@@ -796,6 +801,11 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                             <p className="mt-2 text-xs font-medium uppercase tracking-widest text-slate-400 dark:text-slate-500">
                                 {companyData?.company.denomination}
                             </p>
+                            {macAddress && (
+                                <p className="mt-1 font-mono text-xs text-slate-500">
+                                    MAC: {macAddress}
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>
@@ -1197,7 +1207,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                             }
                                         />
                                     )}
-                                    <div className="absolute right-0 top-[110%] z-[1200] w-[400px] max-h-[500px] overflow-y-auto rounded-3xl border border-slate-200 bg-white/95 p-5 shadow-2xl shadow-slate-900/20 backdrop-blur-md scrollbar-thin scrollbar-thumb-slate-200 dark:border-slate-800 dark:bg-slate-950/95 dark:scrollbar-thumb-slate-800">
+                                    <div className={`${isMobile ? "fixed inset-x-4 top-[80px]" : "absolute right-0 top-[110%] w-[400px]"} z-[1200] max-h-[calc(100vh-120px)] sm:max-h-[500px] overflow-y-auto rounded-3xl border border-slate-200 bg-white/95 p-5 shadow-2xl shadow-slate-900/20 backdrop-blur-md scrollbar-thin scrollbar-thumb-slate-200 dark:border-slate-800 dark:bg-slate-950/95 dark:scrollbar-thumb-slate-800`}>
                                         <div className="mb-4 flex items-center justify-between">
                                             <div>
                                                 <h3 className="m-0 text-sm font-bold tracking-tight text-slate-900 dark:text-white">
