@@ -5,7 +5,7 @@ import {
     GET_STOCK_MOVEMENTS_REPORT,
     GET_STOCKS_BY_BRANCH,
     SEARCH_PRODUCTS,
-    GET_PRODUCTS_BY_BRANCH_LIGHT,
+    GET_PRODUCTS,
 } from "../../graphql/queries";
 import { formatLocalDateYYYYMMDD } from "../../utils/localDateTime";
 import { useLazyQuery } from "@apollo/client";
@@ -90,7 +90,7 @@ const Kardex: React.FC = () => {
     );
 
     const { data: productsData, refetch: refetchProducts } = useQuery(
-        GET_PRODUCTS_BY_BRANCH_LIGHT,
+        GET_PRODUCTS,
         {
             variables: { branchId: branchId! },
             skip: !branchId,
@@ -98,7 +98,7 @@ const Kardex: React.FC = () => {
         },
     );
 
-    const allProductsFromBranch = productsData?.productsByBranch || [];
+    const allProductsFromBranch = productsData?.products || [];
     const searchResults = (() => {
         if (productSearchTerm.length < 3) return [];
         const fromSearch = searchData?.searchProducts || [];

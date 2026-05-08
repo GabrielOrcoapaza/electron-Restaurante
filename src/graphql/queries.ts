@@ -276,10 +276,12 @@ export const GET_TABLES_BY_FLOOR = gql`
     }
 `;
 
-// Query para obtener categorías de la sucursal
+// Query para obtener categorías de la sucursal.
+// includeInactive=false (por defecto): solo activas y subcategorías activas (venta).
+// includeInactive=true: todas (configuración / gestión).
 export const GET_CATEGORIES_BY_BRANCH = gql`
-    query GetCategoriesByBranch($branchId: ID!) {
-        categoriesByBranch(branchId: $branchId) {
+    query GetCategoriesByBranch($branchId: ID!, $includeInactive: Boolean = false) {
+        categoriesByBranch(branchId: $branchId, includeInactive: $includeInactive) {
             id
             name
             description
@@ -384,52 +386,25 @@ export const GET_PRODUCTS_BY_BRANCH = gql`
     }
 `;
 
-// Query para obtener todos los productos de la sucursal (versión ligera sin imágenes)
-export const GET_PRODUCTS_BY_BRANCH_LIGHT = gql`
-    query GetProductsByBranchLight($branchId: ID!) {
-        productsByBranch(branchId: $branchId) {
-            id
-            code
-            name
-            description
-            salePrice
-            preparationTime
-            productType
-            isActive
-            subcategoryId
-            subcategory {
-                id
-                name
-                category {
-                    id
-                    name
-                }
-            }
-            purchasePrice
-            unitMeasure
-            currentStock
-            stockMin
-            stockMax
-            managesStock
-        }
-    }
-`;
-
-
-// Query para obtener productos con filtros opcionales (tipo y categoría)
+// Query unificada: filtros opcionales; sin imagen (listados / inventario categoría).
 export const GET_PRODUCTS = gql`
-    query GetProducts($branchId: ID!, $productType: String, $categoryId: ID) {
+    query GetProducts(
+        $branchId: ID!
+        $productType: String
+        $categoryId: ID
+        $subcategoryId: ID
+    ) {
         products(
             branchId: $branchId
             productType: $productType
             categoryId: $categoryId
+            subcategoryId: $subcategoryId
         ) {
             id
             code
             name
             description
             salePrice
-            imageBase64
             preparationTime
             productType
             isActive

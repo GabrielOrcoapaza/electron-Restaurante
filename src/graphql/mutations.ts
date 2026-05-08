@@ -1765,53 +1765,53 @@ export const CREATE_SALE_CARRY_OUT = gql`
 // ——— Configuración de impresoras (backend Graphene: createPrinter, updatePrinter, etc.) ———
 export const CREATE_PRINTER = gql`
     mutation CreatePrinter(
-        $raspberry_pi_id: ID!
+        $raspberryPiId: ID!
         $name: String!
         $code: String!
-        $ip_address: String!
+        $ipAddress: String!
         $port: Int
-        $printer_type: String
-        $paper_width: Int
-        $characters_per_line: Int
+        $printerType: String
+        $paperWidth: Int
+        $charactersPerLine: Int
         $encoding: String
-        $is_kitchen: Boolean
-        $is_bar: Boolean
-        $is_cashier: Boolean
-        $is_receipt: Boolean
-        $is_invoice: Boolean
+        $isKitchen: Boolean
+        $isBar: Boolean
+        $isCashier: Boolean
+        $isReceipt: Boolean
+        $isInvoice: Boolean
     ) {
         createPrinter(
-            raspberry_pi_id: $raspberry_pi_id
+            raspberryPiId: $raspberryPiId
             name: $name
             code: $code
-            ip_address: $ip_address
+            ipAddress: $ipAddress
             port: $port
-            printer_type: $printer_type
-            paper_width: $paper_width
-            characters_per_line: $characters_per_line
+            printerType: $printerType
+            paperWidth: $paperWidth
+            charactersPerLine: $charactersPerLine
             encoding: $encoding
-            is_kitchen: $is_kitchen
-            is_bar: $is_bar
-            is_cashier: $is_cashier
-            is_receipt: $is_receipt
-            is_invoice: $is_invoice
+            isKitchen: $isKitchen
+            isBar: $isBar
+            isCashier: $isCashier
+            isReceipt: $isReceipt
+            isInvoice: $isInvoice
         ) {
             printer {
                 id
                 name
                 code
-                ip_address
+                ipAddress
                 port
-                printer_type
-                paper_width
-                characters_per_line
+                printerType
+                paperWidth
+                charactersPerLine
                 encoding
-                is_kitchen
-                is_bar
-                is_cashier
-                is_receipt
-                is_invoice
-                is_active
+                isKitchen
+                isBar
+                isCashier
+                isReceipt
+                isInvoice
+                isActive
             }
             success
             message
@@ -1821,55 +1821,55 @@ export const CREATE_PRINTER = gql`
 
 export const UPDATE_PRINTER = gql`
     mutation UpdatePrinter(
-        $printer_id: ID!
+        $printerId: ID!
         $name: String
         $code: String
-        $ip_address: String
+        $ipAddress: String
         $port: Int
-        $printer_type: String
-        $paper_width: Int
-        $characters_per_line: Int
+        $printerType: String
+        $paperWidth: Int
+        $charactersPerLine: Int
         $encoding: String
-        $is_kitchen: Boolean
-        $is_bar: Boolean
-        $is_cashier: Boolean
-        $is_receipt: Boolean
-        $is_invoice: Boolean
-        $is_active: Boolean
+        $isKitchen: Boolean
+        $isBar: Boolean
+        $isCashier: Boolean
+        $isReceipt: Boolean
+        $isInvoice: Boolean
+        $isActive: Boolean
     ) {
         updatePrinter(
-            printer_id: $printer_id
+            printerId: $printerId
             name: $name
             code: $code
-            ip_address: $ip_address
+            ipAddress: $ipAddress
             port: $port
-            printer_type: $printer_type
-            paper_width: $paper_width
-            characters_per_line: $characters_per_line
+            printerType: $printerType
+            paperWidth: $paperWidth
+            charactersPerLine: $charactersPerLine
             encoding: $encoding
-            is_kitchen: $is_kitchen
-            is_bar: $is_bar
-            is_cashier: $is_cashier
-            is_receipt: $is_receipt
-            is_invoice: $is_invoice
-            is_active: $is_active
+            isKitchen: $isKitchen
+            isBar: $isBar
+            isCashier: $isCashier
+            isReceipt: $isReceipt
+            isInvoice: $isInvoice
+            isActive: $isActive
         ) {
             printer {
                 id
                 name
                 code
-                ip_address
+                ipAddress
                 port
-                printer_type
-                paper_width
-                characters_per_line
+                printerType
+                paperWidth
+                charactersPerLine
                 encoding
-                is_kitchen
-                is_bar
-                is_cashier
-                is_receipt
-                is_invoice
-                is_active
+                isKitchen
+                isBar
+                isCashier
+                isReceipt
+                isInvoice
+                isActive
             }
             success
             message

@@ -78,21 +78,21 @@ const Printers: React.FC = () => {
         setMessage(null);
         updatePrinter({
             variables: {
-                printer_id: editingPrinter.id,
+                printerId: editingPrinter.id,
                 name: editForm.name !== undefined ? editForm.name : undefined,
                 code: editForm.code !== undefined ? editForm.code : undefined,
-                ip_address: editForm.ipAddress,
+                ipAddress: editForm.ipAddress,
                 port: editForm.port,
-                printer_type: editForm.printerType,
-                paper_width: editForm.paperWidth,
-                characters_per_line: editForm.charactersPerLine,
+                printerType: editForm.printerType,
+                paperWidth: editForm.paperWidth,
+                charactersPerLine: editForm.charactersPerLine,
                 encoding: editForm.encoding,
-                is_kitchen: editForm.isKitchen,
-                is_bar: editForm.isBar,
-                is_cashier: editForm.isCashier,
-                is_receipt: editForm.isReceipt,
-                is_invoice: editForm.isInvoice,
-                is_active: editForm.is_active,
+                isKitchen: editForm.isKitchen,
+                isBar: editForm.isBar,
+                isCashier: editForm.isCashier,
+                isReceipt: editForm.isReceipt,
+                isInvoice: editForm.isInvoice,
+                isActive: editForm.is_active,
             },
         });
     };

@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@apollo/client";
 import {
-    GET_PRODUCTS_BY_BRANCH,
     GET_CATEGORIES_BY_BRANCH,
     GET_PRODUCTS,
 } from "../../graphql/queries";
@@ -21,7 +20,6 @@ interface Product {
     name: string;
     description?: string;
     salePrice: number;
-    imageBase64?: string;
     preparationTime?: number;
     productType?: string;
     purchasePrice?: number;
@@ -167,34 +165,17 @@ const ListProduct: React.FC<ListProductProps> = ({
     const [currentPage, setCurrentPage] = useState<number>(1);
     const itemsPerPage = 20;
 
-    // Determinar si hay algún filtro activo
-    const hasFilters = Boolean(selectedProductType || selectedCategory);
-
-    // Query optimizada con filtros (productType y/o categoryId)
-    // Esta query se usa cuando hay al menos un filtro activo
     const {
-        data: filteredProductsData,
-        loading: filteredProductsLoading,
-        error: filteredProductsError,
-        refetch: refetchFilteredProducts,
+        data: productsData,
+        loading,
+        error,
+        refetch: refetchProducts,
     } = useQuery(GET_PRODUCTS, {
         variables: {
             branchId: branchId!,
             ...(selectedProductType && { productType: selectedProductType }),
             ...(selectedCategory && { categoryId: selectedCategory }),
         },
-        skip: !branchId || !hasFilters,
-        fetchPolicy: "network-only",
-    });
-
-    // Query para obtener todos los productos (cuando no hay filtros)
-    const {
-        data: productsData,
-        loading: productsLoading,
-        error: productsError,
-        refetch: refetchProducts,
-    } = useQuery(GET_PRODUCTS_BY_BRANCH, {
-        variables: { branchId: branchId! },
         skip: !branchId,
         fetchPolicy: "network-only",
     });
@@ -212,13 +193,8 @@ const ListProduct: React.FC<ListProductProps> = ({
     const getProductSubcategoryName = (p: Product) =>
         p.subcategory?.name ?? "—";
 
-    // Obtener productos según la query usada (sin búsqueda al servidor - filtrado local como order.tsx)
-    let products: Product[] = [];
-    if (hasFilters) {
-        products = filteredProductsData?.products || [];
-    } else {
-        products = productsData?.productsByBranch || [];
-    }
+    // Obtener productos (filtros opcionales en servidor vía `products`)
+    let products: Product[] = productsData?.products || [];
 
     // Filtrado local por término de búsqueda (sin llamadas al servidor, sin "Cargando productos...")
     if (searchTerm.trim()) {
@@ -238,9 +214,6 @@ const ListProduct: React.FC<ListProductProps> = ({
         });
     }
 
-    const loading = hasFilters ? filteredProductsLoading : productsLoading;
-    const error = hasFilters ? filteredProductsError : productsError;
-
     // Calcular paginación
     const totalPages = Math.ceil(products.length / itemsPerPage);
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -254,12 +227,8 @@ const ListProduct: React.FC<ListProductProps> = ({
 
     // Refrescar cuando cambie el refreshKey
     React.useEffect(() => {
-        if (hasFilters) {
-            refetchFilteredProducts();
-        } else {
-            refetchProducts();
-        }
-    }, [refreshKey, hasFilters, refetchProducts, refetchFilteredProducts]);
+        refetchProducts();
+    }, [refreshKey, refetchProducts]);
 
     if (!branchId) {
         return (
@@ -578,72 +547,37 @@ const ListProduct: React.FC<ListProductProps> = ({
                                     padding: "1rem",
                                 }}
                             >
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        gap: "1rem",
-                                        marginBottom: "0.75rem",
-                                    }}
-                                >
-                                    {product.imageBase64 ? (
-                                        <img
-                                            src={`data:image/jpeg;base64,${product.imageBase64}`}
-                                            alt={product.name}
-                                            style={{
-                                                width: "60px",
-                                                height: "60px",
-                                                objectFit: "cover",
-                                                borderRadius: "8px",
-                                            }}
-                                        />
-                                    ) : (
-                                        <div
-                                            className="bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500"
-                                            style={{
-                                                width: "60px",
-                                                height: "60px",
-                                                borderRadius: "8px",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                fontSize: "1.5rem",
-                                            }}
-                                        >
-                                            🖼️
-                                        </div>
-                                    )}
-                                    <div style={{ flex: 1 }}>
-                                        <div
-                                            className="text-slate-800 dark:text-slate-100"
-                                            style={{
-                                                fontWeight: 700,
-                                                fontSize: "0.9rem",
-                                                marginBottom: "0.25rem",
-                                            }}
-                                        >
-                                            {product.name}
-                                        </div>
-                                        <div
-                                            className="text-slate-500 dark:text-slate-400"
-                                            style={{
-                                                fontSize: "0.75rem",
-                                                marginBottom: "0.25rem",
-                                            }}
-                                        >
-                                            {product.code} •{" "}
-                                            {getProductCategoryName(product)}
-                                        </div>
-                                        <div
-                                            className="text-indigo-600 dark:text-indigo-300"
-                                            style={{
-                                                fontWeight: 700,
-                                                fontSize: "1rem",
-                                            }}
-                                        >
-                                            {currencyFormatter.format(
-                                                product.salePrice,
-                                            )}
-                                        </div>
+                                <div style={{ marginBottom: "0.75rem" }}>
+                                    <div
+                                        className="text-slate-800 dark:text-slate-100"
+                                        style={{
+                                            fontWeight: 700,
+                                            fontSize: "0.9rem",
+                                            marginBottom: "0.25rem",
+                                        }}
+                                    >
+                                        {product.name}
+                                    </div>
+                                    <div
+                                        className="text-slate-500 dark:text-slate-400"
+                                        style={{
+                                            fontSize: "0.75rem",
+                                            marginBottom: "0.25rem",
+                                        }}
+                                    >
+                                        {product.code} •{" "}
+                                        {getProductCategoryName(product)}
+                                    </div>
+                                    <div
+                                        className="text-indigo-600 dark:text-indigo-300"
+                                        style={{
+                                            fontWeight: 700,
+                                            fontSize: "1rem",
+                                        }}
+                                    >
+                                        {currencyFormatter.format(
+                                            product.salePrice,
+                                        )}
                                     </div>
                                 </div>
 
@@ -738,32 +672,18 @@ const ListProduct: React.FC<ListProductProps> = ({
                             }}
                         >
                             <colgroup>
-                                <col style={{ width: "6%" }} />
-                                <col style={{ width: "7%" }} />
-                                <col style={{ width: "12%" }} />
-                                <col style={{ width: "10%" }} />
                                 <col style={{ width: "10%" }} />
                                 <col style={{ width: "14%" }} />
-                                <col style={{ width: "8%" }} />
-                                <col style={{ width: "6%" }} />
-                                <col style={{ width: "8%" }} />
-                                <col style={{ width: "19%" }} />
+                                <col style={{ width: "11%" }} />
+                                <col style={{ width: "11%" }} />
+                                <col style={{ width: "15%" }} />
+                                <col style={{ width: "9%" }} />
+                                <col style={{ width: "7%" }} />
+                                <col style={{ width: "9%" }} />
+                                <col style={{ width: "14%" }} />
                             </colgroup>
                             <thead>
                                 <tr className="border-b-2 border-slate-200 dark:border-slate-700">
-                                    <th
-                                        className={tableThClass}
-                                        style={{
-                                            padding: isSmall
-                                                ? "0.5rem"
-                                                : "0.625rem",
-                                            textAlign: "center",
-                                            fontWeight: 600,
-                                            fontSize: tableFontSize,
-                                        }}
-                                    >
-                                        Imagen
-                                    </th>
                                     <th
                                         className={tableThClass}
                                         style={{
@@ -889,66 +809,6 @@ const ListProduct: React.FC<ListProductProps> = ({
                                         key={product.id}
                                         className="border-b border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900"
                                     >
-                                        <td
-                                            style={{
-                                                padding: isSmall
-                                                    ? "0.375rem"
-                                                    : "0.5rem",
-                                                textAlign: "center",
-                                            }}
-                                        >
-                                            {product.imageBase64 ? (
-                                                <img
-                                                    src={`data:image/jpeg;base64,${product.imageBase64}`}
-                                                    alt={product.name}
-                                                    style={{
-                                                        width: isSmall
-                                                            ? "35px"
-                                                            : isMedium
-                                                              ? "40px"
-                                                              : "45px",
-                                                        height: isSmall
-                                                            ? "35px"
-                                                            : isMedium
-                                                              ? "40px"
-                                                              : "45px",
-                                                        objectFit: "cover",
-                                                        borderRadius: "6px",
-                                                        margin: "0 auto",
-                                                        display: "block",
-                                                    }}
-                                                />
-                                            ) : (
-                                                <div
-                                                    className="bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
-                                                    style={{
-                                                        width: isSmall
-                                                            ? "35px"
-                                                            : isMedium
-                                                              ? "40px"
-                                                              : "45px",
-                                                        height: isSmall
-                                                            ? "35px"
-                                                            : isMedium
-                                                              ? "40px"
-                                                              : "45px",
-                                                        borderRadius: "6px",
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent:
-                                                            "center",
-                                                        fontSize: isSmall
-                                                            ? "1.125rem"
-                                                            : isMedium
-                                                              ? "1.25rem"
-                                                              : "1.375rem",
-                                                        margin: "0 auto",
-                                                    }}
-                                                >
-                                                    🖼️
-                                                </div>
-                                            )}
-                                        </td>
                                         <td
                                             className="text-slate-800 dark:text-slate-100"
                                             style={{

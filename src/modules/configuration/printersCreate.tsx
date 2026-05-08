@@ -90,20 +90,20 @@ const PrintersCreate: React.FC<PrintersCreateProps> = ({
         setMessage(null);
         createPrinter({
             variables: {
-                raspberry_pi_id: form.raspberry_pi_id,
+                raspberryPiId: form.raspberry_pi_id,
                 name: form.name.trim(),
                 code: form.code.trim().toUpperCase(),
-                ip_address: form.ip_address.trim(),
+                ipAddress: form.ip_address.trim(),
                 port: form.port ?? 9100,
-                printer_type: form.printer_type ?? "THERMAL",
-                paper_width: form.paper_width ?? 80,
-                characters_per_line: form.characters_per_line ?? 48,
+                printerType: form.printer_type ?? "THERMAL",
+                paperWidth: form.paper_width ?? 80,
+                charactersPerLine: form.characters_per_line ?? 48,
                 encoding: form.encoding ?? "UTF-8",
-                is_kitchen: form.is_kitchen ?? true,
-                is_bar: form.is_bar ?? false,
-                is_cashier: form.is_cashier ?? false,
-                is_receipt: form.is_receipt ?? false,
-                is_invoice: form.is_invoice ?? false,
+                isKitchen: form.is_kitchen ?? true,
+                isBar: form.is_bar ?? false,
+                isCashier: form.is_cashier ?? false,
+                isReceipt: form.is_receipt ?? false,
+                isInvoice: form.is_invoice ?? false,
             },
         });
     };
