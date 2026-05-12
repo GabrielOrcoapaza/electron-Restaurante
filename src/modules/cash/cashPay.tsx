@@ -42,6 +42,7 @@ import {
 } from "../../utils/localDateTime";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
 import { isElectronRenderer } from "../../utils/electronPrint";
+import { useTableSessionLock } from "../../hooks/useTableSessionLock";
 import {
     fetchSystemPrinters,
 } from "../../utils/systemPrinters";
@@ -103,6 +104,17 @@ const CashPay: React.FC<CashPayProps> = ({
     const apolloClient = useApolloClient();
     const { showToast } = useToast();
     const { breakpoint } = useResponsive();
+
+    useTableSessionLock({
+        tableId: table?.id,
+        userId: user?.id ? String(user.id) : undefined,
+        enabled: Boolean(table?.id && user?.id),
+        onLockDenied: (msg) => {
+            showToast(msg, "error");
+            onBack();
+        },
+    });
+
     const isXs = breakpoint === "xs";
     const isSmall = breakpoint === "sm";
     const isMedium = breakpoint === "md";

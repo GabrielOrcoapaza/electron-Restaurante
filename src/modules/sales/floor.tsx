@@ -13,10 +13,15 @@ import { useWebSocket } from "../../context/WebSocketContext";
 import { useToast } from "../../context/ToastContext";
 import type { Table } from "../../types/table";
 import {
-    GET_FLOORS_BY_BRANCH,
-    GET_TABLES_BY_FLOOR,
-} from "../../graphql/queries";
+    hasVisibleTableSessionLock,
+    applySessionLockToOverlayMap,
+    mergeTableSessionOverlay,
+    shouldDenyTableEntryForSessionLock,
+    type TableSessionLockOverlay,
+} from "../../types/table";
+import { GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from "../../graphql/queries";
 import Order, { type OrderSuccessPayload } from "./order";
+import { logTableSessionLock } from "../../utils/tableSessionLockLog";
 
 const FLOOR_ORDER_START_STORAGE_PREFIX = "appsuma:floorOrderStart:v1";
 
@@ -171,6 +176,13 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     const [showStatusModal, setShowStatusModal] = useState(false);
     const [showOrder, setShowOrder] = useState(false);
     const [orderTimerTick, setOrderTimerTick] = useState(() => Date.now());
+    /** Candado por mesa vía WS (GraphQL producción puede aún no exponer estos campos en TableType). */
+    const [sessionLockOverlayByTableId, setSessionLockOverlayByTableId] =
+        useState<Record<string, TableSessionLockOverlay>>({});
+
+    useEffect(() => {
+        setSessionLockOverlayByTableId({});
+    }, [companyData?.branch.id]);
 
     useEffect(() => {
         const id = window.setInterval(
@@ -223,10 +235,38 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         skip: !selectedFloorId,
         fetchPolicy: "network-only",
         nextFetchPolicy: "network-only",
+        onCompleted: (data) => {
+            const tables = data?.tablesByFloor ?? [];
+            const withLock = tables.filter((t: Table) =>
+                hasVisibleTableSessionLock(t),
+            );
+            logTableSessionLock("graphql:tablesByFloor", {
+                floorId: selectedFloorId,
+                total: tables.length,
+                fromGraphqlLockCount: withLock.length,
+                sample: withLock.slice(0, 6).map((t: Table) => ({
+                    id: t.id,
+                    sessionLockedById: t.sessionLockedById,
+                    sessionLockedByName: t.sessionLockedByName,
+                })),
+            });
+        },
     });
 
     const tablesOnFloor: Table[] = tablesData?.tablesByFloor ?? [];
-    const visibleTables = tablesOnFloor.filter((t) => t.isActive !== false);
+    const sessionMergedTables = useMemo(
+        () =>
+            tablesOnFloor.map((t) =>
+                mergeTableSessionOverlay(
+                    t,
+                    sessionLockOverlayByTableId[t.id],
+                ),
+            ),
+        [tablesOnFloor, sessionLockOverlayByTableId],
+    );
+    const visibleTables = sessionMergedTables.filter(
+        (t) => t.isActive !== false,
+    );
 
     const refetchTablesFromServer = useCallback(
         () => refetchTables({ fetchPolicy: "network-only" }),
@@ -246,9 +286,17 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         const runRefetch = () => {
             if (!selectedFloorId) return;
             void refetchTablesFromServer()
-                .then(() => {})
+                .then((res) => {
+                    logTableSessionLock("refetch:tablesByFloor:ok", {
+                        floorId: selectedFloorId,
+                        count: res.data?.tablesByFloor?.length,
+                    });
+                })
                 .catch((error) => {
                     console.error("❌ Error al refetch mesas:", error);
+                    logTableSessionLock("refetch:tablesByFloor:error", {
+                        message: String(error),
+                    });
                 });
         };
 
@@ -281,15 +329,50 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             "connection_established",
             () => {},
         );
-        const unsubscribeSnapshot = subscribe("tables_snapshot", () =>
-            scheduleEventRefetch(),
-        );
-        const unsubscribeTableUpdate = subscribe("table_update", () =>
-            scheduleEventRefetch(),
+        const unsubscribeSnapshot = subscribe("tables_snapshot", () => {
+            logTableSessionLock("ws:tables_snapshot", { scheduleRefetch: true });
+            scheduleEventRefetch();
+        });
+        const unsubscribeTableUpdate = subscribe(
+            "table_update",
+            (message: Record<string, unknown>) => {
+                logTableSessionLock("ws:table_update", {
+                    table_id: message.table_id ?? message.tableId,
+                    session_keys: {
+                        sessionLockedById:
+                            message.sessionLockedById ??
+                            message.session_locked_by_id,
+                        sessionLockedByUserId: message.sessionLockedByUserId,
+                    },
+                });
+                setSessionLockOverlayByTableId((prev) =>
+                    applySessionLockToOverlayMap(prev, message, "table_update"),
+                );
+                scheduleEventRefetch();
+            },
         );
         const unsubscribeTableStatusUpdate = subscribe(
             "table_status_update",
-            () => scheduleEventRefetch(),
+            () => {
+                logTableSessionLock("ws:table_status_update", {
+                    scheduleRefetch: true,
+                });
+                scheduleEventRefetch();
+            },
+        );
+        const unsubscribeTableSessionUpdate = subscribe(
+            "table_session_update",
+            (message: Record<string, unknown>) => {
+                logTableSessionLock("ws:table_session_update", message);
+                setSessionLockOverlayByTableId((prev) =>
+                    applySessionLockToOverlayMap(
+                        prev,
+                        message,
+                        "table_session_update",
+                    ),
+                );
+                scheduleEventRefetch();
+            },
         );
         const unsubscribeError = subscribe("error", (message) =>
             showToast(message.message, "error"),
@@ -317,6 +400,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             unsubscribeSnapshot();
             unsubscribeTableUpdate();
             unsubscribeTableStatusUpdate();
+            unsubscribeTableSessionUpdate();
             unsubscribeError();
             unsubscribePong();
         };
@@ -329,6 +413,18 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     const canAccessTable = (
         table: Table,
     ): { canAccess: boolean; reason?: string } => {
+        if (
+            shouldDenyTableEntryForSessionLock(
+                table,
+                user?.id,
+            )
+        ) {
+            return {
+                canAccess: false,
+                reason: `La pantalla de esta mesa está activa${table.sessionLockedByName ? ` (${table.sessionLockedByName})` : ""}. Use el mismo equipo o cierre la sesión allí.`,
+            };
+        }
+
         if (hasPermission("sales.pay")) {
             return { canAccess: true };
         }
@@ -543,6 +639,8 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
 
                                         const accessCheck =
                                             canAccessTable(table);
+                                        const showSessionLockIcon =
+                                            hasVisibleTableSessionLock(table);
 
                                         return (
                                             <button
@@ -563,6 +661,14 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                                                         : "cursor-not-allowed opacity-60"
                                                 }`}
                                             >
+                                                {showSessionLockIcon && (
+                                                    <span
+                                                        className="absolute right-1 top-1 z-10 text-base"
+                                                        title={`En uso: ${table.sessionLockedByName || "otro usuario"}`}
+                                                    >
+                                                        🔒
+                                                    </span>
+                                                )}
                                                 <span
                                                     className={`mb-1 line-clamp-1 w-full font-bold ${classes.text}`}
                                                     style={{

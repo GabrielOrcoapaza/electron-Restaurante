@@ -313,6 +313,52 @@ export const UPDATE_TABLE_STATUS = gql`
     }
 `;
 
+/** Candado de sesión por mesa; `deviceId` requerido en backend para bloquear mismo usuario en otro equipo. */
+export const CLAIM_TABLE_SESSION_LOCK = gql`
+    mutation ClaimTableSessionLock(
+        $tableId: ID!
+        $userId: ID!
+    ) {
+        claimTableSessionLock(
+            tableId: $tableId
+            userId: $userId
+        ) {
+            success
+            message
+        }
+    }
+`;
+
+export const RENEW_TABLE_SESSION_LOCK = gql`
+    mutation RenewTableSessionLock(
+        $tableId: ID!
+        $userId: ID!
+    ) {
+        renewTableSessionLock(
+            tableId: $tableId
+            userId: $userId
+        ) {
+            success
+            message
+        }
+    }
+`;
+
+export const RELEASE_TABLE_SESSION_LOCK = gql`
+    mutation ReleaseTableSessionLock(
+        $tableId: ID!
+        $userId: ID!
+    ) {
+        releaseTableSessionLock(
+            tableId: $tableId
+            userId: $userId
+        ) {
+            success
+            message
+        }
+    }
+`;
+
 // Mutación para crear una operación (orden)
 export const CREATE_OPERATION = gql`
     mutation CreateOperation(

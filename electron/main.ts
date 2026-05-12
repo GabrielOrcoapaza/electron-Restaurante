@@ -25,6 +25,45 @@ const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
 /** Ventana principal: para IPC que necesita webContents (p. ej. listar impresoras del SO). */
 let mainWindowRef: BrowserWindow | null = null;
 
+/**
+ * Instancia única: evita dos procesos Electron (dos ventanas sueltas) si el usuario
+ * abre la app otra vez (acceso directo, .exe duplicado, etc.).
+ *
+ * - requestSingleInstanceLock(): la primera instancia obtiene el "candado"; las demás no.
+ * - Si no somos la primera: mostramos un mensaje y salimos con app.quit().
+ * - Si somos la primera: al intentar abrir de nuevo, Electron dispara "second-instance"
+ *   aquí (no en el segundo proceso) para traer la ventana ya abierta al frente.
+ */
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    // Mostrar aviso en el proceso que no obtuvo el candado (showErrorBox tras ready
+    // evita fallos en algunas plataformas si se muestra antes del evento "ready").
+    app.whenReady().then(() => {
+        dialog.showErrorBox(
+            "SumApp ya está en ejecución",
+            "La aplicación ya está abierta. Solo puede haber una instancia a la vez.",
+        );
+        app.quit();
+    });
+} else {
+    app.on("second-instance", () => {
+        const win = mainWindowRef;
+        if (win && !win.isDestroyed()) {
+            if (win.isMinimized()) {
+                win.restore();
+            }
+            win.show();
+            win.focus();
+        }
+    });
+}
+
+/**
+ * Arranque real de la app (autoUpdater, IPC, ventana, etc.).
+ * Solo debe ejecutarse en la primera instancia: si lo corriéramos también cuando
+ * gotTheLock es false, el segundo proceso registraría listeners antes de salir.
+ */
+function startApplication(): void {
 // LOGS DEL AUTOUPDATE
 autoUpdater.logger = log as any;
 (autoUpdater.logger as any).transports.file.level = "info";
@@ -58,6 +97,7 @@ function createWindow() {
         height: 700,
         minWidth: 1200,
         minHeight: 800,
+        minimizable: false,
         title: "SumApp",
         show: false, // No mostrar hasta que esté listo
         icon: path.join(__dirname, "../public/SumApp.ico"),
@@ -510,3 +550,9 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
 });
+}
+
+// Segunda instancia: no entra aquí (mostró el cuadro de error y hizo app.quit() arriba).
+if (gotTheLock) {
+    startApplication();
+}

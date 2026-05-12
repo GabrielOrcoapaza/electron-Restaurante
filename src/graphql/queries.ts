@@ -271,7 +271,9 @@ export const GET_TABLES_BY_FLOOR = gql`
             }
             occupiedById
             userName
-            isActive
+            sessionLockedById
+            sessionLockExpiresAt
+            sessionLockedByName
         }
     }
 `;

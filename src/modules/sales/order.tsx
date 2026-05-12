@@ -6,6 +6,7 @@ import { useUserPermissions } from "../../hooks/useUserPermissions";
 import { useWebSocket } from "../../context/WebSocketContext";
 import { useToast } from "../../context/ToastContext";
 import type { Table } from "../../types/table";
+import { shouldDenyTableEntryForSessionLock } from "../../types/table";
 import {
     CREATE_OPERATION,
     ADD_ITEMS_TO_OPERATION,
@@ -25,6 +26,7 @@ import {
 import ModalObservation from "./modalObservation";
 import CategoryIcon from "../../components/CategoryIcon";
 import VirtualKeyboard from "../../components/VirtualKeyboard";
+import { useTableSessionLock } from "../../hooks/useTableSessionLock";
 
 export type OrderSuccessPayload = {
     operationId: string | number;
@@ -164,6 +166,18 @@ const Order: React.FC<OrderProps> = ({
 
     // Función para verificar si el usuario puede acceder a esta mesa (por permisos)
     const canAccessTable = (): { canAccess: boolean; reason?: string } => {
+        if (
+            shouldDenyTableEntryForSessionLock(
+                table,
+                user?.id,
+            )
+        ) {
+            return {
+                canAccess: false,
+                reason: `La pantalla de esta mesa está activa${table.sessionLockedByName ? ` (${table.sessionLockedByName})` : ""}. Use el mismo equipo o cierre la sesión allí.`,
+            };
+        }
+
         // Quien tiene permiso de cobrar (sales.pay) puede acceder para procesar pagos
         if (hasPermission("sales.pay")) {
             return { canAccess: true };
@@ -198,6 +212,28 @@ const Order: React.FC<OrderProps> = ({
         };
     };
 
+    const tableAccessOk = useMemo(
+        () => canAccessTable().canAccess,
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [
+            table.id,
+            table.sessionLockedById,
+            table.occupiedById,
+            user?.id,
+            companyData?.branch?.isMultiWaiterEnabled,
+        ],
+    );
+
+    useTableSessionLock({
+        tableId: table?.id,
+        userId: user?.id ? String(user.id) : undefined,
+        enabled: Boolean(user?.id && table?.id && tableAccessOk),
+        onLockDenied: (msg) => {
+            showToast(msg, "error");
+            onClose();
+        },
+    });
+
     // Verificar acceso al montar el componente
     useEffect(() => {
         const accessCheck = canAccessTable();
@@ -212,8 +248,7 @@ const Order: React.FC<OrderProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         table.id,
-        table.currentOperationId,
-        table.occupiedById,
+        table.sessionLockExpiresAt,
         user?.id,
         companyData?.branch?.isMultiWaiterEnabled,
     ]);
