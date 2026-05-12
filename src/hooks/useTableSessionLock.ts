@@ -22,6 +22,44 @@ function renewalIntervalMs(): number {
     return Number.isFinite(n) && n > 0 ? n : 45_000;
 }
 
+/** Evita liberar candado dos veces (Strict Mode) al remontar la misma mesa en seguida. */
+const pendingReleaseTimersByLockKey = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+>();
+
+/** Coherente con el debounce de refetch tras eventos WS en el plano. */
+const SESSION_LOCK_RELEASE_DEBOUNCE_MS = 450;
+
+function cancelScheduledSessionLockRelease(tableId: string, userId: string) {
+    const key = `${tableId}|${userId}`;
+    const t = pendingReleaseTimersByLockKey.get(key);
+    if (t) {
+        clearTimeout(t);
+        pendingReleaseTimersByLockKey.delete(key);
+    }
+}
+
+function scheduleSessionLockRelease(opts: {
+    tableId: string;
+    userId: string;
+    releaseMut: (args: {
+        variables: { tableId: string; userId: string };
+    }) => unknown;
+}) {
+    const { tableId, userId, releaseMut } = opts;
+    const key = `${tableId}|${userId}`;
+    const existing = pendingReleaseTimersByLockKey.get(key);
+    if (existing) clearTimeout(existing);
+    pendingReleaseTimersByLockKey.set(
+        key,
+        setTimeout(() => {
+            pendingReleaseTimersByLockKey.delete(key);
+            void releaseMut({ variables: { tableId, userId } });
+        }, SESSION_LOCK_RELEASE_DEBOUNCE_MS),
+    );
+}
+
 /**
  * Toma candado HTTP al abrir mesa, renueva periódicamente y libera al desmontar.
  * Si el claim falla (mesa en uso), llama onLockDenied una vez.
@@ -62,38 +100,27 @@ export function useTableSessionLock(opts: {
             return;
         }
 
-        logTableSessionLock("hook:claim:start", {
-            tableId,
-            userId,
-        });
+        cancelScheduledSessionLockRelease(tableId, userId);
+
+        logTableSessionLock("hook:claim:start", { tableId, userId });
 
         let cancelled = false;
         let intervalId: ReturnType<typeof setInterval> | null = null;
         let claimedSuccessfully = false;
 
-        const release = () => {
-            void releaseMut({
-                variables: {
-                    tableId,
-                    userId,
-                },
-            });
-        };
-
         void (async () => {
             try {
                 const { data } = await claimMut({
-                    variables: {
-                        tableId,
-                        userId,
-                    },
+                    variables: { tableId, userId },
                 });
                 if (cancelled) {
+                    // No hacer release aquí: un remontaje rápido (Strict Mode / navegación)
+                    // debe reclamar sin que un broadcast "liberado" pise otros clientes.
                     if (data?.claimTableSessionLock?.success) {
-                        logTableSessionLock("hook:release:after-cancel", {
-                            tableId,
-                        });
-                        release();
+                        logTableSessionLock(
+                            "hook:claim:ok-after-cancelled-effect",
+                            { tableId },
+                        );
                     }
                     return;
                 }
@@ -108,18 +135,10 @@ export function useTableSessionLock(opts: {
                     );
                     return;
                 }
-                logTableSessionLock("hook:claim:ok", {
-                    tableId,
-                    userId,
-                });
+                logTableSessionLock("hook:claim:ok", { tableId, userId });
                 claimedSuccessfully = true;
                 intervalId = setInterval(() => {
-                    void renewMut({
-                        variables: {
-                            tableId,
-                            userId,
-                        },
-                    });
+                    void renewMut({ variables: { tableId, userId } });
                 }, renewalIntervalMs());
             } catch (e: any) {
                 if (!cancelled) {
@@ -140,14 +159,16 @@ export function useTableSessionLock(opts: {
                 clearInterval(intervalId);
             }
             if (claimedSuccessfully) {
-                logTableSessionLock("hook:release:unmount", { tableId });
-                release();
+                logTableSessionLock("hook:release:unmount-scheduled", {
+                    tableId,
+                    debounceMs: SESSION_LOCK_RELEASE_DEBOUNCE_MS,
+                });
+                scheduleSessionLockRelease({
+                    tableId,
+                    userId,
+                    releaseMut,
+                });
             }
         };
-    }, [
-        enabled,
-        tableId,
-        userId,
-        releaseMut,
-    ]);
+    }, [enabled, tableId, userId, claimMut, renewMut, releaseMut]);
 }

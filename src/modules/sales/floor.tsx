@@ -19,11 +19,24 @@ import {
     shouldDenyTableEntryForSessionLock,
     type TableSessionLockOverlay,
 } from "../../types/table";
-import { GET_FLOORS_BY_BRANCH, GET_TABLES_BY_FLOOR } from "../../graphql/queries";
+import {
+    GET_FLOORS_BY_BRANCH,
+    GET_TABLES_BY_FLOOR,
+} from "../../graphql/queries";
 import Order, { type OrderSuccessPayload } from "./order";
 import { logTableSessionLock } from "../../utils/tableSessionLockLog";
+import {
+    RestrictedTableAccessModal,
+    type RestrictedModalPayload,
+} from "../../components/RestrictedTableAccessModal";
 
 const FLOOR_ORDER_START_STORAGE_PREFIX = "appsuma:floorOrderStart:v1";
+
+type FloorTableAccessResult = {
+    canAccess: boolean;
+    reason?: string;
+    restrictedKind?: "session_lock" | "order_occupied";
+};
 
 /** Agrupa ráfagas de eventos WS en un solo GetTablesByFloor */
 const TABLES_WS_EVENT_DEBOUNCE_MS = 400;
@@ -175,6 +188,8 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     const [selectedTable, setSelectedTable] = useState<Table | null>(null);
     const [showStatusModal, setShowStatusModal] = useState(false);
     const [showOrder, setShowOrder] = useState(false);
+    const [restrictedAccessModal, setRestrictedAccessModal] =
+        useState<RestrictedModalPayload | null>(null);
     const [orderTimerTick, setOrderTimerTick] = useState(() => Date.now());
     /** Candado por mesa vía WS (GraphQL producción puede aún no exponer estos campos en TableType). */
     const [sessionLockOverlayByTableId, setSessionLockOverlayByTableId] =
@@ -410,23 +425,28 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         setSelectedFloorId(floorId);
     };
 
-    const canAccessTable = (
-        table: Table,
-    ): { canAccess: boolean; reason?: string } => {
+    const canAccessTable = (table: Table): FloorTableAccessResult => {
+        if (hasPermission("sales.pay")) {
+            return { canAccess: true };
+        }
+
+        const sessionLockViewerDisplay =
+            (user?.fullName || "").trim() ||
+            `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
+
         if (
             shouldDenyTableEntryForSessionLock(
                 table,
                 user?.id,
+                sessionLockViewerDisplay,
             )
         ) {
             return {
                 canAccess: false,
-                reason: `La pantalla de esta mesa está activa${table.sessionLockedByName ? ` (${table.sessionLockedByName})` : ""}. Use el mismo equipo o cierre la sesión allí.`,
+                restrictedKind: "session_lock",
+                reason:
+                    "La pantalla de esta mesa está en uso por otro usuario.",
             };
-        }
-
-        if (hasPermission("sales.pay")) {
-            return { canAccess: true };
         }
 
         if (!table.currentOperationId || !table.occupiedById) {
@@ -449,6 +469,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
 
         return {
             canAccess: false,
+            restrictedKind: "order_occupied",
             reason: `Esta mesa está siendo atendida por ${table.userName || "otro usuario"}.`,
         };
     };
@@ -459,6 +480,13 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         const accessCheck = canAccessTable(table);
 
         if (!accessCheck.canAccess) {
+            if (accessCheck.restrictedKind != null) {
+                setRestrictedAccessModal({
+                    table,
+                    kind: accessCheck.restrictedKind,
+                });
+                return;
+            }
             showToast(
                 accessCheck.reason ||
                     "No tiene permiso para acceder a esta mesa.",
@@ -641,6 +669,9 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                                             canAccessTable(table);
                                         const showSessionLockIcon =
                                             hasVisibleTableSessionLock(table);
+                                        const sessionLockDisplayName = (
+                                            table.sessionLockedByName || ""
+                                        ).trim();
 
                                         return (
                                             <button
@@ -648,27 +679,17 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                                                 onClick={() =>
                                                     handleTableClick(table)
                                                 }
-                                                disabled={
-                                                    !accessCheck.canAccess
-                                                }
-                                                className={`relative flex flex-col items-center justify-center border-2 px-3 py-3 text-center transition-all duration-200 ${
+                                                className={`relative flex flex-col items-stretch border-2 px-3 py-3 text-center transition-all duration-200 ${
                                                     isRoundTable
                                                         ? "aspect-square rounded-full"
                                                         : "rounded-xl min-h-24"
                                                 } ${classes.bg} ${classes.border} ${
                                                     accessCheck.canAccess
                                                         ? "cursor-pointer hover:scale-[1.02] hover:shadow-md"
-                                                        : "cursor-not-allowed opacity-60"
+                                                        : "cursor-pointer opacity-[0.88] hover:opacity-100"
                                                 }`}
                                             >
-                                                {showSessionLockIcon && (
-                                                    <span
-                                                        className="absolute right-1 top-1 z-10 text-base"
-                                                        title={`En uso: ${table.sessionLockedByName || "otro usuario"}`}
-                                                    >
-                                                        🔒
-                                                    </span>
-                                                )}
+                                                <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
                                                 <span
                                                     className={`mb-1 line-clamp-1 w-full font-bold ${classes.text}`}
                                                     style={{
@@ -698,6 +719,25 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                                                             {table.userName}
                                                         </div>
                                                     )}
+                                                </div>
+
+                                                {showSessionLockIcon && (
+                                                    <div
+                                                        className="mt-1 flex w-full shrink-0 items-center justify-center gap-1.5 px-0.5 pt-1"
+                                                        title={`En uso: ${sessionLockDisplayName || "sesión activa"}`}
+                                                    >
+                                                        <span
+                                                            className="shrink-0 text-sm leading-none text-orange-500"
+                                                            aria-hidden
+                                                        >
+                                                            🔒
+                                                        </span>
+                                                        <span className="min-w-0 max-w-[calc(100%-1.25rem)] truncate text-left text-[11px] font-semibold leading-tight text-blue-600 dark:text-sky-300 sm:text-xs">
+                                                            {sessionLockDisplayName ||
+                                                                "En uso"}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </button>
                                         );
                                     })}
@@ -706,6 +746,14 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                         )}
                     </div>
                 </div>
+            )}
+
+            {/* Acceso restringido (candado de sesión u orden de otro mozo) */}
+            {restrictedAccessModal && (
+                <RestrictedTableAccessModal
+                    payload={restrictedAccessModal}
+                    onClose={() => setRestrictedAccessModal(null)}
+                />
             )}
 
             {/* Modal de opciones de mesa */}

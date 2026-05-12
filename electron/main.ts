@@ -40,7 +40,7 @@ if (!gotTheLock) {
     // evita fallos en algunas plataformas si se muestra antes del evento "ready").
     app.whenReady().then(() => {
         dialog.showErrorBox(
-            "SumApp ya está en ejecución",
+            "Idiota, SumApp ya está en ejecución",
             "La aplicación ya está abierta. Solo puede haber una instancia a la vez.",
         );
         app.quit();

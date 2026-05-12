@@ -66,9 +66,11 @@ export function hasVisibleTableSessionLock(
 }
 
 /**
- * Bloquear abrir la mesa en este cliente si hay candado activo y no somos el titular-equipo.
- * Con `sessionLockedByDeviceId` del servidor distingue PC vs móvil mismo usuario.
- * Sin device en servidor: solo bloquea si el user_id del candado es distinto al actual.
+ * ¿Bloquear abrir esta mesa porque el candado lo tiene otro usuario?
+ * Alineado con el backend (solo `session_locked_by` + expiración).
+ *
+ * Si solo llega nombre (sin `sessionLockedById`), se usa `currentDisplayName`
+ * (`user.fullName` en el cliente) para no penalizar al titular; el resto ven modal en el plano.
  */
 export function shouldDenyTableEntryForSessionLock(
     table: Pick<
@@ -78,6 +80,8 @@ export function shouldDenyTableEntryForSessionLock(
         | "sessionLockExpiresAt"
     >,
     currentUserId: string | number | undefined | null,
+    /** p. ej. `user.fullName` o `"Nombre Apellido"` del usuario logueado */
+    currentDisplayName?: string | null,
 ): boolean {
     if (!hasVisibleTableSessionLock(table)) {
         return false;
@@ -89,50 +93,51 @@ export function shouldDenyTableEntryForSessionLock(
             return false;
         }
     }
+    const sidRaw = table.sessionLockedById;
+    const lockerId =
+        sidRaw != null && String(sidRaw).trim() !== ""
+            ? String(sidRaw).trim()
+            : null;
 
-    if (currentUserId == null || table.sessionLockedById == null) {
-        return false;
+    if (lockerId != null) {
+        if (currentUserId == null) {
+            return true;
+        }
+        return lockerId !== String(currentUserId);
     }
-    return String(table.sessionLockedById) !== String(currentUserId);
+
+    const holderName = (table.sessionLockedByName || "").trim();
+    const viewerLabel = (currentDisplayName || "").trim();
+
+    // Candado visible sin id (p.ej. sólo nombre en overlay): mejor bloquear que abrir orden y hacer toast por claim fallido.
+    if (!holderName) {
+        return true;
+    }
+    if (!viewerLabel) {
+        return true;
+    }
+    return (
+        normalizeSessionLockPersonLabel(holderName) !==
+        normalizeSessionLockPersonLabel(viewerLabel)
+    );
 }
 
-/**
- * True si el candado lo tiene otro cliente (otro dispositivo y/o otro usuario).
- * Si el backend envía `sessionLockedByDeviceId`, se compara con `currentLockClientId`
- * (p. ej. MAC en Electron o device_id); así el mismo usuario en PC y móvil queda bloqueado en el segundo equipo.
- */
-export function isTableSessionLockedByOther(
-    table: Pick<
-        Table,
-        | "sessionLockedById"
-        | "sessionLockExpiresAt"
-    >,
-    currentUserId: string | number | undefined | null,
-): boolean {
-    if (table.sessionLockedById == null) {
-        return false;
+function normalizeSessionLockPersonLabel(s: string): string {
+    try {
+        return s
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .replace(/\s+/g, " ")
+            .trim();
+    } catch {
+        return s.toLowerCase().replace(/\s+/g, " ").trim();
     }
-    const exp = table.sessionLockExpiresAt;
-    if (exp) {
-        const t = new Date(exp).getTime();
-        if (!Number.isNaN(t) && t <= Date.now()) {
-            return false;
-        }
-    }
-    if (currentUserId == null) {
-        return false;
-    }
-    if (String(table.sessionLockedById) === String(currentUserId)) {
-        return false;
-    }
-    return true;
 }
 
 export type TableSessionLockOverlay = Pick<
     Table,
-    | "sessionLockedById"
-    | "sessionLockExpiresAt"
-    | "sessionLockedByName"
+    "sessionLockedById" | "sessionLockExpiresAt" | "sessionLockedByName"
 >;
 
 function readSessionLockFieldsFromMessage(message: Record<string, unknown>): {
@@ -233,11 +238,53 @@ export function tableSessionLockOverlayFromWs(
     };
 }
 
+function overlaySessionLockIsFullyCleared(
+    overlay: TableSessionLockOverlay,
+): boolean {
+    const id = overlay.sessionLockedById;
+    const name = overlay.sessionLockedByName;
+    const exp = overlay.sessionLockExpiresAt;
+    return (
+        (id == null || String(id).trim() === "") &&
+        (name == null || String(name).trim() === "") &&
+        (exp == null || String(exp).trim() === "")
+    );
+}
+
+/**
+ * La query `tablesByFloor` aún refleja candado activo (id/nombre y expiración no vencida).
+ * Evita que un `table_session_update` “vacío” por carrera/Strict Mode pise la snapshot del servidor.
+ */
+function serverTableSnapshotSuggestsActiveSessionLock(table: Table): boolean {
+    if (!hasVisibleTableSessionLock(table)) {
+        return false;
+    }
+    const exp = table.sessionLockExpiresAt;
+    if (exp == null || String(exp).trim() === "") {
+        return true;
+    }
+    const t = new Date(exp).getTime();
+    if (Number.isNaN(t)) {
+        return true;
+    }
+    return t > Date.now();
+}
+
+/**
+ * Mezcla overlay WS + fila GraphQL. Si el overlay borra el candado pero el servidor
+ * aún muestra uno vigente, se conserva la fila del servidor hasta el próximo refetch coherente.
+ */
 export function mergeTableSessionOverlay(
     table: Table,
     overlay: TableSessionLockOverlay | undefined,
 ): Table {
     if (!overlay) return table;
+    if (
+        overlaySessionLockIsFullyCleared(overlay) &&
+        serverTableSnapshotSuggestsActiveSessionLock(table)
+    ) {
+        return table;
+    }
     return {
         ...table,
         sessionLockedById: overlay.sessionLockedById,

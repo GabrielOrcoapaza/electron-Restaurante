@@ -5,8 +5,14 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { useUserPermissions } from "../../hooks/useUserPermissions";
 import { useWebSocket } from "../../context/WebSocketContext";
 import { useToast } from "../../context/ToastContext";
-import type { Table } from "../../types/table";
-import { shouldDenyTableEntryForSessionLock } from "../../types/table";
+import {
+    shouldDenyTableEntryForSessionLock,
+    type Table,
+} from "../../types/table";
+import {
+    RestrictedTableAccessModal,
+    type RestrictedModalPayload,
+} from "../../components/RestrictedTableAccessModal";
 import {
     CREATE_OPERATION,
     ADD_ITEMS_TO_OPERATION,
@@ -87,6 +93,8 @@ const Order: React.FC<OrderProps> = ({
     const { breakpoint, width: viewportWidth } = useResponsive();
     const { sendMessage } = useWebSocket();
     const { showToast } = useToast();
+    /** Claim fallido en servidor → mismo modal que en el plano (sin toast rojo). */
+    const [claimSessionDenied, setClaimSessionDenied] = useState(false);
     const isExistingOrder =
         Boolean(table?.currentOperationId) ||
         table?.status === "OCCUPIED" ||
@@ -164,94 +172,56 @@ const Order: React.FC<OrderProps> = ({
             ? "16rem"
             : "22rem";
 
-    // Función para verificar si el usuario puede acceder a esta mesa (por permisos)
-    const canAccessTable = (): { canAccess: boolean; reason?: string } => {
+    const sessionLockViewerDisplay = useMemo(
+        () =>
+            (user?.fullName || "").trim() ||
+            `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),
+        [user?.firstName, user?.fullName, user?.lastName],
+    );
+
+    const orderRestrictedPayload = useMemo((): RestrictedModalPayload | null => {
+        if (!user?.id || !table?.id) return null;
+        if (hasPermission("sales.pay")) return null;
+
         if (
             shouldDenyTableEntryForSessionLock(
                 table,
-                user?.id,
+                user.id,
+                sessionLockViewerDisplay,
             )
         ) {
-            return {
-                canAccess: false,
-                reason: `La pantalla de esta mesa está activa${table.sessionLockedByName ? ` (${table.sessionLockedByName})` : ""}. Use el mismo equipo o cierre la sesión allí.`,
-            };
+            return { table, kind: "session_lock" };
         }
 
-        // Quien tiene permiso de cobrar (sales.pay) puede acceder para procesar pagos
-        if (hasPermission("sales.pay")) {
-            return { canAccess: true };
-        }
-
-        // Si la mesa no está ocupada, cualquier usuario puede acceder
         if (!table.currentOperationId || !table.occupiedById) {
-            return { canAccess: true };
+            return null;
         }
 
-        // Si la mesa está ocupada, verificar el modo multi-waiter
         const isMultiWaiterEnabled =
             companyData?.branch?.isMultiWaiterEnabled || false;
+        if (isMultiWaiterEnabled) return null;
 
-        // Si multi-waiter está habilitado, cualquier usuario puede acceder
-        if (isMultiWaiterEnabled) {
-            return { canAccess: true };
-        }
+        if (String(table.occupiedById) === String(user.id)) return null;
 
-        // Si multi-waiter está deshabilitado, solo el usuario que creó la orden puede acceder
-        const tableOccupiedById = String(table.occupiedById);
-        const currentUserId = String(user?.id);
-
-        if (tableOccupiedById === currentUserId) {
-            return { canAccess: true };
-        }
-
-        // El usuario no es el que creó la orden
-        return {
-            canAccess: false,
-            reason: `Esta mesa está siendo atendida por ${table.userName || "otro usuario"}. Solo el usuario que creó la orden puede acceder a esta mesa.`,
-        };
-    };
-
-    const tableAccessOk = useMemo(
-        () => canAccessTable().canAccess,
+        return { table, kind: "order_occupied" };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [
-            table.id,
-            table.sessionLockedById,
-            table.occupiedById,
-            user?.id,
-            companyData?.branch?.isMultiWaiterEnabled,
-        ],
-    );
+    }, [
+        companyData?.branch?.isMultiWaiterEnabled,
+        sessionLockViewerDisplay,
+        table,
+        user?.id,
+    ]);
+
+    const tableAccessOk =
+        Boolean(user?.id && table?.id) &&
+        (hasPermission("sales.pay") || orderRestrictedPayload == null);
 
     useTableSessionLock({
         tableId: table?.id,
         userId: user?.id ? String(user.id) : undefined,
         enabled: Boolean(user?.id && table?.id && tableAccessOk),
-        onLockDenied: (msg) => {
-            showToast(msg, "error");
-            onClose();
-        },
+        onLockDenied: () => setClaimSessionDenied(true),
     });
-
-    // Verificar acceso al montar el componente
-    useEffect(() => {
-        const accessCheck = canAccessTable();
-        if (!accessCheck.canAccess) {
-            showToast(
-                accessCheck.reason ||
-                    "No tiene permiso para acceder a esta mesa.",
-                "error",
-            );
-            setTimeout(() => onClose(), 3000);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [
-        table.id,
-        table.sessionLockExpiresAt,
-        user?.id,
-        companyData?.branch?.isMultiWaiterEnabled,
-    ]);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(
         null,
     );
@@ -1591,23 +1561,37 @@ const Order: React.FC<OrderProps> = ({
         onClose();
     };
 
+    const restrictedOverlayPayload =
+        orderRestrictedPayload ??
+        (claimSessionDenied ? { table, kind: "session_lock" as const } : null);
+
     return (
-        <div
-            style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: "#f8fafc",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                zIndex: 1100,
-                margin: 0,
-                padding: 0,
-            }}
-        >
+        <>
+            {restrictedOverlayPayload && (
+                <RestrictedTableAccessModal
+                    payload={restrictedOverlayPayload}
+                    onClose={() => {
+                        setClaimSessionDenied(false);
+                        onClose();
+                    }}
+                />
+            )}
+            <div
+                style={{
+                    position: "fixed",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: "#f8fafc",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    zIndex: 1100,
+                    margin: 0,
+                    padding: 0,
+                }}
+            >
             <style>{`
 				.order-categories-grid-scroll {
 					scrollbar-width: auto;
@@ -3139,6 +3123,7 @@ const Order: React.FC<OrderProps> = ({
                 </div>
             )}
         </div>
+        </>
     );
 };
 
