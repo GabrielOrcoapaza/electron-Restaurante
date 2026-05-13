@@ -23,7 +23,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
 }) => {
     const { companyData, user, deviceId, getMacAddress } = useAuth();
     const branchId = companyData?.branch?.id;
-    /** IGV de la sede del documento anulado; si no viene en el reporte, sede de sesión (misma sucursal). */
+    /** IGV de la sede del documento anulado; si no viene en el reporte, sede de sesi?n (misma sucursal). */
     const igvPercentForSale = Number(
         annulledDocument?.branch?.igvPercentage ??
             companyData?.branch?.igvPercentage,
@@ -63,6 +63,17 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
     });
 
     const [createPersonMutation] = useMutation(CREATE_PERSON);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setTargetDocumentId("");
+        setTargetSerial("");
+        setSelectedClientId("");
+        setClientSearchTerm("");
+        setError(null);
+        setSuccessMsg(null);
+        setSelectedItems({});
+    }, [isOpen, annulledDocument?.id]);
 
     const { data: itemsData, loading: itemsLoading } = useQuery(GET_REISSUEABLE_ITEMS, {
         variables: { annulledDocumentId: annulledDocument?.id },
@@ -132,7 +143,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
             });
             const result = data?.searchPersonByDocument;
             if (!result?.person) {
-                showToast('No se encontró el documento en SUNAT ni en el sistema.', 'error');
+                showToast('No se encontr? el documento en SUNAT ni en el sistema.', 'error');
                 return;
             }
             const person = result.person;
@@ -182,6 +193,14 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
     }, [clientsData, clientSearchTerm, isFactura]);
 
     const reissueableItems = itemsData?.reissueableItems || [];
+    const convertibleItems = useMemo(
+        () =>
+            reissueableItems.filter(
+                (item: any) => Number(item.remainingQuantity) > 0,
+            ),
+        [reissueableItems],
+    );
+    const noItemsToConvert = !itemsLoading && convertibleItems.length === 0;
 
     // Totals Calculation based on SELECTED items
     const totals = useMemo(() => {
@@ -287,7 +306,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                     items: formattedItems,
                     deviceId: resolvedDeviceId,
                     printerId: null,
-                    notes: `Conversión desde ${annulledDocument.serial}-${annulledDocument.number}`
+                    notes: `Conversi?n desde ${annulledDocument.serial}-${annulledDocument.number}`
                 }
             });
 
@@ -332,6 +351,28 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                     {successMsg && (
                         <div className="mb-6 p-4 rounded-2xl border border-emerald-100 bg-emerald-50 text-sm font-bold text-emerald-600 dark:border-emerald-900/20 dark:bg-emerald-900/10">
                             {successMsg}
+                        </div>
+                    )}
+
+                    {noItemsToConvert && (
+                        <div
+                            className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/40 dark:bg-amber-950/30"
+                            role="status"
+                        >
+                            <p className="text-sm font-black text-amber-900 dark:text-amber-200">
+                                No quedan platos por convertir
+                            </p>
+                            <p className="mt-2 text-sm font-bold leading-relaxed text-amber-800/90 dark:text-amber-100/80">
+                                Esta orden ya fue convertida por completo a otro
+                                documento. No hay cantidades pendientes en el
+                                comprobante anulado{" "}
+                                <span className="whitespace-nowrap">
+                                    {annulledDocument?.serial}-
+                                    {annulledDocument?.number}
+                                </span>
+                                . Cierre este cuadro e intente con otro documento
+                                si corresponde.
+                            </p>
                         </div>
                     )}
 
@@ -394,7 +435,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                             <div className="flex overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-800/50">
                                 <input
                                     type="text"
-                                    placeholder={isFactura ? "Buscar por RUC o Razón Social..." : "Buscar por DNI, RUC o Nombre..."}
+                                    placeholder={isFactura ? "Buscar por RUC o Raz?n Social..." : "Buscar por DNI, RUC o Nombre..."}
                                     value={clientSearchTerm}
                                     onChange={e => {
                                         setClientSearchTerm(e.target.value);
@@ -467,9 +508,17 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                             <div className="flex items-center justify-center py-10">
                                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
                             </div>
+                        ) : noItemsToConvert ? (
+                            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 py-10 text-center dark:border-slate-700 dark:bg-slate-800/30">
+                                <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
+                                    Lista de productos vac?a: no hay l?neas con
+                                    cantidad disponible para emitir un nuevo
+                                    documento.
+                                </p>
+                            </div>
                         ) : (
                             <div className="grid grid-cols-1 gap-3">
-                                {reissueableItems.map((item: any) => {
+                                {convertibleItems.map((item: any) => {
                                     const isSelected = !!selectedItems[item.operationDetailId];
                                     return (
                                         <div
@@ -491,7 +540,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                                                     <span className={`text-sm font-bold ${isSelected ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}>
                                                         {item.productName}
                                                     </span>
-                                                    <span className="text-[10px] font-black text-slate-400">CANT: {item.remainingQuantity} • P.U: S/ {item.unitPrice.toFixed(2)}</span>
+                                                    <span className="text-[10px] font-black text-slate-400">CANT: {item.remainingQuantity} ��� P.U: S/ {item.unitPrice.toFixed(2)}</span>
                                                 </div>
                                             </div>
                                             <span className={`text-sm font-black ${isSelected ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-300'}`}>
@@ -535,7 +584,11 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                             </button>
                             <button
                                 onClick={handleCreate}
-                                disabled={creating || itemsLoading}
+                                disabled={
+                                    creating ||
+                                    itemsLoading ||
+                                    noItemsToConvert
+                                }
                                 className="flex-[2] h-14 rounded-2xl bg-indigo-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-200 transition-all hover:bg-indigo-700 disabled:opacity-50 dark:shadow-none"
                             >
                                 {creating ? (
@@ -544,7 +597,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                                         <span>Procesando...</span>
                                     </div>
                                 ) : (
-                                    'Confirmar Conversión'
+                                    'Confirmar Conversi?n'
                                 )}
                             </button>
                         </div>

@@ -218,7 +218,15 @@ const Order: React.FC<OrderProps> = ({
         ]);
 
     const tableAccessOk =
-        Boolean(user?.id && table?.id) && orderRestrictedPayload == null;
+        Boolean(user?.id && table?.id) &&
+        (hasPermission("sales.pay") || orderRestrictedPayload == null);
+
+    useTableSessionLock({
+        tableId: table?.id,
+        userId: user?.id ? String(user.id) : undefined,
+        enabled: Boolean(user?.id && table?.id && tableAccessOk),
+        onLockDenied: () => setClaimSessionDenied(true),
+    });
 
     const [selectedCategory, setSelectedCategory] = useState<string | null>(
         null,
