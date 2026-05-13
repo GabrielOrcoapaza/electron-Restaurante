@@ -25,6 +25,7 @@ import {
 } from "../../graphql/queries";
 import Order, { type OrderSuccessPayload } from "./order";
 import { logTableSessionLock } from "../../utils/tableSessionLockLog";
+import { useTableSessionLock } from "../../hooks/useTableSessionLock";
 import {
     RestrictedTableAccessModal,
     type RestrictedModalPayload,
@@ -188,6 +189,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     const [selectedTable, setSelectedTable] = useState<Table | null>(null);
     const [showStatusModal, setShowStatusModal] = useState(false);
     const [showOrder, setShowOrder] = useState(false);
+    const [claimSessionDenied, setClaimSessionDenied] = useState(false);
     const [restrictedAccessModal, setRestrictedAccessModal] =
         useState<RestrictedModalPayload | null>(null);
     const [orderTimerTick, setOrderTimerTick] = useState(() => Date.now());
@@ -268,16 +270,24 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         },
     });
 
+    /**
+     * Candado de sesión activo mientras la mesa esté "seleccionada" (vía modal de opciones o pantalla de orden).
+     * Se activa aquí para que los Admin/Caja también bloqueen la mesa al abrir el menú de opciones inicial.
+     */
+    useTableSessionLock({
+        tableId: selectedTable?.id,
+        userId: user?.id ? String(user.id) : undefined,
+        enabled: Boolean(selectedTable && (showOrder || showStatusModal)),
+        onLockDenied: () => setClaimSessionDenied(true),
+    });
+
     const tablesOnFloor: Table[] = tablesData?.tablesByFloor ?? [];
     const sessionMergedTables = useMemo(
         () =>
             tablesOnFloor.map((t) =>
-                mergeTableSessionOverlay(
-                    t,
-                    sessionLockOverlayByTableId[t.id],
-                ),
+                mergeTableSessionOverlay(t, sessionLockOverlayByTableId[t.id]),
             ),
-        [tablesOnFloor, sessionLockOverlayByTableId],
+        [tablesOnFloor, sessionLockOverlayByTableId, orderTimerTick],
     );
     const visibleTables = sessionMergedTables.filter(
         (t) => t.isActive !== false,
@@ -345,7 +355,9 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             () => {},
         );
         const unsubscribeSnapshot = subscribe("tables_snapshot", () => {
-            logTableSessionLock("ws:tables_snapshot", { scheduleRefetch: true });
+            logTableSessionLock("ws:tables_snapshot", {
+                scheduleRefetch: true,
+            });
             scheduleEventRefetch();
         });
         const unsubscribeTableUpdate = subscribe(
@@ -426,14 +438,11 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     };
 
     const canAccessTable = (table: Table): FloorTableAccessResult => {
-        if (hasPermission("sales.pay")) {
-            return { canAccess: true };
-        }
-
         const sessionLockViewerDisplay =
             (user?.fullName || "").trim() ||
             `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
 
+        // 1. El candado de sesión (técnico) es prioritario: evita colisiones de edición simultánea.
         if (
             shouldDenyTableEntryForSessionLock(
                 table,
@@ -444,11 +453,16 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             return {
                 canAccess: false,
                 restrictedKind: "session_lock",
-                reason:
-                    "La pantalla de esta mesa está en uso por otro usuario.",
+                reason: "La pantalla de esta mesa está en uso por otro usuario.",
             };
         }
 
+        // 2. Si tiene permiso de pago (Cajero/Admin), puede entrar aunque la mesa esté "ocupada" por otro mozo.
+        if (hasPermission("sales.pay")) {
+            return { canAccess: true };
+        }
+
+        // 3. Validación de negocio: ¿está ocupada por otro mozo?
         if (!table.currentOperationId || !table.occupiedById) {
             return { canAccess: true };
         }
@@ -573,10 +587,14 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                                                 : "border-slate-200 bg-slate-50 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/20"
                                         }`}
                                     >
-                                        <span className={`mb-1 ${isXs ? "text-3xl" : "text-2xl"}`}>
+                                        <span
+                                            className={`mb-1 ${isXs ? "text-3xl" : "text-2xl"}`}
+                                        >
                                             🏢
                                         </span>
-                                        <span className={`line-clamp-2 w-full ${isXs ? "text-sm" : "text-xs"} font-semibold leading-tight`}>
+                                        <span
+                                            className={`line-clamp-2 w-full ${isXs ? "text-sm" : "text-xs"} font-semibold leading-tight`}
+                                        >
                                             {floor.name}
                                         </span>
                                         {isFloorSelected && (
@@ -690,35 +708,36 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                                                 }`}
                                             >
                                                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
-                                                <span
-                                                    className={`mb-1 line-clamp-1 w-full font-bold ${classes.text}`}
-                                                    style={{
-                                                        fontSize: isXs
-                                                            ? "1.2rem"
-                                                            : "1.1rem",
-                                                    }}
-                                                >
-                                                    {table.name}
-                                                </span>
-
-                                                {orderTimerLabel != null && (
-                                                    <div
-                                                        title="Tiempo desde la apertura de la orden"
-                                                        className={`mt-1 rounded-md px-2 py-0.5 text-xs font-bold ${classes.text} bg-white/30 dark:bg-black/20`}
+                                                    <span
+                                                        className={`mb-1 line-clamp-1 w-full font-bold ${classes.text}`}
+                                                        style={{
+                                                            fontSize: isXs
+                                                                ? "1.2rem"
+                                                                : "1.1rem",
+                                                        }}
                                                     >
-                                                        ⏱ {orderTimerLabel}
-                                                    </div>
-                                                )}
+                                                        {table.name}
+                                                    </span>
 
-                                                {table.userName &&
-                                                    table.status !==
-                                                        "AVAILABLE" && (
+                                                    {orderTimerLabel !=
+                                                        null && (
                                                         <div
-                                                            className={`mt-1 max-w-full truncate rounded-lg px-2 py-0.5 ${isXs ? "text-sm" : "text-[11px]"} font-bold ${classes.badgeBg} ${classes.badgeText}`}
+                                                            title="Tiempo desde la apertura de la orden"
+                                                            className={`mt-1 rounded-md px-2 py-0.5 text-xs font-bold ${classes.text} bg-white/30 dark:bg-black/20`}
                                                         >
-                                                            {table.userName}
+                                                            ⏱ {orderTimerLabel}
                                                         </div>
                                                     )}
+
+                                                    {table.userName &&
+                                                        table.status !==
+                                                            "AVAILABLE" && (
+                                                            <div
+                                                                className={`mt-1 max-w-full truncate rounded-lg px-2 py-0.5 ${isXs ? "text-sm" : "text-[11px]"} font-bold ${classes.badgeBg} ${classes.badgeText}`}
+                                                            >
+                                                                {table.userName}
+                                                            </div>
+                                                        )}
                                                 </div>
 
                                                 {showSessionLockIcon && (
@@ -749,10 +768,22 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
             )}
 
             {/* Acceso restringido (candado de sesión u orden de otro mozo) */}
-            {restrictedAccessModal && (
+            {(restrictedAccessModal ||
+                (claimSessionDenied && selectedTable)) && (
                 <RestrictedTableAccessModal
-                    payload={restrictedAccessModal}
-                    onClose={() => setRestrictedAccessModal(null)}
+                    payload={
+                        restrictedAccessModal || {
+                            table: selectedTable!,
+                            kind: "session_lock",
+                        }
+                    }
+                    onClose={() => {
+                        setRestrictedAccessModal(null);
+                        setClaimSessionDenied(false);
+                        setSelectedTable(null);
+                        setShowStatusModal(false);
+                        setShowOrder(false);
+                    }}
                 />
             )}
 
@@ -830,6 +861,7 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                     onClose={() => {
                         setShowOrder(false);
                         setSelectedTable(null);
+                        setClaimSessionDenied(false);
                     }}
                     onSuccess={async (payload) => {
                         if (payload && companyData?.branch?.id) {
@@ -839,6 +871,9 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
                                 "success",
                             );
                         }
+                        setShowOrder(false);
+                        setSelectedTable(null);
+                        setClaimSessionDenied(false);
                         console.log(
                             "🔄 Refetch inmediato de mesas después de guardar orden",
                         );

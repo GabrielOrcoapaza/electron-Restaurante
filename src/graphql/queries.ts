@@ -580,6 +580,9 @@ export const GET_BRANCH_FULL = gql`
                     currentOperationId
                     occupiedById
                     userName
+                    sessionLockedById
+                    sessionLockedByName
+                    sessionLockExpiresAt
                 }
             }
             categories {

@@ -179,49 +179,47 @@ const Order: React.FC<OrderProps> = ({
         [user?.firstName, user?.fullName, user?.lastName],
     );
 
-    const orderRestrictedPayload = useMemo((): RestrictedModalPayload | null => {
-        if (!user?.id || !table?.id) return null;
-        if (hasPermission("sales.pay")) return null;
+    const orderRestrictedPayload =
+        useMemo((): RestrictedModalPayload | null => {
+            if (!user?.id || !table?.id) return null;
 
-        if (
-            shouldDenyTableEntryForSessionLock(
-                table,
-                user.id,
-                sessionLockViewerDisplay,
-            )
-        ) {
-            return { table, kind: "session_lock" };
-        }
+            // 1. Candado de sesión (prioridad técnica para evitar colisiones)
+            if (
+                shouldDenyTableEntryForSessionLock(
+                    table,
+                    user.id,
+                    sessionLockViewerDisplay,
+                )
+            ) {
+                return { table, kind: "session_lock" };
+            }
 
-        if (!table.currentOperationId || !table.occupiedById) {
-            return null;
-        }
+            // 2. Si tiene permiso de pago, ignora la ocupación por otro mozo
+            if (hasPermission("sales.pay")) return null;
 
-        const isMultiWaiterEnabled =
-            companyData?.branch?.isMultiWaiterEnabled || false;
-        if (isMultiWaiterEnabled) return null;
+            // 3. Ocupación por otro mozo
+            if (!table.currentOperationId || !table.occupiedById) {
+                return null;
+            }
 
-        if (String(table.occupiedById) === String(user.id)) return null;
+            const isMultiWaiterEnabled =
+                companyData?.branch?.isMultiWaiterEnabled || false;
+            if (isMultiWaiterEnabled) return null;
 
-        return { table, kind: "order_occupied" };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [
-        companyData?.branch?.isMultiWaiterEnabled,
-        sessionLockViewerDisplay,
-        table,
-        user?.id,
-    ]);
+            if (String(table.occupiedById) === String(user.id)) return null;
+
+            return { table, kind: "order_occupied" };
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [
+            companyData?.branch?.isMultiWaiterEnabled,
+            sessionLockViewerDisplay,
+            table,
+            user?.id,
+        ]);
 
     const tableAccessOk =
-        Boolean(user?.id && table?.id) &&
-        (hasPermission("sales.pay") || orderRestrictedPayload == null);
+        Boolean(user?.id && table?.id) && orderRestrictedPayload == null;
 
-    useTableSessionLock({
-        tableId: table?.id,
-        userId: user?.id ? String(user.id) : undefined,
-        enabled: Boolean(user?.id && table?.id && tableAccessOk),
-        onLockDenied: () => setClaimSessionDenied(true),
-    });
     const [selectedCategory, setSelectedCategory] = useState<string | null>(
         null,
     );
@@ -1592,7 +1590,7 @@ const Order: React.FC<OrderProps> = ({
                     padding: 0,
                 }}
             >
-            <style>{`
+                <style>{`
 				.order-categories-grid-scroll {
 					scrollbar-width: auto;
 				}
@@ -1612,1385 +1610,1390 @@ const Order: React.FC<OrderProps> = ({
 					background: #64748b;
 				}
 			`}</style>
-            <div className="flex h-full w-full flex-col overflow-hidden bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-                {/* Header */}
-                <div className={`flex ${isXs ? "flex-col items-start gap-4" : "items-center justify-between gap-4"} border-b border-slate-200 bg-white ${isXs ? "px-4 py-3" : "px-6 py-4"} text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100`}>
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                        <div className={`flex items-center gap-2 rounded-xl bg-slate-100 ${isXs ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"} font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200`}>
-                            Piso {resolvedFloorName ?? "—"}
-                        </div>
-                        <span className="text-slate-400 dark:text-slate-500">
-                            •
-                        </span>
-                        <div className={`flex items-center gap-2 rounded-xl bg-indigo-50 ${isXs ? "px-3 py-1.5 text-sm" : "px-4 py-2 text-base"} font-bold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300`}>
-                            Mesa {table.name.replace("MESA ", "")}
-                        </div>
-                        <span className="text-slate-400 dark:text-slate-500">
-                            •
-                        </span>
-                        <div className={`flex items-center gap-2 rounded-xl bg-slate-100 ${isXs ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"} font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200`}>
-                            {headerWaiterName ?? "—"}
-                        </div>
-                    </div>
-                    <div className={`flex items-center gap-3 ${isXs ? "w-full justify-between" : ""}`}>
-                        {onOpenCash && canNavigateToCashPay && (
-                            <button
-                                type="button"
-                                onClick={handleOpenCashFromOrder}
-                                className={`flex items-center gap-2 rounded-xl bg-emerald-50 ${isXs ? "flex-1 justify-center px-3 py-2" : "px-4 py-2.5"} text-sm font-bold text-emerald-700 transition-all hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30`}
-                                title="Ir a cobrar en Caja"
-                            >
-                                <span>💵</span>
-                                Caja
-                            </button>
-                        )}
-                        {!isMobile && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setIsKeyboardVisible(true);
-                                    setTimeout(
-                                        () => searchInputRef.current?.focus(),
-                                        50,
-                                    );
-                                }}
-                                className="flex items-center gap-2 rounded-xl bg-violet-50 px-4 py-2.5 text-sm font-bold text-violet-700 transition-all hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-400 dark:hover:bg-violet-900/30"
-                                title="Mostrar teclado en pantalla"
-                            >
-                                <span>⌨️</span>
-                                Teclado virtual
-                            </button>
-                        )}
-                        <button
-                            onClick={onClose}
-                            className={`rounded-xl border border-slate-200 bg-slate-50 ${isXs ? "flex-1 px-3 py-2" : "px-6 py-2.5"} text-sm font-bold text-slate-700 transition-all hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700`}
-                        >
-                            Cerrar
-                        </button>
-                    </div>
-                </div>
-
-                {/* Body */}
-                <div
-                    className="grid flex-1 gap-4 overflow-hidden p-4"
-                    style={{
-                        gridTemplateColumns:
-                            isXs || isSmall || isMedium ? "1fr" : "1.5fr 1fr",
-                    }}
-                >
-                    {/* Col izquierda: búsqueda y catálogo */}
+                <div className="flex h-full w-full flex-col overflow-hidden bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+                    {/* Header */}
                     <div
-                        className="flex flex-col overflow-hidden"
-                        style={{ order: isXs || isSmall || isMedium ? 2 : 1 }}
+                        className={`flex ${isXs ? "flex-col items-start gap-4" : "items-center justify-between gap-4"} border-b border-slate-200 bg-white ${isXs ? "px-4 py-3" : "px-6 py-4"} text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100`}
                     >
-                        {/* Búsqueda */}
-                        <div className="mb-4 flex-shrink-0 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
-                            <div className="flex flex-wrap items-center gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setSearchByCodeOnly((v) => !v)
-                                    }
-                                    className={`flex items-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-semibold transition-all duration-200 ${
-                                        searchByCodeOnly
-                                            ? "border-blue-500 bg-blue-600 text-white dark:border-blue-400 dark:bg-blue-500"
-                                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
-                                    }`}
-                                >
-                                    Búsqueda solo código
-                                </button>
-                                <div className="relative flex-1 min-w-0">
-                                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg opacity-60">
-                                        🔎
-                                    </span>
-                                    <input
-                                        ref={searchInputRef}
-                                        type="text"
-                                        placeholder={
-                                            searchByCodeOnly
-                                                ? "Código del producto..."
-                                                : "Buscar producto o escanear código"
-                                        }
-                                        value={searchTerm}
-                                        onChange={(e) =>
-                                            setSearchTerm(e.target.value)
-                                        }
-                                        onKeyDown={(e) => {
-                                            if (
-                                                e.key === "Enter" &&
-                                                productsList.length > 0
-                                            ) {
-                                                e.preventDefault();
-                                                handleAddProduct(
-                                                    productsList[0].id,
-                                                    1,
-                                                );
-                                            }
-                                        }}
-                                        className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-base text-slate-900 outline-none transition-all duration-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                                    />
-                                </div>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                            <div
+                                className={`flex items-center gap-2 rounded-xl bg-slate-100 ${isXs ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"} font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200`}
+                            >
+                                Piso {resolvedFloorName ?? "—"}
+                            </div>
+                            <span className="text-slate-400 dark:text-slate-500">
+                                •
+                            </span>
+                            <div
+                                className={`flex items-center gap-2 rounded-xl bg-indigo-50 ${isXs ? "px-3 py-1.5 text-sm" : "px-4 py-2 text-base"} font-bold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300`}
+                            >
+                                Mesa {table.name.replace("MESA ", "")}
+                            </div>
+                            <span className="text-slate-400 dark:text-slate-500">
+                                •
+                            </span>
+                            <div
+                                className={`flex items-center gap-2 rounded-xl bg-slate-100 ${isXs ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"} font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200`}
+                            >
+                                {headerWaiterName ?? "—"}
                             </div>
                         </div>
-
-                        {/* Contenedor con breadcrumb + grid (como delivery) */}
                         <div
-                            className="border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                            className={`flex items-center gap-3 ${isXs ? "w-full justify-between" : ""}`}
+                        >
+                            {onOpenCash && canNavigateToCashPay && (
+                                <button
+                                    type="button"
+                                    onClick={handleOpenCashFromOrder}
+                                    className={`flex items-center gap-2 rounded-xl bg-emerald-50 ${isXs ? "flex-1 justify-center px-3 py-2" : "px-4 py-2.5"} text-sm font-bold text-emerald-700 transition-all hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30`}
+                                    title="Ir a cobrar en Caja"
+                                >
+                                    <span>💵</span>
+                                    Caja
+                                </button>
+                            )}
+                            {!isMobile && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsKeyboardVisible(true);
+                                        setTimeout(
+                                            () =>
+                                                searchInputRef.current?.focus(),
+                                            50,
+                                        );
+                                    }}
+                                    className="flex items-center gap-2 rounded-xl bg-violet-50 px-4 py-2.5 text-sm font-bold text-violet-700 transition-all hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-400 dark:hover:bg-violet-900/30"
+                                    title="Mostrar teclado en pantalla"
+                                >
+                                    <span>⌨️</span>
+                                    Teclado virtual
+                                </button>
+                            )}
+                            <button
+                                onClick={onClose}
+                                className={`rounded-xl border border-slate-200 bg-slate-50 ${isXs ? "flex-1 px-3 py-2" : "px-6 py-2.5"} text-sm font-bold text-slate-700 transition-all hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700`}
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Body */}
+                    <div
+                        className="grid flex-1 gap-4 overflow-hidden p-4"
+                        style={{
+                            gridTemplateColumns:
+                                isXs || isSmall || isMedium
+                                    ? "1fr"
+                                    : "1.5fr 1fr",
+                        }}
+                    >
+                        {/* Col izquierda: búsqueda y catálogo */}
+                        <div
+                            className="flex flex-col overflow-hidden"
                             style={{
-                                flex: 1,
-                                minHeight: 0,
-                                borderRadius: isSmall
-                                    ? "10px"
-                                    : isMedium
-                                      ? "12px"
-                                      : "14px",
-                                display: "flex",
-                                flexDirection: "column",
-                                overflow: "hidden",
+                                order: isXs || isSmall || isMedium ? 2 : 1,
                             }}
                         >
-                            {/* Header: ruta como botones grandes (fácil de pulsar en salón) + Volver */}
+                            {/* Búsqueda */}
+                            <div className="mb-4 flex-shrink-0 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setSearchByCodeOnly((v) => !v)
+                                        }
+                                        className={`flex items-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-semibold transition-all duration-200 ${
+                                            searchByCodeOnly
+                                                ? "border-blue-500 bg-blue-600 text-white dark:border-blue-400 dark:bg-blue-500"
+                                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
+                                        }`}
+                                    >
+                                        Búsqueda solo código
+                                    </button>
+                                    <div className="relative flex-1 min-w-0">
+                                        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg opacity-60">
+                                            🔎
+                                        </span>
+                                        <input
+                                            ref={searchInputRef}
+                                            type="text"
+                                            placeholder={
+                                                searchByCodeOnly
+                                                    ? "Código del producto..."
+                                                    : "Buscar producto o escanear código"
+                                            }
+                                            value={searchTerm}
+                                            onChange={(e) =>
+                                                setSearchTerm(e.target.value)
+                                            }
+                                            onKeyDown={(e) => {
+                                                if (
+                                                    e.key === "Enter" &&
+                                                    productsList.length > 0
+                                                ) {
+                                                    e.preventDefault();
+                                                    handleAddProduct(
+                                                        productsList[0].id,
+                                                        1,
+                                                    );
+                                                }
+                                            }}
+                                            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-base text-slate-900 outline-none transition-all duration-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Contenedor con breadcrumb + grid (como delivery) */}
                             <div
-                                className="border-b border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-900/70"
+                                className="border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
                                 style={{
-                                    padding: isSmall ? "0.75rem" : "1rem",
+                                    flex: 1,
+                                    minHeight: 0,
+                                    borderRadius: isSmall
+                                        ? "10px"
+                                        : isMedium
+                                          ? "12px"
+                                          : "14px",
                                     display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    gap: "0.75rem",
-                                    flexWrap: "nowrap",
+                                    flexDirection: "column",
+                                    overflow: "hidden",
                                 }}
                             >
+                                {/* Header: ruta como botones grandes (fácil de pulsar en salón) + Volver */}
                                 <div
-                                    role="navigation"
-                                    aria-label="Ubicación en el menú"
+                                    className="border-b border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-900/70"
                                     style={{
+                                        padding: isSmall ? "0.75rem" : "1rem",
                                         display: "flex",
                                         alignItems: "center",
-                                        gap: isSmall ? "0.5rem" : "0.65rem",
+                                        justifyContent: "space-between",
+                                        gap: "0.75rem",
                                         flexWrap: "nowrap",
-                                        minWidth: 0,
-                                        flex: 1,
-                                        overflowX: "auto",
-                                        overflowY: "hidden",
-                                        whiteSpace: "nowrap",
                                     }}
                                 >
-                                    {isSearching ? (
-                                        <h3
-                                            className="text-slate-700 dark:text-slate-200"
-                                            style={{
-                                                fontSize: breadcrumbFontSize,
-                                                fontWeight: "600",
-                                                margin: 0,
-                                            }}
-                                        >
-                                            Resultados de búsqueda
-                                        </h3>
-                                    ) : (
-                                        <>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setSelectedCategory(null);
-                                                    setSelectedSubcategory(
-                                                        null,
-                                                    );
-                                                }}
-                                                className={`inline-flex items-center gap-2 justify-center border text-center transition-all duration-150 ${
-                                                    !selectedCategory
-                                                        ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-200"
-                                                        : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
-                                                }`}
+                                    <div
+                                        role="navigation"
+                                        aria-label="Ubicación en el menú"
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: isSmall ? "0.5rem" : "0.65rem",
+                                            flexWrap: "nowrap",
+                                            minWidth: 0,
+                                            flex: 1,
+                                            overflowX: "auto",
+                                            overflowY: "hidden",
+                                            whiteSpace: "nowrap",
+                                        }}
+                                    >
+                                        {isSearching ? (
+                                            <h3
+                                                className="text-slate-700 dark:text-slate-200"
                                                 style={{
-                                                    minHeight:
-                                                        breadcrumbBtnMinH,
-                                                    padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-                                                    borderWidth: "1.5px",
-                                                    borderRadius:
-                                                        breadcrumbBtnRadius,
-                                                    fontSize: breadcrumbBtnFont,
-                                                    fontWeight: 700,
-                                                    cursor: "pointer",
-                                                    whiteSpace: "nowrap",
-                                                    touchAction: "manipulation",
-                                                    lineHeight: 1.2,
+                                                    fontSize:
+                                                        breadcrumbFontSize,
+                                                    fontWeight: "600",
+                                                    margin: 0,
                                                 }}
                                             >
-                                                <CategoryIcon
-                                                    iconId="grid_view"
-                                                    type="category"
-                                                    size="1.1rem"
-                                                />
-                                                Categorías
-                                            </button>
-                                            {selectedCategory && (
-                                                <>
-                                                    <span
-                                                        className="text-slate-400 dark:text-slate-500"
-                                                        style={{
-                                                            fontSize:
-                                                                breadcrumbBtnFont,
-                                                            fontWeight: 700,
-                                                            userSelect: "none",
-                                                        }}
-                                                        aria-hidden
-                                                    >
-                                                        ›
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        title={
-                                                            categories.find(
-                                                                (c: any) =>
-                                                                    c.id ===
-                                                                    selectedCategory,
-                                                            )?.name || undefined
-                                                        }
-                                                        onClick={() =>
-                                                            setSelectedSubcategory(
-                                                                null,
-                                                            )
-                                                        }
-                                                        className={`inline-flex items-center gap-2 justify-center border text-center transition-all duration-150 ${
-                                                            !selectedSubcategory
-                                                                ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-200"
-                                                                : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
-                                                        }`}
-                                                        style={{
-                                                            minHeight:
-                                                                breadcrumbBtnMinH,
-                                                            padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-                                                            borderWidth:
-                                                                "1.5px",
-                                                            borderRadius:
-                                                                breadcrumbBtnRadius,
-                                                            fontSize:
-                                                                breadcrumbBtnFont,
-                                                            fontWeight: 700,
-                                                            cursor: "pointer",
-                                                            whiteSpace:
-                                                                "nowrap",
-                                                            maxWidth:
-                                                                breadcrumbLabelMaxWidth,
-                                                            minWidth: 0,
-                                                            overflow: "hidden",
-                                                            touchAction:
-                                                                "manipulation",
-                                                            lineHeight: 1.2,
-                                                            textAlign: "center",
-                                                            textOverflow:
-                                                                "ellipsis",
-                                                        }}
-                                                    >
-                                                        <CategoryIcon
-                                                            iconId={
+                                                Resultados de búsqueda
+                                            </h3>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedCategory(
+                                                            null,
+                                                        );
+                                                        setSelectedSubcategory(
+                                                            null,
+                                                        );
+                                                    }}
+                                                    className={`inline-flex items-center gap-2 justify-center border text-center transition-all duration-150 ${
+                                                        !selectedCategory
+                                                            ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-200"
+                                                            : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
+                                                    }`}
+                                                    style={{
+                                                        minHeight:
+                                                            breadcrumbBtnMinH,
+                                                        padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
+                                                        borderWidth: "1.5px",
+                                                        borderRadius:
+                                                            breadcrumbBtnRadius,
+                                                        fontSize:
+                                                            breadcrumbBtnFont,
+                                                        fontWeight: 700,
+                                                        cursor: "pointer",
+                                                        whiteSpace: "nowrap",
+                                                        touchAction:
+                                                            "manipulation",
+                                                        lineHeight: 1.2,
+                                                    }}
+                                                >
+                                                    <CategoryIcon
+                                                        iconId="grid_view"
+                                                        type="category"
+                                                        size="1.1rem"
+                                                    />
+                                                    Categorías
+                                                </button>
+                                                {selectedCategory && (
+                                                    <>
+                                                        <span
+                                                            className="text-slate-400 dark:text-slate-500"
+                                                            style={{
+                                                                fontSize:
+                                                                    breadcrumbBtnFont,
+                                                                fontWeight: 700,
+                                                                userSelect:
+                                                                    "none",
+                                                            }}
+                                                            aria-hidden
+                                                        >
+                                                            ›
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            title={
                                                                 categories.find(
                                                                     (c: any) =>
                                                                         c.id ===
                                                                         selectedCategory,
-                                                                )?.icon
+                                                                )?.name ||
+                                                                undefined
                                                             }
-                                                            type="category"
-                                                            size="1.1rem"
-                                                        />
-                                                        {categories.find(
-                                                            (c: any) =>
-                                                                c.id ===
-                                                                selectedCategory,
-                                                        )?.name || "Categoría"}
-                                                    </button>
-                                                </>
-                                            )}
-                                            {selectedSubcategory && (
-                                                <>
-                                                    <span
-                                                        className="text-slate-400 dark:text-slate-500"
-                                                        style={{
-                                                            fontSize:
-                                                                breadcrumbBtnFont,
-                                                            fontWeight: 700,
-                                                            userSelect: "none",
-                                                        }}
-                                                        aria-hidden
-                                                    >
-                                                        ›
-                                                    </span>
-                                                    <span
-                                                        title={
-                                                            subcategoriesOfCategory.find(
-                                                                (s: any) =>
-                                                                    s.id ===
-                                                                    selectedSubcategory,
-                                                            )?.name || undefined
-                                                        }
-                                                        className="inline-flex items-center gap-2 border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                                                        style={{
-                                                            minHeight:
-                                                                breadcrumbBtnMinH,
-                                                            padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-                                                            borderWidth:
-                                                                "1.5px",
-                                                            borderRadius:
-                                                                breadcrumbBtnRadius,
-                                                            fontSize:
-                                                                breadcrumbBtnFont,
-                                                            fontWeight: 700,
-                                                            whiteSpace:
-                                                                "nowrap",
-                                                            maxWidth:
-                                                                breadcrumbLabelMaxWidth,
-                                                            minWidth: 0,
-                                                            overflow: "hidden",
-                                                            boxSizing:
-                                                                "border-box",
-                                                            lineHeight: 1.2,
-                                                            textAlign: "center",
-                                                            textOverflow:
-                                                                "ellipsis",
-                                                        }}
-                                                    >
-                                                        <CategoryIcon
-                                                            iconId={
+                                                            onClick={() =>
+                                                                setSelectedSubcategory(
+                                                                    null,
+                                                                )
+                                                            }
+                                                            className={`inline-flex items-center gap-2 justify-center border text-center transition-all duration-150 ${
+                                                                !selectedSubcategory
+                                                                    ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-200"
+                                                                    : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
+                                                            }`}
+                                                            style={{
+                                                                minHeight:
+                                                                    breadcrumbBtnMinH,
+                                                                padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
+                                                                borderWidth:
+                                                                    "1.5px",
+                                                                borderRadius:
+                                                                    breadcrumbBtnRadius,
+                                                                fontSize:
+                                                                    breadcrumbBtnFont,
+                                                                fontWeight: 700,
+                                                                cursor: "pointer",
+                                                                whiteSpace:
+                                                                    "nowrap",
+                                                                maxWidth:
+                                                                    breadcrumbLabelMaxWidth,
+                                                                minWidth: 0,
+                                                                overflow:
+                                                                    "hidden",
+                                                                touchAction:
+                                                                    "manipulation",
+                                                                lineHeight: 1.2,
+                                                                textAlign:
+                                                                    "center",
+                                                                textOverflow:
+                                                                    "ellipsis",
+                                                            }}
+                                                        >
+                                                            <CategoryIcon
+                                                                iconId={
+                                                                    categories.find(
+                                                                        (
+                                                                            c: any,
+                                                                        ) =>
+                                                                            c.id ===
+                                                                            selectedCategory,
+                                                                    )?.icon
+                                                                }
+                                                                type="category"
+                                                                size="1.1rem"
+                                                            />
+                                                            {categories.find(
+                                                                (c: any) =>
+                                                                    c.id ===
+                                                                    selectedCategory,
+                                                            )?.name ||
+                                                                "Categoría"}
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {selectedSubcategory && (
+                                                    <>
+                                                        <span
+                                                            className="text-slate-400 dark:text-slate-500"
+                                                            style={{
+                                                                fontSize:
+                                                                    breadcrumbBtnFont,
+                                                                fontWeight: 700,
+                                                                userSelect:
+                                                                    "none",
+                                                            }}
+                                                            aria-hidden
+                                                        >
+                                                            ›
+                                                        </span>
+                                                        <span
+                                                            title={
                                                                 subcategoriesOfCategory.find(
                                                                     (s: any) =>
                                                                         s.id ===
                                                                         selectedSubcategory,
-                                                                )?.icon
+                                                                )?.name ||
+                                                                undefined
                                                             }
-                                                            type="subcategory"
-                                                            size="1.1rem"
-                                                        />
-                                                        {subcategoriesOfCategory.find(
-                                                            (s: any) =>
-                                                                s.id ===
-                                                                selectedSubcategory,
-                                                        )?.name ||
-                                                            "Subcategoría"}
-                                                    </span>
-                                                </>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (selectedSubcategory) {
-                                            setSelectedSubcategory(null);
-                                            return;
-                                        }
-                                        if (selectedCategory) {
-                                            setSelectedCategory(null);
-                                            setSelectedSubcategory(null);
-                                        }
-                                    }}
-                                    disabled={
-                                        isSearching ||
-                                        (!selectedCategory &&
-                                            !selectedSubcategory)
-                                    }
-                                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition-all duration-150 hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
-                                    style={{ flexShrink: 0 }}
-                                >
-                                    Volver
-                                </button>
-                            </div>
-
-                            {/* Grid: categorías, subcategorías o productos */}
-                            <div
-                                className="order-categories-grid-scroll"
-                                style={{
-                                    flex: 1,
-                                    minHeight: 0,
-                                    padding: gridPadding,
-                                    overflowY: "auto",
-                                    overflowX: "hidden",
-                                }}
-                            >
-                                {productsLoading && showProductsInGrid ? (
-                                    <div
-                                        className="rounded-xl border border-slate-200 bg-white/80 px-4 py-8 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400"
-                                        style={{
-                                            fontSize: isSmall
-                                                ? "0.8125rem"
-                                                : "0.875rem",
-                                        }}
-                                    >
-                                        Cargando...
-                                    </div>
-                                ) : (
-                                    <div
-                                        style={{
-                                            display: "grid",
-                                            gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCol}, 1fr))`,
-                                            gap: gridGap,
-                                        }}
-                                    >
-                                        {/* Categorías */}
-                                        {showCategoriesInGrid &&
-                                            (categoriesLoading ? (
-                                                <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
-                                                    Cargando categorías...
-                                                </div>
-                                            ) : (
-                                                categories.map(
-                                                    (category: any) => (
-                                                        <div
-                                                            key={category.id}
-                                                            onClick={() => {
-                                                                setSelectedCategory(
-                                                                    category.id,
-                                                                );
-                                                                setSelectedSubcategory(
-                                                                    null,
-                                                                );
+                                                            className="inline-flex items-center gap-2 border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                            style={{
+                                                                minHeight:
+                                                                    breadcrumbBtnMinH,
+                                                                padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
+                                                                borderWidth:
+                                                                    "1.5px",
+                                                                borderRadius:
+                                                                    breadcrumbBtnRadius,
+                                                                fontSize:
+                                                                    breadcrumbBtnFont,
+                                                                fontWeight: 700,
+                                                                whiteSpace:
+                                                                    "nowrap",
+                                                                maxWidth:
+                                                                    breadcrumbLabelMaxWidth,
+                                                                minWidth: 0,
+                                                                overflow:
+                                                                    "hidden",
+                                                                boxSizing:
+                                                                    "border-box",
+                                                                lineHeight: 1.2,
+                                                                textAlign:
+                                                                    "center",
+                                                                textOverflow:
+                                                                    "ellipsis",
                                                             }}
-                                                            className="group flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-slate-800"
                                                         >
-                                                            <div className="mb-2 flex items-center justify-center">
-                                                                <CategoryIcon
-                                                                    iconId={
-                                                                        category.icon
-                                                                    }
-                                                                    type="category"
-                                                                    size={
-                                                                        isXs
-                                                                            ? "1.25rem"
-                                                                            : isSmall
-                                                                              ? "1.5rem"
-                                                                              : "1.75rem"
-                                                                    }
-                                                                />
-                                                            </div>
-                                                            <div className="text-xs font-bold leading-tight text-slate-800 dark:text-slate-100 md:text-sm">
-                                                                {category.name}
-                                                            </div>
-                                                        </div>
-                                                    ),
-                                                )
-                                            ))}
+                                                            <CategoryIcon
+                                                                iconId={
+                                                                    subcategoriesOfCategory.find(
+                                                                        (
+                                                                            s: any,
+                                                                        ) =>
+                                                                            s.id ===
+                                                                            selectedSubcategory,
+                                                                    )?.icon
+                                                                }
+                                                                type="subcategory"
+                                                                size="1.1rem"
+                                                            />
+                                                            {subcategoriesOfCategory.find(
+                                                                (s: any) =>
+                                                                    s.id ===
+                                                                    selectedSubcategory,
+                                                            )?.name ||
+                                                                "Subcategoría"}
+                                                        </span>
+                                                    </>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (selectedSubcategory) {
+                                                setSelectedSubcategory(null);
+                                                return;
+                                            }
+                                            if (selectedCategory) {
+                                                setSelectedCategory(null);
+                                                setSelectedSubcategory(null);
+                                            }
+                                        }}
+                                        disabled={
+                                            isSearching ||
+                                            (!selectedCategory &&
+                                                !selectedSubcategory)
+                                        }
+                                        className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition-all duration-150 hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
+                                        style={{ flexShrink: 0 }}
+                                    >
+                                        Volver
+                                    </button>
+                                </div>
 
-                                        {/* Subcategorías */}
-                                        {showSubcategoriesInGrid &&
-                                            (subcategoriesLoading &&
-                                            subcategoriesOfCategory.length ===
-                                                0 ? (
-                                                <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
-                                                    Cargando subcategorías...
-                                                </div>
-                                            ) : (
-                                                subcategoriesOfCategory.map(
-                                                    (sub: any) => (
-                                                        <div
-                                                            key={sub.id}
-                                                            onClick={() =>
-                                                                setSelectedSubcategory(
-                                                                    sub.id,
-                                                                )
-                                                            }
-                                                            className="flex min-h-20 cursor-pointer flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-4 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/70 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10"
-                                                        >
-                                                            <div className="mb-1 flex items-center justify-center">
-                                                                <CategoryIcon
-                                                                    iconId={
-                                                                        sub.icon
+                                {/* Grid: categorías, subcategorías o productos */}
+                                <div
+                                    className="order-categories-grid-scroll"
+                                    style={{
+                                        flex: 1,
+                                        minHeight: 0,
+                                        padding: gridPadding,
+                                        overflowY: "auto",
+                                        overflowX: "hidden",
+                                    }}
+                                >
+                                    {productsLoading && showProductsInGrid ? (
+                                        <div
+                                            className="rounded-xl border border-slate-200 bg-white/80 px-4 py-8 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400"
+                                            style={{
+                                                fontSize: isSmall
+                                                    ? "0.8125rem"
+                                                    : "0.875rem",
+                                            }}
+                                        >
+                                            Cargando...
+                                        </div>
+                                    ) : (
+                                        <div
+                                            style={{
+                                                display: "grid",
+                                                gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCol}, 1fr))`,
+                                                gap: gridGap,
+                                            }}
+                                        >
+                                            {/* Categorías */}
+                                            {showCategoriesInGrid &&
+                                                (categoriesLoading ? (
+                                                    <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
+                                                        Cargando categorías...
+                                                    </div>
+                                                ) : (
+                                                    categories.map(
+                                                        (category: any) => (
+                                                            <div
+                                                                key={
+                                                                    category.id
+                                                                }
+                                                                onClick={() => {
+                                                                    setSelectedCategory(
+                                                                        category.id,
+                                                                    );
+                                                                    setSelectedSubcategory(
+                                                                        null,
+                                                                    );
+                                                                }}
+                                                                className="group flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-slate-800"
+                                                            >
+                                                                <div className="mb-2 flex items-center justify-center">
+                                                                    <CategoryIcon
+                                                                        iconId={
+                                                                            category.icon
+                                                                        }
+                                                                        type="category"
+                                                                        size={
+                                                                            isXs
+                                                                                ? "1.25rem"
+                                                                                : isSmall
+                                                                                  ? "1.5rem"
+                                                                                  : "1.75rem"
+                                                                        }
+                                                                    />
+                                                                </div>
+                                                                <div className="text-xs font-bold leading-tight text-slate-800 dark:text-slate-100 md:text-sm">
+                                                                    {
+                                                                        category.name
                                                                     }
-                                                                    type="subcategory"
-                                                                    size={
-                                                                        isSmall
-                                                                            ? "1.1rem"
-                                                                            : "1.25rem"
-                                                                    }
-                                                                />
+                                                                </div>
                                                             </div>
-                                                            <div className="text-xs font-semibold leading-tight text-slate-700 dark:text-slate-200">
-                                                                {sub.name}
-                                                            </div>
-                                                        </div>
-                                                    ),
-                                                )
-                                            ))}
+                                                        ),
+                                                    )
+                                                ))}
 
-                                        {/* Productos */}
-                                        {showProductsInGrid &&
-                                            (productsList.length === 0 ? (
-                                                <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
-                                                    No se encontraron productos
-                                                </div>
-                                            ) : (
-                                                productsList.map(
-                                                    (product: any) => (
-                                                        <div
-                                                            key={product.id}
-                                                            onClick={() =>
-                                                                handleAddProduct(
-                                                                    product.id,
-                                                                    1,
-                                                                )
-                                                            }
-                                                            className="flex h-full cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/60 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10"
-                                                        >
-                                                            {product.imageBase64 ? (
-                                                                <img
-                                                                    src={`data:image/jpeg;base64,${product.imageBase64}`}
-                                                                    alt={
+                                            {/* Subcategorías */}
+                                            {showSubcategoriesInGrid &&
+                                                (subcategoriesLoading &&
+                                                subcategoriesOfCategory.length ===
+                                                    0 ? (
+                                                    <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
+                                                        Cargando
+                                                        subcategorías...
+                                                    </div>
+                                                ) : (
+                                                    subcategoriesOfCategory.map(
+                                                        (sub: any) => (
+                                                            <div
+                                                                key={sub.id}
+                                                                onClick={() =>
+                                                                    setSelectedSubcategory(
+                                                                        sub.id,
+                                                                    )
+                                                                }
+                                                                className="flex min-h-20 cursor-pointer flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-4 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/70 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10"
+                                                            >
+                                                                <div className="mb-1 flex items-center justify-center">
+                                                                    <CategoryIcon
+                                                                        iconId={
+                                                                            sub.icon
+                                                                        }
+                                                                        type="subcategory"
+                                                                        size={
+                                                                            isSmall
+                                                                                ? "1.1rem"
+                                                                                : "1.25rem"
+                                                                        }
+                                                                    />
+                                                                </div>
+                                                                <div className="text-xs font-semibold leading-tight text-slate-700 dark:text-slate-200">
+                                                                    {sub.name}
+                                                                </div>
+                                                            </div>
+                                                        ),
+                                                    )
+                                                ))}
+
+                                            {/* Productos */}
+                                            {showProductsInGrid &&
+                                                (productsList.length === 0 ? (
+                                                    <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
+                                                        No se encontraron
+                                                        productos
+                                                    </div>
+                                                ) : (
+                                                    productsList.map(
+                                                        (product: any) => (
+                                                            <div
+                                                                key={product.id}
+                                                                onClick={() =>
+                                                                    handleAddProduct(
+                                                                        product.id,
+                                                                        1,
+                                                                    )
+                                                                }
+                                                                className="flex h-full cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/60 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10"
+                                                            >
+                                                                {product.imageBase64 ? (
+                                                                    <img
+                                                                        src={`data:image/jpeg;base64,${product.imageBase64}`}
+                                                                        alt={
+                                                                            product.name
+                                                                        }
+                                                                        style={{
+                                                                            width: "100%",
+                                                                            height: isSmall
+                                                                                ? "60px"
+                                                                                : isMedium
+                                                                                  ? "70px"
+                                                                                  : "80px",
+                                                                            objectFit:
+                                                                                "cover",
+                                                                            borderRadius:
+                                                                                "10px",
+                                                                            marginBottom:
+                                                                                isSmall
+                                                                                    ? "0.35rem"
+                                                                                    : "0.5rem",
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <div
+                                                                        className="bg-slate-100 dark:bg-slate-800"
+                                                                        style={{
+                                                                            width: "100%",
+                                                                            height: isSmall
+                                                                                ? "60px"
+                                                                                : isMedium
+                                                                                  ? "70px"
+                                                                                  : "80px",
+                                                                            display:
+                                                                                "flex",
+                                                                            alignItems:
+                                                                                "center",
+                                                                            justifyContent:
+                                                                                "center",
+                                                                            borderRadius:
+                                                                                "10px",
+                                                                            marginBottom:
+                                                                                isSmall
+                                                                                    ? "0.35rem"
+                                                                                    : "0.5rem",
+                                                                            fontSize:
+                                                                                isSmall
+                                                                                    ? "1.5rem"
+                                                                                    : "2rem",
+                                                                        }}
+                                                                    >
+                                                                        🍽️
+                                                                    </div>
+                                                                )}
+                                                                <div
+                                                                    className="text-xs font-bold text-slate-700 dark:text-slate-200 md:text-sm"
+                                                                    style={{
+                                                                        marginBottom:
+                                                                            "0.25rem",
+                                                                        lineHeight: 1.25,
+                                                                        flex: 1,
+                                                                        wordBreak:
+                                                                            "break-word",
+                                                                    }}
+                                                                >
+                                                                    {
                                                                         product.name
                                                                     }
-                                                                    style={{
-                                                                        width: "100%",
-                                                                        height: isSmall
-                                                                            ? "60px"
-                                                                            : isMedium
-                                                                              ? "70px"
-                                                                              : "80px",
-                                                                        objectFit:
-                                                                            "cover",
-                                                                        borderRadius:
-                                                                            "10px",
-                                                                        marginBottom:
-                                                                            isSmall
-                                                                                ? "0.35rem"
-                                                                                : "0.5rem",
-                                                                    }}
-                                                                />
-                                                            ) : (
-                                                                <div
-                                                                    className="bg-slate-100 dark:bg-slate-800"
-                                                                    style={{
-                                                                        width: "100%",
-                                                                        height: isSmall
-                                                                            ? "60px"
-                                                                            : isMedium
-                                                                              ? "70px"
-                                                                              : "80px",
-                                                                        display:
-                                                                            "flex",
-                                                                        alignItems:
-                                                                            "center",
-                                                                        justifyContent:
-                                                                            "center",
-                                                                        borderRadius:
-                                                                            "10px",
-                                                                        marginBottom:
-                                                                            isSmall
-                                                                                ? "0.35rem"
-                                                                                : "0.5rem",
-                                                                        fontSize:
-                                                                            isSmall
-                                                                                ? "1.5rem"
-                                                                                : "2rem",
-                                                                    }}
-                                                                >
-                                                                    🍽️
                                                                 </div>
-                                                            )}
-                                                            <div
-                                                                className="text-xs font-bold text-slate-700 dark:text-slate-200 md:text-sm"
-                                                                style={{
-                                                                    marginBottom:
-                                                                        "0.25rem",
-                                                                    lineHeight: 1.25,
-                                                                    flex: 1,
-                                                                    wordBreak:
-                                                                        "break-word",
-                                                                }}
-                                                            >
-                                                                {product.name}
-                                                            </div>
-                                                            <div
-                                                                style={{
-                                                                    fontSize:
-                                                                        isSmall
-                                                                            ? "0.8125rem"
-                                                                            : "0.9375rem",
-                                                                    fontWeight:
-                                                                        "700",
-                                                                    color: "#4338ca",
-                                                                    marginTop:
-                                                                        "auto",
-                                                                }}
-                                                                className="dark:text-indigo-300"
-                                                            >
-                                                                S/{" "}
-                                                                {parseFloat(
-                                                                    product.salePrice ||
-                                                                        0,
-                                                                ).toFixed(2)}
-                                                            </div>
-                                                            {product.preparationTime >
-                                                                0 && (
                                                                 <div
                                                                     style={{
                                                                         fontSize:
                                                                             isSmall
-                                                                                ? "0.7rem"
-                                                                                : "0.8125rem",
-                                                                        color: "#64748b",
-                                                                        display:
-                                                                            "flex",
-                                                                        alignItems:
-                                                                            "center",
-                                                                        justifyContent:
-                                                                            "center",
-                                                                        gap: "0.25rem",
+                                                                                ? "0.8125rem"
+                                                                                : "0.9375rem",
+                                                                        fontWeight:
+                                                                            "700",
+                                                                        color: "#4338ca",
                                                                         marginTop:
-                                                                            "0.25rem",
+                                                                            "auto",
                                                                     }}
-                                                                    className="dark:text-slate-400"
+                                                                    className="dark:text-indigo-300"
                                                                 >
-                                                                    ⏱️{" "}
-                                                                    {
-                                                                        product.preparationTime
-                                                                    }{" "}
-                                                                    min
+                                                                    S/{" "}
+                                                                    {parseFloat(
+                                                                        product.salePrice ||
+                                                                            0,
+                                                                    ).toFixed(
+                                                                        2,
+                                                                    )}
                                                                 </div>
-                                                            )}
-                                                        </div>
-                                                    ),
-                                                )
-                                            ))}
-                                    </div>
-                                )}
+                                                                {product.preparationTime >
+                                                                    0 && (
+                                                                    <div
+                                                                        style={{
+                                                                            fontSize:
+                                                                                isSmall
+                                                                                    ? "0.7rem"
+                                                                                    : "0.8125rem",
+                                                                            color: "#64748b",
+                                                                            display:
+                                                                                "flex",
+                                                                            alignItems:
+                                                                                "center",
+                                                                            justifyContent:
+                                                                                "center",
+                                                                            gap: "0.25rem",
+                                                                            marginTop:
+                                                                                "0.25rem",
+                                                                        }}
+                                                                        className="dark:text-slate-400"
+                                                                    >
+                                                                        ⏱️{" "}
+                                                                        {
+                                                                            product.preparationTime
+                                                                        }{" "}
+                                                                        min
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ),
+                                                    )
+                                                ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Col derecha: resumen de orden */}
-                    <div
-                        style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: isXs
-                                ? "0.4rem"
-                                : isSmall
-                                  ? "0.5rem"
-                                  : isMedium
-                                    ? "0.75rem"
-                                    : "1rem",
-                            order: isXs || isSmall || isMedium ? 1 : 2,
-                            overflow: "hidden",
-                            minHeight: 0,
-                        }}
-                    >
+                        {/* Col derecha: resumen de orden */}
                         <div
-                            ref={orderListContainerRef}
-                            className="border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
                             style={{
-                                borderRadius: isXs
-                                    ? "8px"
-                                    : isSmall
-                                      ? "10px"
-                                      : isMedium
-                                        ? "12px"
-                                        : "14px",
-                                padding: isXs
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: isXs
                                     ? "0.4rem"
                                     : isSmall
                                       ? "0.5rem"
                                       : isMedium
                                         ? "0.75rem"
                                         : "1rem",
-                                flex: "1 1 auto",
-                                overflowY: "auto",
+                                order: isXs || isSmall || isMedium ? 1 : 2,
+                                overflow: "hidden",
                                 minHeight: 0,
                             }}
                         >
-                            <h4
-                                className="text-slate-800 dark:text-slate-100"
+                            <div
+                                ref={orderListContainerRef}
+                                className="border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
                                 style={{
-                                    margin: `0 0 ${isXs ? "0.4rem" : isSmall ? "0.5rem" : isMedium ? "0.75rem" : "1rem"} 0`,
-                                    fontSize: isXs
-                                        ? "0.8rem"
+                                    borderRadius: isXs
+                                        ? "8px"
                                         : isSmall
-                                          ? "0.875rem"
+                                          ? "10px"
                                           : isMedium
-                                            ? "1rem"
-                                            : "1.25rem",
+                                            ? "12px"
+                                            : "14px",
+                                    padding: isXs
+                                        ? "0.4rem"
+                                        : isSmall
+                                          ? "0.5rem"
+                                          : isMedium
+                                            ? "0.75rem"
+                                            : "1rem",
+                                    flex: "1 1 auto",
+                                    overflowY: "auto",
+                                    minHeight: 0,
                                 }}
                             >
-                                Detalle
-                            </h4>
-                            {isLoadingExistingOrder ? (
-                                <div
-                                    className="rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-400"
+                                <h4
+                                    className="text-slate-800 dark:text-slate-100"
                                     style={{
-                                        borderRadius: 12,
-                                        padding: "1.25rem",
-                                        textAlign: "center",
+                                        margin: `0 0 ${isXs ? "0.4rem" : isSmall ? "0.5rem" : isMedium ? "0.75rem" : "1rem"} 0`,
+                                        fontSize: isXs
+                                            ? "0.8rem"
+                                            : isSmall
+                                              ? "0.875rem"
+                                              : isMedium
+                                                ? "1rem"
+                                                : "1.25rem",
                                     }}
                                 >
-                                    Cargando orden actual...
-                                </div>
-                            ) : existingOperationError ? (
-                                <div
-                                    className="rounded-xl border border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300"
-                                    style={{
-                                        borderRadius: 12,
-                                        padding: "1.25rem",
-                                        textAlign: "center",
-                                    }}
-                                >
-                                    Error al cargar la orden activa:{" "}
-                                    {existingOperationError.message}
-                                </div>
-                            ) : orderItems.length === 0 ? (
-                                <div
-                                    className="rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-400"
-                                    style={{
-                                        borderRadius: 12,
-                                        padding: "1rem",
-                                        textAlign: "center",
-                                    }}
-                                >
-                                    Aquí aparecerán los ítems agregados.
-                                </div>
-                            ) : (
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        gap: isSmall
-                                            ? "0.2rem"
-                                            : isMedium
-                                              ? "0.3rem"
-                                              : "0.4rem",
-                                    }}
-                                >
-                                    {orderItems.map((item) => {
-                                        const isEditable =
-                                            !isExistingOrder || item.isNew;
-                                        const canEditNotes =
-                                            !isExistingOrder || item.isNew;
-                                        return (
-                                            <div
-                                                key={item.id}
-                                                ref={(el) => {
-                                                    if (el) {
-                                                        itemRefs.current[
-                                                            item.id
-                                                        ] = el;
-                                                    }
-                                                }}
-                                                className={`${isExistingOrder && !item.isNew ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-900/20" : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"}`}
-                                                style={{
-                                                    borderWidth: "1px",
-                                                    borderStyle: "solid",
-                                                    borderRadius: isXs
-                                                        ? "8px"
-                                                        : isSmall
-                                                          ? "6px"
-                                                          : isMedium
-                                                            ? "8px"
-                                                            : "10px",
-                                                    padding: isXs
-                                                        ? "0.5rem"
-                                                        : isSmall
-                                                          ? "0.2rem"
-                                                          : isMedium
-                                                            ? "0.3rem"
-                                                            : "0.35rem",
-                                                }}
-                                            >
-                                                {/* Una sola fila: Cantidad, Producto, Precio + Tachito, Botón notas */}
+                                    Detalle
+                                </h4>
+                                {isLoadingExistingOrder ? (
+                                    <div
+                                        className="rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-400"
+                                        style={{
+                                            borderRadius: 12,
+                                            padding: "1.25rem",
+                                            textAlign: "center",
+                                        }}
+                                    >
+                                        Cargando orden actual...
+                                    </div>
+                                ) : existingOperationError ? (
+                                    <div
+                                        className="rounded-xl border border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300"
+                                        style={{
+                                            borderRadius: 12,
+                                            padding: "1.25rem",
+                                            textAlign: "center",
+                                        }}
+                                    >
+                                        Error al cargar la orden activa:{" "}
+                                        {existingOperationError.message}
+                                    </div>
+                                ) : orderItems.length === 0 ? (
+                                    <div
+                                        className="rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-400"
+                                        style={{
+                                            borderRadius: 12,
+                                            padding: "1rem",
+                                            textAlign: "center",
+                                        }}
+                                    >
+                                        Aquí aparecerán los ítems agregados.
+                                    </div>
+                                ) : (
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            gap: isSmall
+                                                ? "0.2rem"
+                                                : isMedium
+                                                  ? "0.3rem"
+                                                  : "0.4rem",
+                                        }}
+                                    >
+                                        {orderItems.map((item) => {
+                                            const isEditable =
+                                                !isExistingOrder || item.isNew;
+                                            const canEditNotes =
+                                                !isExistingOrder || item.isNew;
+                                            return (
                                                 <div
+                                                    key={item.id}
+                                                    ref={(el) => {
+                                                        if (el) {
+                                                            itemRefs.current[
+                                                                item.id
+                                                            ] = el;
+                                                        }
+                                                    }}
+                                                    className={`${isExistingOrder && !item.isNew ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-900/20" : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"}`}
                                                     style={{
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        gap: isSmall
-                                                            ? "0.2rem"
-                                                            : isMedium
-                                                              ? "0.3rem"
-                                                              : "0.35rem",
-                                                        justifyContent:
-                                                            "flex-start",
-                                                        flexWrap: "nowrap",
-                                                        width: "100%",
-                                                        overflow: "hidden",
+                                                        borderWidth: "1px",
+                                                        borderStyle: "solid",
+                                                        borderRadius: isXs
+                                                            ? "8px"
+                                                            : isSmall
+                                                              ? "6px"
+                                                              : isMedium
+                                                                ? "8px"
+                                                                : "10px",
+                                                        padding: isXs
+                                                            ? "0.5rem"
+                                                            : isSmall
+                                                              ? "0.2rem"
+                                                              : isMedium
+                                                                ? "0.3rem"
+                                                                : "0.35rem",
                                                     }}
                                                 >
-                                                    {/* Controles de cantidad */}
+                                                    {/* Una sola fila: Cantidad, Producto, Precio + Tachito, Botón notas */}
                                                     <div
                                                         style={{
                                                             display: "flex",
                                                             alignItems:
                                                                 "center",
-                                                            gap: isXs
-                                                                ? "0.4rem"
-                                                                : isSmall
-                                                                  ? "0.1rem"
-                                                                  : isMedium
-                                                                    ? "0.15rem"
-                                                                    : "0.2rem",
-                                                            flexShrink: 0,
+                                                            gap: isSmall
+                                                                ? "0.2rem"
+                                                                : isMedium
+                                                                  ? "0.3rem"
+                                                                  : "0.35rem",
+                                                            justifyContent:
+                                                                "flex-start",
+                                                            flexWrap: "nowrap",
+                                                            width: "100%",
+                                                            overflow: "hidden",
                                                         }}
                                                     >
-                                                        <button
-                                                            onClick={() =>
-                                                                handleUpdateQuantity(
-                                                                    item.id,
-                                                                    item.quantity -
-                                                                        1,
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                !isEditable
-                                                            }
-                                                            className="border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
+                                                        {/* Controles de cantidad */}
+                                                        <div
                                                             style={{
-                                                                width: isXs
-                                                                    ? "34px"
-                                                                    : isSmall
-                                                                      ? "20px"
-                                                                      : isMedium
-                                                                        ? "24px"
-                                                                        : "28px",
-                                                                height: isXs
-                                                                    ? "34px"
-                                                                    : isSmall
-                                                                      ? "20px"
-                                                                      : isMedium
-                                                                        ? "24px"
-                                                                        : "28px",
-                                                                borderRadius:
-                                                                    isXs
-                                                                        ? "8px"
-                                                                        : isSmall
-                                                                          ? "4px"
-                                                                          : "6px",
-                                                                cursor: isEditable
-                                                                    ? "pointer"
-                                                                    : "not-allowed",
-                                                                fontSize: isXs
-                                                                    ? "1.1rem"
-                                                                    : isSmall
-                                                                      ? "0.75rem"
-                                                                      : isMedium
-                                                                        ? "0.85rem"
-                                                                        : "0.95rem",
                                                                 display: "flex",
                                                                 alignItems:
                                                                     "center",
-                                                                justifyContent:
-                                                                    "center",
-                                                                padding: 0,
-                                                                flexShrink: 0,
-                                                            }}
-                                                        >
-                                                            −
-                                                        </button>
-                                                        <input
-                                                            type="number"
-                                                            value={
-                                                                item.quantity
-                                                            }
-                                                            onChange={(e) =>
-                                                                handleUpdateQuantity(
-                                                                    item.id,
-                                                                    parseInt(
-                                                                        e.target
-                                                                            .value,
-                                                                    ) || 0,
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                !isEditable
-                                                            }
-                                                            min="0"
-                                                            className="border border-slate-300 bg-white text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
-                                                            style={{
-                                                                width: isXs
-                                                                    ? "44px"
-                                                                    : isSmall
-                                                                      ? "28px"
-                                                                      : isMedium
-                                                                        ? "32px"
-                                                                        : "38px",
-                                                                textAlign:
-                                                                    "center",
-                                                                borderRadius:
-                                                                    isXs
-                                                                        ? "8px"
-                                                                        : isSmall
-                                                                          ? "4px"
-                                                                          : "6px",
-                                                                padding: isXs
+                                                                gap: isXs
                                                                     ? "0.4rem"
                                                                     : isSmall
                                                                       ? "0.1rem"
                                                                       : isMedium
                                                                         ? "0.15rem"
                                                                         : "0.2rem",
-                                                                fontWeight: 700,
-                                                                fontSize: isXs
-                                                                    ? "1rem"
-                                                                    : isSmall
-                                                                      ? "0.65rem"
-                                                                      : isMedium
-                                                                        ? "0.75rem"
-                                                                        : "0.85rem",
-                                                                flexShrink: 0,
-                                                            }}
-                                                        />
-                                                        <button
-                                                            onClick={() =>
-                                                                handleUpdateQuantity(
-                                                                    item.id,
-                                                                    item.quantity +
-                                                                        1,
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                !isEditable
-                                                            }
-                                                            className="border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
-                                                            style={{
-                                                                width: isXs
-                                                                    ? "32px"
-                                                                    : isSmall
-                                                                      ? "16px"
-                                                                      : isMedium
-                                                                        ? "18px"
-                                                                        : "25px",
-                                                                height: isXs
-                                                                    ? "32px"
-                                                                    : isSmall
-                                                                      ? "16px"
-                                                                      : isMedium
-                                                                        ? "18px"
-                                                                        : "25px",
-                                                                borderRadius:
-                                                                    isXs
-                                                                        ? "6px"
-                                                                        : isSmall
-                                                                          ? "4px"
-                                                                          : "6px",
-                                                                cursor: isEditable
-                                                                    ? "pointer"
-                                                                    : "not-allowed",
-                                                                fontSize: isXs
-                                                                    ? "1rem"
-                                                                    : isSmall
-                                                                      ? "0.7rem"
-                                                                      : isMedium
-                                                                        ? "0.75rem"
-                                                                        : "0.8rem",
-                                                                display: "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                justifyContent:
-                                                                    "center",
-                                                                padding: 0,
                                                                 flexShrink: 0,
                                                             }}
                                                         >
-                                                            +
-                                                        </button>
-                                                    </div>
-
-                                                    {/* Nombre del producto */}
-                                                    <div
-                                                        style={{
-                                                            flex: "1",
-                                                            minWidth: 0,
-                                                            paddingLeft: "4px",
-                                                            paddingRight: "4px",
-                                                        }}
-                                                    >
-                                                        <div
-                                                            className="text-slate-800 dark:text-slate-100"
-                                                            style={{
-                                                                fontWeight: 700,
-                                                                fontSize:
-                                                                    isSmall
-                                                                        ? "0.7rem"
-                                                                        : isMedium
-                                                                          ? "0.75rem"
-                                                                          : "0.8125rem",
-                                                                overflow:
-                                                                    "hidden",
-                                                                whiteSpace:
-                                                                    "normal",
-                                                                wordBreak:
-                                                                    "break-word",
-                                                                lineHeight:
-                                                                    "1.2",
-                                                                display: "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                gap: "4px",
-                                                            }}
-                                                        >
-                                                            {item.name}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Precio total */}
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            alignItems:
-                                                                "center",
-                                                            gap: isXs
-                                                                ? "0.5rem"
-                                                                : isSmall
-                                                                  ? "0.2rem"
-                                                                  : isMedium
-                                                                    ? "0.3rem"
-                                                                    : "0.35rem",
-                                                            flexShrink: 0,
-                                                            minWidth: isXs
-                                                                ? "70px"
-                                                                : isSmall
-                                                                  ? "55px"
-                                                                  : isMedium
-                                                                    ? "65px"
-                                                                    : "75px",
-                                                            marginLeft: "auto",
-                                                        }}
-                                                    >
-                                                        <div
-                                                            className="text-slate-800 dark:text-slate-100"
-                                                            style={{
-                                                                fontWeight: 700,
-                                                                fontSize: isXs
-                                                                    ? "0.85rem"
-                                                                    : isSmall
-                                                                      ? "0.7rem"
-                                                                      : isMedium
-                                                                        ? "0.75rem"
-                                                                        : "0.8125rem",
-                                                                textAlign:
-                                                                    "right",
-                                                            }}
-                                                        >
-                                                            S/{" "}
-                                                            {item.total.toFixed(
-                                                                2,
-                                                            )}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Icono observaciones - abre el modal para escribir observaciones al plato */}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            if (canEditNotes) {
-                                                                handleOpenObservationModal(
-                                                                    item.id,
-                                                                );
-                                                            }
-                                                        }}
-                                                        disabled={!canEditNotes}
-                                                        className={`border ${
-                                                            item.notes ||
-                                                            selectedObservations[
-                                                                item.id
-                                                            ]?.size > 0
-                                                                ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                                                                : canEditNotes
-                                                                  ? "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                                                                  : "border-slate-200 bg-slate-100 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-600"
-                                                        }`}
-                                                        style={{
-                                                            padding: isSmall
-                                                                ? "0.1rem 0.35rem"
-                                                                : isMedium
-                                                                  ? "0.15rem 0.4rem"
-                                                                  : "0.15rem 0.45rem",
-                                                            borderRadius: 999,
-                                                            fontSize: isXs
-                                                                ? "1.25rem"
-                                                                : isSmall
-                                                                  ? "0.7rem"
-                                                                  : isMedium
-                                                                    ? "0.85rem"
-                                                                    : "1.1rem",
-                                                            fontWeight: 600,
-                                                            cursor: canEditNotes
-                                                                ? "pointer"
-                                                                : "not-allowed",
-                                                            flexShrink: 0,
-                                                            lineHeight: 1,
-                                                            opacity:
-                                                                canEditNotes
-                                                                    ? 1
-                                                                    : 0.6,
-                                                            position:
-                                                                "relative",
-                                                        }}
-                                                        title={
-                                                            item.notes ||
-                                                            selectedObservations[
-                                                                item.id
-                                                            ]?.size > 0
-                                                                ? item.notes
-                                                                    ? "Editar observaciones"
-                                                                    : `${selectedObservations[item.id].size} observación(es) seleccionada(s)`
-                                                                : "Escribir observación al plato"
-                                                        }
-                                                    >
-                                                        📋
-                                                        {(item.notes ||
-                                                            selectedObservations[
-                                                                item.id
-                                                            ]?.size > 0) && (
-                                                            <span
+                                                            <button
+                                                                onClick={() =>
+                                                                    handleUpdateQuantity(
+                                                                        item.id,
+                                                                        item.quantity -
+                                                                            1,
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    !isEditable
+                                                                }
+                                                                className="border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
                                                                 style={{
-                                                                    position:
-                                                                        "absolute",
-                                                                    top: "-4px",
-                                                                    right: "-4px",
-                                                                    background:
-                                                                        "#3b82f6",
-                                                                    color: "white",
+                                                                    width: isXs
+                                                                        ? "34px"
+                                                                        : isSmall
+                                                                          ? "20px"
+                                                                          : isMedium
+                                                                            ? "24px"
+                                                                            : "28px",
+                                                                    height: isXs
+                                                                        ? "34px"
+                                                                        : isSmall
+                                                                          ? "20px"
+                                                                          : isMedium
+                                                                            ? "24px"
+                                                                            : "28px",
                                                                     borderRadius:
-                                                                        "50%",
-                                                                    width: "12px",
-                                                                    height: "12px",
+                                                                        isXs
+                                                                            ? "8px"
+                                                                            : isSmall
+                                                                              ? "4px"
+                                                                              : "6px",
+                                                                    cursor: isEditable
+                                                                        ? "pointer"
+                                                                        : "not-allowed",
                                                                     fontSize:
-                                                                        "8px",
+                                                                        isXs
+                                                                            ? "1.1rem"
+                                                                            : isSmall
+                                                                              ? "0.75rem"
+                                                                              : isMedium
+                                                                                ? "0.85rem"
+                                                                                : "0.95rem",
                                                                     display:
                                                                         "flex",
                                                                     alignItems:
                                                                         "center",
                                                                     justifyContent:
                                                                         "center",
-                                                                    fontWeight: 700,
+                                                                    padding: 0,
+                                                                    flexShrink: 0,
                                                                 }}
                                                             >
-                                                                {item.notes
-                                                                    ? "!"
-                                                                    : selectedObservations[
-                                                                          item
-                                                                              .id
-                                                                      ]?.size}
-                                                            </span>
-                                                        )}
-                                                    </button>
+                                                                −
+                                                            </button>
+                                                            <input
+                                                                type="number"
+                                                                value={
+                                                                    item.quantity
+                                                                }
+                                                                onChange={(e) =>
+                                                                    handleUpdateQuantity(
+                                                                        item.id,
+                                                                        parseInt(
+                                                                            e
+                                                                                .target
+                                                                                .value,
+                                                                        ) || 0,
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    !isEditable
+                                                                }
+                                                                min="0"
+                                                                className="border border-slate-300 bg-white text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
+                                                                style={{
+                                                                    width: isXs
+                                                                        ? "44px"
+                                                                        : isSmall
+                                                                          ? "28px"
+                                                                          : isMedium
+                                                                            ? "32px"
+                                                                            : "38px",
+                                                                    textAlign:
+                                                                        "center",
+                                                                    borderRadius:
+                                                                        isXs
+                                                                            ? "8px"
+                                                                            : isSmall
+                                                                              ? "4px"
+                                                                              : "6px",
+                                                                    padding:
+                                                                        isXs
+                                                                            ? "0.4rem"
+                                                                            : isSmall
+                                                                              ? "0.1rem"
+                                                                              : isMedium
+                                                                                ? "0.15rem"
+                                                                                : "0.2rem",
+                                                                    fontWeight: 700,
+                                                                    fontSize:
+                                                                        isXs
+                                                                            ? "1rem"
+                                                                            : isSmall
+                                                                              ? "0.65rem"
+                                                                              : isMedium
+                                                                                ? "0.75rem"
+                                                                                : "0.85rem",
+                                                                    flexShrink: 0,
+                                                                }}
+                                                            />
+                                                            <button
+                                                                onClick={() =>
+                                                                    handleUpdateQuantity(
+                                                                        item.id,
+                                                                        item.quantity +
+                                                                            1,
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    !isEditable
+                                                                }
+                                                                className="border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
+                                                                style={{
+                                                                    width: isXs
+                                                                        ? "32px"
+                                                                        : isSmall
+                                                                          ? "16px"
+                                                                          : isMedium
+                                                                            ? "18px"
+                                                                            : "25px",
+                                                                    height: isXs
+                                                                        ? "32px"
+                                                                        : isSmall
+                                                                          ? "16px"
+                                                                          : isMedium
+                                                                            ? "18px"
+                                                                            : "25px",
+                                                                    borderRadius:
+                                                                        isXs
+                                                                            ? "6px"
+                                                                            : isSmall
+                                                                              ? "4px"
+                                                                              : "6px",
+                                                                    cursor: isEditable
+                                                                        ? "pointer"
+                                                                        : "not-allowed",
+                                                                    fontSize:
+                                                                        isXs
+                                                                            ? "1rem"
+                                                                            : isSmall
+                                                                              ? "0.7rem"
+                                                                              : isMedium
+                                                                                ? "0.75rem"
+                                                                                : "0.8rem",
+                                                                    display:
+                                                                        "flex",
+                                                                    alignItems:
+                                                                        "center",
+                                                                    justifyContent:
+                                                                        "center",
+                                                                    padding: 0,
+                                                                    flexShrink: 0,
+                                                                }}
+                                                            >
+                                                                +
+                                                            </button>
+                                                        </div>
 
-                                                    {/* Icono tachito */}
-                                                    <button
-                                                        onClick={() =>
-                                                            handleRemoveItem(
-                                                                item.id,
-                                                            )
-                                                        }
-                                                        disabled={!isEditable}
-                                                        className="text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-slate-400 dark:text-red-400 dark:hover:text-red-300 dark:disabled:text-slate-600"
-                                                        style={{
-                                                            background:
-                                                                "transparent",
-                                                            border: "none",
-                                                            cursor: isEditable
-                                                                ? "pointer"
-                                                                : "not-allowed",
-                                                            fontSize: isXs
-                                                                ? "1.35rem"
-                                                                : isSmall
-                                                                  ? "0.85rem"
-                                                                  : isMedium
-                                                                    ? "0.95rem"
-                                                                    : "1.15rem",
-                                                            padding: isXs
-                                                                ? "0.5rem"
-                                                                : "0.15rem",
-                                                            flexShrink: 0,
-                                                            display: "flex",
-                                                            alignItems:
-                                                                "center",
-                                                            justifyContent:
-                                                                "center",
-                                                            lineHeight: 1,
-                                                        }}
-                                                    >
-                                                        🗑️
-                                                    </button>
+                                                        {/* Nombre del producto */}
+                                                        <div
+                                                            style={{
+                                                                flex: "1",
+                                                                minWidth: 0,
+                                                                paddingLeft:
+                                                                    "4px",
+                                                                paddingRight:
+                                                                    "4px",
+                                                            }}
+                                                        >
+                                                            <div
+                                                                className="text-slate-800 dark:text-slate-100"
+                                                                style={{
+                                                                    fontWeight: 700,
+                                                                    fontSize:
+                                                                        isSmall
+                                                                            ? "0.7rem"
+                                                                            : isMedium
+                                                                              ? "0.75rem"
+                                                                              : "0.8125rem",
+                                                                    overflow:
+                                                                        "hidden",
+                                                                    whiteSpace:
+                                                                        "normal",
+                                                                    wordBreak:
+                                                                        "break-word",
+                                                                    lineHeight:
+                                                                        "1.2",
+                                                                    display:
+                                                                        "flex",
+                                                                    alignItems:
+                                                                        "center",
+                                                                    gap: "4px",
+                                                                }}
+                                                            >
+                                                                {item.name}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Precio total */}
+                                                        <div
+                                                            style={{
+                                                                display: "flex",
+                                                                alignItems:
+                                                                    "center",
+                                                                gap: isXs
+                                                                    ? "0.5rem"
+                                                                    : isSmall
+                                                                      ? "0.2rem"
+                                                                      : isMedium
+                                                                        ? "0.3rem"
+                                                                        : "0.35rem",
+                                                                flexShrink: 0,
+                                                                minWidth: isXs
+                                                                    ? "70px"
+                                                                    : isSmall
+                                                                      ? "55px"
+                                                                      : isMedium
+                                                                        ? "65px"
+                                                                        : "75px",
+                                                                marginLeft:
+                                                                    "auto",
+                                                            }}
+                                                        >
+                                                            <div
+                                                                className="text-slate-800 dark:text-slate-100"
+                                                                style={{
+                                                                    fontWeight: 700,
+                                                                    fontSize:
+                                                                        isXs
+                                                                            ? "0.85rem"
+                                                                            : isSmall
+                                                                              ? "0.7rem"
+                                                                              : isMedium
+                                                                                ? "0.75rem"
+                                                                                : "0.8125rem",
+                                                                    textAlign:
+                                                                        "right",
+                                                                }}
+                                                            >
+                                                                S/{" "}
+                                                                {item.total.toFixed(
+                                                                    2,
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Icono observaciones - abre el modal para escribir observaciones al plato */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (
+                                                                    canEditNotes
+                                                                ) {
+                                                                    handleOpenObservationModal(
+                                                                        item.id,
+                                                                    );
+                                                                }
+                                                            }}
+                                                            disabled={
+                                                                !canEditNotes
+                                                            }
+                                                            className={`border ${
+                                                                item.notes ||
+                                                                selectedObservations[
+                                                                    item.id
+                                                                ]?.size > 0
+                                                                    ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                                                                    : canEditNotes
+                                                                      ? "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                                                      : "border-slate-200 bg-slate-100 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-600"
+                                                            }`}
+                                                            style={{
+                                                                padding: isSmall
+                                                                    ? "0.1rem 0.35rem"
+                                                                    : isMedium
+                                                                      ? "0.15rem 0.4rem"
+                                                                      : "0.15rem 0.45rem",
+                                                                borderRadius: 999,
+                                                                fontSize: isXs
+                                                                    ? "1.25rem"
+                                                                    : isSmall
+                                                                      ? "0.7rem"
+                                                                      : isMedium
+                                                                        ? "0.85rem"
+                                                                        : "1.1rem",
+                                                                fontWeight: 600,
+                                                                cursor: canEditNotes
+                                                                    ? "pointer"
+                                                                    : "not-allowed",
+                                                                flexShrink: 0,
+                                                                lineHeight: 1,
+                                                                opacity:
+                                                                    canEditNotes
+                                                                        ? 1
+                                                                        : 0.6,
+                                                                position:
+                                                                    "relative",
+                                                            }}
+                                                            title={
+                                                                item.notes ||
+                                                                selectedObservations[
+                                                                    item.id
+                                                                ]?.size > 0
+                                                                    ? item.notes
+                                                                        ? "Editar observaciones"
+                                                                        : `${selectedObservations[item.id].size} observación(es) seleccionada(s)`
+                                                                    : "Escribir observación al plato"
+                                                            }
+                                                        >
+                                                            📋
+                                                            {(item.notes ||
+                                                                selectedObservations[
+                                                                    item.id
+                                                                ]?.size >
+                                                                    0) && (
+                                                                <span
+                                                                    style={{
+                                                                        position:
+                                                                            "absolute",
+                                                                        top: "-4px",
+                                                                        right: "-4px",
+                                                                        background:
+                                                                            "#3b82f6",
+                                                                        color: "white",
+                                                                        borderRadius:
+                                                                            "50%",
+                                                                        width: "12px",
+                                                                        height: "12px",
+                                                                        fontSize:
+                                                                            "8px",
+                                                                        display:
+                                                                            "flex",
+                                                                        alignItems:
+                                                                            "center",
+                                                                        justifyContent:
+                                                                            "center",
+                                                                        fontWeight: 700,
+                                                                    }}
+                                                                >
+                                                                    {item.notes
+                                                                        ? "!"
+                                                                        : selectedObservations[
+                                                                              item
+                                                                                  .id
+                                                                          ]
+                                                                              ?.size}
+                                                                </span>
+                                                            )}
+                                                        </button>
+
+                                                        {/* Icono tachito */}
+                                                        <button
+                                                            onClick={() =>
+                                                                handleRemoveItem(
+                                                                    item.id,
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                !isEditable
+                                                            }
+                                                            className="text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-slate-400 dark:text-red-400 dark:hover:text-red-300 dark:disabled:text-slate-600"
+                                                            style={{
+                                                                background:
+                                                                    "transparent",
+                                                                border: "none",
+                                                                cursor: isEditable
+                                                                    ? "pointer"
+                                                                    : "not-allowed",
+                                                                fontSize: isXs
+                                                                    ? "1.35rem"
+                                                                    : isSmall
+                                                                      ? "0.85rem"
+                                                                      : isMedium
+                                                                        ? "0.95rem"
+                                                                        : "1.15rem",
+                                                                padding: isXs
+                                                                    ? "0.5rem"
+                                                                    : "0.15rem",
+                                                                flexShrink: 0,
+                                                                display: "flex",
+                                                                alignItems:
+                                                                    "center",
+                                                                justifyContent:
+                                                                    "center",
+                                                                lineHeight: 1,
+                                                            }}
+                                                        >
+                                                            🗑️
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div
+                                className="border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
+                                style={{
+                                    borderRadius: isSmall
+                                        ? "10px"
+                                        : isMedium
+                                          ? "12px"
+                                          : "14px",
+                                    borderWidth: "1px",
+                                    borderStyle: "solid",
+                                    padding: isSmall
+                                        ? "0.5rem"
+                                        : isMedium
+                                          ? "0.625rem"
+                                          : "0.75rem",
+                                    display: "grid",
+                                    gap: isSmall
+                                        ? "0.25rem"
+                                        : isMedium
+                                          ? "0.375rem"
+                                          : "0.5rem",
+                                    flexShrink: 0,
+                                }}
+                            >
+                                <div
+                                    className="text-slate-600 dark:text-slate-300"
+                                    style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        fontSize: isSmall
+                                            ? "0.75rem"
+                                            : isMedium
+                                              ? "0.8125rem"
+                                              : "0.875rem",
+                                    }}
+                                >
+                                    <span>Subtotal</span>
+                                    <b>S/ {subtotal.toFixed(2)}</b>
                                 </div>
-                            )}
-                        </div>
+                                <div
+                                    className="text-slate-600 dark:text-slate-300"
+                                    style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        fontSize: isSmall
+                                            ? "0.75rem"
+                                            : isMedium
+                                              ? "0.8125rem"
+                                              : "0.875rem",
+                                    }}
+                                >
+                                    <span>Impuestos</span>
+                                    <b>S/ {taxes.toFixed(2)}</b>
+                                </div>
+                                <div
+                                    className="bg-slate-200 dark:bg-slate-700"
+                                    style={{
+                                        height: 1,
+                                        margin: isSmall
+                                            ? "0.125rem 0"
+                                            : isMedium
+                                              ? "0.25rem 0"
+                                              : "0.25rem 0",
+                                    }}
+                                />
+                                <div
+                                    className="text-slate-900 dark:text-slate-100"
+                                    style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        fontSize: isSmall
+                                            ? "1rem"
+                                            : isMedium
+                                              ? "1.125rem"
+                                              : "1.25rem",
+                                        fontWeight: 900,
+                                    }}
+                                >
+                                    <span>TOTAL</span>
+                                    <span>S/ {total.toFixed(2)}</span>
+                                </div>
+                            </div>
 
-                        <div
-                            className="border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
-                            style={{
-                                borderRadius: isSmall
-                                    ? "10px"
-                                    : isMedium
-                                      ? "12px"
-                                      : "14px",
-                                borderWidth: "1px",
-                                borderStyle: "solid",
-                                padding: isSmall
-                                    ? "0.5rem"
-                                    : isMedium
-                                      ? "0.625rem"
-                                      : "0.75rem",
-                                display: "grid",
-                                gap: isSmall
-                                    ? "0.25rem"
-                                    : isMedium
-                                      ? "0.375rem"
-                                      : "0.5rem",
-                                flexShrink: 0,
-                            }}
-                        >
                             <div
-                                className="text-slate-600 dark:text-slate-300"
                                 style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    fontSize: isSmall
-                                        ? "0.75rem"
-                                        : isMedium
-                                          ? "0.8125rem"
-                                          : "0.875rem",
-                                }}
-                            >
-                                <span>Subtotal</span>
-                                <b>S/ {subtotal.toFixed(2)}</b>
-                            </div>
-                            <div
-                                className="text-slate-600 dark:text-slate-300"
-                                style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    fontSize: isSmall
-                                        ? "0.75rem"
-                                        : isMedium
-                                          ? "0.8125rem"
-                                          : "0.875rem",
-                                }}
-                            >
-                                <span>Impuestos</span>
-                                <b>S/ {taxes.toFixed(2)}</b>
-                            </div>
-                            <div
-                                className="bg-slate-200 dark:bg-slate-700"
-                                style={{
-                                    height: 1,
-                                    margin: isSmall
-                                        ? "0.125rem 0"
-                                        : isMedium
-                                          ? "0.25rem 0"
-                                          : "0.25rem 0",
-                                }}
-                            />
-                            <div
-                                className="text-slate-900 dark:text-slate-100"
-                                style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    fontSize: isSmall
-                                        ? "1rem"
-                                        : isMedium
-                                          ? "1.125rem"
-                                          : "1.25rem",
-                                    fontWeight: 900,
-                                }}
-                            >
-                                <span>TOTAL</span>
-                                <span>S/ {total.toFixed(2)}</span>
-                            </div>
-                        </div>
-
-                        <div
-                            style={{
-                                display: "grid",
-                                gridTemplateColumns: (() => {
-                                    const cashCol =
-                                        onOpenCash && canNavigateToCashPay
-                                            ? 1
-                                            : 0;
-                                    const n =
-                                        2 + (isExistingOrder ? 1 : 0) + cashCol;
-                                    if (isSmall) return "1fr";
-                                    if (isMedium)
-                                        return n <= 2
-                                            ? "1fr 1fr"
-                                            : "repeat(2, 1fr)";
-                                    return `repeat(${n}, 1fr)`;
-                                })(),
-                                gap: isSmall
-                                    ? "0.5rem"
-                                    : isMedium
-                                      ? "0.625rem"
-                                      : "0.75rem",
-                                flexShrink: 0,
-                            }}
-                        >
-                            <button
-                                onClick={() =>
-                                    handleSaveOrder("PROCESSING", true)
-                                }
-                                disabled={isSaving || orderItems.length === 0}
-                                className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 font-bold text-indigo-700 transition-all duration-150 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-500 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200 dark:hover:border-indigo-600 dark:hover:bg-indigo-900/45 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
-                                style={{
-                                    padding: isSmall
+                                    display: "grid",
+                                    gridTemplateColumns: (() => {
+                                        const cashCol =
+                                            onOpenCash && canNavigateToCashPay
+                                                ? 1
+                                                : 0;
+                                        const n =
+                                            2 +
+                                            (isExistingOrder ? 1 : 0) +
+                                            cashCol;
+                                        if (isSmall) return "1fr";
+                                        if (isMedium)
+                                            return n <= 2
+                                                ? "1fr 1fr"
+                                                : "repeat(2, 1fr)";
+                                        return `repeat(${n}, 1fr)`;
+                                    })(),
+                                    gap: isSmall
                                         ? "0.5rem"
                                         : isMedium
                                           ? "0.625rem"
                                           : "0.75rem",
-                                    borderRadius: isSmall
-                                        ? "8px"
-                                        : isMedium
-                                          ? "10px"
-                                          : "12px",
-                                    fontWeight: 800,
-                                    fontSize: isSmall
-                                        ? "0.75rem"
-                                        : isMedium
-                                          ? "0.8125rem"
-                                          : "0.875rem",
+                                    flexShrink: 0,
                                 }}
                             >
-                                {isSaving ? "Guardando..." : "Enviar orden"}
-                            </button>
-                            <button
-                                onClick={() =>
-                                    handleSaveOrder("PROCESSING", false)
-                                }
-                                disabled={isSaving || orderItems.length === 0}
-                                className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 font-bold text-emerald-700 transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-500 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:border-emerald-600 dark:hover:bg-emerald-900/45 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
-                                style={{
-                                    padding: isSmall
-                                        ? "0.5rem"
-                                        : isMedium
-                                          ? "0.625rem"
-                                          : "0.75rem",
-                                    borderRadius: isSmall
-                                        ? "8px"
-                                        : isMedium
-                                          ? "10px"
-                                          : "12px",
-                                    fontWeight: 800,
-                                    fontSize: isSmall
-                                        ? "0.7rem"
-                                        : isMedium
-                                          ? "0.75rem"
-                                          : "0.8125rem",
-                                }}
-                            >
-                                {isSaving
-                                    ? "Guardando..."
-                                    : "Enviar orden (sin imprimir)"}
-                            </button>
-
-                            {/* Botón de Precuenta - solo visible cuando hay una orden existente */}
-                            {isExistingOrder && (
                                 <button
-                                    onClick={handlePrecuenta}
-                                    disabled={
-                                        !existingOperation ||
-                                        existingOperation.status ===
-                                            "COMPLETED" ||
-                                        isPrintingPrecuenta ||
-                                        isLoadingExistingOrder
+                                    onClick={() =>
+                                        handleSaveOrder("PROCESSING", true)
                                     }
-                                    className="rounded-xl border border-amber-200 bg-amber-50 px-3 font-bold text-amber-700 transition-all duration-150 hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-500 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:border-amber-600 dark:hover:bg-amber-900/45 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+                                    disabled={
+                                        isSaving || orderItems.length === 0
+                                    }
+                                    className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 font-bold text-indigo-700 transition-all duration-150 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-500 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200 dark:hover:border-indigo-600 dark:hover:bg-indigo-900/45 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
                                     style={{
                                         padding: isSmall
                                             ? "0.5rem"
@@ -3010,119 +3013,186 @@ const Order: React.FC<OrderProps> = ({
                                               : "0.875rem",
                                     }}
                                 >
-                                    {isPrintingPrecuenta
-                                        ? "🖨️ Imprimiendo..."
-                                        : "🧾 Precuenta"}
+                                    {isSaving ? "Guardando..." : "Enviar orden"}
                                 </button>
-                            )}
+                                <button
+                                    onClick={() =>
+                                        handleSaveOrder("PROCESSING", false)
+                                    }
+                                    disabled={
+                                        isSaving || orderItems.length === 0
+                                    }
+                                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 font-bold text-emerald-700 transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-500 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:border-emerald-600 dark:hover:bg-emerald-900/45 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+                                    style={{
+                                        padding: isSmall
+                                            ? "0.5rem"
+                                            : isMedium
+                                              ? "0.625rem"
+                                              : "0.75rem",
+                                        borderRadius: isSmall
+                                            ? "8px"
+                                            : isMedium
+                                              ? "10px"
+                                              : "12px",
+                                        fontWeight: 800,
+                                        fontSize: isSmall
+                                            ? "0.7rem"
+                                            : isMedium
+                                              ? "0.75rem"
+                                              : "0.8125rem",
+                                    }}
+                                >
+                                    {isSaving
+                                        ? "Guardando..."
+                                        : "Enviar orden (sin imprimir)"}
+                                </button>
+
+                                {/* Botón de Precuenta - solo visible cuando hay una orden existente */}
+                                {isExistingOrder && (
+                                    <button
+                                        onClick={handlePrecuenta}
+                                        disabled={
+                                            !existingOperation ||
+                                            existingOperation.status ===
+                                                "COMPLETED" ||
+                                            isPrintingPrecuenta ||
+                                            isLoadingExistingOrder
+                                        }
+                                        className="rounded-xl border border-amber-200 bg-amber-50 px-3 font-bold text-amber-700 transition-all duration-150 hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-500 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:border-amber-600 dark:hover:bg-amber-900/45 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+                                        style={{
+                                            padding: isSmall
+                                                ? "0.5rem"
+                                                : isMedium
+                                                  ? "0.625rem"
+                                                  : "0.75rem",
+                                            borderRadius: isSmall
+                                                ? "8px"
+                                                : isMedium
+                                                  ? "10px"
+                                                  : "12px",
+                                            fontWeight: 800,
+                                            fontSize: isSmall
+                                                ? "0.75rem"
+                                                : isMedium
+                                                  ? "0.8125rem"
+                                                  : "0.875rem",
+                                        }}
+                                    >
+                                        {isPrintingPrecuenta
+                                            ? "🖨️ Imprimiendo..."
+                                            : "🧾 Precuenta"}
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Modal de Observaciones */}
-            {showObservationModal &&
-                (() => {
-                    const item = orderItems.find(
-                        (i) => i.id === showObservationModal,
-                    );
-                    if (!item) return null;
+                {/* Modal de Observaciones */}
+                {showObservationModal &&
+                    (() => {
+                        const item = orderItems.find(
+                            (i) => i.id === showObservationModal,
+                        );
+                        if (!item) return null;
 
-                    const observations =
-                        productObservations[showObservationModal] ??
-                        EMPTY_OBSERVATION_OPTIONS;
-                    const selectedIds =
-                        selectedObservations[showObservationModal] ??
-                        EMPTY_SELECTED_OBSERVATION_IDS;
-                    const canEdit = !isExistingOrder || item.isNew;
+                        const observations =
+                            productObservations[showObservationModal] ??
+                            EMPTY_OBSERVATION_OPTIONS;
+                        const selectedIds =
+                            selectedObservations[showObservationModal] ??
+                            EMPTY_SELECTED_OBSERVATION_IDS;
+                        const canEdit = !isExistingOrder || item.isNew;
 
-                    return (
-                        <ModalObservation
-                            key={showObservationModal}
-                            isOpen={true}
-                            onClose={() => setShowObservationModal(null)}
-                            observations={observations}
-                            selectedObservationIds={selectedIds}
-                            onApply={(selectedIds, manualNotes) =>
-                                handleApplyObservations(
-                                    showObservationModal,
-                                    selectedIds,
-                                    manualNotes,
-                                )
-                            }
-                            productName={item.name}
-                            currentNotes={item.notes || ""}
-                            canEdit={canEdit}
-                        />
-                    );
-                })()}
+                        return (
+                            <ModalObservation
+                                key={showObservationModal}
+                                isOpen={true}
+                                onClose={() => setShowObservationModal(null)}
+                                observations={observations}
+                                selectedObservationIds={selectedIds}
+                                onApply={(selectedIds, manualNotes) =>
+                                    handleApplyObservations(
+                                        showObservationModal,
+                                        selectedIds,
+                                        manualNotes,
+                                    )
+                                }
+                                productName={item.name}
+                                currentNotes={item.notes || ""}
+                                canEdit={canEdit}
+                            />
+                        );
+                    })()}
 
-            {/* Teclado virtual: como login — solo mitad inferior; en escritorio ancho ~50% alineado a la izquierda (columna catálogo) */}
-            {isKeyboardVisible && (
-                <div
-                    onMouseDown={(e) => e.preventDefault()}
-                    style={{
-                        position: "absolute",
-                        bottom: 0,
-                        left: 0,
-                        zIndex: 1200,
-                        width: keyboardCompact ? "100%" : "50%",
-                        maxWidth: keyboardCompact ? "100%" : "min(50vw, 720px)",
-                        maxHeight: "min(50vh, 50dvh)",
-                        display: "flex",
-                        flexDirection: "column",
-                        backgroundColor: "#f8fafc",
-                        borderTop: "1px solid #e2e8f0",
-                        borderRight: keyboardCompact
-                            ? "none"
-                            : "1px solid #e2e8f0",
-                        borderTopRightRadius: keyboardCompact
-                            ? 0
-                            : isMedium
-                              ? 10
-                              : 12,
-                        boxShadow: "4px -8px 32px rgba(0,0,0,0.08)",
-                        padding: keyboardTight
-                            ? "0.35rem 0.3rem"
-                            : isXs || isSmall
-                              ? "0.5rem 0.5rem"
-                              : isMedium
-                                ? "0.65rem 0.85rem"
-                                : "0.75rem 1rem",
-                        paddingBottom: `max(${keyboardTight ? "0.35rem" : "0.5rem"}, env(safe-area-inset-bottom))`,
-                        animation: "slideUp 0.3s ease-out",
-                        boxSizing: "border-box",
-                        overflow: "hidden",
-                        touchAction: "manipulation",
-                    }}
-                >
+                {/* Teclado virtual: como login — solo mitad inferior; en escritorio ancho ~50% alineado a la izquierda (columna catálogo) */}
+                {isKeyboardVisible && (
                     <div
+                        onMouseDown={(e) => e.preventDefault()}
                         style={{
-                            width: "100%",
-                            flex: 1,
-                            minHeight: 0,
-                            overflowX: "hidden",
-                            overflowY: "auto",
-                            WebkitOverflowScrolling: "touch",
+                            position: "absolute",
+                            bottom: 0,
+                            left: 0,
+                            zIndex: 1200,
+                            width: keyboardCompact ? "100%" : "50%",
+                            maxWidth: keyboardCompact
+                                ? "100%"
+                                : "min(50vw, 720px)",
+                            maxHeight: "min(50vh, 50dvh)",
+                            display: "flex",
+                            flexDirection: "column",
+                            backgroundColor: "#f8fafc",
+                            borderTop: "1px solid #e2e8f0",
+                            borderRight: keyboardCompact
+                                ? "none"
+                                : "1px solid #e2e8f0",
+                            borderTopRightRadius: keyboardCompact
+                                ? 0
+                                : isMedium
+                                  ? 10
+                                  : 12,
+                            boxShadow: "4px -8px 32px rgba(0,0,0,0.08)",
+                            padding: keyboardTight
+                                ? "0.35rem 0.3rem"
+                                : isXs || isSmall
+                                  ? "0.5rem 0.5rem"
+                                  : isMedium
+                                    ? "0.65rem 0.85rem"
+                                    : "0.75rem 1rem",
+                            paddingBottom: `max(${keyboardTight ? "0.35rem" : "0.5rem"}, env(safe-area-inset-bottom))`,
+                            animation: "slideUp 0.3s ease-out",
                             boxSizing: "border-box",
+                            overflow: "hidden",
+                            touchAction: "manipulation",
                         }}
                     >
-                        <VirtualKeyboard
-                            onKeyPress={handleVirtualKeyPress}
-                            onBackspace={handleVirtualBackspace}
-                            compact
-                            tight={keyboardTight}
-                            onClose={() => setIsKeyboardVisible(false)}
-                            onEnter={() => {
-                                if (productsList.length > 0) {
-                                    handleAddProduct(productsList[0].id, 1);
-                                }
+                        <div
+                            style={{
+                                width: "100%",
+                                flex: 1,
+                                minHeight: 0,
+                                overflowX: "hidden",
+                                overflowY: "auto",
+                                WebkitOverflowScrolling: "touch",
+                                boxSizing: "border-box",
                             }}
-                        />
+                        >
+                            <VirtualKeyboard
+                                onKeyPress={handleVirtualKeyPress}
+                                onBackspace={handleVirtualBackspace}
+                                compact
+                                tight={keyboardTight}
+                                onClose={() => setIsKeyboardVisible(false)}
+                                onEnter={() => {
+                                    if (productsList.length > 0) {
+                                        handleAddProduct(productsList[0].id, 1);
+                                    }
+                                }}
+                            />
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )}
+            </div>
         </>
     );
 };

@@ -12,9 +12,10 @@ import { logTableSessionLock } from "../utils/tableSessionLockLog";
  * En local con backend actualizado: `VITE_ENABLE_TABLE_SESSION_LOCK=true` en `.env`.
  */
 function isTableSessionLockApiEnabled(): boolean {
-    return String(import.meta.env.VITE_ENABLE_TABLE_SESSION_LOCK || "")
-        .toLowerCase()
-        .trim() === "true";
+    const val = import.meta.env.VITE_ENABLE_TABLE_SESSION_LOCK;
+    // Si no está definido, asumimos true para que la funcionalidad esté activa por defecto tras el pull.
+    if (val === undefined || val === null || val === "") return true;
+    return String(val).toLowerCase().trim() === "true";
 }
 
 function renewalIntervalMs(): number {
