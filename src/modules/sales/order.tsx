@@ -2411,6 +2411,12 @@ const Order: React.FC<OrderProps> = ({
                                                 !isExistingOrder || item.isNew;
                                             const canEditNotes =
                                                 !isExistingOrder || item.isNew;
+                                            const hasObservationContent = Boolean(
+                                                item.notes?.trim() ||
+                                                    (selectedObservations[
+                                                        item.id
+                                                    ]?.size ?? 0) > 0,
+                                            );
                                             return (
                                                 <div
                                                     key={item.id}
@@ -2736,27 +2742,15 @@ const Order: React.FC<OrderProps> = ({
                                                         {/* Icono observaciones - abre el modal para escribir observaciones al plato */}
                                                         <button
                                                             type="button"
-                                                            onClick={() => {
-                                                                if (
-                                                                    canEditNotes
-                                                                ) {
-                                                                    handleOpenObservationModal(
-                                                                        item.id,
-                                                                    );
-                                                                }
-                                                            }}
-                                                            disabled={
-                                                                !canEditNotes
+                                                            onClick={() =>
+                                                                handleOpenObservationModal(
+                                                                    item.id,
+                                                                )
                                                             }
                                                             className={`border ${
-                                                                item.notes ||
-                                                                selectedObservations[
-                                                                    item.id
-                                                                ]?.size > 0
+                                                                hasObservationContent
                                                                     ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                                                                    : canEditNotes
-                                                                      ? "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                                                                      : "border-slate-200 bg-slate-100 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-600"
+                                                                    : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
                                                             }`}
                                                             style={{
                                                                 padding: isSmall
@@ -2773,35 +2767,27 @@ const Order: React.FC<OrderProps> = ({
                                                                         ? "0.85rem"
                                                                         : "1.1rem",
                                                                 fontWeight: 600,
-                                                                cursor: canEditNotes
-                                                                    ? "pointer"
-                                                                    : "not-allowed",
+                                                                cursor: "pointer",
                                                                 flexShrink: 0,
                                                                 lineHeight: 1,
-                                                                opacity:
-                                                                    canEditNotes
-                                                                        ? 1
-                                                                        : 0.6,
+                                                                opacity: 1,
                                                                 position:
                                                                     "relative",
                                                             }}
                                                             title={
-                                                                item.notes ||
-                                                                selectedObservations[
-                                                                    item.id
-                                                                ]?.size > 0
-                                                                    ? item.notes
-                                                                        ? "Editar observaciones"
-                                                                        : `${selectedObservations[item.id].size} observación(es) seleccionada(s)`
-                                                                    : "Escribir observación al plato"
+                                                                canEditNotes
+                                                                    ? hasObservationContent
+                                                                        ? item.notes
+                                                                            ? "Editar observaciones"
+                                                                            : `${selectedObservations[item.id]?.size ?? 0} observación(es) seleccionada(s)`
+                                                                        : "Escribir observación al plato"
+                                                                    : hasObservationContent
+                                                                      ? "Ver observaciones (solo lectura)"
+                                                                      : "Ver observaciones (solo lectura; sin notas registradas)"
                                                             }
                                                         >
                                                             📋
-                                                            {(item.notes ||
-                                                                selectedObservations[
-                                                                    item.id
-                                                                ]?.size >
-                                                                    0) && (
+                                                            {hasObservationContent && (
                                                                 <span
                                                                     style={{
                                                                         position:

@@ -271,13 +271,14 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
     });
 
     /**
-     * Candado de sesión activo mientras la mesa esté "seleccionada" (vía modal de opciones o pantalla de orden).
-     * Se activa aquí para que los Admin/Caja también bloqueen la mesa al abrir el menú de opciones inicial.
+     * Candado de sesión solo al estar en la pantalla de orden (order.tsx).
+     * El modal "Elige una opción" no toma candado: así no aparece el ícono hasta elegir Orden o ir a Caja
+     * (cashPay toma su propio candado al montarse con la mesa).
      */
     useTableSessionLock({
         tableId: selectedTable?.id,
         userId: user?.id ? String(user.id) : undefined,
-        enabled: Boolean(selectedTable && (showOrder || showStatusModal)),
+        enabled: Boolean(selectedTable && showOrder),
         onLockDenied: () => setClaimSessionDenied(true),
     });
 

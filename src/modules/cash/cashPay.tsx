@@ -1744,11 +1744,21 @@ const CashPay: React.FC<CashPayProps> = ({
     };
 
     const handlePrecuenta = async () => {
+        const logPp = (msg: string, extra?: unknown) => {
+            if (extra !== undefined) {
+                console.log(`[PrintPartialPrecuenta] ${msg}`, extra);
+            } else {
+                console.log(`[PrintPartialPrecuenta] ${msg}`);
+            }
+        };
+
         if (!operation || !table?.id || !companyData?.branch.id || !user?.id) {
+            logPp("abort: faltan operation, mesa, sucursal o usuario");
             showToast("No hay orden", "error");
             return;
         }
         if (operation.status === "COMPLETED") {
+            logPp("abort: operación COMPLETED", { operationId: operation.id });
             showToast("Orden completada", "error");
             return;
         }
@@ -1756,28 +1766,118 @@ const CashPay: React.FC<CashPayProps> = ({
         try {
             const mac = await getMacAddress();
             if (!mac) {
+                logPp("abort: sin deviceId/MAC");
                 showToast("Error MAC", "error");
                 return;
             }
             const selectedDetailIds = Object.keys(itemAssignments).filter(
                 (id) => itemAssignments[id],
             );
+            logPp("filas UI seleccionadas (itemAssignments)", {
+                count: selectedDetailIds.length,
+                rowIds: selectedDetailIds,
+            });
             if (selectedDetailIds.length === 0) {
                 showToast("Selecciona ítems para precuenta", "error");
                 return;
             }
+
+            const qtyByRealDetailId = new Map<string, number>();
+            for (const rowId of selectedDetailIds) {
+                const row = detailsToUse.find(
+                    (d: any) => String(d.id) === String(rowId),
+                );
+                if (!row) continue;
+                const realId = getRealOperationDetailId(row);
+                if (!realId) continue;
+                const q = Number(row.quantity) || 0;
+                if (q <= 0) continue;
+                qtyByRealDetailId.set(
+                    realId,
+                    (qtyByRealDetailId.get(realId) || 0) + q,
+                );
+            }
+            const detailItems = Array.from(qtyByRealDetailId.entries()).map(
+                ([id, quantity]) => ({ id, quantity }),
+            );
+            logPp(
+                "payload para backend detailItems (id BD + cantidad agregada)",
+                detailItems,
+            );
+            if (detailItems.length === 0) {
+                logPp("abort: detailItems vacío tras agregar por detalle real");
+                showToast("No hay cantidades válidas para precuenta", "error");
+                return;
+            }
+
+            const variables = {
+                operationId: operation.id,
+                detailItems,
+                tableId: table.id,
+                branchId: companyData.branch.id,
+                userId: user.id,
+                deviceId: mac,
+                printerId: null as string | null,
+            };
+            logPp("mutación printPartialPrecuenta variables", variables);
+
             const res = await printPartialPrecuentaMutation({
-                variables: {
-                    operationId: operation.id,
-                    detailIds: selectedDetailIds,
-                    tableId: table.id,
-                    branchId: companyData.branch.id,
-                    userId: user.id,
-                    deviceId: mac,
-                    printerId: null,
-                },
+                variables,
             });
+            if (res.errors?.length) {
+                logPp("respuesta con errores GraphQL", res.errors);
+            }
+            logPp("respuesta GraphQL (raw)", res.data?.printPartialPrecuenta);
+
             if (res.data?.printPartialPrecuenta?.success) {
+                const partialRes = res.data.printPartialPrecuenta as typeof res.data.printPartialPrecuenta & {
+                    print_locally?: boolean;
+                    printLocally?: boolean;
+                    document_data?: string | null;
+                    documentData?: string | null;
+                };
+                const printLocallyFlag =
+                    partialRes?.printLocally === true ||
+                    partialRes?.print_locally === true;
+                const docData =
+                    partialRes?.documentData ?? partialRes?.document_data ?? null;
+                logPp("éxito servidor", {
+                    message: partialRes?.message,
+                    printLocally: printLocallyFlag,
+                    documentDataChars:
+                        docData != null && String(docData).trim() !== ""
+                            ? String(docData).length
+                            : 0,
+                    tableStatus: partialRes?.table?.status,
+                });
+
+                const localPrintOk = await invokeLocalIssuedDocumentPrint(
+                    {
+                        printLocally:
+                            partialRes?.printLocally ??
+                            partialRes?.print_locally,
+                        documentData: docData,
+                    },
+                    {
+                        label: "precuenta parcial",
+                        operationId: operation.id,
+                        deviceId: mac,
+                        localPrinterName:
+                            selectedLocalPrinterName.trim() || null,
+                    },
+                );
+                logPp("impresión local (invokeLocalIssuedDocumentPrint)", {
+                    printLocallyFlag,
+                    localPrintOk,
+                });
+
+                if (printLocallyFlag && !localPrintOk) {
+                    showToast(
+                        "La precuenta se registró, pero no se pudo imprimir en la impresora local. Revise la impresora o SumApp Electron.",
+                        "warning",
+                    );
+                }
+
                 const t = res.data.printPartialPrecuenta.table || table;
                 try {
                     await updateTableStatusMutation({
@@ -1806,14 +1906,21 @@ const CashPay: React.FC<CashPayProps> = ({
                     onTableChange({ ...table, status: "TO_PAY" });
                 await refetch();
                 if (onPaymentSuccess) onPaymentSuccess();
+                logPp("flujo OK: mesa TO_PAY, refetch hecho");
                 showToast("Precuenta enviada exitosamente", "success");
-            } else
+            } else {
+                logPp("error lógico (success=false)", {
+                    message: res.data?.printPartialPrecuenta?.message,
+                    data: res.data?.printPartialPrecuenta,
+                });
                 showToast(
                     res.data?.printPartialPrecuenta?.message ||
                         "Error al enviar precuenta",
                     "error",
                 );
+            }
         } catch (e: any) {
+            console.error("[PrintPartialPrecuenta] excepción", e);
             showToast(e.message, "error");
         } finally {
             setIsProcessing(false);

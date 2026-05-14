@@ -133,14 +133,13 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 
         // Auto-enfocar el textarea al abrir y mover el cursor al final
         setTimeout(() => {
-            if (textareaRef.current) {
-                textareaRef.current.focus();
-                const length = textareaRef.current.value.length;
-                textareaRef.current.setSelectionRange(length, length);
-            }
+            if (!canEdit || !textareaRef.current) return;
+            textareaRef.current.focus();
+            const length = textareaRef.current.value.length;
+            textareaRef.current.setSelectionRange(length, length);
         }, 50);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen]);
+    }, [isOpen, canEdit]);
 
     // Sincronizar los chips (localSelected) con el contenido del texto
     useEffect(() => {
@@ -176,8 +175,6 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
             moveCursorToEnd();
         });
     }, [localSelected, manualNotes]);
-
-    if (!isOpen) return null;
 
     if (!isOpen) return null;
 
@@ -334,7 +331,8 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
                             />
                             {!canEdit && (
                                 <p className="text-[10px] italic text-slate-400 dark:text-slate-500">
-                                    Las notas no se pueden editar para este producto
+                                    Solo lectura: este producto ya fue enviado en la
+                                    orden.
                                 </p>
                             )}
                         </div>
@@ -373,23 +371,30 @@ const ModalObservation: React.FC<ModalObservationProps> = ({
 
                 {/* Footer Buttons */}
                 <div className="flex gap-3 border-t border-slate-100 p-6 dark:border-slate-800">
-                    <button
-                        onClick={handleCancel}
-                        className="flex-1 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50"
-                    >
-                        Cancelar
-                    </button>
-                    <button
-                        onClick={handleApply}
-                        disabled={!canEdit}
-                        className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-black uppercase tracking-widest text-white transition-all shadow-lg ${
-                            !canEdit 
-                            ? "bg-slate-300 dark:bg-slate-800 cursor-not-allowed shadow-none" 
-                            : "bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-indigo-600/30 active:translate-y-0"
-                        }`}
-                    >
-                        Aplicar
-                    </button>
+                    {canEdit ? (
+                        <>
+                            <button
+                                onClick={handleCancel}
+                                className="flex-1 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleApply}
+                                className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-3.5 text-sm font-black uppercase tracking-widest text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-indigo-600/30 active:translate-y-0"
+                            >
+                                Aplicar
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={handleCancel}
+                            className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50"
+                        >
+                            Cerrar
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

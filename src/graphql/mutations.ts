@@ -313,16 +313,10 @@ export const UPDATE_TABLE_STATUS = gql`
     }
 `;
 
-/** Candado de sesión por mesa; `deviceId` requerido en backend para bloquear mismo usuario en otro equipo. */
+/** Candado de sesión por mesa (coincide con Arguments: table_id, user_id en Django). */
 export const CLAIM_TABLE_SESSION_LOCK = gql`
-    mutation ClaimTableSessionLock(
-        $tableId: ID!
-        $userId: ID!
-    ) {
-        claimTableSessionLock(
-            tableId: $tableId
-            userId: $userId
-        ) {
+    mutation ClaimTableSessionLock($tableId: ID!, $userId: ID!) {
+        claimTableSessionLock(tableId: $tableId, userId: $userId) {
             success
             message
         }
@@ -330,14 +324,8 @@ export const CLAIM_TABLE_SESSION_LOCK = gql`
 `;
 
 export const RENEW_TABLE_SESSION_LOCK = gql`
-    mutation RenewTableSessionLock(
-        $tableId: ID!
-        $userId: ID!
-    ) {
-        renewTableSessionLock(
-            tableId: $tableId
-            userId: $userId
-        ) {
+    mutation RenewTableSessionLock($tableId: ID!, $userId: ID!) {
+        renewTableSessionLock(tableId: $tableId, userId: $userId) {
             success
             message
         }
@@ -345,14 +333,8 @@ export const RENEW_TABLE_SESSION_LOCK = gql`
 `;
 
 export const RELEASE_TABLE_SESSION_LOCK = gql`
-    mutation ReleaseTableSessionLock(
-        $tableId: ID!
-        $userId: ID!
-    ) {
-        releaseTableSessionLock(
-            tableId: $tableId
-            userId: $userId
-        ) {
+    mutation ReleaseTableSessionLock($tableId: ID!, $userId: ID!) {
+        releaseTableSessionLock(tableId: $tableId, userId: $userId) {
             success
             message
         }
@@ -813,11 +795,11 @@ export const PRINT_PRECUENTA = gql`
     }
 `;
 
-// Mutación para imprimir precuenta parcial (solo items seleccionados)
+// Mutación para imprimir precuenta parcial (solo items seleccionados; id + cantidad por línea)
 export const PRINT_PARTIAL_PRECUENTA = gql`
     mutation PrintPartialPrecuenta(
         $operationId: ID!
-        $detailIds: [ID!]!
+        $detailItems: [PartialDetailInput!]!
         $tableId: ID!
         $branchId: ID!
         $userId: ID!
@@ -826,7 +808,7 @@ export const PRINT_PARTIAL_PRECUENTA = gql`
     ) {
         printPartialPrecuenta(
             operationId: $operationId
-            detailIds: $detailIds
+            detailItems: $detailItems
             tableId: $tableId
             branchId: $branchId
             userId: $userId
@@ -835,6 +817,8 @@ export const PRINT_PARTIAL_PRECUENTA = gql`
         ) {
             success
             message
+            printLocally
+            documentData
             operation {
                 id
                 order
