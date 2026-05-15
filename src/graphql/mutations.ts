@@ -784,6 +784,8 @@ export const PRINT_PRECUENTA = gql`
         ) {
             success
             message
+            printLocally
+            documentData
             operation {
                 id
                 total

@@ -1539,7 +1539,9 @@ const CashPay: React.FC<CashPayProps> = ({
                         operationId: variables.operationId,
                         deviceId: variables.deviceId ?? null,
                         localPrinterName:
-                            selectedLocalPrinterName.trim() || null,
+                            getLocalTicketPrinterStorage().trim() ||
+                            selectedLocalPrinterName.trim() ||
+                            null,
                     },
                 );
                 if (printLocallyFlag && !localPrintOk) {
@@ -1863,7 +1865,9 @@ const CashPay: React.FC<CashPayProps> = ({
                         operationId: operation.id,
                         deviceId: mac,
                         localPrinterName:
-                            selectedLocalPrinterName.trim() || null,
+                            getLocalTicketPrinterStorage().trim() ||
+                            selectedLocalPrinterName.trim() ||
+                            null,
                     },
                 );
                 logPp("impresión local (invokeLocalIssuedDocumentPrint)", {

@@ -33,6 +33,8 @@ import ModalObservation from "./modalObservation";
 import CategoryIcon from "../../components/CategoryIcon";
 import VirtualKeyboard from "../../components/VirtualKeyboard";
 import { useTableSessionLock } from "../../hooks/useTableSessionLock";
+import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
+import { getLocalTicketPrinterStorage } from "../../utils/localPrinterPreference";
 
 export type OrderSuccessPayload = {
     operationId: string | number;
@@ -1439,6 +1441,37 @@ const Order: React.FC<OrderProps> = ({
             });
 
             if (result.data?.printAccount?.success) {
+                const pa = result.data.printAccount as typeof result.data.printAccount & {
+                    print_locally?: boolean;
+                    printLocally?: boolean;
+                    document_data?: string | null;
+                    documentData?: string | null;
+                };
+                const printLocallyFlag =
+                    pa?.printLocally === true || pa?.print_locally === true;
+                const docData =
+                    pa?.documentData ?? pa?.document_data ?? null;
+                const localPrintOk = await invokeLocalIssuedDocumentPrint(
+                    {
+                        printLocally:
+                            pa?.printLocally ?? pa?.print_locally,
+                        documentData: docData,
+                    },
+                    {
+                        label: "precuenta",
+                        operationId: existingOperation.id,
+                        deviceId: resolvedDeviceId,
+                        localPrinterName:
+                            getLocalTicketPrinterStorage().trim() || null,
+                    },
+                );
+                if (printLocallyFlag && !localPrintOk) {
+                    showToast(
+                        "La precuenta se registró, pero no se pudo imprimir en la impresora local. Revise la impresora o SumApp Electron.",
+                        "warning",
+                    );
+                }
+
                 const updatedTableId = table.id;
                 // Forzar siempre TO_PAY para que la mesa se pinte amarilla
                 const updatedStatus = "TO_PAY";
