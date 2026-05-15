@@ -11,7 +11,7 @@ import { logTableSessionLock } from "../utils/tableSessionLockLog";
  * En producción sin mutaciones GraphQL: `false` u omite la variable (sin 400).
  * En local con backend actualizado: `VITE_ENABLE_TABLE_SESSION_LOCK=true` en `.env`.
  */
-function isTableSessionLockApiEnabled(): boolean {
+export function isTableSessionLockApiEnabled(): boolean {
     const val = import.meta.env.VITE_ENABLE_TABLE_SESSION_LOCK;
     // Si no está definido, asumimos true para que la funcionalidad esté activa por defecto tras el pull.
     if (val === undefined || val === null || val === "") return true;

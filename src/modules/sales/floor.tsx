@@ -106,6 +106,8 @@ function formatElapsedShort(fromMs: number, nowMs: number): string {
 
 type FloorProps = {
     onOpenCash?: (table: Table) => void;
+    /** Incrementado al volver desde Caja: refetch escalonado para alinear candado visual. */
+    tablesRefreshNonce?: number;
 };
 
 // Colores Tailwind por estado para mejor compatibilidad con dark/light
@@ -155,7 +157,10 @@ const getTableTailwindClasses = (status: string) => {
     }
 };
 
-const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
+const Floor: React.FC<FloorProps> = ({
+    onOpenCash,
+    tablesRefreshNonce = 0,
+}) => {
     const { companyData, user } = useAuth();
     const { hasPermission } = useUserPermissions();
     const { showToast } = useToast();
@@ -294,10 +299,66 @@ const Floor: React.FC<FloorProps> = ({ onOpenCash }) => {
         (t) => t.isActive !== false,
     );
 
+    /**
+     * Si otro equipo cobra la orden por caja mientras esta PC está en «Elige una opción»,
+     * al llegar el refetch/WS la mesa queda sin operación: cerrar el modal para no seguir en una orden inexistente.
+     */
+    useEffect(() => {
+        if (!showStatusModal || !selectedTable?.id) return;
+
+        const live = visibleTables.find(
+            (t) => String(t.id) === String(selectedTable.id),
+        );
+        if (!live) return;
+
+        const snapshotOpId =
+            selectedTable.currentOperationId != null &&
+            String(selectedTable.currentOperationId).trim() !== ""
+                ? String(selectedTable.currentOperationId)
+                : null;
+
+        const liveOpId =
+            live.currentOperationId != null &&
+            String(live.currentOperationId).trim() !== ""
+                ? String(live.currentOperationId)
+                : null;
+
+        const orderGoneOrTableFreed =
+            live.status === "AVAILABLE" ||
+            liveOpId === null ||
+            (snapshotOpId != null && liveOpId !== snapshotOpId);
+
+        if (!orderGoneOrTableFreed) return;
+
+        showToast(
+            "La orden de esta mesa se completó o la mesa fue liberada desde otra estación.",
+            "info",
+        );
+        setShowStatusModal(false);
+        setSelectedTable(null);
+    }, [showStatusModal, selectedTable, visibleTables, showToast]);
+
     const refetchTablesFromServer = useCallback(
         () => refetchTables({ fetchPolicy: "network-only" }),
         [refetchTables],
     );
+
+    /** Tras Caja: el servidor ya liberó pero la primera query a veces llega en carrera; varios refetch cortos. */
+    useEffect(() => {
+        if (tablesRefreshNonce === 0) return;
+        const delays = [0, 400, 1200];
+        const ids: number[] = [];
+        delays.forEach((ms) => {
+            ids.push(
+                window.setTimeout(() => {
+                    void refetchTablesFromServer().catch(() => {});
+                }, ms),
+            );
+        });
+        return () => {
+            ids.forEach((id) => window.clearTimeout(id));
+        };
+    }, [tablesRefreshNonce, refetchTablesFromServer]);
 
     const tablesWsEventDebounceRef = useRef<ReturnType<
         typeof setTimeout

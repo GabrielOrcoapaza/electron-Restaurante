@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, gql } from "@apollo/client";
+import { isTableSessionLockApiEnabled } from "../hooks/useTableSessionLock";
 import { useAuth } from "../hooks/useAuth";
 import { useResponsive } from "../hooks/useResponsive";
 import { useSwitchBranch } from "../hooks/useSwitchBranch";
@@ -31,7 +32,10 @@ import FloorModule from "../modules/configuration/floor";
 import TableModule from "../modules/configuration/table";
 import Delivery from "../modules/sales/delivery";
 import { GET_MY_UNREAD_MESSAGES } from "../graphql/queries";
-import { MARK_MESSAGE_READ } from "../graphql/mutations";
+import {
+    MARK_MESSAGE_READ,
+    RELEASE_TABLE_SESSION_LOCK,
+} from "../graphql/mutations";
 import type { Table } from "../types/table";
 
 const GET_MY_KITCHEN_NOTIFICATIONS = gql`
@@ -236,6 +240,10 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(
         null,
     );
+    /** Mesa abierta en Caja (para liberar candado aunque `selectedCashTable` se nullifique al cambiar de vista). */
+    const lastCashTableIdRef = useRef<string | null>(null);
+    const [floorsTablesRefreshNonce, setFloorsTablesRefreshNonce] =
+        useState(0);
     const [showNotifications, setShowNotifications] = useState(false);
     const [showUserPopover, setShowUserPopover] = useState(false);
     const notificationsRef = useRef<HTMLDivElement | null>(null);
@@ -266,6 +274,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     });
 
     const [markMessageReadMutation] = useMutation(MARK_MESSAGE_READ);
+    const [releaseTableSessionLockMutation] = useMutation(
+        RELEASE_TABLE_SESSION_LOCK,
+    );
 
     useEffect(() => {
         let cancelled = false;
@@ -516,7 +527,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         setSidebarOpen(!sidebarOpen);
     };
 
-    const handleMenuClick = (
+    const handleMenuClick = async (
         view:
             | "dashboard"
             | "floors"
@@ -532,6 +543,27 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             | "configuration"
             | "delivery",
     ) => {
+        const leavingCash = currentView === "cash" && view !== "cash";
+        if (leavingCash) {
+            const tid = lastCashTableIdRef.current;
+            const uid = user?.id;
+            lastCashTableIdRef.current = null;
+            if (tid && uid && isTableSessionLockApiEnabled()) {
+                try {
+                    await releaseTableSessionLockMutation({
+                        variables: {
+                            tableId: tid,
+                            userId: String(uid),
+                        },
+                    });
+                } catch {
+                    /* el desmontaje de CashPay puede programar otro release */
+                }
+            }
+            if (view === "floors") {
+                setFloorsTablesRefreshNonce((n) => n + 1);
+            }
+        }
         setCurrentView(view);
         if (view === "configuration") {
             setConfigurationTab("category");
@@ -544,11 +576,25 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     };
 
     const handleOpenCash = (table: Table) => {
+        lastCashTableIdRef.current = String(table.id);
         setSelectedCashTable(table);
         setCurrentView("cash");
     };
 
-    const handleBackFromCash = () => {
+    const handleBackFromCash = async () => {
+        const t = selectedCashTable;
+        const uid = user?.id;
+        lastCashTableIdRef.current = null;
+        if (t?.id && uid && isTableSessionLockApiEnabled()) {
+            try {
+                await releaseTableSessionLockMutation({
+                    variables: { tableId: t.id, userId: String(uid) },
+                });
+            } catch {
+                /* noop */
+            }
+        }
+        setFloorsTablesRefreshNonce((n) => n + 1);
         setCurrentView("floors");
         setSelectedCashTable(null);
     };
@@ -1424,7 +1470,10 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                 >
                     {currentView === "dashboard" && children}
                     {currentView === "floors" && (
-                        <Floor onOpenCash={handleOpenCash} />
+                        <Floor
+                            onOpenCash={handleOpenCash}
+                            tablesRefreshNonce={floorsTablesRefreshNonce}
+                        />
                     )}
                     {currentView === "cash" && (
                         <CashPay

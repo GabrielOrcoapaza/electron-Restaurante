@@ -403,11 +403,13 @@ export const ADD_ITEMS_TO_OPERATION = gql`
         $operationId: ID!
         $details: [OperationDetailInput!]!
         $deviceId: String!
+        $userId: ID
     ) {
         addItemsToOperation(
             operationId: $operationId
             details: $details
             deviceId: $deviceId
+            userId: $userId
         ) {
             success
             message

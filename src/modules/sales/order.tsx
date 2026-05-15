@@ -1021,12 +1021,24 @@ const Order: React.FC<OrderProps> = ({
                     }
                 }
 
+                const addItemsVariables = {
+                    operationId,
+                    details,
+                    deviceId: deviceIdForMutation,
+                    userId: user?.id ? String(user.id) : null,
+                };
+                console.log("[AddItemsToOperation] resumen:", {
+                    operationId: addItemsVariables.operationId,
+                    userId: addItemsVariables.userId,
+                    userIdEnviado: addItemsVariables.userId != null,
+                    cantidadDetalles: details.length,
+                    deviceIdPresente: Boolean(
+                        String(addItemsVariables.deviceId || "").trim(),
+                    ),
+                });
+
                 const result = await addItemsToOperationMutation({
-                    variables: {
-                        operationId,
-                        details,
-                        deviceId: deviceIdForMutation,
-                    },
+                    variables: addItemsVariables,
                 });
 
                 if (result.data?.addItemsToOperation?.success) {
