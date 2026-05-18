@@ -543,7 +543,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             | "configuration"
             | "delivery",
     ) => {
-        const leavingCash = currentView === "cash" && view !== "cash";
+        const leavingCash = currentView === "cash";
         if (leavingCash) {
             const tid = lastCashTableIdRef.current;
             const uid = user?.id;
