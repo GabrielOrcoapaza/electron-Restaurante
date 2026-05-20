@@ -41,6 +41,17 @@ import {
     formatInstantISO,
 } from "../../utils/localDateTime";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
+import {
+    buildCashPayDocumentPreviewJson,
+    documentTypeLabelFromCode,
+} from "../../utils/buildCashPayDocumentPreview";
+import {
+    buildPreviewHtmlBlobUrl,
+    openIssuedDocumentPrintPreview,
+    revokePreviewHtmlBlobUrl,
+    type DocumentPreviewAction,
+} from "../../utils/issuedDocumentPrintWithPreview";
+import { DocumentPrintPreviewModal } from "../../components/DocumentPrintPreviewModal";
 import { isElectronRenderer } from "../../utils/electronPrint";
 import { useTableSessionLock } from "../../hooks/useTableSessionLock";
 import {
@@ -151,6 +162,16 @@ const CashPay: React.FC<CashPayProps> = ({
     const [discountAmount, setDiscountAmount] = useState<number>(0);
     const [discountPercent, setDiscountPercent] = useState<number>(0);
     const isProcessingRef = useRef(false);
+    const isPrintPreviewOpenRef = useRef(false);
+    const [cashDocPreview, setCashDocPreview] = useState<{
+        title: string;
+        htmlUrl: string | null;
+        previewJson: string;
+        loading: boolean;
+    } | null>(null);
+    const cashDocPreviewResolverRef = useRef<
+        ((action: DocumentPreviewAction) => void) | null
+    >(null);
     const [itemAssignments, setItemAssignments] = useState<
         Record<string, boolean>
     >({});
@@ -920,6 +941,176 @@ const CashPay: React.FC<CashPayProps> = ({
         return fallback;
     };
 
+    /** Al pulsar Boleta / Factura / Nota: vista previa local (sin backend) y luego el pago. */
+    const handleDocumentPayClick = async (documentId: string) => {
+        if (isProcessingRef.current || isProcessing || isPrintPreviewOpenRef.current) {
+            return;
+        }
+
+        if (!operation || !documentId || !user?.id) {
+            showToast("No se puede procesar el pago", "error");
+            return;
+        }
+
+        const docForPay = documents.find(
+            (doc: any) => String(doc.id) === String(documentId),
+        );
+        if (!docForPay) {
+            showToast("Tipo de documento no válido", "error");
+            return;
+        }
+
+        const isFacturaDoc = String(docForPay.code) === "01";
+        if (isFacturaDoc) {
+            if (!selectedClientId) {
+                showToast(
+                    "Para emitir una FACTURA debe seleccionar un cliente con RUC",
+                    "error",
+                );
+                return;
+            }
+            if ((selectedClient?.documentType || "").toUpperCase() !== "RUC") {
+                showToast(
+                    "Para emitir una FACTURA el cliente debe tener un RUC válido",
+                    "error",
+                );
+                return;
+            }
+        }
+
+        const cashRegisterIdToUse =
+            selectedCashRegisterId ||
+            (cashRegisters.length > 0 ? cashRegisters[0].id : null);
+        if (!cashRegisterIdToUse) {
+            showToast("No hay cajas registradoras disponibles", "error");
+            return;
+        }
+
+        if (!paymentsCoverDebt) {
+            showToast(
+                "La suma de los pagos debe cubrir el total a pagar",
+                "error",
+            );
+            return;
+        }
+
+        if (detailsForTotal.length === 0) {
+            showToast("No hay productos para facturar", "error");
+            return;
+        }
+
+        isPrintPreviewOpenRef.current = true;
+        try {
+            let serial: string;
+            try {
+                const { data: serialsFetched } =
+                    await fetchSerialsForDocument({
+                        variables: { documentId },
+                    });
+                const serialList = (
+                    serialsFetched?.serialsByDocument || []
+                ).filter((ser: any) => ser.isActive !== false);
+                if (serialList.length === 0) {
+                    showToast("No hay serie activa para este documento", "error");
+                    return;
+                }
+                serial = serialList[0].serial || "";
+            } catch {
+                showToast(
+                    "No se pudieron cargar las series del documento",
+                    "error",
+                );
+                return;
+            }
+
+            const now = new Date();
+            const waiterName =
+                (operation?.user?.fullName || "").trim() ||
+                (table?.userName || "").trim() ||
+                null;
+
+            const previewJson = buildCashPayDocumentPreviewJson({
+                documentTypeLabel: documentTypeLabelFromCode(
+                    String(docForPay.code || ""),
+                    docForPay.description,
+                ),
+                serial,
+                company: companyData?.company ?? null,
+                branch: {
+                    name: companyData?.branch?.name,
+                    address: companyData?.branch?.address,
+                    phone: companyData?.branch?.phone,
+                },
+                customer: selectedClient
+                    ? {
+                          name: selectedClient.name || "Cliente",
+                          document: selectedClient.documentNumber,
+                          document_type: selectedClient.documentType,
+                          address: selectedClient.address,
+                      }
+                    : null,
+                tableName: table?.name ?? null,
+                waiterName,
+                lineItems: detailsForTotal.map((detail: any) => {
+                    const qty = Number(detail.quantity) || 0;
+                    const price = Number(detail.unitPrice) || 0;
+                    return {
+                        product_name:
+                            detail.productName ||
+                            detail.product?.name ||
+                            "Producto",
+                        quantity: qty,
+                        unit_price: price,
+                        total: qty * price,
+                        notes: detail.notes || "",
+                    };
+                }),
+                amounts: {
+                    subtotal,
+                    igv: igvAmount,
+                    igv_percent: igvPercentage,
+                    discount: totalDiscount,
+                    discount_percent: discountPct,
+                    total: totalToPay,
+                },
+                emissionDate: formatLocalDateYYYYMMDD(now),
+                emissionTime: formatLocalTimeHHMMSS(now),
+                logoBase64:
+                    companyData?.branchLogo ||
+                    companyData?.companyLogo ||
+                    companyData?.branch?.logo ||
+                    null,
+            });
+
+            const previewTitle = payDocumentButtonLabel(docForPay);
+            const htmlUrl = await buildPreviewHtmlBlobUrl(previewJson);
+
+            const userAction = await new Promise<DocumentPreviewAction>(
+                (resolve) => {
+                    cashDocPreviewResolverRef.current = resolve;
+                    setCashDocPreview({
+                        title: previewTitle,
+                        htmlUrl,
+                        previewJson,
+                        loading: false,
+                    });
+                },
+            );
+
+            revokePreviewHtmlBlobUrl(htmlUrl);
+            setCashDocPreview(null);
+            cashDocPreviewResolverRef.current = null;
+
+            if (userAction === "cancel") {
+                return;
+            }
+
+            await handleProcessPayment(documentId);
+        } finally {
+            isPrintPreviewOpenRef.current = false;
+        }
+    };
+
     const handleProcessPayment = async (documentId: string) => {
         // ⚠️ PROTECCIÓN CONTRA DOBLE CLIC - Verificar ref primero (más confiable que estado)
         if (isProcessingRef.current) {
@@ -1519,6 +1710,7 @@ const CashPay: React.FC<CashPayProps> = ({
                 const printLocallyFlag =
                     issuedDocResult?.printLocally === true ||
                     issuedDocResult?.print_locally === true;
+
                 const localPrintOk = await invokeLocalIssuedDocumentPrint(
                     {
                         printLocally:
@@ -1544,6 +1736,7 @@ const CashPay: React.FC<CashPayProps> = ({
                             null,
                     },
                 );
+
                 if (printLocallyFlag && !localPrintOk) {
                     showToast(
                         "El pago se registró, pero no se pudo imprimir en la impresora local. Recompile SumApp (npm run build-electron), revise el nombre de la impresora o use la predeterminada de Windows.",
@@ -3075,7 +3268,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                                 key={d.id}
                                                 type="button"
                                                 onClick={() =>
-                                                    handleProcessPayment(
+                                                    void handleDocumentPayClick(
                                                         String(d.id),
                                                     )
                                                 }
@@ -3576,6 +3769,29 @@ const CashPay: React.FC<CashPayProps> = ({
                     onClose={() => setShowEditClientModal(false)}
                 />
             )}
+
+            {cashDocPreview && (
+                <DocumentPrintPreviewModal
+                    title={cashDocPreview.title}
+                    htmlUrl={cashDocPreview.htmlUrl}
+                    loading={cashDocPreview.loading}
+                    onPrint={() => {
+                        void openIssuedDocumentPrintPreview(
+                            cashDocPreview.previewJson,
+                            getLocalTicketPrinterStorage().trim() ||
+                                selectedLocalPrinterName.trim() ||
+                                null,
+                        );
+                    }}
+                    onContinuePay={() => {
+                        cashDocPreviewResolverRef.current?.("continue");
+                    }}
+                    onCancel={() => {
+                        cashDocPreviewResolverRef.current?.("cancel");
+                    }}
+                />
+            )}
+
         </div>
     );
 };

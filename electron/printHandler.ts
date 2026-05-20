@@ -189,20 +189,22 @@ async function sendToRawPort(
     return false;
 }
 
+type HtmlPrintResult = { printed: boolean; cancelled: boolean };
+
 // ─────────────────────────────────────────────────────────────────────────────
-// MÉTODO FALLBACK: HTML + webContents.print()
-// Se usa solo si el puerto raw falla. Calidad inferior pero siempre funciona.
+// HTML + webContents.print() — silent o diálogo del sistema (vista previa Windows)
 // ─────────────────────────────────────────────────────────────────────────────
-async function sendViaElectronPrint(
+async function sendViaElectronHtmlPrint(
     documentJson: string,
     deviceName: string | undefined,
-): Promise<boolean> {
+    options: { silent: boolean },
+): Promise<HtmlPrintResult> {
     let html: string;
     try {
         html = await documentDataJsonToHtml(documentJson);
     } catch (e: any) {
         log.error("[escpos/fallback] Error generando HTML:", e?.message);
-        return false;
+        return { printed: false, cancelled: false };
     }
 
     const PAPER_WIDTH_MM    = 72;
@@ -210,13 +212,31 @@ async function sendViaElectronPrint(
     const tmp               = path.join(os.tmpdir(), `sumapp-print-${Date.now()}.html`);
     fs.writeFileSync(tmp, html, "utf8");
 
+    /** Con diálogo del SO: ventana visible (Electron no ofrece miniatura en el cuadro de Windows). */
+    const useVisiblePreview = !options.silent;
+    const parentWin = BrowserWindow.getFocusedWindow();
+
     const printWin = new BrowserWindow({
-        show: false,
-        width: receiptViewportPx,
-        height: 4000,
+        show: useVisiblePreview,
+        width: useVisiblePreview ? Math.max(440, receiptViewportPx + 48) : receiptViewportPx,
+        height: useVisiblePreview ? 720 : 4000,
+        minWidth: 360,
+        title: useVisiblePreview
+            ? "Vista previa del comprobante — SumApp"
+            : undefined,
+        autoHideMenuBar: true,
         backgroundColor: "#ffffff",
+        parent:
+            useVisiblePreview && parentWin && !parentWin.isDestroyed()
+                ? parentWin
+                : undefined,
+        modal: useVisiblePreview && Boolean(parentWin),
         webPreferences: { nodeIntegration: false, contextIsolation: true },
     });
+
+    if (useVisiblePreview) {
+        printWin.center();
+    }
 
     const cleanup = () => {
         try { fs.unlinkSync(tmp); } catch {}
@@ -239,36 +259,80 @@ async function sendViaElectronPrint(
             })
         `);
 
+        if (useVisiblePreview) {
+            printWin.show();
+            printWin.focus();
+            await new Promise((r) => setTimeout(r, 600));
+        }
+
         const contentHeightPx: number = await printWin.webContents.executeJavaScript(
             `document.documentElement.scrollHeight || document.body.scrollHeight`,
         );
         const contentHeightMicrons = Math.ceil((contentHeightPx * 25.4 * 1000) / 96) + 5000;
         const dn = deviceName?.trim() || undefined;
 
-        const printed = await new Promise<boolean>((resolve) => {
+        const printSettings: WebContentsPrintOptions = options.silent
+            ? {
+                  silent: true,
+                  printBackground: true,
+                  deviceName: dn,
+                  pageSize: {
+                      width: PAPER_WIDTH_MM * 1000,
+                      height: contentHeightMicrons,
+                  },
+                  margins: { marginType: "none" },
+                  scaleFactor: 100,
+              }
+            : {
+                  silent: false,
+                  printBackground: true,
+                  deviceName: dn,
+                  margins: { marginType: "default" },
+              };
+
+        const result = await new Promise<HtmlPrintResult>((resolve) => {
             printWin.webContents.print(
-                {
-                    silent: true,
-                    printBackground: true,
-                    deviceName: dn,
-                    pageSize: { width: PAPER_WIDTH_MM * 1000, height: contentHeightMicrons },
-                    margins: { marginType: "none" },
-                    scaleFactor: 100,
-                } as WebContentsPrintOptions,
+                printSettings,
                 (success, reason) => {
-                    log.info(`[escpos/fallback] print: success=${success} reason=${reason ?? "none"}`);
-                    resolve(success);
+                    const cancelled = reason === "cancelled";
+                    log.info(
+                        `[escpos/html] print: silent=${options.silent} success=${success} reason=${reason ?? "none"}`,
+                    );
+                    resolve({
+                        printed: success && !cancelled,
+                        cancelled,
+                    });
                 },
             );
         });
 
         cleanup();
-        return printed;
+        return result;
     } catch (e: any) {
         log.error("[escpos/fallback] Error:", e?.message);
         cleanup();
-        return false;
+        return { printed: false, cancelled: false };
     }
+}
+
+/** Impresión silenciosa (USB fallback / ESC/POS fallido). */
+async function sendViaElectronPrint(
+    documentJson: string,
+    deviceName: string | undefined,
+): Promise<boolean> {
+    const r = await sendViaElectronHtmlPrint(documentJson, deviceName, {
+        silent: true,
+    });
+    return r.printed;
+}
+
+/** Diálogo nativo del SO con vista previa (como Ctrl+P en Windows). */
+export async function openSystemPrintDialogForDocument(
+    documentJson: string,
+    deviceName: string | undefined,
+): Promise<HtmlPrintResult> {
+    log.info("[print-dialog] Abriendo diálogo de impresión del sistema…");
+    return sendViaElectronHtmlPrint(documentJson, deviceName, { silent: false });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -323,5 +387,52 @@ export function registerPrintHandler(): void {
         },
     );
 
-    log.info("[main] Handler ESC/POS registrado: print-json-document");
+    ipcMain.removeHandler("print-json-document-dialog");
+    ipcMain.handle(
+        "print-json-document-dialog",
+        async (
+            _event,
+            payload: { documentJson: string; deviceName?: string | null },
+        ) => {
+            const { documentJson, deviceName } = payload;
+            const dn = deviceName?.trim() || undefined;
+            if (!documentJson?.trim()) {
+                return {
+                    ok: false,
+                    printed: false,
+                    cancelled: false,
+                    message: "documentJson vacío.",
+                };
+            }
+            try {
+                const { printed, cancelled } = await openSystemPrintDialogForDocument(
+                    documentJson,
+                    dn,
+                );
+                return {
+                    ok: printed,
+                    printed,
+                    cancelled,
+                    message: cancelled
+                        ? "Impresión cancelada."
+                        : printed
+                          ? undefined
+                          : "No se pudo imprimir.",
+                };
+            } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : String(e);
+                log.error("[print-dialog] Error:", msg);
+                return {
+                    ok: false,
+                    printed: false,
+                    cancelled: false,
+                    message: msg,
+                };
+            }
+        },
+    );
+
+    log.info(
+        "[main] Handlers: print-json-document, print-json-document-dialog",
+    );
 }

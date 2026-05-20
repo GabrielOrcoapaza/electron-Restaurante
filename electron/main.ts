@@ -9,6 +9,7 @@ import * as path from "path";
 import { documentDataJsonToHtml } from "./documentToPrintHtml";
 import { net } from "electron";
 import { registerPrintHandler } from "./printHandler";
+import { registerDocumentPreviewHandler } from "./documentPreviewHandler";
 
 // Configurar switches de línea de comandos antes de que la app esté lista
 app.commandLine.appendSwitch("ignore-certificate-errors");
@@ -441,6 +442,7 @@ function registerIpcHandlers(): void {
     );
 
     registerPrintHandler();
+    registerDocumentPreviewHandler();
 
     ipcMain.removeHandler("check-for-updates");
     ipcMain.handle("check-for-updates", async () => {
@@ -470,7 +472,7 @@ function registerIpcHandlers(): void {
     });
 
     log.info(
-        "[main] Handlers IPC registrados: get-system-printers, print-json-document, check-for-updates",
+        "[main] Handlers IPC registrados: get-system-printers, print-json-document, print-json-document-dialog, document-json-to-pdf, document-json-to-html, check-for-updates",
     );
 }
 if (isDev) {
