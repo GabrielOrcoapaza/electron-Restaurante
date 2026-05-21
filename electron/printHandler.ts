@@ -218,9 +218,9 @@ async function sendViaElectronHtmlPrint(
 
     const printWin = new BrowserWindow({
         show: useVisiblePreview,
-        width: useVisiblePreview ? Math.max(440, receiptViewportPx + 48) : receiptViewportPx,
+        width: useVisiblePreview ? receiptViewportPx + 16 : receiptViewportPx,
         height: useVisiblePreview ? 720 : 4000,
-        minWidth: 360,
+        minWidth: receiptViewportPx,
         title: useVisiblePreview
             ? "Vista previa del comprobante — SumApp"
             : undefined,

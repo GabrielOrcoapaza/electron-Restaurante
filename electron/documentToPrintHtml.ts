@@ -200,22 +200,39 @@ async function renderThermalDocumentStyle(doc: Record<string, unknown>): Promise
 }
 
 /** Estilos ticket: jerarquía similar a ESC/POS del cliente Raspberry (título y total grandes, QR centrado). */
+const THERMAL_PAPER_WIDTH = "72mm";
+
 const thermalDocumentCss = `
-    @page { margin: 0; size: 72mm auto; }
+    @page { margin: 0; size: ${THERMAL_PAPER_WIDTH} auto; }
     *, *::before, *::after { box-sizing: border-box; }
-    html, body { width: 72mm; margin: 0; padding: 2px 4px; }
+    html, body {
+      width: ${THERMAL_PAPER_WIDTH};
+      min-width: ${THERMAL_PAPER_WIDTH};
+      max-width: ${THERMAL_PAPER_WIDTH};
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      background: #fff;
+    }
     body.ticket {
       font-family: "Consolas", "Courier New", monospace;
       font-size: 11px;
       line-height: 1.35;
       color: #000;
       background: #fff;
-      width: 100%;
-      max-width: 72mm;
-      margin: 0 auto;
+      width: ${THERMAL_PAPER_WIDTH};
+      max-width: ${THERMAL_PAPER_WIDTH};
+      margin: 0;
       padding: 3px 5px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+    }
+    @media screen {
+      html, body, body.ticket {
+        width: ${THERMAL_PAPER_WIDTH};
+        min-width: ${THERMAL_PAPER_WIDTH};
+        max-width: ${THERMAL_PAPER_WIDTH};
+      }
     }
     .logo-wrap { text-align: center; margin-bottom: 4px; }
     .logo { max-width: 100%; max-height: 52px; object-fit: contain; }

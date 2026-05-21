@@ -61,7 +61,7 @@ export function DocumentPrintPreviewModal({
                         <iframe
                             title={title}
                             src={htmlUrl!}
-                            className="mx-auto block h-[min(55vh,520px)] w-full max-w-md rounded-lg border border-slate-300 bg-white shadow-sm"
+                            className="mx-auto block h-[min(55vh,520px)] w-[72mm] max-w-[72mm] shrink-0 rounded-lg border border-slate-300 bg-white shadow-sm"
                         />
                     ) : (
                         <div className="flex h-[min(40vh,320px)] items-center justify-center px-4 text-center text-sm text-slate-500">
