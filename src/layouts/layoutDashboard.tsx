@@ -15,6 +15,7 @@ import Message from "../modules/cash/message";
 import CreateUser from "../modules/user/createUser";
 import UserPermissions from "../modules/user/UserPermissions";
 import Products from "../modules/products/Products";
+import Promotions from "../modules/promotions/Promotions";
 import Inventories from "../modules/inventories/Inventories";
 import Kardex from "../modules/inventories/kardex";
 import Purchase from "../modules/purchase/Purchase";
@@ -160,6 +161,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         | "employees"
         | "permissions"
         | "products"
+        | "promotions"
         | "inventory"
         | "kardex"
         | "purchase"
@@ -177,6 +179,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             "employees",
             "permissions",
             "products",
+            "promotions",
             "inventory",
             "kardex",
             "purchase",
@@ -654,6 +657,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                     ? "Permisos"
                     : currentView === "products"
                       ? "Productos"
+                      : currentView === "promotions"
+                        ? "Promociones"
                       : currentView === "cashs"
                         ? "Gestión de Cajas"
                         : currentView === "inventory"
@@ -683,6 +688,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                     ? "Asigna permisos personalizados por usuario (solo administrador)."
                     : currentView === "products"
                       ? "Administra los productos de tu menú."
+                      : currentView === "promotions"
+                        ? "Crea y edita combos, descuentos, NxM y regalos."
                       : currentView === "cashs"
                         ? "Gestiona las cajas registradoras, cierres y resúmenes de pagos."
                         : currentView === "inventory"
@@ -715,6 +722,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     // Permisos para visibilidad del menú (ADMIN ve todo)
     const canSeeDashboard = isAdmin || hasPermission("branch.view");
     const canSeeProducts = isAdmin || hasPermission("products.view");
+    const canSeePromotions = canSeeProducts;
     const canSeeFloors = isAdmin || hasPermission("orders.create");
     const canSeeDelivery = isAdmin || hasPermission("point_of_sale");
     const canSeeConfiguration = isAdmin || hasPermission("config.manage");
@@ -756,6 +764,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             (v === "cash" && canSeeFloors) ||
             (v === "delivery" && canSeeDelivery) ||
             (v === "products" && canSeeProducts) ||
+            (v === "promotions" && canSeePromotions) ||
             (v === "configuration" && canSeeConfiguration) ||
             (v === "messages" && canSeeMessages) ||
             (v === "employees" && canSeeEmployees) ||
@@ -770,6 +779,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             else if (canSeeFloors) setCurrentView("floors");
             else if (canSeeDelivery) setCurrentView("delivery");
             else if (canSeeProducts) setCurrentView("products");
+            else if (canSeePromotions) setCurrentView("promotions");
             else if (canSeeCashs) setCurrentView("cashs");
             else if (canSeeMessages) setCurrentView("messages");
             else if (canSeeEmployees) setCurrentView("employees");
@@ -786,6 +796,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         canSeeFloors,
         canSeeDelivery,
         canSeeProducts,
+        canSeePromotions,
         canSeeConfiguration,
         canSeeMessages,
         canSeeEmployees,
@@ -881,6 +892,15 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                 icon="🍽️"
                                 label="Productos"
                                 isActive={currentView === "products"}
+                            />
+                        )}
+
+                        {canSeePromotions && (
+                            <SidebarItem
+                                view="promotions"
+                                icon="🏷️"
+                                label="Promociones"
+                                isActive={currentView === "promotions"}
                             />
                         )}
 
@@ -1507,6 +1527,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                     {currentView === "employees" && <CreateUser />}
                     {currentView === "permissions" && <UserPermissions />}
                     {currentView === "products" && <Products />}
+                    {currentView === "promotions" && <Promotions />}
                     {currentView === "inventory" && <Inventories />}
                     {currentView === "kardex" && <Kardex />}
                     {currentView === "purchase" && <Purchase />}

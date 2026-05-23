@@ -1967,3 +1967,128 @@ export const REMOVE_CATEGORY_PRINTERS = gql`
         }
     }
 `;
+
+// ── CREAR PROMOCIÓN ──
+export const CREATE_PROMOTION = gql`
+    mutation CreatePromotion(
+        $branchId: ID!
+        $name: String!
+        $description: String
+        $promotionType: String!
+        $validFrom: String!
+        $validTo: String
+        $daysOfWeek: String
+        $timeFrom: String
+        $timeTo: String
+        $discountPercent: Float
+        $discountAmount: Float
+        $buyQuantity: Int
+        $getQuantity: Int
+        $giftProductId: ID
+        $giftQuantity: Float
+        $minPurchaseAmount: Float
+        $appliesTo: String
+        $priority: Int
+        $isActive: Boolean
+    ) {
+        createPromotion(
+            branchId: $branchId
+            name: $name
+            description: $description
+            promotionType: $promotionType
+            validFrom: $validFrom
+            validTo: $validTo
+            daysOfWeek: $daysOfWeek
+            timeFrom: $timeFrom
+            timeTo: $timeTo
+            discountPercent: $discountPercent
+            discountAmount: $discountAmount
+            buyQuantity: $buyQuantity
+            getQuantity: $getQuantity
+            giftProductId: $giftProductId
+            giftQuantity: $giftQuantity
+            minPurchaseAmount: $minPurchaseAmount
+            appliesTo: $appliesTo
+            priority: $priority
+            isActive: $isActive
+        ) {
+            success
+            message
+            promotion {
+                id
+                name
+                promotionType
+                isActive
+            }
+        }
+    }
+`;
+
+// ── EDITAR PROMOCIÓN ──
+export const UPDATE_PROMOTION = gql`
+    mutation UpdatePromotion(
+        $promotionId: ID!
+        $name: String
+        $description: String
+        $promotionType: String
+        $validFrom: String
+        $validTo: String
+        $daysOfWeek: String
+        $timeFrom: String
+        $timeTo: String
+        $discountPercent: Float
+        $discountAmount: Float
+        $buyQuantity: Int
+        $getQuantity: Int
+        $giftProductId: ID
+        $giftQuantity: Float
+        $minPurchaseAmount: Float
+        $appliesTo: String
+        $priority: Int
+        $isActive: Boolean
+    ) {
+        updatePromotion(
+            promotionId: $promotionId
+            name: $name
+            description: $description
+            promotionType: $promotionType
+            validFrom: $validFrom
+            validTo: $validTo
+            daysOfWeek: $daysOfWeek
+            timeFrom: $timeFrom
+            timeTo: $timeTo
+            discountPercent: $discountPercent
+            discountAmount: $discountAmount
+            buyQuantity: $buyQuantity
+            getQuantity: $getQuantity
+            giftProductId: $giftProductId
+            giftQuantity: $giftQuantity
+            minPurchaseAmount: $minPurchaseAmount
+            appliesTo: $appliesTo
+            priority: $priority
+            isActive: $isActive
+        ) {
+            success
+            message
+            promotion {
+                id
+                name
+                promotionType
+                isActive
+            }
+        }
+    }
+`;
+
+// ── ACTUALIZAR SCOPES DE PROMOCIÓN ──
+export const SET_PROMOTION_SCOPES = gql`
+    mutation SetPromotionScopes($promotionId: ID!, $scopes: [ScopeInput!]!) {
+        setPromotionScopes(promotionId: $promotionId, scopes: $scopes) {
+            success
+            message
+            promotion {
+                id
+            }
+        }
+    }
+`;

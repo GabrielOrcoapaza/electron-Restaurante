@@ -196,6 +196,11 @@ export const GET_OPERATION_BY_ID = gql`
             igvPercentage
             total
             notes
+            productType
+            comboComponents{
+                productName 
+                quantity
+            }
             tableId
             table {
                 id
@@ -1486,6 +1491,162 @@ export const SEARCH_PERSONS = gql`
             isSupplier
             isCustomer
             isActive
+        }
+    }
+`;
+
+// ── COMBOS activos (productos tipo PROMOTION con scopes para elegir componentes) ──
+export const GET_ACTIVE_COMBOS = gql`
+    query GetActiveCombos($branchId: ID!) {
+        activeCombos(branchId: $branchId) {
+            id
+            code
+            name
+            description
+            salePrice
+            unitMeasure
+            isActive
+            productType
+            asPromotion {
+                id
+                name
+                description
+                promotionType
+                isValidNow
+                daysDisplay
+                scopes {
+                    id
+                    label
+                    scopeLabel
+                    requiredQuantity
+                    subcategory {
+                        id
+                        name
+                    }
+                    category {
+                        id
+                        name
+                    }
+                    product {
+                        id
+                        name
+                        salePrice
+                        isActive
+                        currentStock
+                        managesStock
+                    }
+                }
+            }
+        }
+    }
+`;  
+
+// ── PROMOCIONES activas (descuentos, NxM, regalo) ──
+export const GET_ACTIVE_PROMOTIONS = gql`
+    query GetActivePromotions($branchId: ID!) {
+        activePromotions(branchId: $branchId) {
+            id
+            name
+            promotionType
+            discountPercent
+            discountAmount
+            buyQuantity
+            getQuantity
+            giftProduct {
+                id
+                name
+                salePrice
+                productType
+                isActive
+            }
+            giftQuantity
+            minPurchaseAmount
+            appliesTo
+            priority
+            scopes {
+                id
+                category { id name }
+                subcategory { id name }
+                product { id name salePrice }
+            }
+        }
+    }
+`; 
+
+// ── LISTAR TODAS LAS PROMOCIONES DE UNA SUCURSAL ──
+export const GET_PROMOTIONS_BY_BRANCH = gql`
+    query GetPromotionsByBranch($branchId: ID!) {
+        promotionsByBranch(branchId: $branchId) {
+            id
+            name
+            description            promotionType
+            isActive
+            validFrom
+            validTo
+            daysOfWeek
+            timeFrom
+            timeTo
+            discountPercent
+            discountAmount
+            buyQuantity
+            getQuantity
+            giftProduct {
+                id
+                name
+                salePrice
+            }
+            giftQuantity
+            minPurchaseAmount
+            appliesTo
+            priority
+            isValidNow
+            daysDisplay
+            scopes {
+                id
+                label
+                scopeLabel
+                requiredQuantity
+                subcategory { id name }
+                category { id name }
+                product { id name salePrice isActive currentStock managesStock }
+            }
+        }
+    }
+`;
+
+// ── DETALLE DE UNA PROMOCIÓN ──
+export const GET_PROMOTION_BY_ID = gql`
+    query GetPromotionById($promotionId: ID!) {
+        promotionById(promotionId: $promotionId) {
+            id
+            name
+            description            promotionType
+            isActive
+            validFrom
+            validTo
+            daysOfWeek
+            timeFrom
+            timeTo
+            discountPercent
+            discountAmount
+            buyQuantity
+            getQuantity
+            giftProduct { id name salePrice }
+            giftQuantity
+            minPurchaseAmount
+            appliesTo
+            priority
+            isValidNow
+            daysDisplay
+            scopes {
+                id
+                label
+                scopeLabel
+                requiredQuantity
+                subcategory { id name }
+                category { id name }
+                product { id name salePrice isActive currentStock managesStock }
+            }
         }
     }
 `;
