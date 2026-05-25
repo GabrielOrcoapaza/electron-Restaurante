@@ -196,11 +196,6 @@ export const GET_OPERATION_BY_ID = gql`
             igvPercentage
             total
             notes
-            productType
-            comboComponents{
-                productName 
-                quantity
-            }
             tableId
             table {
                 id
@@ -231,6 +226,14 @@ export const GET_OPERATION_BY_ID = gql`
                 isCanceled
                 isPrepared
                 isPrinted
+                promoInfo
+                productType
+                comboComponents {
+                    id
+                    productId
+                    productName
+                    quantity
+                }
                 issuedItems {
                     id
                     quantity
@@ -287,8 +290,14 @@ export const GET_TABLES_BY_FLOOR = gql`
 // includeInactive=false (por defecto): solo activas y subcategorías activas (venta).
 // includeInactive=true: todas (configuración / gestión).
 export const GET_CATEGORIES_BY_BRANCH = gql`
-    query GetCategoriesByBranch($branchId: ID!, $includeInactive: Boolean = false) {
-        categoriesByBranch(branchId: $branchId, includeInactive: $includeInactive) {
+    query GetCategoriesByBranch(
+        $branchId: ID!
+        $includeInactive: Boolean = false
+    ) {
+        categoriesByBranch(
+            branchId: $branchId
+            includeInactive: $includeInactive
+        ) {
             id
             name
             description
@@ -357,6 +366,38 @@ export const GET_PRODUCTS_BY_CATEGORY = gql`
             productType
             isActive
             subcategoryId
+        }
+    }
+`;
+
+// Query para obtener productos por subcategoría
+export const GET_PRODUCTS_BY_SUBCATEGORY = gql`
+    query GetProductsBySubcategory($subcategoryId: ID!) {
+        productsBySubcategory(subcategoryId: $subcategoryId) {
+            id
+            code
+            name
+            description
+            productType
+            salePrice
+            purchasePrice
+            unitMeasure
+            preparationTime
+            currentStock
+            stockMin
+            stockMax
+            managesStock
+            managesStockLocked
+            isActive
+            subcategoryId
+            subcategory {
+                id
+                name
+                category {
+                    id
+                    name
+                }
+            }
         }
     }
 `;
@@ -1539,7 +1580,7 @@ export const GET_ACTIVE_COMBOS = gql`
             }
         }
     }
-`;  
+`;
 
 // ── PROMOCIONES activas (descuentos, NxM, regalo) ──
 export const GET_ACTIVE_PROMOTIONS = gql`
@@ -1565,13 +1606,23 @@ export const GET_ACTIVE_PROMOTIONS = gql`
             priority
             scopes {
                 id
-                category { id name }
-                subcategory { id name }
-                product { id name salePrice }
+                category {
+                    id
+                    name
+                }
+                subcategory {
+                    id
+                    name
+                }
+                product {
+                    id
+                    name
+                    salePrice
+                }
             }
         }
     }
-`; 
+`;
 
 // ── LISTAR TODAS LAS PROMOCIONES DE UNA SUCURSAL ──
 export const GET_PROMOTIONS_BY_BRANCH = gql`
@@ -1579,7 +1630,8 @@ export const GET_PROMOTIONS_BY_BRANCH = gql`
         promotionsByBranch(branchId: $branchId) {
             id
             name
-            description            promotionType
+            description
+            promotionType
             isActive
             validFrom
             validTo
@@ -1606,9 +1658,22 @@ export const GET_PROMOTIONS_BY_BRANCH = gql`
                 label
                 scopeLabel
                 requiredQuantity
-                subcategory { id name }
-                category { id name }
-                product { id name salePrice isActive currentStock managesStock }
+                subcategory {
+                    id
+                    name
+                }
+                category {
+                    id
+                    name
+                }
+                product {
+                    id
+                    name
+                    salePrice
+                    isActive
+                    currentStock
+                    managesStock
+                }
             }
         }
     }
@@ -1620,7 +1685,8 @@ export const GET_PROMOTION_BY_ID = gql`
         promotionById(promotionId: $promotionId) {
             id
             name
-            description            promotionType
+            description
+            promotionType
             isActive
             validFrom
             validTo
@@ -1631,7 +1697,11 @@ export const GET_PROMOTION_BY_ID = gql`
             discountAmount
             buyQuantity
             getQuantity
-            giftProduct { id name salePrice }
+            giftProduct {
+                id
+                name
+                salePrice
+            }
             giftQuantity
             minPurchaseAmount
             appliesTo
@@ -1643,9 +1713,22 @@ export const GET_PROMOTION_BY_ID = gql`
                 label
                 scopeLabel
                 requiredQuantity
-                subcategory { id name }
-                category { id name }
-                product { id name salePrice isActive currentStock managesStock }
+                subcategory {
+                    id
+                    name
+                }
+                category {
+                    id
+                    name
+                }
+                product {
+                    id
+                    name
+                    salePrice
+                    isActive
+                    currentStock
+                    managesStock
+                }
             }
         }
     }

@@ -6,11 +6,9 @@ export interface IPromotionScope {
     label: string | null;
     scopeLabel: string | null;
     requiredQuantity: number;
-    subcategoryId?: string | null;
-    subcategoryName?: string | null;
-    categoryId?: string | null;
-    categoryName?: string | null;
-    fixedProduct?: {         // "product" en GraphQL — producto fijo del scope
+    subcategory?: { id: string; name: string } | null;
+    category?: { id: string; name: string } | null;
+    product?: {
         id: string;
         name: string;
         salePrice: number;

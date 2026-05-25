@@ -451,6 +451,7 @@ const ListProduct: React.FC<ListProductProps> = ({
                         <option value="DISH">Plato</option>
                         <option value="INGREDIENT">Ingrediente</option>
                         <option value="BEVERAGE">Bebida</option>
+                        <option value="PROMOTION">Promoción / Combo</option>
                     </select>
                 </div>
             </div>
@@ -556,7 +557,12 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             marginBottom: "0.25rem",
                                         }}
                                     >
-                                        {product.name}
+                                        {product.name}{" "}
+                                        {product.productType === "PROMOTION" && (
+                                            <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded font-semibold align-middle">
+                                                COMBO
+                                            </span>
+                                        )}
                                     </div>
                                     <div
                                         className="text-slate-500 dark:text-slate-400"
@@ -845,7 +851,12 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                     lineHeight: 1.4,
                                                 }}
                                             >
-                                                {product.name}
+                                                {product.name}{" "}
+                                                {product.productType === "PROMOTION" && (
+                                                    <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded font-semibold align-middle">
+                                                        COMBO
+                                                    </span>
+                                                )}
                                             </div>
                                         </td>
                                         <td

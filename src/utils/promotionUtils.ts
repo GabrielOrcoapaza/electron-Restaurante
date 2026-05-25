@@ -24,18 +24,18 @@ export function promotionAppliesToProduct(promo: IPromotion, product: PromotionP
             return true;
         case 'CATEGORY':
             return promo.scopes.some(scope =>
-                scope.categoryId != null && (
-                    product.subcategory?.category?.id === scope.categoryId ||
-                    product.category?.id === scope.categoryId
+                scope.category?.id != null && (
+                    product.subcategory?.category?.id === scope.category.id ||
+                    product.category?.id === scope.category.id
                 )
             );
         case 'SUBCATEGORY':
             return promo.scopes.some(scope =>
-                scope.subcategoryId != null && product.subcategoryId === scope.subcategoryId
+                scope.subcategory?.id != null && product.subcategoryId === scope.subcategory.id
             );
         case 'PRODUCT':
             return promo.scopes.some(scope =>
-                scope.fixedProduct?.id != null && scope.fixedProduct.id === product.id
+                scope.product?.id != null && scope.product.id === product.id
             );
         default:
             return false;

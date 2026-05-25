@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, {
+    useState,
+    useEffect,
+    useRef,
+    useMemo,
+    useCallback,
+} from "react";
 import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { useResponsive } from "../../hooks/useResponsive";
@@ -13,6 +19,7 @@ import {
     RestrictedTableAccessModal,
     type RestrictedModalPayload,
 } from "../../components/RestrictedTableAccessModal";
+import { ComboSelectorModal } from "../../components/ComboSelectorModal";
 import {
     CREATE_OPERATION,
     ADD_ITEMS_TO_OPERATION,
@@ -28,6 +35,7 @@ import {
     SEARCH_PRODUCTS,
     GET_PRODUCT_BY_CODE,
     GET_MODIFIERS_BY_SUBCATEGORY,
+    GET_ACTIVE_PROMOTIONS,
 } from "../../graphql/queries";
 import ModalObservation from "./modalObservation";
 import CategoryIcon from "../../components/CategoryIcon";
@@ -35,6 +43,15 @@ import VirtualKeyboard from "../../components/VirtualKeyboard";
 import { useTableSessionLock } from "../../hooks/useTableSessionLock";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
 import { getLocalTicketPrinterStorage } from "../../utils/localPrinterPreference";
+import {
+    findBestDiscountPromotion,
+    calculateLineDiscount,
+    computeNxMFreeSet,
+    findBadgePromotion,
+    promotionBadgeLabel,
+    type CartLine,
+} from "../../utils/promotionUtils";
+import type { IPromotion } from "../../types/promotions";
 
 export type OrderSuccessPayload = {
     operationId: string | number;
@@ -61,6 +78,14 @@ type OrderItem = {
     subcategoryId?: string;
     isPrinted?: boolean;
     printedAt?: string;
+    // NUEVO: campo producto completo (necesario para evaluar promociones)
+    product?: any;
+    // NUEVO: descuento calculado automáticamente por recalculatePromotions
+    discount?: number;
+    promotionName?: string | null;
+    // NUEVO: solo para productos tipo PROMOTION (combo)
+    isCombo?: boolean;
+    comboComponents?: any[];
 };
 
 /** Referencias estables: evitan que el modal de observaciones re-sincronice en cada render del padre (|| [] y new Set() nuevos pisaban la selección). */
@@ -74,7 +99,7 @@ function isOrderSearchProduct(p: {
 }) {
     if (p.isActive === false) return false;
     const t = p.productType;
-    return t === "DISH" || t === "BEVERAGE";
+    return t === "DISH" || t === "BEVERAGE" || t === "PROMOTION";
 }
 
 const Order: React.FC<OrderProps> = ({
@@ -259,6 +284,16 @@ const Order: React.FC<OrderProps> = ({
         string | null
     >(null);
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+    // NUEVO: Estados para promociones y combos
+    const { data: promotionsData } = useQuery(GET_ACTIVE_PROMOTIONS, {
+        variables: { branchId: companyData?.branch?.id },
+        skip: !companyData?.branch?.id,
+        fetchPolicy: "network-only",
+    });
+    const [activePromotions, setActivePromotions] = useState<IPromotion[]>([]);
+    const [giftMessage, setGiftMessage] = useState<string | null>(null);
+    const [showComboModal, setShowComboModal] = useState(false);
+    const [pendingComboProduct, setPendingComboProduct] = useState<any>(null);
 
     const handleVirtualKeyPress = (key: string) => {
         setSearchTerm((prev) => prev + key);
@@ -452,7 +487,28 @@ const Order: React.FC<OrderProps> = ({
             !subcategoriesLoading &&
             !awaitingSubcategoryPick &&
             (selectedSubcategory || subcategoriesOfCategory.length === 0));
-
+    // Función para parsear promoInfo y extraer discount y promotionName
+    const parsePromoInfo = (
+        promoInfo: string | null | undefined,
+    ): { discount: number; promotionName: string | null } => {
+        console.log("[parsePromoInfo] Input promoInfo:", promoInfo);
+        if (!promoInfo) {
+            console.log("[parsePromoInfo] No promoInfo, returning default");
+            return { discount: 0, promotionName: null };
+        }
+        try {
+            const parsed = JSON.parse(promoInfo);
+            console.log("[parsePromoInfo] Parsed successfully:", parsed);
+            return {
+                discount:
+                    typeof parsed.discount === "number" ? parsed.discount : 0,
+                promotionName: parsed.promotionName || null,
+            };
+        } catch (e) {
+            console.warn("Error parsing promoInfo:", e);
+            return { discount: 0, promotionName: null };
+        }
+    };
     /** Una sola sub activa → pasar directo a productos filtrados por esa sub */
     useEffect(() => {
         if (!selectedCategory || subcategoriesLoading) return;
@@ -489,35 +545,225 @@ const Order: React.FC<OrderProps> = ({
         }
     }, [table?.currentOperationId, isExistingOrder]);
 
+    // NUEVO: Cargar promociones activas
+    useEffect(() => {
+        if (promotionsData?.activePromotions) {
+            setActivePromotions(promotionsData.activePromotions);
+        }
+    }, [promotionsData]);
+
+    // NUEVO: Función para recalcular promociones
+    const recalculatePromotions = useCallback(
+        (items: OrderItem[], promotions: IPromotion[]) => {
+            if (promotions.length === 0) return items;
+
+            const cartTotal = items.reduce(
+                (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
+                0,
+            );
+
+            // 1. DISCOUNT_PERCENT / DISCOUNT_AMOUNT por ítem
+            let updated = items.map((item) => {
+                if (item.isCombo || item.isPrinted || !item.product)
+                    return { ...item, discount: 0, promotionName: null };
+                const promo = findBestDiscountPromotion(
+                    item.product,
+                    promotions,
+                    cartTotal,
+                );
+                if (promo) {
+                    const disc = calculateLineDiscount(
+                        item.price,
+                        item.quantity,
+                        promo,
+                    );
+                    return {
+                        ...item,
+                        discount: disc,
+                        promotionName: promo.name,
+                    };
+                }
+                return { ...item, discount: 0, promotionName: null };
+            });
+
+            // 2. NxM — los más baratos del grupo quedan gratis
+            const nxmPromos = promotions.filter(
+                (p) => p.promotionType === "NXM",
+            );
+            if (nxmPromos.length > 0) {
+                const lines: CartLine[] = updated
+                    .map((item, idx) =>
+                        item.product
+                            ? {
+                                  index: idx,
+                                  product: item.product,
+                                  unitPrice: item.price,
+                                  quantity: item.quantity,
+                                  isGift: false,
+                              }
+                            : null,
+                    )
+                    .filter(Boolean) as CartLine[];
+
+                const freeSet = computeNxMFreeSet(lines, nxmPromos);
+                freeSet.forEach((promoName, idx) => {
+                    if (!updated[idx].isPrinted) {
+                        updated[idx] = {
+                            ...updated[idx],
+                            discount:
+                                Math.round(
+                                    updated[idx].price *
+                                        updated[idx].quantity *
+                                        100,
+                                ) / 100,
+                            promotionName: promoName,
+                        };
+                    }
+                });
+            }
+
+            // 3. GIFT — solo notificación
+            const newTotal = updated.reduce(
+                (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
+                0,
+            );
+            const giftPromo = promotions.find(
+                (p) =>
+                    p.promotionType === "GIFT" &&
+                    newTotal >= (p.minPurchaseAmount || 0) &&
+                    p.giftProduct,
+            );
+            setGiftMessage(
+                giftPromo
+                    ? `¡Regalo disponible! ${giftPromo.giftProduct?.name} × ${giftPromo.giftQuantity ?? 1} — ${giftPromo.name}`
+                    : null,
+            );
+
+            return updated;
+        },
+        [],
+    );
+    useEffect(() => {
+        console.log(
+            "[Order] 🎯 orderItems ACTUALIZADO:",
+            orderItems.map((i) => ({
+                id: i.id,
+                name: i.name,
+                discount: i.discount,
+                promotionName: i.promotionName,
+                isNew: i.isNew,
+            })),
+        );
+    }, [orderItems]);
+    // Disparar recálculo de promociones
+    useEffect(() => {
+        const hasExistingItemsWithDiscount = orderItems.some(
+            (item) => (item.discount ?? 0) > 0 && !item.isNew,
+        );
+
+        if (
+            activePromotions.length > 0 &&
+            orderItems.length > 0 &&
+            !hasExistingItemsWithDiscount
+        ) {
+            console.log("[Order] Recalculando promociones para items nuevos");
+            setOrderItems((prev) =>
+                recalculatePromotions(prev, activePromotions),
+            );
+        } else {
+            console.log(
+                "[Order] Saltando recálculo - ya hay descuentos existentes",
+            );
+        }
+    }, [activePromotions.length, orderItems.length, recalculatePromotions]);
+
     useEffect(() => {
         // Solo cargar items si hay una selección válida y no se ha inicializado ya
         if (!hasSelection || initializedFromExistingOrder) {
+            console.log(
+                "[Order] Skip loading - hasSelection:",
+                hasSelection,
+                "initialized:",
+                initializedFromExistingOrder,
+            );
             return;
         }
 
         if (existingOperationLoading) {
+            console.log("[Order] Waiting for operation data to load...");
             return;
         }
+
+        // ✅ LOG: Ver qué query se usó y qué datos llegaron
+        console.log("[Order] ========== EXISTING OPERATION DATA ==========");
+        console.log("[Order] shouldUseId:", shouldUseId);
+        console.log(
+            "[Order] table.currentOperationId:",
+            table.currentOperationId,
+        );
+        console.log(
+            "[Order] existingOperationData:",
+            JSON.stringify(existingOperationData, null, 2),
+        );
 
         const operation =
             existingOperationData?.operationByTable ||
             existingOperationData?.operationById;
 
+        console.log(
+            "[Order] Extracted operation:",
+            operation
+                ? {
+                      id: operation.id,
+                      order: operation.order,
+                      status: operation.status,
+                      detailsCount: operation.details?.length || 0,
+                  }
+                : "NO OPERATION FOUND",
+        );
+
         // Si no hay operación, marcar como inicializado pero no cargar items
         if (!operation) {
+            console.log("[Order] No operation found, marking as initialized");
+            setInitializedFromExistingOrder(true);
+            return;
+        }
+        console.log("[Order] isExistingOrder:", isExistingOrder);
+        // Solo cargar items si realmente hay una operación existente (isExistingOrder)
+        // Esto evita cargar items cuando es una nueva orden
+        if (!isExistingOrder) {
+            console.log(
+                "[Order] Not an existing order (isExistingOrder false), skipping item load",
+            );
             setInitializedFromExistingOrder(true);
             return;
         }
 
-        // Solo cargar items si realmente hay una operación existente (isExistingOrder)
-        // Esto evita cargar items cuando es una nueva orden
-        if (!isExistingOrder) {
-            setInitializedFromExistingOrder(true);
-            return;
+        console.log(
+            "[Order] Processing",
+            operation.details?.length,
+            "details from operation",
+        );
+
+        // ✅ LOG: Mostrar el primer detalle para ver si tiene promoInfo
+        if (operation.details && operation.details.length > 0) {
+            console.log(
+                "[Order] First detail sample:",
+                JSON.stringify(operation.details[0], null, 2),
+            );
+            console.log(
+                "[Order] promoInfo in first detail:",
+                operation.details[0].promoInfo,
+            );
         }
 
         const mappedItems: OrderItem[] = (operation.details || []).map(
             (detail: any) => {
+                console.log(
+                    `[Order] 🔍 MAPPING DETAIL ${detail.id}:`,
+                    detail.productName,
+                );
+
                 const rawQuantity = Number(detail.quantity) || 0;
                 const safeQuantity = rawQuantity > 0 ? rawQuantity : 1;
                 const rawTotal = Number(detail.total) || 0;
@@ -533,8 +779,22 @@ const Order: React.FC<OrderProps> = ({
                     (p: any) => p.id === String(detail.productId),
                 );
                 const subcategoryId = product?.subcategoryId;
+                // Extraer descuento de promoInfo
+                const { discount, promotionName } = parsePromoInfo(
+                    detail.promoInfo,
+                );
 
-                return {
+                // ✅ LOG CRÍTICO: Ver qué se está extrayendo
+                console.log(
+                    `[Order] 📊 Detail ${detail.id} (${detail.productName}):`,
+                    {
+                        promoInfoRaw: detail.promoInfo,
+                        parsedDiscount: discount,
+                        parsedPromotionName: promotionName,
+                    },
+                );
+
+                const mappedItem = {
                     id: String(
                         detail.id ??
                             `${detail.productId}-${Date.now()}-${Math.random()}`,
@@ -549,8 +809,33 @@ const Order: React.FC<OrderProps> = ({
                     subcategoryId: subcategoryId,
                     isPrinted: detail.isPrinted,
                     printedAt: detail.printedAt,
+                    discount: discount,
+                    promotionName: promotionName,
+                    isCombo: detail.productType === "PROMOTION",
+                    comboComponents:
+                        detail.comboComponents?.length > 0
+                            ? detail.comboComponents
+                            : undefined,
                 };
+
+                console.log(`[Order] ✅ Mapped item ${detail.id}:`, {
+                    name: mappedItem.name,
+                    discount: mappedItem.discount,
+                    promotionName: mappedItem.promotionName,
+                });
+
+                return mappedItem;
             },
+        );
+
+        console.log(
+            "[Order] 📦 FINAL MAPPED ITEMS:",
+            mappedItems.map((i) => ({
+                id: i.id,
+                name: i.name,
+                discount: i.discount,
+                promotionName: i.promotionName,
+            })),
         );
 
         // Preservar los items nuevos que aún no se han guardado en el servidor
@@ -619,6 +904,13 @@ const Order: React.FC<OrderProps> = ({
         const product = productsList.find((p: any) => p.id === productId);
         if (!product) return;
 
+        // NUEVO: Si es un combo (PROMOTION), abrir modal para seleccionar componentes
+        if (product.productType === "PROMOTION") {
+            setPendingComboProduct(product);
+            setShowComboModal(true);
+            return;
+        }
+
         // Precio: permite 0 (cortesía/promo); rechaza negativos y no numéricos
         const rawPrice = parseFloat(String(product.salePrice));
         const productPrice = Number.isFinite(rawPrice) ? rawPrice : 0;
@@ -645,6 +937,7 @@ const Order: React.FC<OrderProps> = ({
             isNew: true,
             notes: "",
             subcategoryId: product.subcategoryId,
+            product, // NUEVO: guardar producto completo para promociones
         };
 
         if (isExistingOrder) {
@@ -746,6 +1039,28 @@ const Order: React.FC<OrderProps> = ({
         }
 
         setOrderItems(orderItems.filter((item) => item.id !== itemId));
+    };
+
+    // NUEVO: Handler para agregar combos
+    const handleAddCombo = (combo: any, components: any[]) => {
+        const newItem: OrderItem = {
+            id: `combo-${combo.id}-${Date.now()}`,
+            productId: combo.id,
+            name: combo.name,
+            price: combo.salePrice,
+            quantity: 1,
+            total: combo.salePrice,
+            isNew: true,
+            notes: "",
+            subcategoryId: undefined,
+            product: combo,
+            isCombo: true,
+            comboComponents: components,
+            discount: 0,
+        };
+        setOrderItems((prev) => [...prev, newItem]);
+        setShowComboModal(false);
+        setPendingComboProduct(null);
     };
 
     // Función para abrir el modal de observaciones (carga las observaciones si es necesario)
@@ -888,32 +1203,33 @@ const Order: React.FC<OrderProps> = ({
         }
     }, [lastAddedItemId, orderItems]);
 
-    // Calcular totales
+    // Calcular totales CON descuentos aplicados
     const orderItemsTotal = orderItems.reduce((sum, item) => {
         const itemTotal = Number(item.total) || 0;
-        return sum + itemTotal;
+        const itemDiscount = Number(item.discount) || 0;
+        // El total del item ya incluye el precio × cantidad, pero el descuento es aparte
+        // Restamos el descuento para obtener el monto real a pagar por ese item
+        return sum + (itemTotal - itemDiscount);
     }, 0);
-    const subtotal =
-        isExistingOrder &&
-        existingOperation &&
-        existingOperation.subtotal !== undefined &&
-        existingOperation.subtotal !== null
-            ? Number(existingOperation.subtotal)
-            : orderItemsTotal;
-    const taxes =
-        isExistingOrder &&
-        existingOperation &&
-        existingOperation.igvAmount !== undefined &&
-        existingOperation.igvAmount !== null
-            ? Number(existingOperation.igvAmount)
-            : 0; // Para nuevas órdenes seguimos mostrando 0 hasta calcular
-    const total =
-        isExistingOrder &&
-        existingOperation &&
-        existingOperation.total !== undefined &&
-        existingOperation.total !== null
-            ? Number(existingOperation.total)
-            : subtotal + taxes;
+
+    // Calcular IGV basado en el total con descuento
+    const igvPercentageDecimal = igvPercentageFromBranch / 100;
+    const calculatedSubtotal = parseFloat(
+        (
+            Math.round((orderItemsTotal / (1 + igvPercentageDecimal)) * 100) /
+            100
+        ).toFixed(2),
+    );
+    const calculatedIgvAmount = parseFloat(
+        (
+            Math.round((orderItemsTotal - calculatedSubtotal) * 100) / 100
+        ).toFixed(2),
+    );
+
+    // Para órdenes existentes, usar los valores calculados (con descuento) en lugar de los del backend
+    const subtotal = calculatedSubtotal;
+    const taxes = calculatedIgvAmount;
+    const total = orderItemsTotal;
 
     // Función para guardar la orden (shouldPrint: true = enviar a imprimir, false = solo enviar a cocina)
     const handleSaveOrder = async (
@@ -1001,6 +1317,20 @@ const Order: React.FC<OrderProps> = ({
                         unitMeasure: "NIU",
                         unitValue,
                         unitPrice,
+                        promoInfo:
+                            item.promotionName || (item.discount ?? 0) > 0
+                                ? JSON.stringify({
+                                      discount: item.discount ?? 0,
+                                      promotionName: item.promotionName ?? null,
+                                  })
+                                : null,
+                        comboComponents:
+                            item.isCombo && item.comboComponents
+                                ? item.comboComponents.map((comp: any) => ({
+                                      productId: comp.product.id,
+                                      quantity: comp.quantity,
+                                  }))
+                                : undefined,
                         notes,
                     };
                 });
@@ -1142,6 +1472,20 @@ const Order: React.FC<OrderProps> = ({
                     unitMeasure: "NIU",
                     unitValue: safeUnitValue,
                     unitPrice: safeUnitPrice,
+                    promoInfo:
+                        item.promotionName || (item.discount ?? 0) > 0
+                            ? JSON.stringify({
+                                  discount: item.discount ?? 0,
+                                  promotionName: item.promotionName ?? null,
+                              })
+                            : null,
+                    comboComponents:
+                        item.isCombo && item.comboComponents
+                            ? item.comboComponents.map((comp: any) => ({
+                                  productId: comp.product.id,
+                                  quantity: comp.quantity,
+                              }))
+                            : undefined,
                     notes,
                 };
             });
@@ -1441,7 +1785,8 @@ const Order: React.FC<OrderProps> = ({
             });
 
             if (result.data?.printAccount?.success) {
-                const pa = result.data.printAccount as typeof result.data.printAccount & {
+                const pa = result.data
+                    .printAccount as typeof result.data.printAccount & {
                     print_locally?: boolean;
                     printLocally?: boolean;
                     document_data?: string | null;
@@ -1449,12 +1794,10 @@ const Order: React.FC<OrderProps> = ({
                 };
                 const printLocallyFlag =
                     pa?.printLocally === true || pa?.print_locally === true;
-                const docData =
-                    pa?.documentData ?? pa?.document_data ?? null;
+                const docData = pa?.documentData ?? pa?.document_data ?? null;
                 const localPrintOk = await invokeLocalIssuedDocumentPrint(
                     {
-                        printLocally:
-                            pa?.printLocally ?? pa?.print_locally,
+                        printLocally: pa?.printLocally ?? pa?.print_locally,
                         documentData: docData,
                     },
                     {
@@ -1694,6 +2037,13 @@ const Order: React.FC<OrderProps> = ({
                         <div
                             className={`flex items-center gap-3 ${isXs ? "w-full justify-between" : ""}`}
                         >
+                            {/* NUEVO: Botón de combos */}
+                            <button
+                                onClick={() => setShowComboModal(true)}
+                                className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white transition-all hover:bg-orange-600"
+                            >
+                                ⭐ Combos
+                            </button>
                             {onOpenCash && canNavigateToCashPay && (
                                 <button
                                     type="button"
@@ -1731,6 +2081,13 @@ const Order: React.FC<OrderProps> = ({
                             </button>
                         </div>
                     </div>
+
+                    {/* NUEVO: Banner de regalo disponible */}
+                    {giftMessage && (
+                        <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg bg-yellow-500 px-3 py-2 text-sm font-semibold text-black animate-pulse">
+                            🎁 {giftMessage}
+                        </div>
+                    )}
 
                     {/* Body */}
                     <div
@@ -2219,8 +2576,25 @@ const Order: React.FC<OrderProps> = ({
                                                                         1,
                                                                     )
                                                                 }
-                                                                className="flex h-full cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/60 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10"
+                                                                className="flex h-full cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/60 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10 relative"
                                                             >
+                                                                {/* NUEVO: Badge de promoción */}
+                                                                {(() => {
+                                                                    const badge =
+                                                                        findBadgePromotion(
+                                                                            product,
+                                                                            activePromotions,
+                                                                        );
+                                                                    if (!badge)
+                                                                        return null;
+                                                                    return (
+                                                                        <span className="absolute top-1 right-1 z-10 rounded bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white">
+                                                                            {promotionBadgeLabel(
+                                                                                badge,
+                                                                            )}
+                                                                        </span>
+                                                                    );
+                                                                })()}
                                                                 {product.imageBase64 ? (
                                                                     <img
                                                                         src={`data:image/jpeg;base64,${product.imageBase64}`}
@@ -2456,12 +2830,13 @@ const Order: React.FC<OrderProps> = ({
                                                 !isExistingOrder || item.isNew;
                                             const canEditNotes =
                                                 !isExistingOrder || item.isNew;
-                                            const hasObservationContent = Boolean(
-                                                item.notes?.trim() ||
+                                            const hasObservationContent =
+                                                Boolean(
+                                                    item.notes?.trim() ||
                                                     (selectedObservations[
                                                         item.id
                                                     ]?.size ?? 0) > 0,
-                                            );
+                                                );
                                             return (
                                                 <div
                                                     key={item.id}
@@ -2734,6 +3109,63 @@ const Order: React.FC<OrderProps> = ({
                                                             >
                                                                 {item.name}
                                                             </div>
+                                                            {/* Debug: console.log para ver valores */}
+                                                            {(() => {
+                                                                console.log(
+                                                                    "[Render] Item",
+                                                                    item.name,
+                                                                    "discount:",
+                                                                    item.discount,
+                                                                    "promotionName:",
+                                                                    item.promotionName,
+                                                                );
+                                                                return null;
+                                                            })()}
+                                                            {/* NUEVO: Descuento en el carrito */}
+                                                            {(item.discount ??
+                                                                0) > 0 && (
+                                                                <div className="mt-1 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                                                                    <span>
+                                                                        -S/{" "}
+                                                                        {item.discount!.toFixed(
+                                                                            2,
+                                                                        )}
+                                                                    </span>
+                                                                    {item.promotionName && (
+                                                                        <span className="text-gray-400">
+                                                                            (
+                                                                            {
+                                                                                item.promotionName
+                                                                            }
+                                                                            )
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                            {/* NUEVO: Componentes del combo */}
+                                                            {item.isCombo &&
+                                                                item.comboComponents && (
+                                                                    <div className="mt-1 space-y-0.5 text-xs text-orange-600 dark:text-orange-300">
+                                                                        {item.comboComponents.map(
+                                                                            (
+                                                                                comp: any,
+                                                                            ) => (
+                                                                                <div
+                                                                                    key={
+                                                                                        comp.scopeId
+                                                                                    }
+                                                                                >
+                                                                                    •{" "}
+                                                                                    {
+                                                                                        comp
+                                                                                            .product
+                                                                                            .name
+                                                                                    }
+                                                                                </div>
+                                                                            ),
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                         </div>
 
                                                         {/* Precio total */}
@@ -3085,6 +3517,9 @@ const Order: React.FC<OrderProps> = ({
                                         ? "Guardando..."
                                         : "Enviar orden (sin imprimir)"}
                                 </button>
+                                <button onClick={() => console.log(orderItems)}>
+                                    IMPRIMIR ORDEN EN CONSOLE
+                                </button>
 
                                 {/* Botón de Precuenta - solo visible cuando hay una orden existente */}
                                 {isExistingOrder && (
@@ -3230,6 +3665,18 @@ const Order: React.FC<OrderProps> = ({
                             />
                         </div>
                     </div>
+                )}
+
+                {/* NUEVO: Modal de selección de combos */}
+                {showComboModal && (
+                    <ComboSelectorModal
+                        branchId={companyData?.branch?.id || ""}
+                        onConfirm={handleAddCombo}
+                        onClose={() => {
+                            setShowComboModal(false);
+                            setPendingComboProduct(null);
+                        }}
+                    />
                 )}
             </div>
         </>

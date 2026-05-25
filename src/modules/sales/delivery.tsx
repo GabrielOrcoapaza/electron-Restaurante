@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
-import { useAuth } from '../../hooks/useAuth';
-import { useResponsive } from '../../hooks/useResponsive';
-import { useToast } from '../../context/ToastContext';
-import { CREATE_SALE_CARRY_OUT } from '../../graphql/mutations';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
+import { useAuth } from "../../hooks/useAuth";
+import { useResponsive } from "../../hooks/useResponsive";
+import { useToast } from "../../context/ToastContext";
+import { CREATE_SALE_CARRY_OUT } from "../../graphql/mutations";
 import {
     GET_CATEGORIES_BY_BRANCH_LIGHT,
     GET_SUBCATEGORIES_BY_CATEGORY,
@@ -15,13 +15,28 @@ import {
     GET_CASH_REGISTERS_BY_BRANCH,
     GET_PERSONS_BY_BRANCH,
     GET_MODIFIERS_BY_SUBCATEGORY,
-    SEARCH_PERSON_BY_DOCUMENT
-} from '../../graphql/queries';
-import { CREATE_PERSON } from '../../graphql/mutations';
-import ModalObservation from './modalObservation';
-import PayDeliveryModal, { type DeliveryPaymentLine } from './payDelivery';
-import CategoryIcon from '../../components/CategoryIcon';
-import { formatLocalDateYYYYMMDD, formatLocalTimeHHMMSS, formatInstantISO } from '../../utils/localDateTime';
+    SEARCH_PERSON_BY_DOCUMENT,
+    GET_ACTIVE_PROMOTIONS,
+} from "../../graphql/queries";
+import { CREATE_PERSON } from "../../graphql/mutations";
+import ModalObservation from "./modalObservation";
+import PayDeliveryModal, { type DeliveryPaymentLine } from "./payDelivery";
+import CategoryIcon from "../../components/CategoryIcon";
+import {
+    formatLocalDateYYYYMMDD,
+    formatLocalTimeHHMMSS,
+    formatInstantISO,
+} from "../../utils/localDateTime";
+import {
+    findBestDiscountPromotion,
+    calculateLineDiscount,
+    computeNxMFreeSet,
+    findBadgePromotion,
+    promotionBadgeLabel,
+    type CartLine,
+} from "../../utils/promotionUtils";
+import type { IPromotion } from "../../types/promotions";
+import { ComboSelectorModal } from "../../components/ComboSelectorModal";
 
 const roundMoney2 = (n: number): number =>
     Math.round((Number(n) || 0) * 100) / 100;
@@ -35,6 +50,11 @@ type CartItem = {
     total: number;
     notes: string;
     subcategoryId?: string;
+    product?: any;
+    discount?: number;
+    promotionName?: string | null;
+    isCombo?: boolean;
+    comboComponents?: any[];
 };
 
 // Tipo para cliente
@@ -46,23 +66,29 @@ type Person = {
 };
 
 const Delivery: React.FC = () => {
-    const { companyData, user, deviceId, getDeviceId, getMacAddress } = useAuth();
+    const { companyData, user, deviceId, getDeviceId, getMacAddress } =
+        useAuth();
     const { showToast } = useToast();
     const { breakpoint } = useResponsive();
 
     // Responsive: sm 640-767, md 768-1023, lg 1024-1279, xl 1280-1535, 2xl >=1536
-    const isSmall = breakpoint === 'sm';
-    const isMedium = breakpoint === 'md';
+    const isSmall = breakpoint === "sm";
+    const isMedium = breakpoint === "md";
     // Valores adaptativos
-    const gridMinCol = isSmall ? '110px' : isMedium ? '125px' : '140px';
+    const gridMinCol = isSmall ? "110px" : isMedium ? "125px" : "140px";
 
     // IGV de la sucursal
-    const igvPercentageFromBranch = Number(companyData?.branch?.igvPercentage) || 10.5;
+    const igvPercentageFromBranch =
+        Number(companyData?.branch?.igvPercentage) || 10.5;
 
     // Estados
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-    const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
-    const [searchTerm, setSearchTerm] = useState<string>('');
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(
+        null,
+    );
+    const [selectedSubcategory, setSelectedSubcategory] = useState<
+        string | null
+    >(null);
+    const [searchTerm, setSearchTerm] = useState<string>("");
     const [searchByCodeOnly, setSearchByCodeOnly] = useState<boolean>(false);
     const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -70,15 +96,22 @@ const Delivery: React.FC = () => {
 
     // Estados para el pago
     const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
-    const [personSearchTerm, setPersonSearchTerm] = useState<string>('');
-    const [selectedDocument, setSelectedDocument] = useState<string>('');
-    const [showObservationModal, setShowObservationModal] = useState<string | null>(null);
-    const [productObservations, setProductObservations] = useState<Record<string, any[]>>({});
-    const [selectedObservations, setSelectedObservations] = useState<Record<string, Set<string>>>({});
-    const [selectedSerial, setSelectedSerial] = useState<string>('');
-    const [selectedCashRegister, setSelectedCashRegister] = useState<string>('');
+    const [personSearchTerm, setPersonSearchTerm] = useState<string>("");
+    const [selectedDocument, setSelectedDocument] = useState<string>("");
+    const [showObservationModal, setShowObservationModal] = useState<
+        string | null
+    >(null);
+    const [productObservations, setProductObservations] = useState<
+        Record<string, any[]>
+    >({});
+    const [selectedObservations, setSelectedObservations] = useState<
+        Record<string, Set<string>>
+    >({});
+    const [selectedSerial, setSelectedSerial] = useState<string>("");
+    const [selectedCashRegister, setSelectedCashRegister] =
+        useState<string>("");
     const [paymentLines, setPaymentLines] = useState<DeliveryPaymentLine[]>([
-        { id: '1', method: 'CASH', amount: 0, referenceNumber: '' },
+        { id: "1", method: "CASH", amount: 0, referenceNumber: "" },
     ]);
     // Descuento: solo uno a la vez — monto fijo (S/) o porcentaje (%)
     const [discountAmount, setDiscountAmount] = useState<number>(0);
@@ -86,44 +119,88 @@ const Delivery: React.FC = () => {
     // Modal de información de pago (se abre al hacer click en Procesar Venta)
     const [showPaymentModal, setShowPaymentModal] = useState(false);
 
+    // Estados para combos y promociones
+    const { data: promotionsData } = useQuery(GET_ACTIVE_PROMOTIONS, {
+        variables: { branchId: companyData?.branch?.id },
+        skip: !companyData?.branch?.id,
+        fetchPolicy: "network-only",
+    });
+    const [activePromotions, setActivePromotions] = useState<IPromotion[]>([]);
+    const [giftMessage, setGiftMessage] = useState<string | null>(null);
+    const [showComboModal, setShowComboModal] = useState(false);
+    const [pendingComboProduct, setPendingComboProduct] = useState<any>(null);
+
+    useEffect(() => {
+        if (promotionsData?.activePromotions) {
+            setActivePromotions(promotionsData.activePromotions);
+        }
+    }, [promotionsData]);
+
     // Mutación para crear venta
     const [createSaleCarryOutMutation] = useMutation(CREATE_SALE_CARRY_OUT);
 
     // Categorías sin subcategorías anidadas (menos peso al abrir delivery)
-    const { data: categoriesData, loading: categoriesLoading } = useQuery(GET_CATEGORIES_BY_BRANCH_LIGHT, {
-        variables: { branchId: companyData?.branch.id },
-        skip: !companyData?.branch.id,
-        fetchPolicy: 'network-only'
-    });
+    const { data: categoriesData, loading: categoriesLoading } = useQuery(
+        GET_CATEGORIES_BY_BRANCH_LIGHT,
+        {
+            variables: { branchId: companyData?.branch.id },
+            skip: !companyData?.branch.id,
+            fetchPolicy: "network-only",
+        },
+    );
 
     const categories = categoriesData?.categoriesByBranch || [];
 
-    const { data: subcategoriesData, loading: subcategoriesLoading } = useQuery(GET_SUBCATEGORIES_BY_CATEGORY, {
-        variables: { categoryId: selectedCategory || '' },
-        skip: !companyData?.branch.id || !selectedCategory,
-        fetchPolicy: 'network-only'
-    });
+    const { data: subcategoriesData, loading: subcategoriesLoading } = useQuery(
+        GET_SUBCATEGORIES_BY_CATEGORY,
+        {
+            variables: { categoryId: selectedCategory || "" },
+            skip: !companyData?.branch.id || !selectedCategory,
+            fetchPolicy: "network-only",
+        },
+    );
 
     // Búsqueda de productos (siempre del servidor)
     // Cuando searchByCodeOnly: usar product_by_code. Si no: searchProducts con 3+ caracteres.
     const searchMinLength = searchByCodeOnly ? 1 : 3;
-    const { data: searchData, loading: searchLoading } = useQuery(SEARCH_PRODUCTS, {
-        variables: { search: searchTerm.trim(), branchId: companyData?.branch.id, limit: 50 },
-        skip: !companyData?.branch.id || searchByCodeOnly || searchTerm.trim().length < searchMinLength,
-        errorPolicy: 'ignore',
-        fetchPolicy: 'network-only'
-    });
+    const { data: searchData, loading: searchLoading } = useQuery(
+        SEARCH_PRODUCTS,
+        {
+            variables: {
+                search: searchTerm.trim(),
+                branchId: companyData?.branch.id,
+                limit: 50,
+            },
+            skip:
+                !companyData?.branch.id ||
+                searchByCodeOnly ||
+                searchTerm.trim().length < searchMinLength,
+            errorPolicy: "ignore",
+            fetchPolicy: "network-only",
+        },
+    );
 
     // Búsqueda solo por código: usa product_by_code del backend (insensible a mayúsculas/minúsculas)
-    const { data: productByCodeData, loading: productByCodeLoading } = useQuery(GET_PRODUCT_BY_CODE, {
-        variables: { branchId: companyData?.branch.id, code: searchTerm.trim() },
-        skip: !companyData?.branch.id || !searchByCodeOnly || !searchTerm.trim(),
-        errorPolicy: 'ignore',
-        fetchPolicy: 'network-only'
-    });
+    const { data: productByCodeData, loading: productByCodeLoading } = useQuery(
+        GET_PRODUCT_BY_CODE,
+        {
+            variables: {
+                branchId: companyData?.branch.id,
+                code: searchTerm.trim(),
+            },
+            skip:
+                !companyData?.branch.id ||
+                !searchByCodeOnly ||
+                !searchTerm.trim(),
+            errorPolicy: "ignore",
+            fetchPolicy: "network-only",
+        },
+    );
 
     const subcategoriesOfCategory = selectedCategory
-        ? (subcategoriesData?.subcategoriesByCategory || []).filter((s: any) => s.isActive !== false)
+        ? (subcategoriesData?.subcategoriesByCategory || []).filter(
+              (s: any) => s.isActive !== false,
+          )
         : [];
 
     /** Hay subs pero el usuario aún no eligió una: mostrar grid de subs, no productos. */
@@ -134,29 +211,31 @@ const Delivery: React.FC = () => {
         !selectedSubcategory;
 
     // Obtener productos por categoría (siempre del servidor para precios actualizados)
-    const { data: productsByCategoryData, loading: productsByCategoryLoading } = useQuery(GET_PRODUCTS_BY_CATEGORY, {
-        variables: { categoryId: selectedCategory },
-        skip:
-            !selectedCategory ||
-            searchByCodeOnly ||
-            searchTerm.length >= 3 ||
-            subcategoriesLoading ||
-            awaitingSubcategoryPick,
-        fetchPolicy: 'network-only'
-    });
+    const { data: productsByCategoryData, loading: productsByCategoryLoading } =
+        useQuery(GET_PRODUCTS_BY_CATEGORY, {
+            variables: { categoryId: selectedCategory },
+            skip:
+                !selectedCategory ||
+                searchByCodeOnly ||
+                searchTerm.length >= 3 ||
+                subcategoriesLoading ||
+                awaitingSubcategoryPick,
+            fetchPolicy: "network-only",
+        });
 
     // Obtener todos los productos (siempre del servidor para precios y productos nuevos)
-    const { data: productsByBranchData, loading: productsByBranchLoading } = useQuery(GET_PRODUCTS_BY_BRANCH, {
-        variables: { branchId: companyData?.branch.id },
-        skip: !companyData?.branch.id,
-        fetchPolicy: 'network-only'
-    });
+    const { data: productsByBranchData, loading: productsByBranchLoading } =
+        useQuery(GET_PRODUCTS_BY_BRANCH, {
+            variables: { branchId: companyData?.branch.id },
+            skip: !companyData?.branch.id,
+            fetchPolicy: "network-only",
+        });
 
     // Obtener documentos con sus series (siempre del servidor, no caché)
     const { data: documentsData } = useQuery(GET_DOCUMENTS_WITH_SERIALS, {
         variables: { branchId: companyData?.branch.id },
         skip: !companyData?.branch.id,
-        fetchPolicy: 'network-only'
+        fetchPolicy: "network-only",
     });
 
     const documents = documentsData?.documentsByBranch || [];
@@ -165,56 +244,163 @@ const Delivery: React.FC = () => {
     const { data: cashRegistersData } = useQuery(GET_CASH_REGISTERS_BY_BRANCH, {
         variables: { branchId: companyData?.branch.id },
         skip: !companyData?.branch.id,
-        fetchPolicy: 'network-only'
+        fetchPolicy: "network-only",
     });
 
     const cashRegisters = cashRegistersData?.cashRegistersByBranch || [];
 
     // Personas (clientes) de la sucursal - siempre del servidor para ver clientes nuevos
-    const { data: clientsData, loading: clientsLoading, refetch: refetchClients } = useQuery(GET_PERSONS_BY_BRANCH, {
+    const {
+        data: clientsData,
+        loading: clientsLoading,
+        refetch: refetchClients,
+    } = useQuery(GET_PERSONS_BY_BRANCH, {
         variables: { branchId: companyData?.branch.id },
         skip: !companyData?.branch.id,
-        fetchPolicy: 'network-only'
+        fetchPolicy: "network-only",
     });
 
     // Búsqueda por documento en SUNAT / local
-    const [searchPersonByDocument, { loading: sunatSearchLoading }] = useLazyQuery(SEARCH_PERSON_BY_DOCUMENT, {
-        fetchPolicy: 'network-only'
-    });
+    const [searchPersonByDocument, { loading: sunatSearchLoading }] =
+        useLazyQuery(SEARCH_PERSON_BY_DOCUMENT, {
+            fetchPolicy: "network-only",
+        });
     const [createPersonMutation] = useMutation(CREATE_PERSON);
 
     // Factura (código 01) exige cliente con RUC; 01 y 03 se envían a SUNAT (misma regla que cashPay)
     const selectedDoc = documents.find((d: any) => d.id === selectedDocument);
-    const isFactura = selectedDoc?.code === '01';
-    const isSunatBillableDocument = selectedDoc?.code === '01' || selectedDoc?.code === '03';
+    const isFactura = selectedDoc?.code === "01";
+    const isSunatBillableDocument =
+        selectedDoc?.code === "01" || selectedDoc?.code === "03";
 
     const getCartLineTotal = (item: CartItem) =>
-        Number(item.total) || (Number(item.price) || 0) * (Number(item.quantity) || 0);
+        Number(item.total) ||
+        (Number(item.price) || 0) * (Number(item.quantity) || 0);
+
+    const recalculatePromotions = useCallback(
+        (items: CartItem[], promotions: IPromotion[]) => {
+            if (promotions.length === 0) return items;
+            const cartTotal = items.reduce(
+                (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
+                0,
+            );
+
+            let updated = items.map((item) => {
+                if (item.isCombo || !item.product)
+                    return { ...item, discount: 0, promotionName: null };
+                const promo = findBestDiscountPromotion(
+                    item.product,
+                    promotions,
+                    cartTotal,
+                );
+                if (promo) {
+                    return {
+                        ...item,
+                        discount: calculateLineDiscount(
+                            item.price,
+                            item.quantity,
+                            promo,
+                        ),
+                        promotionName: promo.name,
+                    };
+                }
+                return { ...item, discount: 0, promotionName: null };
+            });
+
+            const nxmPromos = promotions.filter(
+                (p) => p.promotionType === "NXM",
+            );
+            if (nxmPromos.length > 0) {
+                const lines: CartLine[] = updated
+                    .map((item, idx) =>
+                        item.product
+                            ? {
+                                  index: idx,
+                                  product: item.product,
+                                  unitPrice: item.price,
+                                  quantity: item.quantity,
+                                  isGift: false,
+                              }
+                            : null,
+                    )
+                    .filter(Boolean) as CartLine[];
+                const freeSet = computeNxMFreeSet(lines, nxmPromos);
+                freeSet.forEach((promoName, idx) => {
+                    updated[idx] = {
+                        ...updated[idx],
+                        discount:
+                            Math.round(
+                                updated[idx].price *
+                                    updated[idx].quantity *
+                                    100,
+                            ) / 100,
+                        promotionName: promoName,
+                    };
+                });
+            }
+
+            const newTotal = updated.reduce(
+                (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
+                0,
+            );
+            const giftPromo = promotions.find(
+                (p) =>
+                    p.promotionType === "GIFT" &&
+                    newTotal >= (p.minPurchaseAmount || 0) &&
+                    p.giftProduct,
+            );
+            setGiftMessage(
+                giftPromo
+                    ? `¡Regalo disponible! ${giftPromo.giftProduct?.name} × ${
+                          giftPromo.giftQuantity ?? 1
+                      } — ${giftPromo.name}`
+                    : null,
+            );
+
+            return updated;
+        },
+        [],
+    );
+
+    useEffect(() => {
+        if (activePromotions.length > 0 && cartItems.length > 0) {
+            setCartItems((prev) =>
+                recalculatePromotions(prev, activePromotions),
+            );
+        }
+    }, [activePromotions, cartItems.length, recalculatePromotions]);
 
     const filteredClients = useMemo(() => {
-        let clients = (clientsData?.personsByBranch || []).filter((c: any) =>
-            !c.isSupplier && c.isActive !== false
+        let clients = (clientsData?.personsByBranch || []).filter(
+            (c: any) => !c.isSupplier && c.isActive !== false,
         );
         if (isFactura) {
-            clients = clients.filter((c: any) => (c.documentType || '').toUpperCase() === 'RUC');
+            clients = clients.filter(
+                (c: any) => (c.documentType || "").toUpperCase() === "RUC",
+            );
         }
         if (!personSearchTerm) return clients.slice(0, 50);
         const lower = personSearchTerm.toLowerCase();
-        return clients.filter((c: any) =>
-            (c.name || '').toLowerCase().includes(lower) ||
-            (c.documentNumber || '').includes(lower)
-        ).slice(0, 50);
+        return clients
+            .filter(
+                (c: any) =>
+                    (c.name || "").toLowerCase().includes(lower) ||
+                    (c.documentNumber || "").includes(lower),
+            )
+            .slice(0, 50);
     }, [clientsData, personSearchTerm, isFactura]);
 
     // Determinar qué productos mostrar
     let products;
     let productsLoading;
 
-    const isSearching = searchByCodeOnly ? searchTerm.trim().length >= 1 : searchTerm.length >= 3;
+    const isSearching = searchByCodeOnly
+        ? searchTerm.trim().length >= 1
+        : searchTerm.length >= 3;
 
     if (searchByCodeOnly && searchTerm.trim().length >= 1) {
         // Búsqueda solo por código: usa product_by_code del backend (insensible a mayúsculas)
-        const found = productByCodeData?.productByCode; 
+        const found = productByCodeData?.productByCode;
         products = found ? [found] : [];
         productsLoading = productByCodeLoading;
     } else if (isSearching) {
@@ -224,10 +410,11 @@ const Delivery: React.FC = () => {
         if (!products || products.length === 0) {
             const allProducts = productsByBranchData?.productsByBranch || [];
             const searchLower = searchTerm.toLowerCase();
-            products = allProducts.filter((p: any) =>
-                p.name?.toLowerCase().includes(searchLower) ||
-                p.code?.toLowerCase().includes(searchLower) ||
-                p.description?.toLowerCase().includes(searchLower)
+            products = allProducts.filter(
+                (p: any) =>
+                    p.name?.toLowerCase().includes(searchLower) ||
+                    p.code?.toLowerCase().includes(searchLower) ||
+                    p.description?.toLowerCase().includes(searchLower),
             );
         }
     } else if (selectedCategory) {
@@ -263,16 +450,27 @@ const Delivery: React.FC = () => {
     useEffect(() => {
         if (!selectedCategory || subcategoriesLoading) return;
         const subs = (subcategoriesData?.subcategoriesByCategory || []).filter(
-            (s: any) => s.isActive !== false
+            (s: any) => s.isActive !== false,
         );
         if (subs.length === 1) {
             setSelectedSubcategory(String(subs[0].id));
         }
-    }, [selectedCategory, subcategoriesLoading, subcategoriesData?.subcategoriesByCategory]);
+    }, [
+        selectedCategory,
+        subcategoriesLoading,
+        subcategoriesData?.subcategoriesByCategory,
+    ]);
 
     // Filtrar productos por subcategoría si no estamos buscando
-    if (!isSearching && selectedCategory && selectedSubcategory && productsList.length > 0) {
-        productsList = productsList.filter((p: any) => String(p.subcategoryId) === String(selectedSubcategory));
+    if (
+        !isSearching &&
+        selectedCategory &&
+        selectedSubcategory &&
+        productsList.length > 0
+    ) {
+        productsList = productsList.filter(
+            (p: any) => String(p.subcategoryId) === String(selectedSubcategory),
+        );
     }
 
     // Función para agregar producto al carrito (permite precio cero y productos con precio)
@@ -283,14 +481,30 @@ const Delivery: React.FC = () => {
         const product = productsList.find((p: any) => p.id === productId);
         if (!product) return;
 
+        // Si es un combo (tipo PROMOTION), abrir modal de selección de componentes
+        if (product.productType === "PROMOTION" && product.asPromotion) {
+            setPendingComboProduct(product);
+            setShowComboModal(true);
+            setSearchTerm("");
+            if (!productIdToAdd) {
+                setSelectedProduct(null);
+            }
+            return;
+        }
+
         const productPrice = parseFloat(product.salePrice) || 0;
         if (productPrice < 0) {
-            showToast(`El producto "${product.name}" no tiene un precio válido`, 'error');
+            showToast(
+                `El producto "${product.name}" no tiene un precio válido`,
+                "error",
+            );
             return;
         }
 
         const qty = qtyToAdd ?? 1;
-        const existingItemIndex = cartItems.findIndex(item => item.productId === product.id);
+        const existingItemIndex = cartItems.findIndex(
+            (item) => item.productId === product.id,
+        );
 
         if (existingItemIndex >= 0) {
             const updatedItems = [...cartItems];
@@ -308,16 +522,40 @@ const Delivery: React.FC = () => {
                 price: productPrice,
                 quantity: qty,
                 total: productPrice * qty,
-                notes: '',
-                subcategoryId: product.subcategoryId
+                notes: "",
+                subcategoryId: product.subcategoryId,
+                product: product,
+                discount: 0,
+                promotionName: null,
             };
             setCartItems([...cartItems, newItem]);
         }
 
-        setSearchTerm('');
+        setSearchTerm("");
         if (!productIdToAdd) {
             setSelectedProduct(null);
         }
+    };
+
+    // Handler para cuando el usuario confirma el combo desde el modal
+    const handleAddCombo = (comboProduct: any, selections: any[]) => {
+        const newItem: CartItem = {
+            id: `combo-${comboProduct.id}-${Date.now()}`,
+            productId: comboProduct.id,
+            name: comboProduct.name,
+            price: comboProduct.salePrice,
+            quantity: 1,
+            total: comboProduct.salePrice,
+            notes: "",
+            product: comboProduct,
+            discount: 0,
+            promotionName: null,
+            isCombo: true,
+            comboComponents: selections,
+        };
+        setCartItems([...cartItems, newItem]);
+        setShowComboModal(false);
+        setPendingComboProduct(null);
     };
 
     // Función para actualizar cantidad
@@ -327,14 +565,14 @@ const Delivery: React.FC = () => {
             return;
         }
 
-        const updatedItems = cartItems.map(item => {
+        const updatedItems = cartItems.map((item) => {
             if (item.id === itemId) {
                 const validQuantity = Number(newQuantity) || 1;
                 const validPrice = Number(item.price) || 0;
                 return {
                     ...item,
                     quantity: validQuantity,
-                    total: validPrice * validQuantity
+                    total: validPrice * validQuantity,
                 };
             }
             return item;
@@ -344,78 +582,107 @@ const Delivery: React.FC = () => {
 
     // Total de línea editable (S/): recalcula precio unitario = total / cantidad
     const handleUpdateLineTotal = (itemId: string, rawValue: string) => {
-        const v = parseFloat(String(rawValue).replace(',', '.'));
-        const lineTotal = Math.max(0, Number.isFinite(v) ? Math.round(v * 100) / 100 : 0);
-        setCartItems(prev =>
-            prev.map(item => {
+        const v = parseFloat(String(rawValue).replace(",", "."));
+        const lineTotal = Math.max(
+            0,
+            Number.isFinite(v) ? Math.round(v * 100) / 100 : 0,
+        );
+        setCartItems((prev) =>
+            prev.map((item) => {
                 if (item.id !== itemId) return item;
                 const qty = Math.max(1, Number(item.quantity) || 1);
                 const unitPrice = Math.round((lineTotal / qty) * 100) / 100;
                 const alignedTotal = Math.round(unitPrice * qty * 100) / 100;
                 return { ...item, price: unitPrice, total: alignedTotal };
-            })
+            }),
         );
     };
 
     // Función para eliminar ítem
     const handleRemoveItem = (itemId: string) => {
-        setCartItems(cartItems.filter(item => item.id !== itemId));
+        setCartItems(cartItems.filter((item) => item.id !== itemId));
     };
 
-    const [getObservations] = useLazyQuery(GET_MODIFIERS_BY_SUBCATEGORY, { fetchPolicy: 'network-only' });
+    const [getObservations] = useLazyQuery(GET_MODIFIERS_BY_SUBCATEGORY, {
+        fetchPolicy: "network-only",
+    });
 
     const handleOpenObservationModal = async (itemId: string) => {
-        const item = cartItems.find(i => i.id === itemId);
+        const item = cartItems.find((i) => i.id === itemId);
         if (!item) return;
         if (item.subcategoryId && !productObservations[itemId]) {
             try {
-                const { data } = await getObservations({ variables: { subcategoryId: item.subcategoryId } });
+                const { data } = await getObservations({
+                    variables: { subcategoryId: item.subcategoryId },
+                });
                 if (data?.notesBySubcategory) {
-                    const activeObservations = data.notesBySubcategory.filter((m: any) => m.isActive);
-                    setProductObservations(prev => ({ ...prev, [itemId]: activeObservations }));
+                    const activeObservations = data.notesBySubcategory.filter(
+                        (m: any) => m.isActive,
+                    );
+                    setProductObservations((prev) => ({
+                        ...prev,
+                        [itemId]: activeObservations,
+                    }));
                     if (item.notes) {
-                        const currentNotes = item.notes.split(', ').map((n: string) => n.trim());
+                        const currentNotes = item.notes
+                            .split(", ")
+                            .map((n: string) => n.trim());
                         const selectedIds = new Set<string>();
                         activeObservations.forEach((obs: any) => {
-                            if (currentNotes.includes(obs.note)) selectedIds.add(obs.id);
+                            if (currentNotes.includes(obs.note))
+                                selectedIds.add(obs.id);
                         });
                         if (selectedIds.size > 0) {
-                            setSelectedObservations(prev => ({ ...prev, [itemId]: selectedIds }));
+                            setSelectedObservations((prev) => ({
+                                ...prev,
+                                [itemId]: selectedIds,
+                            }));
                         }
                     }
                 }
             } catch (error) {
-                console.error('Error al obtener observaciones:', error);
+                console.error("Error al obtener observaciones:", error);
             }
         }
         setShowObservationModal(itemId);
     };
 
-    const handleApplyObservations = (itemId: string, selectedIds: Set<string>, manualNotes: string) => {
-        const item = cartItems.find(i => i.id === itemId);
+    const handleApplyObservations = (
+        itemId: string,
+        selectedIds: Set<string>,
+        manualNotes: string,
+    ) => {
+        const item = cartItems.find((i) => i.id === itemId);
         if (!item) return;
-        setSelectedObservations(prev => ({ ...prev, [itemId]: selectedIds }));
-        
-        // En el nuevo flujo de ModalObservation, manualNotes ya contiene el texto completo 
+        setSelectedObservations((prev) => ({ ...prev, [itemId]: selectedIds }));
+
+        // En el nuevo flujo de ModalObservation, manualNotes ya contiene el texto completo
         // (incluyendo las etiquetas seleccionadas y notas manuales) debidamente formateado.
         const finalNotes = manualNotes.trim();
 
-        setCartItems(prev =>
-            prev.map(i => (i.id !== itemId ? i : { ...i, notes: finalNotes }))
+        setCartItems((prev) =>
+            prev.map((i) =>
+                i.id !== itemId ? i : { ...i, notes: finalNotes },
+            ),
         );
         setShowObservationModal(null);
     };
 
     // Calcular totales (descuento: exclusivo — % o monto S/, no ambos)
-    const cartTotalRaw = cartItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+    const cartTotalRaw = cartItems.reduce(
+        (sum, item) => sum + (Number(item.total) || 0),
+        0,
+    );
     const pct = Number(discountPercent) || 0;
     const totalDiscount = Math.max(
         0,
-        pct > 0 ? cartTotalRaw * pct / 100 : (Number(discountAmount) || 0)
+        pct > 0 ? (cartTotalRaw * pct) / 100 : Number(discountAmount) || 0,
     );
     const cartTotal = Math.max(0, cartTotalRaw - totalDiscount);
     const igvPercentageDecimal = igvPercentageFromBranch / 100;
-    const subtotal = parseFloat((cartTotal / (1 + igvPercentageDecimal)).toFixed(2));
+    const subtotal = parseFloat(
+        (cartTotal / (1 + igvPercentageDecimal)).toFixed(2),
+    );
     const igvAmount = parseFloat((cartTotal - subtotal).toFixed(2));
 
     const totalPaymentsAmount = paymentLines.reduce(
@@ -425,7 +692,8 @@ const Delivery: React.FC = () => {
     const paymentsCoverDebt =
         roundMoney2(cartTotal) <= 0.01 ||
         roundMoney2(totalPaymentsAmount) >= roundMoney2(cartTotal) - 0.01;
-    const remainingToPay = roundMoney2(cartTotal) - roundMoney2(totalPaymentsAmount);
+    const remainingToPay =
+        roundMoney2(cartTotal) - roundMoney2(totalPaymentsAmount);
     const changeDue = remainingToPay < 0 ? Math.abs(remainingToPay) : 0;
     const canAddDeliveryPayment =
         roundMoney2(cartTotal) > 0.01 &&
@@ -440,9 +708,9 @@ const Delivery: React.FC = () => {
             ...prev,
             {
                 id: String(Date.now()),
-                method: 'CASH',
+                method: "CASH",
                 amount: remaining,
-                referenceNumber: '',
+                referenceNumber: "",
             },
         ]);
     };
@@ -467,10 +735,10 @@ const Delivery: React.FC = () => {
         if (!showPaymentModal) return;
         setPaymentLines([
             {
-                id: '1',
-                method: 'CASH',
+                id: "1",
+                method: "CASH",
                 amount: roundMoney2(cartTotal),
-                referenceNumber: '',
+                referenceNumber: "",
             },
         ]);
     }, [showPaymentModal]);
@@ -478,34 +746,40 @@ const Delivery: React.FC = () => {
     // Función para procesar la venta
     const handleProcessSale = async () => {
         if (cartItems.length === 0) {
-            showToast('Debe agregar al menos un producto al carrito', 'error');
+            showToast("Debe agregar al menos un producto al carrito", "error");
             return;
         }
 
         if (!selectedDocument) {
-            showToast('Debe seleccionar un tipo de documento', 'error');
+            showToast("Debe seleccionar un tipo de documento", "error");
             return;
         }
 
         if (!selectedSerial) {
-            showToast('Debe seleccionar una serie', 'error');
+            showToast("Debe seleccionar una serie", "error");
             return;
         }
 
         // Factura (código 01) solo permite cliente con RUC; Boleta permite DNI o RUC
         if (isFactura) {
             if (!selectedPerson) {
-                showToast('Para emitir una FACTURA debe seleccionar un cliente con RUC', 'error');
+                showToast(
+                    "Para emitir una FACTURA debe seleccionar un cliente con RUC",
+                    "error",
+                );
                 return;
             }
-            if ((selectedPerson.documentType || '').toUpperCase() !== 'RUC') {
-                showToast('Para emitir una FACTURA el cliente debe tener un RUC válido', 'error');
+            if ((selectedPerson.documentType || "").toUpperCase() !== "RUC") {
+                showToast(
+                    "Para emitir una FACTURA el cliente debe tener un RUC válido",
+                    "error",
+                );
                 return;
             }
         }
 
         if (!selectedCashRegister) {
-            showToast('Debe seleccionar una caja registradora', 'error');
+            showToast("Debe seleccionar una caja registradora", "error");
             return;
         }
 
@@ -516,20 +790,19 @@ const Delivery: React.FC = () => {
         if (cartTotal > 0.01 && totalPaidCheck < cartTotal - 0.01) {
             showToast(
                 `La suma de los pagos debe ser al menos el total a pagar (${cartTotal.toFixed(2)}).`,
-                'error',
+                "error",
             );
             return;
         }
 
-        const itemsSource =
-            isSunatBillableDocument
-                ? cartItems.filter((item) => getCartLineTotal(item) > 0)
-                : cartItems;
+        const itemsSource = isSunatBillableDocument
+            ? cartItems.filter((item) => getCartLineTotal(item) > 0)
+            : cartItems;
 
         if (isSunatBillableDocument && itemsSource.length === 0) {
             showToast(
-                'No se puede emitir factura o boleta solo con productos de precio cero. SUNAT exige líneas con importe mayor a cero, o use otro tipo de comprobante.',
-                'error'
+                "No se puede emitir factura o boleta solo con productos de precio cero. SUNAT exige líneas con importe mayor a cero, o use otro tipo de comprobante.",
+                "error",
             );
             return;
         }
@@ -539,11 +812,18 @@ const Delivery: React.FC = () => {
         try {
             const igvRate = igvPercentageFromBranch / 100;
 
-            const items = itemsSource.map(item => {
-                const unitPrice = parseFloat((Math.round(item.price * 100) / 100).toFixed(2));
+            const items = itemsSource.map((item) => {
+                const unitPrice = parseFloat(
+                    (Math.round(item.price * 100) / 100).toFixed(2),
+                );
                 const quantity = Math.max(1, Number(item.quantity) || 1);
-                const unitValue = parseFloat((Math.round((unitPrice / (1 + igvRate)) * 100) / 100).toFixed(2));
-                const notes = typeof item.notes === 'string' ? item.notes.trim() : '';
+                const unitValue = parseFloat(
+                    (
+                        Math.round((unitPrice / (1 + igvRate)) * 100) / 100
+                    ).toFixed(2),
+                );
+                const notes =
+                    typeof item.notes === "string" ? item.notes.trim() : "";
 
                 return {
                     productId: String(item.productId),
@@ -551,7 +831,20 @@ const Delivery: React.FC = () => {
                     unitValue,
                     unitPrice,
                     notes,
-                    discount: 0
+                    promoInfo:
+                        item.promotionName || (item.discount ?? 0) > 0
+                            ? JSON.stringify({
+                                  discount: item.discount ?? 0,
+                                  promotionName: item.promotionName ?? null,
+                              })
+                            : null,
+                    comboComponents:
+                        item.isCombo && item.comboComponents
+                            ? item.comboComponents.map((comp: any) => ({
+                                  productId: comp.product.id,
+                                  quantity: comp.quantity,
+                              }))
+                            : undefined,
                 };
             });
 
@@ -566,7 +859,7 @@ const Delivery: React.FC = () => {
                 try {
                     resolvedDeviceId = await getMacAddress();
                 } catch (error) {
-                    console.error('Error al obtener MAC address:', error);
+                    console.error("Error al obtener MAC address:", error);
                     resolvedDeviceId = getDeviceId();
                 }
             }
@@ -599,9 +892,9 @@ const Delivery: React.FC = () => {
                 paymentsPayload = [
                     {
                         cashRegisterId: selectedCashRegister,
-                        paymentType: 'CASH',
-                        paymentMethod: paymentLines[0]?.method || 'CASH',
-                        transactionType: 'INCOME',
+                        paymentType: "CASH",
+                        paymentMethod: paymentLines[0]?.method || "CASH",
+                        transactionType: "INCOME",
                         paymentDate: formatInstantISO(now),
                         totalAmount: 0,
                         paidAmount: 0,
@@ -609,31 +902,29 @@ const Delivery: React.FC = () => {
                         referenceNumber: null,
                     },
                 ];
-            } else if (
-                Math.abs(paymentsSumRounded - cleanCartTotal) <= 0.01
-            ) {
+            } else if (Math.abs(paymentsSumRounded - cleanCartTotal) <= 0.01) {
                 paymentsPayload = paymentLines
                     .filter((p) => Number(p.amount) > 0)
                     .map((p) => ({
                         cashRegisterId: selectedCashRegister,
-                        paymentType: 'CASH',
+                        paymentType: "CASH",
                         paymentMethod: p.method,
-                        transactionType: 'INCOME' as const,
+                        transactionType: "INCOME" as const,
                         paymentDate: formatInstantISO(now),
                         totalAmount: roundMoney2(Number(p.amount)),
                         paidAmount: roundMoney2(Number(p.amount)),
                         notes: null,
                         referenceNumber:
-                            (p.referenceNumber || '').trim() || null,
+                            (p.referenceNumber || "").trim() || null,
                     }));
             } else {
                 const first = paymentLines.find((p) => Number(p.amount) > 0);
                 paymentsPayload = [
                     {
                         cashRegisterId: selectedCashRegister,
-                        paymentType: 'CASH',
-                        paymentMethod: first?.method || 'CASH',
-                        transactionType: 'INCOME',
+                        paymentType: "CASH",
+                        paymentMethod: first?.method || "CASH",
+                        transactionType: "INCOME",
                         paymentDate: formatInstantISO(now),
                         totalAmount: cleanCartTotal,
                         paidAmount: cleanCartTotal,
@@ -644,7 +935,10 @@ const Delivery: React.FC = () => {
             }
 
             if (paymentsPayload.length === 0) {
-                showToast('Agregue al menos un pago con monto mayor a 0', 'error');
+                showToast(
+                    "Agregue al menos un pago con monto mayor a 0",
+                    "error",
+                );
                 setIsSaving(false);
                 return;
             }
@@ -656,11 +950,13 @@ const Delivery: React.FC = () => {
                 serial: selectedSerial,
                 emissionDate, //YYYY-MM-DD
                 emissionTime, // HH:MM:SS
-                currency: 'PEN',
+                currency: "PEN",
                 exchangeRate: 1.0,
                 itemsTotalDiscount: 0,
                 globalDiscount: cleanTotalDiscount,
-                globalDiscountPercent: parseFloat((Number(discountPercent) || 0).toFixed(2)),
+                globalDiscountPercent: parseFloat(
+                    (Number(discountPercent) || 0).toFixed(2),
+                ),
                 totalDiscount: cleanTotalDiscount,
                 globalDiscountOnTotal: cleanTotalDiscount,
                 igvPercent: parseFloat(igvPercentageFromBranch.toFixed(2)),
@@ -672,8 +968,8 @@ const Delivery: React.FC = () => {
                 totalAmount: cleanCartTotal,
                 items,
                 payments: paymentsPayload,
-                notes: '',
-                deviceId: resolvedDeviceId // No truncar, el backend ya se encarga
+                notes: "",
+                deviceId: resolvedDeviceId, // No truncar, el backend ya se encarga
             };
 
             if (selectedPerson) {
@@ -683,35 +979,37 @@ const Delivery: React.FC = () => {
             const result = await createSaleCarryOutMutation({ variables });
 
             if (result.data?.createSaleCarryOut?.success) {
-                showToast('Venta procesada exitosamente', 'success');
+                showToast("Venta procesada exitosamente", "success");
                 setShowPaymentModal(false);
 
                 // Limpiar formulario
                 setCartItems([]);
                 setSelectedPerson(null);
-                setPersonSearchTerm('');
-                setSelectedDocument('');
-                setSelectedSerial('');
+                setPersonSearchTerm("");
+                setSelectedDocument("");
+                setSelectedSerial("");
                 setPaymentLines([
                     {
-                        id: '1',
-                        method: 'CASH',
+                        id: "1",
+                        method: "CASH",
                         amount: 0,
-                        referenceNumber: '',
+                        referenceNumber: "",
                     },
                 ]);
                 setDiscountAmount(0);
                 setDiscountPercent(0);
                 setSelectedCategory(null);
                 setSelectedSubcategory(null);
-                setSearchTerm('');
-
+                setSearchTerm("");
             } else {
-                throw new Error(result.data?.createSaleCarryOut?.message || 'Error al procesar la venta');
+                throw new Error(
+                    result.data?.createSaleCarryOut?.message ||
+                        "Error al procesar la venta",
+                );
             }
         } catch (error: any) {
-            console.error('Error al procesar venta:', error);
-            showToast(error.message || 'Error al procesar la venta', 'error');
+            console.error("Error al procesar venta:", error);
+            showToast(error.message || "Error al procesar la venta", "error");
         } finally {
             setIsSaving(false);
         }
@@ -720,44 +1018,59 @@ const Delivery: React.FC = () => {
     // Al cambiar a Factura, quitar cliente si no tiene RUC
     useEffect(() => {
         const doc = documents.find((d: any) => d.id === selectedDocument);
-        if (doc?.code === '01' && selectedPerson && (selectedPerson.documentType || '').toUpperCase() !== 'RUC') {
+        if (
+            doc?.code === "01" &&
+            selectedPerson &&
+            (selectedPerson.documentType || "").toUpperCase() !== "RUC"
+        ) {
             setSelectedPerson(null);
-            setPersonSearchTerm('');
+            setPersonSearchTerm("");
         }
     }, [selectedDocument, documents, selectedPerson]);
 
     // Buscar cliente por documento en SUNAT o local (como en cashPay)
     const handleSearchSunat = async () => {
-        const term = (personSearchTerm || '').trim().replace(/\s/g, '');
+        const term = (personSearchTerm || "").trim().replace(/\s/g, "");
         if (!/^\d+$/.test(term) || !companyData?.branch?.id) return;
         const isRuc = term.length === 11;
         const isDni = term.length === 8;
         if (isFactura && !isRuc) return;
         if (!isRuc && !isDni) return;
-        const documentType = isRuc ? 'RUC' : 'DNI';
+        const documentType = isRuc ? "RUC" : "DNI";
         try {
             const { data } = await searchPersonByDocument({
-                variables: { documentType, documentNumber: term, branchId: companyData.branch.id }
+                variables: {
+                    documentType,
+                    documentNumber: term,
+                    branchId: companyData.branch.id,
+                },
             });
             const result = data?.searchPersonByDocument;
             if (!result?.person) {
-                showToast('No se encontró el documento en SUNAT ni en el sistema.', 'error');
+                showToast(
+                    "No se encontró el documento en SUNAT ni en el sistema.",
+                    "error",
+                );
                 return;
             }
             const person = result.person;
             if (person.id && result.foundLocally) {
                 setSelectedPerson({
                     id: person.id,
-                    name: person.name || '',
+                    name: person.name || "",
                     documentType: person.documentType || documentType,
-                    documentNumber: person.documentNumber || term
+                    documentNumber: person.documentNumber || term,
                 });
-                setPersonSearchTerm(person.name || '');
+                setPersonSearchTerm(person.name || "");
                 const { data: refetched } = await refetchClients();
-                const updated = (refetched?.personsByBranch || []).find((p: any) => p.id === person.id);
+                const updated = (refetched?.personsByBranch || []).find(
+                    (p: any) => p.id === person.id,
+                );
                 if (updated?.name) {
                     setPersonSearchTerm(updated.name);
-                    setSelectedPerson(prev => prev ? { ...prev, name: updated.name } : null);
+                    setSelectedPerson((prev) =>
+                        prev ? { ...prev, name: updated.name } : null,
+                    );
                 }
                 return;
             }
@@ -767,33 +1080,44 @@ const Delivery: React.FC = () => {
                     branchId: companyData.branch.id,
                     documentType: person.documentType || documentType,
                     documentNumber: person.documentNumber || term,
-                    name: person.name || (documentType === 'RUC' ? 'Empresa' : 'Cliente'),
+                    name:
+                        person.name ||
+                        (documentType === "RUC" ? "Empresa" : "Cliente"),
                     address: person.address || undefined,
                     phone: person.phone || undefined,
                     email: person.email || undefined,
                     isCustomer: true,
-                    isSupplier: false
-                }
+                    isSupplier: false,
+                },
             });
-            if (createData?.createPerson?.success && createData?.createPerson?.person) {
+            if (
+                createData?.createPerson?.success &&
+                createData?.createPerson?.person
+            ) {
                 const newPerson = createData.createPerson.person;
                 setSelectedPerson({
                     id: newPerson.id,
-                    name: newPerson.name || '',
+                    name: newPerson.name || "",
                     documentType: newPerson.documentType || documentType,
-                    documentNumber: newPerson.documentNumber || term
+                    documentNumber: newPerson.documentNumber || term,
                 });
-                setPersonSearchTerm(newPerson.name || '');
+                setPersonSearchTerm(newPerson.name || "");
             } else {
-                showToast(createData?.createPerson?.message || 'Error al registrar el cliente.', 'error');
+                showToast(
+                    createData?.createPerson?.message ||
+                        "Error al registrar el cliente.",
+                    "error",
+                );
             }
         } catch (err: any) {
-            showToast(err?.message || 'Error al buscar en SUNAT.', 'error');
+            showToast(err?.message || "Error al buscar en SUNAT.", "error");
         }
     };
 
     // Obtener seriales del documento seleccionado
-    const selectedDocumentData = documents.find((d: any) => d.id === selectedDocument);
+    const selectedDocumentData = documents.find(
+        (d: any) => d.id === selectedDocument,
+    );
     const serials = selectedDocumentData?.serials || [];
 
     // Por defecto: primer tipo de documento (ej. Nota de venta) y primera caja en información de pago
@@ -821,18 +1145,36 @@ const Delivery: React.FC = () => {
                 <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900 md:p-4">
                     <div className="flex items-center gap-3">
                         <div className="relative flex-1">
-                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-5 w-5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                    />
                                 </svg>
                             </span>
                             <input
                                 type="text"
-                                placeholder={searchByCodeOnly ? 'Código del producto...' : 'Buscar productos...'}
+                                placeholder={
+                                    searchByCodeOnly
+                                        ? "Código del producto..."
+                                        : "Buscar productos..."
+                                }
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && productsList.length > 0) {
+                                    if (
+                                        e.key === "Enter" &&
+                                        productsList.length > 0
+                                    ) {
                                         e.preventDefault();
                                         handleAddProduct(productsList[0].id, 1);
                                     }
@@ -844,19 +1186,77 @@ const Delivery: React.FC = () => {
                             type="button"
                             onClick={() => setSearchByCodeOnly((v) => !v)}
                             className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all duration-200 md:px-4 md:text-sm ${
-                                searchByCodeOnly 
-                                ? 'border-indigo-500 bg-indigo-500 text-white shadow-md shadow-indigo-500/20' 
-                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                searchByCodeOnly
+                                    ? "border-indigo-500 bg-indigo-500 text-white shadow-md shadow-indigo-500/20"
+                                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                             }`}
                         >
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                                />
                             </svg>
-                            <span className="hidden sm:inline">Solo código</span>
+                            <span className="hidden sm:inline">
+                                Solo código
+                            </span>
                             <span className="sm:hidden">Código</span>
+                        </button>
+                        <button
+                            onClick={() => setShowComboModal(true)}
+                            className="flex items-center gap-2 rounded-xl border border-orange-500 bg-orange-500 px-3 py-2.5 text-xs font-bold text-white shadow-md shadow-orange-500/20 hover:bg-orange-600 transition-all duration-200 md:px-4 md:text-sm"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                                />
+                            </svg>
+                            <span className="hidden sm:inline">Combos</span>
                         </button>
                     </div>
                 </div>
+
+                {/* Banner de regalo disponible */}
+                {giftMessage && (
+                    <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 shadow-sm dark:border-amber-900/50 dark:bg-amber-900/20">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
+                                />
+                            </svg>
+                        </div>
+                        <p className="flex-1 text-sm font-semibold text-amber-800 dark:text-amber-200">
+                            {giftMessage}
+                        </p>
+                    </div>
+                )}
 
                 {/* Área de navegación y Lista de items */}
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
@@ -870,46 +1270,79 @@ const Delivery: React.FC = () => {
                             ) : (
                                 <>
                                     <button
-                                        onClick={() => { setSelectedCategory(null); setSelectedSubcategory(null); }}
+                                        onClick={() => {
+                                            setSelectedCategory(null);
+                                            setSelectedSubcategory(null);
+                                        }}
                                         className={`inline-flex items-center gap-2 justify-center rounded-xl border px-4 py-2 text-sm font-bold transition-all duration-150 ${
                                             !selectedCategory
-                                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300'
-                                                : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300'
+                                                ? "border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300"
+                                                : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300"
                                         }`}
                                     >
-                                        <CategoryIcon iconId="grid_view" type="category" size="1.1rem" />
+                                        <CategoryIcon
+                                            iconId="grid_view"
+                                            type="category"
+                                            size="1.1rem"
+                                        />
                                         Categorías
                                     </button>
                                     {selectedCategory && (
                                         <>
-                                            <span className="text-slate-300 dark:text-slate-700">/</span>
+                                            <span className="text-slate-300 dark:text-slate-700">
+                                                /
+                                            </span>
                                             <button
-                                                onClick={() => setSelectedSubcategory(null)}
+                                                onClick={() =>
+                                                    setSelectedSubcategory(null)
+                                                }
                                                 className={`inline-flex max-w-[12rem] items-center gap-2 justify-center truncate rounded-xl border px-4 py-2 text-sm font-bold transition-all duration-150 ${
                                                     !selectedSubcategory
-                                                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300'
-                                                        : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300'
+                                                        ? "border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300"
+                                                        : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300"
                                                 }`}
                                             >
-                                                <CategoryIcon 
-                                                    iconId={categories.find((c: any) => c.id === selectedCategory)?.icon} 
-                                                    type="category" 
-                                                    size="1.1rem" 
+                                                <CategoryIcon
+                                                    iconId={
+                                                        categories.find(
+                                                            (c: any) =>
+                                                                c.id ===
+                                                                selectedCategory,
+                                                        )?.icon
+                                                    }
+                                                    type="category"
+                                                    size="1.1rem"
                                                 />
-                                                {categories.find((c: any) => c.id === selectedCategory)?.name || 'Categoría'}
+                                                {categories.find(
+                                                    (c: any) =>
+                                                        c.id ===
+                                                        selectedCategory,
+                                                )?.name || "Categoría"}
                                             </button>
                                         </>
                                     )}
                                     {selectedSubcategory && (
                                         <>
-                                            <span className="text-slate-300 dark:text-slate-700">/</span>
+                                            <span className="text-slate-300 dark:text-slate-700">
+                                                /
+                                            </span>
                                             <span className="inline-flex max-w-[12rem] items-center gap-2 justify-center truncate rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-                                                <CategoryIcon 
-                                                    iconId={subcategoriesOfCategory.find((s: any) => s.id === selectedSubcategory)?.icon} 
-                                                    type="subcategory" 
-                                                    size="1.1rem" 
+                                                <CategoryIcon
+                                                    iconId={
+                                                        subcategoriesOfCategory.find(
+                                                            (s: any) =>
+                                                                s.id ===
+                                                                selectedSubcategory,
+                                                        )?.icon
+                                                    }
+                                                    type="subcategory"
+                                                    size="1.1rem"
                                                 />
-                                                {subcategoriesOfCategory.find((s: any) => s.id === selectedSubcategory)?.name || 'Subcategoría'}
+                                                {subcategoriesOfCategory.find(
+                                                    (s: any) =>
+                                                        s.id ===
+                                                        selectedSubcategory,
+                                                )?.name || "Subcategoría"}
                                             </span>
                                         </>
                                     )}
@@ -926,106 +1359,187 @@ const Delivery: React.FC = () => {
                                 <p className="text-sm">Cargando productos...</p>
                             </div>
                         ) : (
-                            <div 
+                            <div
                                 className="grid gap-3 md:gap-4"
-                                style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCol}, 1fr))` }}
+                                style={{
+                                    gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCol}, 1fr))`,
+                                }}
                             >
                                 {/* Render Categorías */}
                                 {showCategoriesInGrid &&
                                     (categoriesLoading ? (
                                         <div className="col-span-full flex flex-col items-center justify-center py-12 text-slate-400">
-                                             <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500"></div>
-                                             <p className="text-sm">Cargando categorías...</p>
+                                            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500"></div>
+                                            <p className="text-sm">
+                                                Cargando categorías...
+                                            </p>
                                         </div>
                                     ) : (
                                         categories.map((category: any) => (
-                                    <div
-                                        key={category.id}
-                                        onClick={() => {
-                                            setSelectedCategory(category.id);
-                                            setSelectedSubcategory(null);
-                                        }}
-                                        className="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-center transition-all duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50 dark:hover:bg-slate-800/50"
-                                        style={{ minHeight: isSmall ? '100px' : '130px' }}
-                                    >
-                                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20 md:h-16 md:w-16">
-                                            <CategoryIcon iconId={category.icon} type="category" size={isSmall ? '1.25rem' : '1.75rem'} />
-                                        </div>
-                                        <div className="text-xs font-bold text-slate-800 transition-colors duration-200 group-hover:text-indigo-600 dark:text-slate-100 dark:group-hover:text-indigo-400 md:text-sm">
-                                            {category.name}
-                                        </div>
-                                    </div>
-                                ))))}
+                                            <div
+                                                key={category.id}
+                                                onClick={() => {
+                                                    setSelectedCategory(
+                                                        category.id,
+                                                    );
+                                                    setSelectedSubcategory(
+                                                        null,
+                                                    );
+                                                }}
+                                                className="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-center transition-all duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50 dark:hover:bg-slate-800/50"
+                                                style={{
+                                                    minHeight: isSmall
+                                                        ? "100px"
+                                                        : "130px",
+                                                }}
+                                            >
+                                                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20 md:h-16 md:w-16">
+                                                    <CategoryIcon
+                                                        iconId={category.icon}
+                                                        type="category"
+                                                        size={
+                                                            isSmall
+                                                                ? "1.25rem"
+                                                                : "1.75rem"
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className="text-xs font-bold text-slate-800 transition-colors duration-200 group-hover:text-indigo-600 dark:text-slate-100 dark:group-hover:text-indigo-400 md:text-sm">
+                                                    {category.name}
+                                                </div>
+                                            </div>
+                                        ))
+                                    ))}
 
                                 {/* Render Subcategorías */}
                                 {showSubcategoriesInGrid &&
                                     (subcategoriesLoading ? (
                                         <div className="col-span-full flex flex-col items-center justify-center py-12 text-slate-400">
-                                             <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500"></div>
-                                             <p className="text-sm">Cargando subcategorías...</p>
+                                            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500"></div>
+                                            <p className="text-sm">
+                                                Cargando subcategorías...
+                                            </p>
                                         </div>
                                     ) : (
-                                        subcategoriesOfCategory.map((sub: any) => (
-                                    <div
-                                        key={sub.id}
-                                        onClick={() => setSelectedSubcategory(sub.id)}
-                                        className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50 dark:hover:bg-slate-800/50"
-                                        style={{ minHeight: isSmall ? '90px' : '110px' }}
-                                    >
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20 md:h-12 md:w-12">
-                                            <CategoryIcon iconId={sub.icon} type="subcategory" size={isSmall ? '1.1rem' : '1.25rem'} />
-                                        </div>
-                                        <div className="text-xs font-semibold text-slate-700 transition-colors duration-200 group-hover:text-indigo-600 dark:text-slate-200 dark:group-hover:text-indigo-400">
-                                            {sub.name}
-                                        </div>
-                                    </div>
-                                ))))}
+                                        subcategoriesOfCategory.map(
+                                            (sub: any) => (
+                                                <div
+                                                    key={sub.id}
+                                                    onClick={() =>
+                                                        setSelectedSubcategory(
+                                                            sub.id,
+                                                        )
+                                                    }
+                                                    className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50 dark:hover:bg-slate-800/50"
+                                                    style={{
+                                                        minHeight: isSmall
+                                                            ? "90px"
+                                                            : "110px",
+                                                    }}
+                                                >
+                                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20 md:h-12 md:w-12">
+                                                        <CategoryIcon
+                                                            iconId={sub.icon}
+                                                            type="subcategory"
+                                                            size={
+                                                                isSmall
+                                                                    ? "1.1rem"
+                                                                    : "1.25rem"
+                                                            }
+                                                        />
+                                                    </div>
+                                                    <div className="text-xs font-semibold text-slate-700 transition-colors duration-200 group-hover:text-indigo-600 dark:text-slate-200 dark:group-hover:text-indigo-400">
+                                                        {sub.name}
+                                                    </div>
+                                                </div>
+                                            ),
+                                        )
+                                    ))}
 
                                 {/* Render Productos */}
-                                {showProductsInGrid && (
-                                    productsList.length === 0 ? (
+                                {showProductsInGrid &&
+                                    (productsList.length === 0 ? (
                                         <div className="col-span-full py-12 text-center text-slate-500 dark:text-slate-400">
                                             No se encontraron productos
                                         </div>
                                     ) : (
-                                        productsList.map((product: any) => (
-                                            <div
-                                                key={product.id}
-                                                onClick={() => handleAddProduct(product.id, 1)}
-                                                className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-2.5 transition-all duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50"
-                                            >
-                                                {product.imageBase64 ? (
-                                                    <div className="aspect-square w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
-                                                        <img
-                                                            src={`data:image/jpeg;base64,${product.imageBase64}`}
-                                                            alt={product.name}
-                                                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex aspect-square w-full items-center justify-center rounded-xl bg-slate-50 text-2xl transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20">
-                                                        🍽️
-                                                    </div>
-                                                )}
-                                                <div className="mt-3 flex flex-1 flex-col gap-1">
-                                                    <h4 className="line-clamp-2 text-xs font-bold leading-tight text-slate-800 dark:text-slate-100 md:text-sm">
-                                                        {product.name}
-                                                    </h4>
-                                                    <div className="mt-auto flex items-center justify-between pt-1">
-                                                        <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 md:text-sm">
-                                                            S/ {parseFloat(product.salePrice || 0).toFixed(2)}
-                                                        </span>
-                                                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-colors duration-200 group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-900/30 dark:text-indigo-400 dark:group-hover:bg-indigo-500 dark:group-hover:text-white">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
-                                                            </svg>
+                                        productsList.map((product: any) => {
+                                            const promoBadge =
+                                                findBadgePromotion(
+                                                    product,
+                                                    activePromotions,
+                                                );
+                                            return (
+                                                <div
+                                                    key={product.id}
+                                                    onClick={() =>
+                                                        handleAddProduct(
+                                                            product.id,
+                                                            1,
+                                                        )
+                                                    }
+                                                    className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-2.5 transition-all duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50"
+                                                >
+                                                    {promoBadge && (
+                                                        <div className="absolute left-2 top-2 z-10">
+                                                            <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
+                                                                {promotionBadgeLabel(
+                                                                    promoBadge,
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {product.imageBase64 ? (
+                                                        <div className="aspect-square w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+                                                            <img
+                                                                src={`data:image/jpeg;base64,${product.imageBase64}`}
+                                                                alt={
+                                                                    product.name
+                                                                }
+                                                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex aspect-square w-full items-center justify-center rounded-xl bg-slate-50 text-2xl transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20">
+                                                            🍽️
+                                                        </div>
+                                                    )}
+                                                    <div className="mt-3 flex flex-1 flex-col gap-1">
+                                                        <h4 className="line-clamp-2 text-xs font-bold leading-tight text-slate-800 dark:text-slate-100 md:text-sm">
+                                                            {product.name}
+                                                        </h4>
+                                                        <div className="mt-auto flex items-center justify-between pt-1">
+                                                            <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 md:text-sm">
+                                                                S/{" "}
+                                                                {parseFloat(
+                                                                    product.salePrice ||
+                                                                        0,
+                                                                ).toFixed(2)}
+                                                            </span>
+                                                            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-colors duration-200 group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-900/30 dark:text-indigo-400 dark:group-hover:bg-indigo-500 dark:group-hover:text-white">
+                                                                <svg
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                    className="h-4 w-4"
+                                                                    fill="none"
+                                                                    viewBox="0 0 24 24"
+                                                                    stroke="currentColor"
+                                                                >
+                                                                    <path
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        strokeWidth={
+                                                                            3
+                                                                        }
+                                                                        d="M12 4v16m8-8H4"
+                                                                    />
+                                                                </svg>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))
-                                    )
-                                )}
+                                            );
+                                        })
+                                    ))}
                             </div>
                         )}
                     </div>
@@ -1038,8 +1552,19 @@ const Delivery: React.FC = () => {
                 <div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
                     <div className="mb-4 flex items-center justify-between">
                         <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800 dark:text-slate-100">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5 text-indigo-500"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+                                />
                             </svg>
                             Pedido
                         </h3>
@@ -1052,11 +1577,24 @@ const Delivery: React.FC = () => {
                         {cartItems.length === 0 ? (
                             <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
                                 <div className="rounded-full bg-slate-50 p-4 dark:bg-slate-800/50">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-10 w-10 opacity-20"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={1.5}
+                                            d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                                        />
                                     </svg>
                                 </div>
-                                <p className="text-sm font-medium">El carrito está vacío</p>
+                                <p className="text-sm font-medium">
+                                    El carrito está vacío
+                                </p>
                             </div>
                         ) : (
                             <div className="flex flex-col gap-2.5">
@@ -1075,13 +1613,79 @@ const Delivery: React.FC = () => {
                                                         {item.notes}
                                                     </p>
                                                 )}
+                                                {/* Badge de descuento */}
+                                                {item.discount &&
+                                                    item.discount > 0 && (
+                                                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                                                            <span className="bg-red-100 text-red-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                                                -S/{" "}
+                                                                {item.discount.toFixed(
+                                                                    2,
+                                                                )}
+                                                            </span>
+                                                            {item.promotionName && (
+                                                                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                                                    {
+                                                                        item.promotionName
+                                                                    }
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                {/* Componentes del combo */}
+                                                {item.isCombo &&
+                                                    item.comboComponents && (
+                                                        <div className="mt-1 flex flex-col gap-1">
+                                                            {item.comboComponents.map(
+                                                                (comp, idx) => (
+                                                                    <div
+                                                                        key={
+                                                                            idx
+                                                                        }
+                                                                        className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-300"
+                                                                    >
+                                                                        <span className="font-bold text-amber-600 dark:text-amber-400">
+                                                                            {
+                                                                                comp.scopeLabel
+                                                                            }
+                                                                            :
+                                                                        </span>
+                                                                        <span className="truncate">
+                                                                            {
+                                                                                comp
+                                                                                    .product
+                                                                                    .name
+                                                                            }{" "}
+                                                                            ×{" "}
+                                                                            {
+                                                                                comp.quantity
+                                                                            }
+                                                                        </span>
+                                                                    </div>
+                                                                ),
+                                                            )}
+                                                        </div>
+                                                    )}
                                             </div>
                                             <button
-                                                onClick={() => handleRemoveItem(item.id)}
+                                                onClick={() =>
+                                                    handleRemoveItem(item.id)
+                                                }
                                                 className="opacity-0 transition-opacity duration-200 group-hover:opacity-100 text-slate-400 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400"
                                             >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    className="h-4 w-4"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth={2}
+                                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                    />
                                                 </svg>
                                             </button>
                                         </div>
@@ -1090,49 +1694,110 @@ const Delivery: React.FC = () => {
                                             {/* Controles de cantidad */}
                                             <div className="flex items-center gap-1 overflow-hidden rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                                                 <button
-                                                    onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                                                    onClick={() =>
+                                                        handleUpdateQuantity(
+                                                            item.id,
+                                                            item.quantity - 1,
+                                                        )
+                                                    }
                                                     className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
                                                 >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        className="h-3 w-3"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth={2.5}
+                                                            d="M20 12H4"
+                                                        />
                                                     </svg>
                                                 </button>
                                                 <input
                                                     type="number"
                                                     value={item.quantity}
-                                                    onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 0)}
+                                                    onChange={(e) =>
+                                                        handleUpdateQuantity(
+                                                            item.id,
+                                                            parseInt(
+                                                                e.target.value,
+                                                            ) || 0,
+                                                        )
+                                                    }
                                                     className="w-8 border-none bg-transparent text-center text-xs font-bold text-slate-800 outline-none dark:text-slate-100"
                                                 />
                                                 <button
-                                                    onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                                    onClick={() =>
+                                                        handleUpdateQuantity(
+                                                            item.id,
+                                                            item.quantity + 1,
+                                                        )
+                                                    }
                                                     className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
                                                 >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        className="h-3 w-3"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth={2.5}
+                                                            d="M12 4v16m8-8H4"
+                                                        />
                                                     </svg>
                                                 </button>
                                             </div>
 
                                             <div className="flex items-center gap-2">
                                                 <button
-                                                    onClick={() => handleOpenObservationModal(item.id)}
+                                                    onClick={() =>
+                                                        handleOpenObservationModal(
+                                                            item.id,
+                                                        )
+                                                    }
                                                     className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-colors ${
-                                                        item.notes 
-                                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-400' 
-                                                        : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600 dark:hover:text-slate-300'
+                                                        item.notes
+                                                            ? "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-400"
+                                                            : "border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600 dark:hover:text-slate-300"
                                                     }`}
                                                 >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        className="h-4 w-4"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth={2}
+                                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                                        />
                                                     </svg>
                                                 </button>
-                                                
+
                                                 <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-0.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                                                    <span className="text-[10px] font-bold text-slate-400">S/</span>
+                                                    <span className="text-[10px] font-bold text-slate-400">
+                                                        S/
+                                                    </span>
                                                     <input
                                                         type="number"
                                                         value={item.total}
-                                                        onChange={(e) => handleUpdateLineTotal(item.id, e.target.value)}
+                                                        onChange={(e) =>
+                                                            handleUpdateLineTotal(
+                                                                item.id,
+                                                                e.target.value,
+                                                            )
+                                                        }
                                                         className="w-16 border-none bg-transparent text-right text-xs font-black text-slate-800 outline-none dark:text-slate-100"
                                                     />
                                                 </div>
@@ -1147,17 +1812,26 @@ const Delivery: React.FC = () => {
                     {/* Descuento */}
                     <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Dscto (S/)</label>
-                            <div className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-all duration-200 ${pct > 0 ? 'bg-slate-50 opacity-40 dark:bg-slate-800/50' : 'border-slate-200 bg-white focus-within:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-indigo-500'}`}>
-                                <span className="text-xs font-bold text-slate-400">S/</span>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                Dscto (S/)
+                            </label>
+                            <div
+                                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-all duration-200 ${pct > 0 ? "bg-slate-50 opacity-40 dark:bg-slate-800/50" : "border-slate-200 bg-white focus-within:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-indigo-500"}`}
+                            >
+                                <span className="text-xs font-bold text-slate-400">
+                                    S/
+                                </span>
                                 <input
                                     type="number"
                                     min={0}
                                     step={0.01}
-                                    value={discountAmount || ''}
+                                    value={discountAmount || ""}
                                     disabled={pct > 0}
                                     onChange={(e) => {
-                                        const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                        const v = Math.max(
+                                            0,
+                                            parseFloat(e.target.value) || 0,
+                                        );
                                         setDiscountAmount(v);
                                         if (v > 0) setDiscountPercent(0);
                                     }}
@@ -1167,24 +1841,36 @@ const Delivery: React.FC = () => {
                             </div>
                         </div>
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Dscto (%)</label>
-                            <div className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-all duration-200 ${(Number(discountAmount) || 0) > 0 ? 'bg-slate-50 opacity-40 dark:bg-slate-800/50' : 'border-slate-200 bg-white focus-within:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-indigo-500'}`}>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                Dscto (%)
+                            </label>
+                            <div
+                                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-all duration-200 ${(Number(discountAmount) || 0) > 0 ? "bg-slate-50 opacity-40 dark:bg-slate-800/50" : "border-slate-200 bg-white focus-within:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-indigo-500"}`}
+                            >
                                 <input
                                     type="number"
                                     min={0}
                                     max={100}
                                     step={0.5}
-                                    value={discountPercent || ''}
+                                    value={discountPercent || ""}
                                     disabled={(Number(discountAmount) || 0) > 0}
                                     onChange={(e) => {
-                                        const v = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                                        const v = Math.max(
+                                            0,
+                                            Math.min(
+                                                100,
+                                                parseFloat(e.target.value) || 0,
+                                            ),
+                                        );
                                         setDiscountPercent(v);
                                         if (v > 0) setDiscountAmount(0);
                                     }}
                                     placeholder="0"
                                     className="w-full border-none bg-transparent text-xs font-bold text-slate-800 outline-none dark:text-slate-100"
                                 />
-                                <span className="text-xs font-bold text-slate-400">%</span>
+                                <span className="text-xs font-bold text-slate-400">
+                                    %
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -1193,11 +1879,15 @@ const Delivery: React.FC = () => {
                     <div className="mt-4 flex flex-col gap-2 rounded-2xl bg-slate-50 p-3 transition-colors duration-200 dark:bg-slate-800/50">
                         <div className="flex justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
                             <span>Subtotal</span>
-                            <span className="font-bold text-slate-700 dark:text-slate-200">S/ {subtotal.toFixed(2)}</span>
+                            <span className="font-bold text-slate-700 dark:text-slate-200">
+                                S/ {subtotal.toFixed(2)}
+                            </span>
                         </div>
                         <div className="flex justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
                             <span>IGV ({igvPercentageFromBranch}%)</span>
-                            <span className="font-bold text-slate-700 dark:text-slate-200">S/ {igvAmount.toFixed(2)}</span>
+                            <span className="font-bold text-slate-700 dark:text-slate-200">
+                                S/ {igvAmount.toFixed(2)}
+                            </span>
                         </div>
                         {totalDiscount > 0 && (
                             <div className="flex justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
@@ -1206,8 +1896,12 @@ const Delivery: React.FC = () => {
                             </div>
                         )}
                         <div className="mt-1 flex justify-between border-t border-slate-200 pt-2 transition-colors duration-200 dark:border-slate-700">
-                            <span className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">Total a pagar</span>
-                            <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">S/ {cartTotal.toFixed(2)}</span>
+                            <span className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+                                Total a pagar
+                            </span>
+                            <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">
+                                S/ {cartTotal.toFixed(2)}
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -1218,8 +1912,8 @@ const Delivery: React.FC = () => {
                     disabled={isSaving || cartItems.length === 0}
                     className={`flex items-center justify-center gap-3 rounded-2xl py-4 text-base font-black uppercase tracking-widest transition-all duration-300 shadow-lg ${
                         isSaving || cartItems.length === 0
-                        ? 'cursor-not-allowed bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 shadow-none'
-                        : 'bg-indigo-600 text-white shadow-indigo-600/30 hover:-translate-y-1 hover:bg-indigo-700 hover:shadow-indigo-600/40 active:translate-y-0'
+                            ? "cursor-not-allowed bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 shadow-none"
+                            : "bg-indigo-600 text-white shadow-indigo-600/30 hover:-translate-y-1 hover:bg-indigo-700 hover:shadow-indigo-600/40 active:translate-y-0"
                     }`}
                 >
                     {isSaving ? (
@@ -1229,8 +1923,19 @@ const Delivery: React.FC = () => {
                         </>
                     ) : (
                         <>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-6 w-6"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2.5}
+                                    d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+                                />
                             </svg>
                             <span>Procesar Venta</span>
                         </>
@@ -1276,24 +1981,49 @@ const Delivery: React.FC = () => {
                 />
             )}
 
-            {showObservationModal && (() => {
-                const item = cartItems.find(i => i.id === showObservationModal);
-                if (!item) return null;
-                const observations = productObservations[showObservationModal] || [];
-                const selectedIds = selectedObservations[showObservationModal] || new Set<string>();
-                return (
-                    <ModalObservation
-                        isOpen={true}
-                        onClose={() => setShowObservationModal(null)}
-                        observations={observations}
-                        selectedObservationIds={selectedIds}
-                        onApply={(ids, manualNotes) => handleApplyObservations(showObservationModal, ids, manualNotes)}
-                        productName={item.name}
-                        currentNotes={item.notes || ''}
-                        canEdit={true}
-                    />
-                );
-            })()}
+            {showObservationModal &&
+                (() => {
+                    const item = cartItems.find(
+                        (i) => i.id === showObservationModal,
+                    );
+                    if (!item) return null;
+                    const observations =
+                        productObservations[showObservationModal] || [];
+                    const selectedIds =
+                        selectedObservations[showObservationModal] ||
+                        new Set<string>();
+                    return (
+                        <ModalObservation
+                            isOpen={true}
+                            onClose={() => setShowObservationModal(null)}
+                            observations={observations}
+                            selectedObservationIds={selectedIds}
+                            onApply={(ids, manualNotes) =>
+                                handleApplyObservations(
+                                    showObservationModal,
+                                    ids,
+                                    manualNotes,
+                                )
+                            }
+                            productName={item.name}
+                            currentNotes={item.notes || ""}
+                            canEdit={true}
+                        />
+                    );
+                })()}
+
+            {/* Modal de selección de combos */}
+            {showComboModal && companyData?.branch?.id && (
+                <ComboSelectorModal
+                    branchId={companyData.branch.id}
+                    onClose={() => {
+                        setShowComboModal(false);
+                        setPendingComboProduct(null);
+                    }}
+                    onConfirm={handleAddCombo}
+                    initialProduct={pendingComboProduct}
+                />
+            )}
         </div>
     );
 };

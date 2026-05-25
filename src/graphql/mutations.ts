@@ -385,15 +385,54 @@ export const CREATE_OPERATION = gql`
             operationDate: $operationDate
             shouldPrint: $shouldPrint
         ) {
-            success
-            message
             operation {
                 id
                 order
-                status
-                total
+                operationType
                 operationDate
+                serviceType
+                status
+                subtotal
+                igvAmount
+                igvPercentage
+                total
+                deliveryAddress
+                deliveryLatitude
+                deliveryLongitude
+                notes
+                tableId
+                userId
+                personId
+                branchId
+                details {
+                    id
+                    quantity
+                    unitMeasure
+                    unitValue
+                    unitPrice
+                    total
+                    notes
+                    productId
+                    preparedAt
+                    preparedById
+                    productCode
+                    productName
+                    productDescription
+                    isPrepared
+                    isPrinted
+                    printedAt
+                    createdAt
+                    promoInfo
+                    comboComponents {
+                        id
+                        productId
+                        productName
+                        quantity
+                    }
+                }
             }
+            success
+            message
         }
     }
 `;
@@ -419,6 +458,32 @@ export const ADD_ITEMS_TO_OPERATION = gql`
                 order
                 status
                 total
+                details {
+                    id
+                    quantity
+                    unitMeasure
+                    unitValue
+                    unitPrice
+                    total
+                    notes
+                    productId
+                    preparedAt
+                    preparedById
+                    productCode
+                    productName
+                    productDescription
+                    isPrepared
+                    isPrinted
+                    printedAt
+                    createdAt
+                    promoInfo
+                    comboComponents {
+                        id
+                        productId
+                        productName
+                        quantity
+                    }
+                }
             }
         }
     }

@@ -324,7 +324,10 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                             }}
                         >
                             <div>
-                                <label className={labelClass} style={{ fontSize: labelFontSize }}>
+                                <label
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
+                                >
                                     Categoría
                                 </label>
                                 <select
@@ -355,7 +358,10 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                             </div>
 
                             <div>
-                                <label className={labelClass} style={{ fontSize: labelFontSize }}>
+                                <label
+                                    className={labelClass}
+                                    style={{ fontSize: labelFontSize }}
+                                >
                                     Subcategoría
                                 </label>
                                 <select
@@ -393,7 +399,10 @@ const CreateProduct: React.FC<CreateProductProps> = ({
 
                         {/* Tipo de Producto */}
                         <div>
-                            <label className={labelClass} style={{ fontSize: labelFontSize }}>
+                            <label
+                                className={labelClass}
+                                style={{ fontSize: labelFontSize }}
+                            >
                                 Tipo de Producto *
                             </label>
                             <select
@@ -411,6 +420,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                 <option value="DISH">Plato</option>
                                 <option value="BEVERAGE">Bebida</option>
                                 <option value="INGREDIENT">Ingrediente</option>
+                                <option value="PROMOTION">
+                                    Promoción / Combo
+                                </option>
                             </select>
                         </div>
 
@@ -610,29 +622,31 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                 />
                             </div>
 
-                            <div>
-                                <label
-                                    className={labelClass}
-                                    style={{ fontSize: labelFontSize }}
-                                >
-                                    Precio de Compra
-                                </label>
-                                <input
-                                    type="number"
-                                    name="purchasePrice"
-                                    value={formData.purchasePrice}
-                                    onChange={handleChange}
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="0.00"
-                                    className={fieldClass}
-                                    style={{
-                                        padding: inputPadding,
-                                        fontSize: inputFontSize,
-                                        boxSizing: "border-box",
-                                    }}
-                                />
-                            </div>
+                            {formData.productType !== "PROMOTION" && (
+                                <div>
+                                    <label
+                                        className={labelClass}
+                                        style={{ fontSize: labelFontSize }}
+                                    >
+                                        Precio de Compra
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="purchasePrice"
+                                        value={formData.purchasePrice}
+                                        onChange={handleChange}
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="0.00"
+                                        className={fieldClass}
+                                        style={{
+                                            padding: inputPadding,
+                                            fontSize: inputFontSize,
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         {/* Unidad de Medida y Tiempo de preparación */}
@@ -695,90 +709,92 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                         </div>
 
                         {/* Stock */}
-                        <div
-                            style={{
-                                display: "grid",
-                                gridTemplateColumns:
-                                    isXs || isSmall
-                                        ? "1fr"
-                                        : isMedium
-                                          ? "1fr 1fr"
-                                          : "1fr 1fr 1fr",
-                                gap: gapSize,
-                            }}
-                        >
-                            <div>
-                                <label
-                                    className={labelClass}
-                                    style={{ fontSize: labelFontSize }}
-                                >
-                                    Stock Mínimo
-                                </label>
-                                <input
-                                    type="number"
-                                    name="stockMin"
-                                    value={formData.stockMin}
-                                    onChange={handleChange}
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="0"
-                                    className={fieldClass}
-                                    style={{
-                                        padding: inputPadding,
-                                        fontSize: inputFontSize,
-                                        boxSizing: "border-box",
-                                    }}
-                                />
-                            </div>
+                        {formData.productType !== "PROMOTION" && (
+                            <div
+                                style={{
+                                    display: "grid",
+                                    gridTemplateColumns:
+                                        isXs || isSmall
+                                            ? "1fr"
+                                            : isMedium
+                                              ? "1fr 1fr"
+                                              : "1fr 1fr 1fr",
+                                    gap: gapSize,
+                                }}
+                            >
+                                <div>
+                                    <label
+                                        className={labelClass}
+                                        style={{ fontSize: labelFontSize }}
+                                    >
+                                        Stock Mínimo
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="stockMin"
+                                        value={formData.stockMin}
+                                        onChange={handleChange}
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="0"
+                                        className={fieldClass}
+                                        style={{
+                                            padding: inputPadding,
+                                            fontSize: inputFontSize,
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
 
-                            <div>
-                                <label
-                                    className={labelClass}
-                                    style={{ fontSize: labelFontSize }}
-                                >
-                                    Stock Máximo
-                                </label>
-                                <input
-                                    type="number"
-                                    name="stockMax"
-                                    value={formData.stockMax}
-                                    onChange={handleChange}
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="0"
-                                    className={fieldClass}
-                                    style={{
-                                        padding: inputPadding,
-                                        fontSize: inputFontSize,
-                                        boxSizing: "border-box",
-                                    }}
-                                />
-                            </div>
+                                <div>
+                                    <label
+                                        className={labelClass}
+                                        style={{ fontSize: labelFontSize }}
+                                    >
+                                        Stock Máximo
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="stockMax"
+                                        value={formData.stockMax}
+                                        onChange={handleChange}
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="0"
+                                        className={fieldClass}
+                                        style={{
+                                            padding: inputPadding,
+                                            fontSize: inputFontSize,
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
 
-                            <div>
-                                <label
-                                    className={labelClass}
-                                    style={{ fontSize: labelFontSize }}
-                                >
-                                    Stock Inicial
-                                </label>
-                                <input
-                                    type="number"
-                                    name="currentStock"
-                                    value={formData.currentStock}
-                                    onChange={handleChange}
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="0"
-                                    className={fieldClass}
-                                    style={{
-                                        padding: inputPadding,
-                                        fontSize: inputFontSize,
-                                        boxSizing: "border-box",
-                                    }}
-                                />
+                                <div>
+                                    <label
+                                        className={labelClass}
+                                        style={{ fontSize: labelFontSize }}
+                                    >
+                                        Stock Inicial
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="currentStock"
+                                        value={formData.currentStock}
+                                        onChange={handleChange}
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="0"
+                                        className={fieldClass}
+                                        style={{
+                                            padding: inputPadding,
+                                            fontSize: inputFontSize,
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Manejo de Stock - Solo para Bebidas e Ingredientes */}
                         {(formData.productType === "BEVERAGE" ||
@@ -819,9 +835,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     >
                                         Manejar Stock e Inventario
                                     </div>
-                                    <div
-                                        className="text-[0.7rem] text-slate-500 dark:text-slate-400"
-                                    >
+                                    <div className="text-[0.7rem] text-slate-500 dark:text-slate-400">
                                         Si se activa, este producto generará
                                         movimientos en el Kardex. Una vez
                                         guardado con esta opción activa, no se
@@ -850,9 +864,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                     fontSize: buttonFontSize,
                                 }}
                             >
-                                {loading
-                                    ? "Guardando..."
-                                    : "Guardar producto"}
+                                {loading ? "Guardando..." : "Guardar producto"}
                             </button>
                             <button
                                 type="button"

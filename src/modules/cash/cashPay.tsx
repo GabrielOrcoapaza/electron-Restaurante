@@ -32,6 +32,7 @@ import {
     GET_PERSONS_BY_BRANCH,
     GET_USERS_BY_BRANCH_LIGHT,
     SEARCH_PERSON_BY_DOCUMENT,
+  GET_ACTIVE_PROMOTIONS,
 } from "../../graphql/queries";
 import CreateClient from "../user/createClient";
 import EditClient from "../user/editClient";
@@ -41,6 +42,8 @@ import {
     formatInstantISO,
 } from "../../utils/localDateTime";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
+import { promotionBadgeLabel, findBadgePromotion } from "../../utils/promotionUtils";
+import type { IPromotion } from "../../types/promotions";
 import {
     buildCashPayDocumentPreviewJson,
     documentTypeLabelFromCode,
@@ -315,6 +318,11 @@ const CashPay: React.FC<CashPayProps> = ({
     const [createIssuedDocumentMutation] = useMutation(CREATE_ISSUED_DOCUMENT);
     const [changeOperationTableMutation] = useMutation(CHANGE_OPERATION_TABLE);
     const [changeOperationUserMutation] = useMutation(CHANGE_OPERATION_USER);
+    const { data: promotionsData } = useQuery(GET_ACTIVE_PROMOTIONS, {
+        variables: { branchId: companyData?.branch.id || "" },
+        skip: !companyData?.branch.id,
+        fetchPolicy: "network-only",
+    });
     const [transferItemsMutation] = useMutation(TRANSFER_ITEMS);
     const [cancelOperationDetailMutation] = useMutation(
         CANCEL_OPERATION_DETAIL,
@@ -371,6 +379,12 @@ const CashPay: React.FC<CashPayProps> = ({
     const documents = (documentsData?.documentsByBranch || []).filter(
         (doc: any) => doc.isActive !== false,
     );
+
+  // Derive promotion categories
+  const activePromotions = (promotionsData?.activePromotions || []) as IPromotion[];
+  const discountPromotions = activePromotions.filter(p => p.promotionType === 'DISCOUNT_PERCENT' || p.promotionType === 'DISCOUNT_AMOUNT');
+  const nxmPromotions = activePromotions.filter(p => p.promotionType === 'NXM');
+  const giftPromotions = activePromotions.filter(p => p.promotionType === 'GIFT');
     const allClients = (clientsData?.personsByBranch || []).filter(
         (person: any) => !person.isSupplier && person.isActive !== false,
     );
@@ -2669,9 +2683,12 @@ const CashPay: React.FC<CashPayProps> = ({
                             fontSize: "0.7rem",
                         }}
                     >
-                        <span className="text-slate-500 dark:text-slate-400" style={{ fontWeight: 600 }}>
-                            Selección:
-                        </span>
+                        <span className="text-slate-500 dark:text-slate-400" style={{ fontWeight: 600 }}>Selección:</span>
+                    {giftPromotions.length > 0 && (
+                      <div className="mt-1 text-sm text-green-700 dark:text-green-300">
+                        🎁 Regalo: {giftPromotions.map(p => p.name).join(', ')}
+                      </div>
+                    )}
                         <label
                             className="inline-flex cursor-pointer items-center gap-1.5 text-slate-700 dark:text-slate-200"
                             style={{ userSelect: "none" }}
@@ -2776,9 +2793,16 @@ const CashPay: React.FC<CashPayProps> = ({
                                     }
                                     style={{ width: "20px", height: "20px", accentColor: "#4f46e5" }}
                                 />
-                                <div className="text-slate-800 dark:text-slate-100" style={{ fontWeight: 800 }}>
-                                    {d.quantity}
-                                </div>
+                                <div className="text-slate-800 dark:text-slate-100" style={{ fontWeight: 800 }}>{d.quantity}</div>
+                              {/* Promotion badge for product */}
+                              {(() => {
+                                const badgePromo = findBadgePromotion({ id: d.productId, name: d.productName, ...d }, activePromotions);
+                                return badgePromo ? (
+                                  <span className="ml-2 text-sm text-blue-600 dark:text-blue-400">
+                                    {promotionBadgeLabel(badgePromo)}
+                                  </span>
+                                ) : null;
+                              })()}
                                 <div className="text-slate-700 dark:text-slate-200">
                                     <div style={{ fontWeight: 600 }}>{d.productName}</div>
                                     {isNarrow && (

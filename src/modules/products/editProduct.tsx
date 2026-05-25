@@ -446,6 +446,9 @@ const EditProduct: React.FC<EditProductProps> = ({
                                 <option value="DISH">Plato</option>
                                 <option value="BEVERAGE">Bebida</option>
                                 <option value="INGREDIENT">Ingrediente</option>
+                                <option value="PROMOTION">
+                                    Promoción / Combo
+                                </option>
                             </select>
                         </div>
 
@@ -657,29 +660,31 @@ const EditProduct: React.FC<EditProductProps> = ({
                                 />
                             </div>
 
-                            <div>
-                                <label
-                                    className={labelClass}
-                                    style={{ fontSize: labelFontSize }}
-                                >
-                                    Precio de Compra
-                                </label>
-                                <input
-                                    type="number"
-                                    name="purchasePrice"
-                                    value={formData.purchasePrice}
-                                    onChange={handleChange}
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="0.00"
-                                    className={fieldClass}
-                                    style={{
-                                        padding: inputPadding,
-                                        fontSize: inputFontSize,
-                                        boxSizing: "border-box",
-                                    }}
-                                />
-                            </div>
+                            {formData.productType !== "PROMOTION" && (
+                                <div>
+                                    <label
+                                        className={labelClass}
+                                        style={{ fontSize: labelFontSize }}
+                                    >
+                                        Precio de Compra
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="purchasePrice"
+                                        value={formData.purchasePrice}
+                                        onChange={handleChange}
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="0.00"
+                                        className={fieldClass}
+                                        style={{
+                                            padding: inputPadding,
+                                            fontSize: inputFontSize,
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         {/* Unidad de Medida y Tiempo de preparación */}
