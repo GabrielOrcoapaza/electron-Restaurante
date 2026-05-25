@@ -480,8 +480,9 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
                 </div>
             )}
 
-            {showScopes && (
+            {showScopes && branchId && (
                 <ScopeEditor
+                    branchId={branchId}
                     scopes={formData.scopes}
                     onChange={(scopes) => patch({ scopes })}
                     categories={categories}
