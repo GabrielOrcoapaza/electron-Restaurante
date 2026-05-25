@@ -564,7 +564,12 @@ const Order: React.FC<OrderProps> = ({
 
             // 1. DISCOUNT_PERCENT / DISCOUNT_AMOUNT por ítem
             let updated = items.map((item) => {
-                if (item.isCombo || item.isPrinted || !item.product)
+                // ✅ Si ya tiene descuento y no es nuevo, mantenerlo sin cambios
+                if ((item.discount ?? 0) > 0 && !item.isNew) {
+                    return item; // ← No modificar nada
+                }
+                // Solo recalcular para items sin descuento o nuevos
+                if (item.isCombo || item.isPrinted)
                     return { ...item, discount: 0, promotionName: null };
                 const promo = findBestDiscountPromotion(
                     item.product,
@@ -657,22 +662,12 @@ const Order: React.FC<OrderProps> = ({
     }, [orderItems]);
     // Disparar recálculo de promociones
     useEffect(() => {
-        const hasExistingItemsWithDiscount = orderItems.some(
-            (item) => (item.discount ?? 0) > 0 && !item.isNew,
-        );
-
-        if (
-            activePromotions.length > 0 &&
-            orderItems.length > 0 &&
-            !hasExistingItemsWithDiscount
-        ) {
-            console.log("[Order] Recalculando promociones para items nuevos");
+        if (activePromotions.length > 0 && orderItems.length > 0) {
+            console.log(
+                "[Order] Recalculando promociones para todos los items (respetando descuentos existentes)",
+            );
             setOrderItems((prev) =>
                 recalculatePromotions(prev, activePromotions),
-            );
-        } else {
-            console.log(
-                "[Order] Saltando recálculo - ya hay descuentos existentes",
             );
         }
     }, [activePromotions.length, orderItems.length, recalculatePromotions]);
@@ -775,10 +770,10 @@ const Order: React.FC<OrderProps> = ({
                 const computedTotal = rawTotal || safeUnitPrice * safeQuantity;
 
                 // Intentar obtener el subcategoryId del producto desde la lista de productos cargados
-                const product = productsList.find(
+                const fullProduct = productsList.find(
                     (p: any) => p.id === String(detail.productId),
                 );
-                const subcategoryId = product?.subcategoryId;
+                const subcategoryId = fullProduct?.subcategoryId;
                 // Extraer descuento de promoInfo
                 const { discount, promotionName } = parsePromoInfo(
                     detail.promoInfo,
@@ -814,8 +809,16 @@ const Order: React.FC<OrderProps> = ({
                     isCombo: detail.productType === "PROMOTION",
                     comboComponents:
                         detail.comboComponents?.length > 0
-                            ? detail.comboComponents
+                            ? detail.comboComponents.map((comp: any) => ({
+                                  scopeId: comp.id,
+                                  product: {
+                                      id: comp.productId,
+                                      name: comp.productName,
+                                  },
+                                  quantity: comp.quantity,
+                              }))
                             : undefined,
+                    product: fullProduct,
                 };
 
                 console.log(`[Order] ✅ Mapped item ${detail.id}:`, {
@@ -829,9 +832,8 @@ const Order: React.FC<OrderProps> = ({
         );
 
         console.log(
-            "[Order] 📦 FINAL MAPPED ITEMS:",
+            "[Order] Mapped items with discounts from backend:",
             mappedItems.map((i) => ({
-                id: i.id,
                 name: i.name,
                 discount: i.discount,
                 promotionName: i.promotionName,

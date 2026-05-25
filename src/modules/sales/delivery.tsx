@@ -286,6 +286,10 @@ const Delivery: React.FC = () => {
             );
 
             let updated = items.map((item) => {
+                // ✅ NUEVO: Si ya tiene descuento, mantenerlo
+                if ((item.discount ?? 0) > 0) {
+                    return item;
+                }
                 if (item.isCombo || !item.product)
                     return { ...item, discount: 0, promotionName: null };
                 const promo = findBestDiscountPromotion(
@@ -307,6 +311,7 @@ const Delivery: React.FC = () => {
                 return { ...item, discount: 0, promotionName: null };
             });
 
+            // NxM - los más baratos del grupo quedan gratis
             const nxmPromos = promotions.filter(
                 (p) => p.promotionType === "NXM",
             );
@@ -326,19 +331,23 @@ const Delivery: React.FC = () => {
                     .filter(Boolean) as CartLine[];
                 const freeSet = computeNxMFreeSet(lines, nxmPromos);
                 freeSet.forEach((promoName, idx) => {
-                    updated[idx] = {
-                        ...updated[idx],
-                        discount:
-                            Math.round(
-                                updated[idx].price *
-                                    updated[idx].quantity *
-                                    100,
-                            ) / 100,
-                        promotionName: promoName,
-                    };
+                    // ✅ NUEVO: Solo aplicar si no tiene descuento
+                    if ((updated[idx].discount ?? 0) === 0) {
+                        updated[idx] = {
+                            ...updated[idx],
+                            discount:
+                                Math.round(
+                                    updated[idx].price *
+                                        updated[idx].quantity *
+                                        100,
+                                ) / 100,
+                            promotionName: promoName,
+                        };
+                    }
                 });
             }
 
+            // GIFT notification
             const newTotal = updated.reduce(
                 (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
                 0,
@@ -361,11 +370,26 @@ const Delivery: React.FC = () => {
         },
         [],
     );
-
     useEffect(() => {
-        if (activePromotions.length > 0 && cartItems.length > 0) {
+        // Verificar si ya hay items con descuento
+        const hasExistingDiscounts = cartItems.some(
+            (item) => (item.discount ?? 0) > 0,
+        );
+
+        if (
+            activePromotions.length > 0 &&
+            cartItems.length > 0 &&
+            !hasExistingDiscounts
+        ) {
+            console.log(
+                "[Delivery] Recalculando promociones - sin descuentos existentes",
+            );
             setCartItems((prev) =>
                 recalculatePromotions(prev, activePromotions),
+            );
+        } else if (hasExistingDiscounts) {
+            console.log(
+                "[Delivery] Saltando recálculo - ya hay descuentos existentes",
             );
         }
     }, [activePromotions, cartItems.length, recalculatePromotions]);
@@ -668,17 +692,25 @@ const Delivery: React.FC = () => {
         setShowObservationModal(null);
     };
 
-    // Calcular totales (descuento: exclusivo — % o monto S/, no ambos)
-    const cartTotalRaw = cartItems.reduce(
-        (sum, item) => sum + (Number(item.total) || 0),
-        0,
-    );
+    // Calcular totales CON descuentos aplicados por item
+    const cartItemsTotal = cartItems.reduce((sum, item) => {
+        const itemTotal = Number(item.total) || 0;
+        const itemDiscount = Number(item.discount) || 0;
+        return sum + (itemTotal - itemDiscount);
+    }, 0);
+
+    // Descuento global (manual) - si existe, aplicarlo sobre el total con descuentos por item
     const pct = Number(discountPercent) || 0;
-    const totalDiscount = Math.max(
+    const manualDiscount = Math.max(
         0,
-        pct > 0 ? (cartTotalRaw * pct) / 100 : Number(discountAmount) || 0,
+        pct > 0 ? (cartItemsTotal * pct) / 100 : Number(discountAmount) || 0,
     );
-    const cartTotal = Math.max(0, cartTotalRaw - totalDiscount);
+    const cartTotal = Math.max(0, cartItemsTotal - manualDiscount);
+    const totalDiscount =
+        manualDiscount +
+        cartItems.reduce((sum, item) => sum + (item.discount || 0), 0);
+
+    // Calcular IGV basado en el total final
     const igvPercentageDecimal = igvPercentageFromBranch / 100;
     const subtotal = parseFloat(
         (cartTotal / (1 + igvPercentageDecimal)).toFixed(2),
@@ -1575,240 +1607,421 @@ const Delivery: React.FC = () => {
 
                     <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
                         {cartItems.length === 0 ? (
-                            <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
-                                <div className="rounded-full bg-slate-50 p-4 dark:bg-slate-800/50">
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-10 w-10 opacity-20"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={1.5}
-                                            d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
-                                        />
-                                    </svg>
-                                </div>
-                                <p className="text-sm font-medium">
-                                    El carrito está vacío
-                                </p>
-                            </div>
+                            <></>
                         ) : (
                             <div className="flex flex-col gap-2.5">
-                                {cartItems.map((item) => (
-                                    <div
-                                        key={item.id}
-                                        className="group relative flex flex-col gap-2 rounded-xl border border-slate-100 bg-slate-50/50 p-3 transition-all duration-200 hover:border-slate-200 dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-slate-700"
-                                    >
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                                <h5 className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
-                                                    {item.name}
-                                                </h5>
-                                                {item.notes && (
-                                                    <p className="truncate text-[10px] italic text-slate-500 dark:text-slate-400">
-                                                        {item.notes}
-                                                    </p>
-                                                )}
-                                                {/* Badge de descuento */}
-                                                {item.discount &&
-                                                    item.discount > 0 && (
-                                                        <div className="mt-1 flex flex-wrap items-center gap-1">
-                                                            <span className="bg-red-100 text-red-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                {cartItems.map((item) => {
+                                    const isEditable = true;
+                                    const canEditNotes = true;
+                                    const hasObservationContent = Boolean(
+                                        item.notes?.trim(),
+                                    );
+
+                                    return (
+                                        <div
+                                            key={item.id}
+                                            className="border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
+                                            style={{
+                                                borderWidth: "1px",
+                                                borderStyle: "solid",
+                                                borderRadius: isSmall
+                                                    ? "6px"
+                                                    : isMedium
+                                                      ? "8px"
+                                                      : "10px",
+                                                padding: isSmall
+                                                    ? "0.2rem"
+                                                    : isMedium
+                                                      ? "0.3rem"
+                                                      : "0.35rem",
+                                            }}
+                                        >
+                                            <div
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: isSmall
+                                                        ? "0.2rem"
+                                                        : isMedium
+                                                          ? "0.3rem"
+                                                          : "0.35rem",
+                                                    justifyContent:
+                                                        "flex-start",
+                                                    flexWrap: "nowrap",
+                                                    width: "100%",
+                                                    overflow: "hidden",
+                                                }}
+                                            >
+                                                {/* Controles de cantidad */}
+                                                <div
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: isSmall
+                                                            ? "0.1rem"
+                                                            : isMedium
+                                                              ? "0.15rem"
+                                                              : "0.2rem",
+                                                        flexShrink: 0,
+                                                    }}
+                                                >
+                                                    <button
+                                                        onClick={() =>
+                                                            handleUpdateQuantity(
+                                                                item.id,
+                                                                item.quantity -
+                                                                    1,
+                                                            )
+                                                        }
+                                                        disabled={!isEditable}
+                                                        className="border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
+                                                        style={{
+                                                            width: isSmall
+                                                                ? "20px"
+                                                                : isMedium
+                                                                  ? "24px"
+                                                                  : "28px",
+                                                            height: isSmall
+                                                                ? "20px"
+                                                                : isMedium
+                                                                  ? "24px"
+                                                                  : "28px",
+                                                            borderRadius:
+                                                                isSmall
+                                                                    ? "4px"
+                                                                    : "6px",
+                                                            cursor: isEditable
+                                                                ? "pointer"
+                                                                : "not-allowed",
+                                                            fontSize: isSmall
+                                                                ? "0.75rem"
+                                                                : isMedium
+                                                                  ? "0.85rem"
+                                                                  : "0.95rem",
+                                                            display: "flex",
+                                                            alignItems:
+                                                                "center",
+                                                            justifyContent:
+                                                                "center",
+                                                            padding: 0,
+                                                            flexShrink: 0,
+                                                        }}
+                                                    >
+                                                        −
+                                                    </button>
+                                                    <input
+                                                        type="number"
+                                                        value={item.quantity}
+                                                        onChange={(e) =>
+                                                            handleUpdateQuantity(
+                                                                item.id,
+                                                                parseInt(
+                                                                    e.target
+                                                                        .value,
+                                                                ) || 0,
+                                                            )
+                                                        }
+                                                        disabled={!isEditable}
+                                                        min="0"
+                                                        className="border border-slate-300 bg-white text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
+                                                        style={{
+                                                            width: isSmall
+                                                                ? "28px"
+                                                                : isMedium
+                                                                  ? "32px"
+                                                                  : "38px",
+                                                            textAlign: "center",
+                                                            borderRadius:
+                                                                isSmall
+                                                                    ? "4px"
+                                                                    : "6px",
+                                                            padding: isSmall
+                                                                ? "0.1rem"
+                                                                : isMedium
+                                                                  ? "0.15rem"
+                                                                  : "0.2rem",
+                                                            fontWeight: 700,
+                                                            fontSize: isSmall
+                                                                ? "0.65rem"
+                                                                : isMedium
+                                                                  ? "0.75rem"
+                                                                  : "0.85rem",
+                                                            flexShrink: 0,
+                                                        }}
+                                                    />
+                                                    <button
+                                                        onClick={() =>
+                                                            handleUpdateQuantity(
+                                                                item.id,
+                                                                item.quantity +
+                                                                    1,
+                                                            )
+                                                        }
+                                                        disabled={!isEditable}
+                                                        className="border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
+                                                        style={{
+                                                            width: isSmall
+                                                                ? "16px"
+                                                                : isMedium
+                                                                  ? "18px"
+                                                                  : "25px",
+                                                            height: isSmall
+                                                                ? "16px"
+                                                                : isMedium
+                                                                  ? "18px"
+                                                                  : "25px",
+                                                            borderRadius:
+                                                                isSmall
+                                                                    ? "4px"
+                                                                    : "6px",
+                                                            cursor: isEditable
+                                                                ? "pointer"
+                                                                : "not-allowed",
+                                                            fontSize: isSmall
+                                                                ? "0.7rem"
+                                                                : isMedium
+                                                                  ? "0.75rem"
+                                                                  : "0.8rem",
+                                                            display: "flex",
+                                                            alignItems:
+                                                                "center",
+                                                            justifyContent:
+                                                                "center",
+                                                            padding: 0,
+                                                            flexShrink: 0,
+                                                        }}
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+
+                                                {/* Nombre del producto */}
+                                                <div
+                                                    style={{
+                                                        flex: "1",
+                                                        minWidth: 0,
+                                                        paddingLeft: "4px",
+                                                        paddingRight: "4px",
+                                                    }}
+                                                >
+                                                    <div
+                                                        className="text-slate-800 dark:text-slate-100"
+                                                        style={{
+                                                            fontWeight: 700,
+                                                            fontSize: isSmall
+                                                                ? "0.7rem"
+                                                                : isMedium
+                                                                  ? "0.75rem"
+                                                                  : "0.8125rem",
+                                                            overflow: "hidden",
+                                                            whiteSpace:
+                                                                "normal",
+                                                            wordBreak:
+                                                                "break-word",
+                                                            lineHeight: "1.2",
+                                                            display: "flex",
+                                                            alignItems:
+                                                                "center",
+                                                            gap: "4px",
+                                                        }}
+                                                    >
+                                                        {item.name}
+                                                    </div>
+                                                    {/* Descuento en el carrito */}
+                                                    {(item.discount ?? 0) >
+                                                        0 && (
+                                                        <div className="mt-1 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                                                            <span>
                                                                 -S/{" "}
-                                                                {item.discount.toFixed(
+                                                                {item.discount!.toFixed(
                                                                     2,
                                                                 )}
                                                             </span>
                                                             {item.promotionName && (
-                                                                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                                                <span className="text-gray-400">
+                                                                    (
                                                                     {
                                                                         item.promotionName
                                                                     }
+                                                                    )
                                                                 </span>
                                                             )}
                                                         </div>
                                                     )}
-                                                {/* Componentes del combo */}
-                                                {item.isCombo &&
-                                                    item.comboComponents && (
-                                                        <div className="mt-1 flex flex-col gap-1">
-                                                            {item.comboComponents.map(
-                                                                (comp, idx) => (
-                                                                    <div
-                                                                        key={
-                                                                            idx
-                                                                        }
-                                                                        className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-300"
-                                                                    >
-                                                                        <span className="font-bold text-amber-600 dark:text-amber-400">
-                                                                            {
-                                                                                comp.scopeLabel
+                                                    {/* Componentes del combo */}
+                                                    {item.isCombo &&
+                                                        item.comboComponents && (
+                                                            <div className="mt-1 space-y-0.5 text-xs text-orange-600 dark:text-orange-300">
+                                                                {item.comboComponents.map(
+                                                                    (
+                                                                        comp: any,
+                                                                    ) => (
+                                                                        <div
+                                                                            key={
+                                                                                comp.scopeId
                                                                             }
-                                                                            :
-                                                                        </span>
-                                                                        <span className="truncate">
+                                                                        >
+                                                                            •{" "}
                                                                             {
                                                                                 comp
                                                                                     .product
                                                                                     .name
-                                                                            }{" "}
-                                                                            ×{" "}
-                                                                            {
-                                                                                comp.quantity
                                                                             }
-                                                                        </span>
-                                                                    </div>
-                                                                ),
-                                                            )}
-                                                        </div>
-                                                    )}
-                                            </div>
-                                            <button
-                                                onClick={() =>
-                                                    handleRemoveItem(item.id)
-                                                }
-                                                className="opacity-0 transition-opacity duration-200 group-hover:opacity-100 text-slate-400 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400"
-                                            >
-                                                <svg
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    className="h-4 w-4"
-                                                    fill="none"
-                                                    viewBox="0 0 24 24"
-                                                    stroke="currentColor"
-                                                >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth={2}
-                                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                    />
-                                                </svg>
-                                            </button>
-                                        </div>
+                                                                        </div>
+                                                                    ),
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                </div>
 
-                                        <div className="flex items-center justify-between mt-1">
-                                            {/* Controles de cantidad */}
-                                            <div className="flex items-center gap-1 overflow-hidden rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                                                <button
-                                                    onClick={() =>
-                                                        handleUpdateQuantity(
-                                                            item.id,
-                                                            item.quantity - 1,
-                                                        )
-                                                    }
-                                                    className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
+                                                {/* Precio total */}
+                                                <div
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: isSmall
+                                                            ? "0.2rem"
+                                                            : isMedium
+                                                              ? "0.3rem"
+                                                              : "0.35rem",
+                                                        flexShrink: 0,
+                                                        minWidth: isSmall
+                                                            ? "55px"
+                                                            : isMedium
+                                                              ? "65px"
+                                                              : "75px",
+                                                        marginLeft: "auto",
+                                                    }}
                                                 >
-                                                    <svg
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        className="h-3 w-3"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
+                                                    <div
+                                                        className="text-slate-800 dark:text-slate-100"
+                                                        style={{
+                                                            fontWeight: 700,
+                                                            fontSize: isSmall
+                                                                ? "0.7rem"
+                                                                : isMedium
+                                                                  ? "0.75rem"
+                                                                  : "0.8125rem",
+                                                            textAlign: "right",
+                                                        }}
                                                     >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth={2.5}
-                                                            d="M20 12H4"
-                                                        />
-                                                    </svg>
-                                                </button>
-                                                <input
-                                                    type="number"
-                                                    value={item.quantity}
-                                                    onChange={(e) =>
-                                                        handleUpdateQuantity(
-                                                            item.id,
-                                                            parseInt(
-                                                                e.target.value,
-                                                            ) || 0,
-                                                        )
-                                                    }
-                                                    className="w-8 border-none bg-transparent text-center text-xs font-bold text-slate-800 outline-none dark:text-slate-100"
-                                                />
-                                                <button
-                                                    onClick={() =>
-                                                        handleUpdateQuantity(
-                                                            item.id,
-                                                            item.quantity + 1,
-                                                        )
-                                                    }
-                                                    className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
-                                                >
-                                                    <svg
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        className="h-3 w-3"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                    >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth={2.5}
-                                                            d="M12 4v16m8-8H4"
-                                                        />
-                                                    </svg>
-                                                </button>
-                                            </div>
+                                                        S/{" "}
+                                                        {item.total.toFixed(2)}
+                                                    </div>
+                                                </div>
 
-                                            <div className="flex items-center gap-2">
+                                                {/* Icono observaciones */}
                                                 <button
+                                                    type="button"
                                                     onClick={() =>
                                                         handleOpenObservationModal(
                                                             item.id,
                                                         )
                                                     }
-                                                    className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-colors ${
-                                                        item.notes
-                                                            ? "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-400"
-                                                            : "border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600 dark:hover:text-slate-300"
+                                                    className={`border ${
+                                                        hasObservationContent
+                                                            ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                                                            : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
                                                     }`}
+                                                    style={{
+                                                        padding: isSmall
+                                                            ? "0.1rem 0.35rem"
+                                                            : isMedium
+                                                              ? "0.15rem 0.4rem"
+                                                              : "0.15rem 0.45rem",
+                                                        borderRadius: 999,
+                                                        fontSize: isSmall
+                                                            ? "0.7rem"
+                                                            : isMedium
+                                                              ? "0.85rem"
+                                                              : "1.1rem",
+                                                        fontWeight: 600,
+                                                        cursor: "pointer",
+                                                        flexShrink: 0,
+                                                        lineHeight: 1,
+                                                        opacity: 1,
+                                                        position: "relative",
+                                                    }}
+                                                    title={
+                                                        hasObservationContent
+                                                            ? item.notes
+                                                                ? "Editar observaciones"
+                                                                : "Ver observaciones"
+                                                            : "Escribir observación al plato"
+                                                    }
                                                 >
-                                                    <svg
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        className="h-4 w-4"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                    >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth={2}
-                                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                                        />
-                                                    </svg>
+                                                    📋
+                                                    {hasObservationContent && (
+                                                        <span
+                                                            style={{
+                                                                position:
+                                                                    "absolute",
+                                                                top: "-4px",
+                                                                right: "-4px",
+                                                                background:
+                                                                    "#3b82f6",
+                                                                color: "white",
+                                                                borderRadius:
+                                                                    "50%",
+                                                                width: "12px",
+                                                                height: "12px",
+                                                                fontSize: "8px",
+                                                                display: "flex",
+                                                                alignItems:
+                                                                    "center",
+                                                                justifyContent:
+                                                                    "center",
+                                                                fontWeight: 700,
+                                                            }}
+                                                        >
+                                                            {item.notes
+                                                                ? "!"
+                                                                : (selectedObservations[
+                                                                      item.id
+                                                                  ]?.size ?? 0)}
+                                                        </span>
+                                                    )}
                                                 </button>
 
-                                                <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-0.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                                                    <span className="text-[10px] font-bold text-slate-400">
-                                                        S/
-                                                    </span>
-                                                    <input
-                                                        type="number"
-                                                        value={item.total}
-                                                        onChange={(e) =>
-                                                            handleUpdateLineTotal(
-                                                                item.id,
-                                                                e.target.value,
-                                                            )
-                                                        }
-                                                        className="w-16 border-none bg-transparent text-right text-xs font-black text-slate-800 outline-none dark:text-slate-100"
-                                                    />
-                                                </div>
+                                                {/* Icono tachito */}
+                                                <button
+                                                    onClick={() =>
+                                                        handleRemoveItem(
+                                                            item.id,
+                                                        )
+                                                    }
+                                                    disabled={!isEditable}
+                                                    className="text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-slate-400 dark:text-red-400 dark:hover:text-red-300 dark:disabled:text-slate-600"
+                                                    style={{
+                                                        background:
+                                                            "transparent",
+                                                        border: "none",
+                                                        cursor: isEditable
+                                                            ? "pointer"
+                                                            : "not-allowed",
+                                                        fontSize: isSmall
+                                                            ? "0.85rem"
+                                                            : isMedium
+                                                              ? "0.95rem"
+                                                              : "1.15rem",
+                                                        padding: "0.15rem",
+                                                        flexShrink: 0,
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent:
+                                                            "center",
+                                                        lineHeight: 1,
+                                                    }}
+                                                >
+                                                    🗑️
+                                                </button>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
-
                     {/* Descuento */}
                     <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
                         <div className="flex flex-col gap-1.5">
