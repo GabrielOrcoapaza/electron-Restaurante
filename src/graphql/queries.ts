@@ -348,6 +348,10 @@ export const GET_SUBCATEGORIES_BY_CATEGORY = gql`
             color
             order
             isActive
+            category {
+                id
+                name
+            }
         }
     }
 `;
@@ -366,6 +370,14 @@ export const GET_PRODUCTS_BY_CATEGORY = gql`
             productType
             isActive
             subcategoryId
+            subcategory {
+                id
+                name
+                category {
+                    id
+                    name
+                }
+            }
         }
     }
 `;
@@ -1604,6 +1616,7 @@ export const GET_ACTIVE_PROMOTIONS = gql`
             minPurchaseAmount
             appliesTo
             priority
+            isValidNow
             scopes {
                 id
                 category {

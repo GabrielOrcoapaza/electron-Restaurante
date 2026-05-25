@@ -290,6 +290,13 @@ const Order: React.FC<OrderProps> = ({
         skip: !companyData?.branch?.id,
         fetchPolicy: "network-only",
     });
+
+    // ✅ Agrega este log
+    console.log("[Order] GET_ACTIVE_PROMOTIONS result:", {
+        branchId: companyData?.branch?.id,
+        data: promotionsData,
+        activePromotions: promotionsData?.activePromotions,
+    });
     const [activePromotions, setActivePromotions] = useState<IPromotion[]>([]);
     const [giftMessage, setGiftMessage] = useState<string | null>(null);
     const [showComboModal, setShowComboModal] = useState(false);
@@ -571,10 +578,25 @@ const Order: React.FC<OrderProps> = ({
                 // Solo recalcular para items sin descuento o nuevos
                 if (item.isCombo || item.isPrinted)
                     return { ...item, discount: 0, promotionName: null };
+                console.log("[Order] Evaluando promoción para:", item.name, {
+                    productId: item.productId,
+                    product: item.product,
+                    subcategoryId: item.product?.subcategoryId,
+                    categoryId:
+                        item.product?.categoryId ||
+                        item.product?.subcategory?.category?.id,
+                    activePromotions: promotions.map((p) => ({
+                        name: p.name,
+                        appliesTo: p.appliesTo,
+                        scopes: p.scopes,
+                    })),
+                });
                 const promo = findBestDiscountPromotion(
                     item.product,
                     promotions,
                     cartTotal,
+                    subcategoriesOfCategory,
+                    selectedCategory,
                 );
                 if (promo) {
                     const disc = calculateLineDiscount(
@@ -671,7 +693,9 @@ const Order: React.FC<OrderProps> = ({
             );
         }
     }, [activePromotions.length, orderItems.length, recalculatePromotions]);
-
+    useEffect(() => {
+        console.log("[Order] activePromotions ACTUALIZADO:", activePromotions);
+    }, [activePromotions]);
     useEffect(() => {
         // Solo cargar items si hay una selección válida y no se ha inicializado ya
         if (!hasSelection || initializedFromExistingOrder) {
@@ -773,6 +797,26 @@ const Order: React.FC<OrderProps> = ({
                 const fullProduct = productsList.find(
                     (p: any) => p.id === String(detail.productId),
                 );
+                // ENRIQUECER EL PRODUCTO CON SU CATEGORÍA
+                let enrichedProduct = fullProduct ? { ...fullProduct } : null;
+                if (
+                    enrichedProduct &&
+                    enrichedProduct.subcategoryId &&
+                    !enrichedProduct.subcategory
+                ) {
+                    // Buscar la subcategoría completa
+                    const subcategory = subcategoriesOfCategory.find(
+                        (s: any) => s.id === enrichedProduct.subcategoryId,
+                    );
+                    if (subcategory) {
+                        enrichedProduct.subcategory = subcategory;
+                        // También añadir categoryId directamente para fácil acceso
+                        if (subcategory.category) {
+                            enrichedProduct.categoryId =
+                                subcategory.category.id;
+                        }
+                    }
+                }
                 const subcategoryId = fullProduct?.subcategoryId;
                 // Extraer descuento de promoInfo
                 const { discount, promotionName } = parsePromoInfo(
@@ -929,6 +973,20 @@ const Order: React.FC<OrderProps> = ({
         }
 
         const qty = qtyToAdd ?? 1;
+        // ENRIQUECER EL PRODUCTO CON SU CATEGORÍA
+        let enrichedProduct = { ...product };
+        if (enrichedProduct.subcategoryId && !enrichedProduct.subcategory) {
+            // Buscar la subcategoría en subcategoriesOfCategory
+            const subcategory = subcategoriesOfCategory.find(
+                (s: any) => s.id === enrichedProduct.subcategoryId,
+            );
+            if (subcategory) {
+                enrichedProduct.subcategory = subcategory;
+                if (subcategory.category) {
+                    enrichedProduct.categoryId = subcategory.category.id;
+                }
+            }
+        }
         const newItem: OrderItem = {
             id: `${product.id}-${Date.now()}`,
             productId: product.id,
@@ -939,7 +997,7 @@ const Order: React.FC<OrderProps> = ({
             isNew: true,
             notes: "",
             subcategoryId: product.subcategoryId,
-            product, // NUEVO: guardar producto completo para promociones
+            product: enrichedProduct, // Usar el producto enriquecido
         };
 
         if (isExistingOrder) {
