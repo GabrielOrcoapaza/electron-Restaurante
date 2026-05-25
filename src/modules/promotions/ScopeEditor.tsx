@@ -1,4 +1,5 @@
 import React from 'react';
+import ProductSearchInput from '../../components/ProductSearchInput';
 import type { ScopeFormItem } from '../../types/promotions';
 
 interface CategoryOption {
@@ -8,6 +9,7 @@ interface CategoryOption {
 }
 
 interface ScopeEditorProps {
+    branchId: string;
     scopes: ScopeFormItem[];
     onChange: (scopes: ScopeFormItem[]) => void;
     categories: CategoryOption[];
@@ -24,6 +26,7 @@ const emptyScope = (): ScopeFormItem => ({
 });
 
 const ScopeEditor: React.FC<ScopeEditorProps> = ({
+    branchId,
     scopes,
     onChange,
     categories,
@@ -189,24 +192,30 @@ const ScopeEditor: React.FC<ScopeEditorProps> = ({
                     )}
 
                     {scope.scopeType === 'product' && (
-                        <label className="block text-xs">
+                        <div className="block text-xs">
                             <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
-                                ID producto fijo
+                                Producto fijo
                             </span>
-                            <input
-                                value={scope.productId || ''}
-                                onChange={(e) =>
-                                    updateScope(index, { productId: e.target.value })
+                            <ProductSearchInput
+                                branchId={branchId}
+                                selectedProductId={scope.productId}
+                                selectedProductName={scope.productName}
+                                compact
+                                placeholder="Buscar producto o escanear código"
+                                onSelect={(product) =>
+                                    updateScope(index, {
+                                        productId: product.id,
+                                        productName: product.name,
+                                    })
                                 }
-                                placeholder="ID del producto"
-                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                onClear={() =>
+                                    updateScope(index, {
+                                        productId: '',
+                                        productName: '',
+                                    })
+                                }
                             />
-                            {scope.productName && (
-                                <span className="mt-1 block text-slate-500">
-                                    {scope.productName}
-                                </span>
-                            )}
-                        </label>
+                        </div>
                     )}
 
                     <div className="flex justify-end">
