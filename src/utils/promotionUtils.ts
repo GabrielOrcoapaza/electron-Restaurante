@@ -168,11 +168,17 @@ export function calculateLineDiscount(
 ): number {
     switch (promo.promotionType) {
         case "DISCOUNT_PERCENT": {
-            const pct = promo.discountPercent ?? 0;
+            const pct =
+                typeof promo.discountPercent === "string"
+                    ? parseFloat(promo.discountPercent)
+                    : (promo.discountPercent ?? 0);
             return Math.round(((unitPrice * quantity * pct) / 100) * 100) / 100;
         }
         case "DISCOUNT_AMOUNT": {
-            const amount = promo.discountAmount ?? 0;
+            const amount =
+                typeof promo.discountAmount === "string"
+                    ? parseFloat(promo.discountAmount)
+                    : (promo.discountAmount ?? 0);
             return Math.min(
                 Math.round(amount * 100) / 100,
                 Math.round(unitPrice * quantity * 100) / 100,
@@ -186,10 +192,20 @@ export function calculateLineDiscount(
 /** Badge para mostrar en la tarjeta de producto (ej: "20% OFF", "3×2", "REGALO"). */
 export function promotionBadgeLabel(promo: IPromotion): string {
     switch (promo.promotionType) {
-        case "DISCOUNT_PERCENT":
-            return `${Math.round(promo.discountPercent ?? 0)}% OFF`;
-        case "DISCOUNT_AMOUNT":
-            return `-S/ ${(promo.discountAmount ?? 0).toFixed(2)}`;
+        case "DISCOUNT_PERCENT": {
+            const pct =
+                typeof promo.discountPercent === "string"
+                    ? parseFloat(promo.discountPercent)
+                    : (promo.discountPercent ?? 0);
+            return `${Math.round(pct)}% OFF`;
+        }
+        case "DISCOUNT_AMOUNT": {
+            const amount =
+                typeof promo.discountAmount === "string"
+                    ? parseFloat(promo.discountAmount)
+                    : (promo.discountAmount ?? 0);
+            return `-S/ ${amount.toFixed(2)}`;
+        }
         case "NXM":
             return `${promo.buyQuantity}×${promo.getQuantity}`;
         case "GIFT":
