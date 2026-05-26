@@ -8,6 +8,8 @@ export type CashPayPreviewLineItem = {
 	quantity: number;
 	unit_price: number;
 	total: number;
+	discount?: number;
+	promotion_name?: string | null;
 	notes?: string;
 };
 
@@ -15,8 +17,10 @@ export type CashPayPreviewAmounts = {
 	subtotal: number;
 	igv: number;
 	igv_percent: number;
+	items_discount?: number;
 	discount: number;
 	discount_percent: number;
+	total_discount?: number;
 	total: number;
 };
 
@@ -106,6 +110,8 @@ export function buildCashPayDocumentPreviewJson(
 			quantity: row.quantity,
 			unit_price: row.unit_price,
 			total: row.total,
+			discount: row.discount ?? 0,
+			promotion_name: row.promotion_name || "",
 			notes: row.notes || "",
 		})),
 		amounts: {
@@ -113,8 +119,10 @@ export function buildCashPayDocumentPreviewJson(
 			subtotal: input.amounts.subtotal,
 			igv: input.amounts.igv,
 			igv_percent: input.amounts.igv_percent,
+			items_discount: input.amounts.items_discount ?? 0,
 			discount: input.amounts.discount,
 			discount_percent: input.amounts.discount_percent,
+			total_discount: input.amounts.total_discount ?? input.amounts.discount,
 			total: input.amounts.total,
 		},
 	};

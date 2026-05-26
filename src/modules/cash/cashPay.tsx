@@ -82,6 +82,36 @@ const currencyFormatter = new Intl.NumberFormat("es-PE", {
 const roundMoney2 = (n: number): number =>
     Math.round((Number(n) || 0) * 100) / 100;
 
+const parsePromoInfo = (
+    promoInfo: string | null | undefined,
+): { discount: number; promotionName: string | null } => {
+    if (!promoInfo) return { discount: 0, promotionName: null };
+    try {
+        const parsed = JSON.parse(promoInfo);
+        return {
+            discount:
+                typeof parsed.discount === "number" ? parsed.discount : 0,
+            promotionName: parsed.promotionName || null,
+        };
+    } catch {
+        return { discount: 0, promotionName: null };
+    }
+};
+
+/** Descuento de la línea prorrateado según cantidad visible (pagos parciales / split). */
+const getDetailLineDiscount = (detail: any): number => {
+    const { discount } = parsePromoInfo(detail?.promoInfo);
+    if (!discount) return 0;
+    const originalQty =
+        Number(detail?.originalQuantity ?? detail?.quantity) || 0;
+    const currentQty = Number(detail?.quantity) || 0;
+    if (originalQty <= 0 || currentQty <= 0) return 0;
+    return roundMoney2((discount * currentQty) / originalQty);
+};
+
+const getDetailPromotionName = (detail: any): string | null =>
+    parsePromoInfo(detail?.promoInfo).promotionName;
+
 /** Coincide con PAYMENT_METHODS en backend (Django). */
 const PAYMENT_METHODS: { value: string; label: string }[] = [
     { value: "CASH", label: "Efectivo" },
@@ -512,6 +542,7 @@ const CashPay: React.FC<CashPayProps> = ({
                 ...detail,
                 quantity: remainingQty,
                 remainingQuantity: remainingQty,
+                originalQuantity,
             });
         });
         return adjustedDetails;
@@ -550,19 +581,32 @@ const CashPay: React.FC<CashPayProps> = ({
               )
             : detailsToUse;
 
-    const total = detailsForTotal.reduce((sum: number, detail: any) => {
+    const grossTotal = detailsForTotal.reduce((sum: number, detail: any) => {
         const quantity = Number(detail.quantity) || 0;
         const unitPrice = Number(detail.unitPrice) || 0;
         return sum + quantity * unitPrice;
     }, 0);
+    const itemsPromoDiscount = roundMoney2(
+        detailsForTotal.reduce(
+            (sum: number, detail: any) => sum + getDetailLineDiscount(detail),
+            0,
+        ),
+    );
+    const totalAfterItemDiscount = Math.max(0, grossTotal - itemsPromoDiscount);
     const discountPct = Number(discountPercent) || 0;
-    const totalDiscount = Math.max(
+    const globalDiscount = Math.max(
         0,
         discountPct > 0
-            ? (total * discountPct) / 100
+            ? roundMoney2((totalAfterItemDiscount * discountPct) / 100)
             : Number(discountAmount) || 0,
     );
-    const totalToPay = Math.max(0, total - totalDiscount);
+    const totalDiscount = roundMoney2(itemsPromoDiscount + globalDiscount);
+    const totalToPay = Math.max(0, totalAfterItemDiscount - globalDiscount);
+    const giftEligiblePromo = giftPromotions.find(
+        (p) =>
+            totalAfterItemDiscount >= (p.minPurchaseAmount || 0) &&
+            p.giftProduct,
+    );
     const igvDecimal = igvPercentage / 100;
     const subtotal = parseFloat(
         (Math.round((totalToPay / (1 + igvDecimal)) * 100) / 100).toFixed(2),
@@ -1068,6 +1112,8 @@ const CashPay: React.FC<CashPayProps> = ({
                 lineItems: detailsForTotal.map((detail: any) => {
                     const qty = Number(detail.quantity) || 0;
                     const price = Number(detail.unitPrice) || 0;
+                    const lineDiscount = getDetailLineDiscount(detail);
+                    const lineGross = qty * price;
                     return {
                         product_name:
                             detail.productName ||
@@ -1075,7 +1121,9 @@ const CashPay: React.FC<CashPayProps> = ({
                             "Producto",
                         quantity: qty,
                         unit_price: price,
-                        total: qty * price,
+                        total: roundMoney2(lineGross - lineDiscount),
+                        discount: lineDiscount,
+                        promotion_name: getDetailPromotionName(detail),
                         notes: detail.notes || "",
                     };
                 }),
@@ -1083,8 +1131,10 @@ const CashPay: React.FC<CashPayProps> = ({
                     subtotal,
                     igv: igvAmount,
                     igv_percent: igvPercentage,
-                    discount: totalDiscount,
+                    items_discount: itemsPromoDiscount,
+                    discount: globalDiscount,
                     discount_percent: discountPct,
+                    total_discount: totalDiscount,
                     total: totalToPay,
                 },
                 emissionDate: formatLocalDateYYYYMMDD(now),
@@ -1320,7 +1370,11 @@ const CashPay: React.FC<CashPayProps> = ({
             // ==================================================
             const groupedByRealId: Record<
                 string,
-                { details: any[]; totalQuantity: number }
+                {
+                    details: any[];
+                    totalQuantity: number;
+                    totalLineDiscount: number;
+                }
             > = {};
             const invalidDetails: any[] = [];
 
@@ -1340,12 +1394,17 @@ const CashPay: React.FC<CashPayProps> = ({
                     groupedByRealId[realId] = {
                         details: [],
                         totalQuantity: 0,
+                        totalLineDiscount: 0,
                     };
                 }
 
                 groupedByRealId[realId].details.push(detail);
                 groupedByRealId[realId].totalQuantity +=
                     Number(detail.quantity) || 0;
+                groupedByRealId[realId].totalLineDiscount = roundMoney2(
+                    groupedByRealId[realId].totalLineDiscount +
+                        getDetailLineDiscount(detail),
+                );
 
                 console.log(
                     `  ✅ Agregado al grupo ${realId} (qty total: ${groupedByRealId[realId].totalQuantity})`,
@@ -1377,7 +1436,7 @@ const CashPay: React.FC<CashPayProps> = ({
                         quantity: group.totalQuantity,
                         unitValue: Number(firstDetail.unitPrice) || 0,
                         unitPrice: Number(firstDetail.unitPrice) || 0,
-                        discount: 0,
+                        discount: group.totalLineDiscount || 0,
                         notes: firstDetail.notes || "",
                     };
                 },
@@ -1387,7 +1446,7 @@ const CashPay: React.FC<CashPayProps> = ({
 
             // Calcular totales para el pago (con descuento aplicado)
             // NOTA: Los precios unitarios ya incluyen IGV
-            const rawPaymentTotal = detailsToPay.reduce(
+            const rawPaymentGross = detailsToPay.reduce(
                 (sum: number, detail: any) => {
                     const quantity = Number(detail.quantity) || 0;
                     const unitPrice = Number(detail.unitPrice) || 0;
@@ -1395,16 +1454,32 @@ const CashPay: React.FC<CashPayProps> = ({
                 },
                 0,
             );
+            const paymentItemsDiscount = roundMoney2(
+                detailsToPay.reduce(
+                    (sum: number, detail: any) =>
+                        sum + getDetailLineDiscount(detail),
+                    0,
+                ),
+            );
+            const paymentAfterItemDiscount = Math.max(
+                0,
+                rawPaymentGross - paymentItemsDiscount,
+            );
             const payPct = Number(discountPercent) || 0;
-            const paymentTotalDiscount = Math.max(
+            const paymentGlobalDiscount = Math.max(
                 0,
                 payPct > 0
-                    ? (rawPaymentTotal * payPct) / 100
+                    ? roundMoney2(
+                          (paymentAfterItemDiscount * payPct) / 100,
+                      )
                     : Number(discountAmount) || 0,
+            );
+            const paymentTotalDiscount = roundMoney2(
+                paymentItemsDiscount + paymentGlobalDiscount,
             );
             const paymentTotal = Math.max(
                 0,
-                rawPaymentTotal - paymentTotalDiscount,
+                paymentAfterItemDiscount - paymentGlobalDiscount,
             );
             const igvDecimal = igvPercentage / 100;
             const paymentSubtotal = parseFloat(
@@ -1523,11 +1598,11 @@ const CashPay: React.FC<CashPayProps> = ({
                 emissionTime: emissionTime,
                 currency: "PEN",
                 exchangeRate: 1.0,
-                itemsTotalDiscount: 0.0,
-                globalDiscount: paymentTotalDiscount,
+                itemsTotalDiscount: paymentItemsDiscount,
+                globalDiscount: paymentGlobalDiscount,
                 globalDiscountPercent: Number(discountPercent) || 0,
                 totalDiscount: paymentTotalDiscount,
-                globalDiscountOnTotal: paymentTotalDiscount,
+                globalDiscountOnTotal: paymentGlobalDiscount,
                 igvPercent: igvPercentage,
                 igvAmount: paymentIgvAmount,
                 totalTaxable: paymentSubtotal,
@@ -2684,11 +2759,14 @@ const CashPay: React.FC<CashPayProps> = ({
                         }}
                     >
                         <span className="text-slate-500 dark:text-slate-400" style={{ fontWeight: 600 }}>Selección:</span>
-                    {giftPromotions.length > 0 && (
-                      <div className="mt-1 text-sm text-green-700 dark:text-green-300">
-                        🎁 Regalo: {giftPromotions.map(p => p.name).join(', ')}
-                      </div>
-                    )}
+                        {giftEligiblePromo && (
+                            <div className="w-full rounded-lg bg-amber-400 px-3 py-2 text-sm font-semibold text-amber-950 dark:bg-amber-500/90 dark:text-amber-950">
+                                🎁 ¡Regalo disponible!{" "}
+                                {giftEligiblePromo.giftProduct?.name} ×{" "}
+                                {giftEligiblePromo.giftQuantity ?? 1} —{" "}
+                                {giftEligiblePromo.name}
+                            </div>
+                        )}
                         <label
                             className="inline-flex cursor-pointer items-center gap-1.5 text-slate-700 dark:text-slate-200"
                             style={{ userSelect: "none" }}
@@ -2771,7 +2849,21 @@ const CashPay: React.FC<CashPayProps> = ({
                         </label>
                     </div>
                     <div style={{ flex: 1, overflowY: "auto" }}>
-                        {detailsToUse.map((d: any) => (
+                        {detailsToUse.map((d: any) => {
+                            const lineDiscount = getDetailLineDiscount(d);
+                            const promotionName = getDetailPromotionName(d);
+                            const lineGross =
+                                (Number(d.quantity) || 0) *
+                                (Number(d.unitPrice) || 0);
+                            const lineNet = roundMoney2(
+                                lineGross - lineDiscount,
+                            );
+                            const badgePromo = findBadgePromotion(
+                                { id: d.productId, name: d.productName, ...d },
+                                activePromotions,
+                            );
+
+                            return (
                             <div
                                 key={d.id}
                                 className={`${itemAssignments[d.id] ? "bg-sky-50 dark:bg-sky-900/20" : "bg-white dark:bg-slate-900"} border-b border-slate-100 dark:border-slate-800`}
@@ -2794,17 +2886,53 @@ const CashPay: React.FC<CashPayProps> = ({
                                     style={{ width: "20px", height: "20px", accentColor: "#4f46e5" }}
                                 />
                                 <div className="text-slate-800 dark:text-slate-100" style={{ fontWeight: 800 }}>{d.quantity}</div>
-                              {/* Promotion badge for product */}
-                              {(() => {
-                                const badgePromo = findBadgePromotion({ id: d.productId, name: d.productName, ...d }, activePromotions);
-                                return badgePromo ? (
-                                  <span className="ml-2 text-sm text-blue-600 dark:text-blue-400">
-                                    {promotionBadgeLabel(badgePromo)}
-                                  </span>
-                                ) : null;
-                              })()}
                                 <div className="text-slate-700 dark:text-slate-200">
-                                    <div style={{ fontWeight: 600 }}>{d.productName}</div>
+                                    <div style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
+                                        <span>{d.productName}</span>
+                                        {badgePromo && (
+                                            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[0.65rem] font-bold text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                                                {promotionBadgeLabel(badgePromo)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {lineDiscount > 0 && (
+                                        <div className="mt-0.5 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                                            <span>
+                                                Descuento: -{currencyFormatter.format(lineDiscount)}
+                                            </span>
+                                            {promotionName && (
+                                                <span className="text-slate-400 dark:text-slate-500">
+                                                    ({promotionName})
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                    {d.productType === "PROMOTION" &&
+                                        d.comboComponents?.length > 0 && (
+                                            <div className="mt-1 space-y-0.5">
+                                                {d.comboComponents.map(
+                                                    (comp: any, ci: number) => (
+                                                        <div
+                                                            key={ci}
+                                                            className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-300"
+                                                        >
+                                                            <span>•</span>
+                                                            <span>{comp.productName}</span>
+                                                            {Number(comp.quantity) > 1 && (
+                                                                <span className="text-slate-400 dark:text-slate-500">
+                                                                    ×{comp.quantity}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ),
+                                                )}
+                                            </div>
+                                        )}
+                                    {d.notes && (
+                                        <div className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                                            {d.notes}
+                                        </div>
+                                    )}
                                     {isNarrow && (
                                         <div className="text-slate-500 dark:text-slate-400" style={{ fontSize: "0.7rem", marginTop: "2px" }}>
                                             PU: {currencyFormatter.format(d.unitPrice)}
@@ -2827,9 +2955,12 @@ const CashPay: React.FC<CashPayProps> = ({
                                             fontWeight: 700,
                                         }}
                                     >
-                                        {currencyFormatter.format(
-                                            d.quantity * d.unitPrice,
+                                        {lineDiscount > 0 && (
+                                            <div className="text-[0.65rem] font-normal text-slate-400 line-through dark:text-slate-500">
+                                                {currencyFormatter.format(lineGross)}
+                                            </div>
                                         )}
+                                        {currencyFormatter.format(lineNet)}
                                     </div>
                                 )}
                                 {!isNarrow && (
@@ -2838,7 +2969,12 @@ const CashPay: React.FC<CashPayProps> = ({
                                             {currencyFormatter.format(d.unitPrice)}
                                         </div>
                                         <div style={{ textAlign: "right", fontWeight: 700 }}>
-                                            {currencyFormatter.format(d.quantity * d.unitPrice)}
+                                            {lineDiscount > 0 && (
+                                                <div className="text-[0.65rem] font-normal text-slate-400 line-through dark:text-slate-500">
+                                                    {currencyFormatter.format(lineGross)}
+                                                </div>
+                                            )}
+                                            {currencyFormatter.format(lineNet)}
                                         </div>
                                         <div style={{ textAlign: "center" }}>
                                             {d.quantity > 1 && !String(d.id).includes("-split") && (
@@ -2854,7 +2990,8 @@ const CashPay: React.FC<CashPayProps> = ({
                                     </>
                                 )}
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                     <div
                         className="border-t border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
@@ -2881,6 +3018,87 @@ const CashPay: React.FC<CashPayProps> = ({
                             >
                                 Descuentos:
                             </div>
+                            {activePromotions.filter(
+                                (p) =>
+                                    p.promotionType !== "COMBO" &&
+                                    p.promotionType !== "GIFT",
+                            ).length > 0 && (
+                                <div style={{ marginBottom: "0.35rem" }}>
+                                    <div
+                                        className="text-slate-500 dark:text-slate-400"
+                                        style={{
+                                            fontSize: "0.65rem",
+                                            fontWeight: 600,
+                                            marginBottom: "0.25rem",
+                                        }}
+                                    >
+                                        Aplicar promoción rápida:
+                                    </div>
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            flexWrap: "wrap",
+                                            gap: "0.35rem",
+                                        }}
+                                    >
+                                        {discountPromotions.map((promo) => (
+                                            <button
+                                                key={promo.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    if (
+                                                        promo.promotionType ===
+                                                        "DISCOUNT_PERCENT"
+                                                    ) {
+                                                        setDiscountPercent(
+                                                            Number(
+                                                                promo.discountPercent ??
+                                                                    0,
+                                                            ),
+                                                        );
+                                                        setDiscountAmount(0);
+                                                    } else {
+                                                        setDiscountAmount(
+                                                            Number(
+                                                                promo.discountAmount ??
+                                                                    0,
+                                                            ),
+                                                        );
+                                                        setDiscountPercent(0);
+                                                    }
+                                                }}
+                                                className="rounded-full border border-blue-600 bg-blue-800 px-2 py-1 text-xs font-semibold text-blue-200 transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-900/60 dark:hover:bg-blue-800"
+                                                title={promo.name}
+                                            >
+                                                {promotionBadgeLabel(promo)} —{" "}
+                                                {promo.name}
+                                            </button>
+                                        ))}
+                                        {nxmPromotions.map((promo) => (
+                                            <span
+                                                key={promo.id}
+                                                className="rounded-full border border-purple-600 bg-purple-800 px-2 py-1 text-xs font-semibold text-purple-200 dark:border-purple-500 dark:bg-purple-900/60"
+                                                title={`${promo.name} — aplicado automáticamente por ítem`}
+                                            >
+                                                {promotionBadgeLabel(promo)} —{" "}
+                                                {promo.name}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    {nxmPromotions.length > 0 && (
+                                        <div
+                                            className="text-slate-400 dark:text-slate-500"
+                                            style={{
+                                                fontSize: "0.6rem",
+                                                marginTop: "0.2rem",
+                                            }}
+                                        >
+                                            * NxM se aplica automáticamente por
+                                            ítem en el pedido.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             <div
                                 style={{
                                     display: "flex",
@@ -2967,7 +3185,19 @@ const CashPay: React.FC<CashPayProps> = ({
                                 IGV ({igvPercentage}%):{" "}
                                 {currencyFormatter.format(igvAmount)}
                             </div>
-                            {totalDiscount > 0 && (
+                            {itemsPromoDiscount > 0 && (
+                                <div
+                                    className="text-green-600 dark:text-green-400"
+                                    style={{
+                                        fontSize: "0.75rem",
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    Desc. promoción: -
+                                    {currencyFormatter.format(itemsPromoDiscount)}
+                                </div>
+                            )}
+                            {globalDiscount > 0 && (
                                 <div
                                     className="text-red-600 dark:text-red-400"
                                     style={{
@@ -2975,8 +3205,8 @@ const CashPay: React.FC<CashPayProps> = ({
                                         fontWeight: 600,
                                     }}
                                 >
-                                    Descuento: -
-                                    {currencyFormatter.format(totalDiscount)}
+                                    Descuento manual: -
+                                    {currencyFormatter.format(globalDiscount)}
                                 </div>
                             )}
                             <div
