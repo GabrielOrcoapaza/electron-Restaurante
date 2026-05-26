@@ -62,10 +62,14 @@ function getProductCategoryId(
 /** Devuelve true si la promoción aplica al producto (según appliesTo y scopes). */
 export function promotionAppliesToProduct(
     promo: IPromotion,
-    product: PromotionProduct,
+    product: PromotionProduct | null | undefined,
     subcategoriesOfCategory?: any[], // Nuevo parámetro opcional
     selectedCategoryId?: string | null, // ← NUEVO PARÁMETRO
 ): boolean {
+    // Si no hay producto, la promoción no aplica
+    if (!product) {
+        return false;
+    }
     console.log("[promotionUtils] Evaluando:", {
         promotionName: promo.name,
         appliesTo: promo.appliesTo,
@@ -134,12 +138,15 @@ export function promotionAppliesToProduct(
  * Usa `priority` para desempatar (mayor = primero).
  */
 export function findBestDiscountPromotion(
-    product: PromotionProduct,
+    product: PromotionProduct | null | undefined,
     promotions: IPromotion[],
     cartTotal: number,
     subcategoriesOfCategory?: any[],
     selectedCategoryId?: string | null, // ← NUEVO PARÁMETRO
 ): IPromotion | null {
+    if (!product) {
+        return null;
+    }
     const candidates = promotions.filter(
         (promo) =>
             (promo.promotionType === "DISCOUNT_PERCENT" ||
@@ -234,33 +241,110 @@ export function findBadgePromotion(
 /**
  * Para cada promoción NxM, determina qué líneas del carrito obtienen descuento 100%.
  * Los más baratos son los que quedan gratis.
- * Devuelve un Map<lineIndex, promoName>.
+ * Devuelve un Map<lineIndex, { promoName: string; freeUnits: number }>.
  */
 export function computeNxMFreeSet(
     lines: CartLine[],
     nxmPromotions: IPromotion[],
-): Map<number, string> {
-    const result = new Map<number, string>();
+    subcategoriesOfCategory?: any[],
+    selectedCategoryId?: string | null,
+): Map<number, { promoName: string; freeUnits: number }> {
+    console.log("[promotionUtils] computeNxMFreeSet called with lines:", lines);
+    const result = new Map<number, { promoName: string; freeUnits: number }>();
     for (const promo of nxmPromotions) {
+        console.log("[promotionUtils] Checking NxM promo:", promo);
         const N = promo.buyQuantity;
         const M = promo.getQuantity;
+        console.log("[promotionUtils] N:", N, "M:", M);
         if (!N || !M || M >= N || N <= 0) continue;
         const freePerGroup = N - M;
+        console.log("[promotionUtils] Free per group:", freePerGroup);
 
-        const qualifying = lines
-            .filter(
-                (l) => !l.isGift && promotionAppliesToProduct(promo, l.product),
-            )
-            .sort((a, b) => a.unitPrice - b.unitPrice); // más baratos = gratis
+        // Primero, filtrar líneas que aplican
+        const applicableLines = lines.filter((l) => {
+            console.log(
+                "[promotionUtils] Checking line for promo",
+                promo.name,
+                ":",
+                l.product ? { id: l.product.id } : null,
+            );
+            const applies =
+                !l.isGift &&
+                promotionAppliesToProduct(
+                    promo,
+                    l.product,
+                    subcategoriesOfCategory,
+                    selectedCategoryId,
+                );
+            console.log("[promotionUtils] Does it apply?", applies);
+            return applies;
+        });
 
-        if (qualifying.length < N) continue;
-
-        qualifying.forEach((line, pos) => {
-            const groupPos = pos % N;
-            if (groupPos < freePerGroup) {
-                result.set(line.index, promo.name);
+        // Expandir líneas con quantity > 1 en unidades individuales
+        const expandedUnits: { originalIndex: number; unitPrice: number }[] =
+            [];
+        applicableLines.forEach((line) => {
+            for (let i = 0; i < line.quantity; i++) {
+                expandedUnits.push({
+                    originalIndex: line.index,
+                    unitPrice: line.unitPrice,
+                });
             }
         });
+
+        // Ordenar unidades por precio (más baratos primero)
+        expandedUnits.sort((a, b) => a.unitPrice - b.unitPrice);
+        console.log(
+            "[promotionUtils] Expanded qualifying units for promo",
+            promo.name,
+            ":",
+            expandedUnits,
+        );
+
+        if (expandedUnits.length < N) {
+            console.log(
+                "[promotionUtils] Not enough qualifying units (need",
+                N,
+                "have",
+                expandedUnits.length,
+                ")",
+            );
+            continue;
+        }
+
+        // Contar cuántas unidades gratis hay por índice original (Versión A: solo grupos completos)
+        const totalGroups = Math.floor(expandedUnits.length / N);
+        const totalFreeUnits = totalGroups * freePerGroup;
+        console.log(
+            "[promotionUtils] Total units:",
+            expandedUnits.length,
+            "N:",
+            N,
+            "Complete groups:",
+            totalGroups,
+            "Total free units:",
+            totalFreeUnits,
+        );
+
+        const freeUnitsByIndex = new Map<number, number>();
+        expandedUnits.forEach((unit, pos) => {
+            if (pos < totalFreeUnits) {
+                const current = freeUnitsByIndex.get(unit.originalIndex) || 0;
+                freeUnitsByIndex.set(unit.originalIndex, current + 1);
+            }
+        });
+
+        // Aplicar descuento a las líneas originales
+        freeUnitsByIndex.forEach((freeUnits, originalIndex) => {
+            result.set(originalIndex, {
+                promoName: promo.name,
+                freeUnits: freeUnits,
+            });
+        });
     }
+    console.log(
+        "[promotionUtils] Final free set:",
+        Array.from(result.entries()),
+    );
     return result;
 }

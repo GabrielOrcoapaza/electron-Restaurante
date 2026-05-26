@@ -330,16 +330,14 @@ const Delivery: React.FC = () => {
                     )
                     .filter(Boolean) as CartLine[];
                 const freeSet = computeNxMFreeSet(lines, nxmPromos);
-                freeSet.forEach((promoName, idx) => {
+                freeSet.forEach(({ promoName, freeUnits }, idx) => {
                     // ✅ NUEVO: Solo aplicar si no tiene descuento
                     if ((updated[idx].discount ?? 0) === 0) {
                         updated[idx] = {
                             ...updated[idx],
                             discount:
                                 Math.round(
-                                    updated[idx].price *
-                                        updated[idx].quantity *
-                                        100,
+                                    updated[idx].price * freeUnits * 100,
                                 ) / 100,
                             promotionName: promoName,
                         };

@@ -291,16 +291,11 @@ const Order: React.FC<OrderProps> = ({
         fetchPolicy: "network-only",
     });
 
-    // ✅ Agrega este log
-    console.log("[Order] GET_ACTIVE_PROMOTIONS result:", {
-        branchId: companyData?.branch?.id,
-        data: promotionsData,
-        activePromotions: promotionsData?.activePromotions,
-    });
     const [activePromotions, setActivePromotions] = useState<IPromotion[]>([]);
     const [giftMessage, setGiftMessage] = useState<string | null>(null);
     const [showComboModal, setShowComboModal] = useState(false);
     const [pendingComboProduct, setPendingComboProduct] = useState<any>(null);
+    const GIFT_ITEM_ID = "gift-item-unique-id";
 
     const handleVirtualKeyPress = (key: string) => {
         setSearchTerm((prev) => prev + key);
@@ -313,6 +308,8 @@ const Order: React.FC<OrderProps> = ({
     const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const lastTableIdRef = useRef<string | null>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const lastGiftPresenceRef = useRef<string | undefined>(undefined);
+    const lastNonGiftItemsLengthRef = useRef<string | undefined>(undefined);
 
     // Mutación para crear la operación
     const [createOperationMutation] = useMutation(CREATE_OPERATION);
@@ -561,16 +558,28 @@ const Order: React.FC<OrderProps> = ({
 
     // NUEVO: Función para recalcular promociones
     const recalculatePromotions = useCallback(
-        (items: OrderItem[], promotions: IPromotion[]) => {
-            if (promotions.length === 0) return items;
+        (
+            items: OrderItem[],
+            promotions: IPromotion[],
+            subcategoriesOfCategoryParam?: any[],
+            selectedCategoryParam?: string | null,
+        ) => {
+            if (promotions.length === 0) {
+                return items;
+            }
 
-            const cartTotal = items.reduce(
+            // Filtrar items para excluir el regalo (si está presente)
+            const nonGiftItems = items.filter(
+                (item) => item.id !== GIFT_ITEM_ID,
+            );
+
+            const cartTotal = nonGiftItems.reduce(
                 (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
                 0,
             );
 
             // 1. DISCOUNT_PERCENT / DISCOUNT_AMOUNT por ítem
-            let updated = items.map((item) => {
+            let updated = nonGiftItems.map((item) => {
                 // ✅ Si ya tiene descuento y no es nuevo, mantenerlo sin cambios
                 if ((item.discount ?? 0) > 0 && !item.isNew) {
                     return item; // ← No modificar nada
@@ -578,25 +587,12 @@ const Order: React.FC<OrderProps> = ({
                 // Solo recalcular para items sin descuento o nuevos
                 if (item.isCombo || item.isPrinted)
                     return { ...item, discount: 0, promotionName: null };
-                console.log("[Order] Evaluando promoción para:", item.name, {
-                    productId: item.productId,
-                    product: item.product,
-                    subcategoryId: item.product?.subcategoryId,
-                    categoryId:
-                        item.product?.categoryId ||
-                        item.product?.subcategory?.category?.id,
-                    activePromotions: promotions.map((p) => ({
-                        name: p.name,
-                        appliesTo: p.appliesTo,
-                        scopes: p.scopes,
-                    })),
-                });
                 const promo = findBestDiscountPromotion(
                     item.product,
                     promotions,
                     cartTotal,
-                    subcategoriesOfCategory,
-                    selectedCategory,
+                    subcategoriesOfCategoryParam,
+                    selectedCategoryParam,
                 );
                 if (promo) {
                     const disc = calculateLineDiscount(
@@ -617,6 +613,18 @@ const Order: React.FC<OrderProps> = ({
             const nxmPromos = promotions.filter(
                 (p) => p.promotionType === "NXM",
             );
+            console.log("[Order] NxM Promotions:", nxmPromos);
+            console.log(
+                "[Order] Updated items (for NxM) — detailed:",
+                updated.map((item) => ({
+                    id: item.id,
+                    name: item.name,
+                    productId: item.productId,
+                    product: item.product
+                        ? { id: item.product.id, name: item.product.name }
+                        : null,
+                })),
+            );
             if (nxmPromos.length > 0) {
                 const lines: CartLine[] = updated
                     .map((item, idx) =>
@@ -631,17 +639,25 @@ const Order: React.FC<OrderProps> = ({
                             : null,
                     )
                     .filter(Boolean) as CartLine[];
+                console.log("[Order] Lines for computeNxMFreeSet:", lines);
 
-                const freeSet = computeNxMFreeSet(lines, nxmPromos);
-                freeSet.forEach((promoName, idx) => {
+                const freeSet = computeNxMFreeSet(
+                    lines,
+                    nxmPromos,
+                    subcategoriesOfCategoryParam,
+                    selectedCategoryParam,
+                );
+                console.log(
+                    "[Order] Free set from computeNxMFreeSet:",
+                    Array.from(freeSet.entries()),
+                );
+                freeSet.forEach(({ promoName, freeUnits }, idx) => {
                     if (!updated[idx].isPrinted) {
                         updated[idx] = {
                             ...updated[idx],
                             discount:
                                 Math.round(
-                                    updated[idx].price *
-                                        updated[idx].quantity *
-                                        100,
+                                    updated[idx].price * freeUnits * 100,
                                 ) / 100,
                             promotionName: promoName,
                         };
@@ -666,122 +682,202 @@ const Order: React.FC<OrderProps> = ({
                     : null,
             );
 
-            return updated;
+            // Preservar el ítem de regalo
+            const giftItem = items.find((item) => item.id === GIFT_ITEM_ID);
+            const finalResult = giftItem ? [...updated, giftItem] : updated;
+
+            return finalResult;
         },
         [],
     );
-    useEffect(() => {
-        console.log(
-            "[Order] 🎯 orderItems ACTUALIZADO:",
-            orderItems.map((i) => ({
-                id: i.id,
-                name: i.name,
-                discount: i.discount,
-                promotionName: i.promotionName,
-                isNew: i.isNew,
-            })),
-        );
-    }, [orderItems]);
+    // useEffect(() => {
+    //     console.log(
+    //         "[Order] 🎯 orderItems ACTUALIZADO:",
+    //         orderItems.map((i) => ({
+    //             id: i.id,
+    //             name: i.name,
+    //             discount: i.discount,
+    //             promotionName: i.promotionName,
+    //             isNew: i.isNew,
+    //         })),
+    //     );
+    // }, [orderItems]);
     // Disparar recálculo de promociones
     useEffect(() => {
-        if (activePromotions.length > 0 && orderItems.length > 0) {
-            console.log(
-                "[Order] Recalculando promociones para todos los items (respetando descuentos existentes)",
-            );
+        const nonGiftItems = orderItems.filter(
+            (item) => item.id !== GIFT_ITEM_ID,
+        );
+        // Crear un hash simple para comparar cambios en los items
+        const itemsHash = nonGiftItems
+            .map(
+                (item) =>
+                    `${item.id}-${item.quantity}-${item.price}-${item.discount}`,
+            )
+            .join("|");
+
+        // Solo recalcular si el hash de los items cambia
+        if (lastNonGiftItemsLengthRef.current !== itemsHash) {
+            lastNonGiftItemsLengthRef.current = itemsHash;
+            if (activePromotions.length > 0) {
+                setOrderItems((prev) =>
+                    recalculatePromotions(
+                        prev,
+                        activePromotions,
+                        subcategoriesOfCategory,
+                        selectedCategory,
+                    ),
+                );
+            }
+        }
+    }, [
+        orderItems,
+        activePromotions,
+        recalculatePromotions,
+        subcategoriesOfCategory,
+        selectedCategory,
+    ]);
+    // useEffect(() => {
+    //     console.log("[Order] activePromotions ACTUALIZADO:", activePromotions);
+    // }, [activePromotions]);
+
+    // Efecto para gestionar el producto de regalo automático
+    useEffect(() => {
+        const nonGiftItems = orderItems.filter(
+            (item) => item.id !== GIFT_ITEM_ID,
+        );
+        const hasGiftItem = orderItems.some((item) => item.id === GIFT_ITEM_ID);
+
+        // Calcular el total de la orden (sin incluir el regalo)
+        const currentTotal = nonGiftItems.reduce(
+            (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
+            0,
+        );
+
+        // Buscar la promoción de regalo que cumpla las condiciones
+        const eligibleGiftPromo = activePromotions.find(
+            (p) =>
+                p.promotionType === "GIFT" &&
+                currentTotal >= (p.minPurchaseAmount || 0) &&
+                p.giftProduct,
+        );
+
+        // Evitar ejecuciones innecesarias comparando el estado actual con el anterior
+        const shouldHaveGift = Boolean(eligibleGiftPromo);
+        const key = `${shouldHaveGift}-${eligibleGiftPromo?.id || "none"}-${hasGiftItem}`;
+
+        if (lastGiftPresenceRef.current === key) {
+            return;
+        }
+        lastGiftPresenceRef.current = key;
+
+        if (eligibleGiftPromo && !hasGiftItem) {
+            // Agregar el regalo
+            const giftProduct = eligibleGiftPromo.giftProduct;
+            if (giftProduct) {
+                const newGiftItem: OrderItem = {
+                    id: GIFT_ITEM_ID,
+                    productId: String(giftProduct.id),
+                    name: giftProduct.name,
+                    price: 0, // Precio 0 porque es un regalo
+                    quantity: parseInt(
+                        String(eligibleGiftPromo.giftQuantity || "1"),
+                    ),
+                    total: 0,
+                    isNew: true,
+                    notes: `Regalo: ${eligibleGiftPromo.name}`,
+                    subcategoryId: (giftProduct as any).subcategoryId,
+                    product: giftProduct as any,
+                    discount: 0,
+                    promotionName: eligibleGiftPromo.name,
+                };
+                setOrderItems((prev) => [...prev, newGiftItem]);
+            }
+        } else if (!eligibleGiftPromo && hasGiftItem) {
+            // Quitar el regalo
             setOrderItems((prev) =>
-                recalculatePromotions(prev, activePromotions),
+                prev.filter((item) => item.id !== GIFT_ITEM_ID),
             );
         }
-    }, [activePromotions.length, orderItems.length, recalculatePromotions]);
-    useEffect(() => {
-        console.log("[Order] activePromotions ACTUALIZADO:", activePromotions);
-    }, [activePromotions]);
+    }, [activePromotions, orderItems]);
     useEffect(() => {
         // Solo cargar items si hay una selección válida y no se ha inicializado ya
         if (!hasSelection || initializedFromExistingOrder) {
-            console.log(
-                "[Order] Skip loading - hasSelection:",
-                hasSelection,
-                "initialized:",
-                initializedFromExistingOrder,
-            );
             return;
         }
 
         if (existingOperationLoading) {
-            console.log("[Order] Waiting for operation data to load...");
             return;
         }
 
-        // ✅ LOG: Ver qué query se usó y qué datos llegaron
-        console.log("[Order] ========== EXISTING OPERATION DATA ==========");
-        console.log("[Order] shouldUseId:", shouldUseId);
-        console.log(
-            "[Order] table.currentOperationId:",
-            table.currentOperationId,
-        );
-        console.log(
-            "[Order] existingOperationData:",
-            JSON.stringify(existingOperationData, null, 2),
-        );
+        // // ✅ LOG: Ver qué query se usó y qué datos llegaron
+        // console.log("[Order] ========== EXISTING OPERATION DATA ==========");
+        // console.log("[Order] shouldUseId:", shouldUseId);
+        // console.log(
+        //     "[Order] table.currentOperationId:",
+        //     table.currentOperationId,
+        // );
+        // console.log(
+        //     "[Order] existingOperationData:",
+        //     JSON.stringify(existingOperationData, null, 2),
+        // );
 
         const operation =
             existingOperationData?.operationByTable ||
             existingOperationData?.operationById;
 
-        console.log(
-            "[Order] Extracted operation:",
-            operation
-                ? {
-                      id: operation.id,
-                      order: operation.order,
-                      status: operation.status,
-                      detailsCount: operation.details?.length || 0,
-                  }
-                : "NO OPERATION FOUND",
-        );
+        // console.log(
+        //     "[Order] Extracted operation:",
+        //     operation
+        //         ? {
+        //               id: operation.id,
+        //               order: operation.order,
+        //               status: operation.status,
+        //               detailsCount: operation.details?.length || 0,
+        //           }
+        //         : "NO OPERATION FOUND",
+        // );
 
         // Si no hay operación, marcar como inicializado pero no cargar items
         if (!operation) {
-            console.log("[Order] No operation found, marking as initialized");
+            // console.log("[Order] No operation found, marking as initialized");
             setInitializedFromExistingOrder(true);
             return;
         }
-        console.log("[Order] isExistingOrder:", isExistingOrder);
+        // console.log("[Order] isExistingOrder:", isExistingOrder);
         // Solo cargar items si realmente hay una operación existente (isExistingOrder)
         // Esto evita cargar items cuando es una nueva orden
         if (!isExistingOrder) {
-            console.log(
-                "[Order] Not an existing order (isExistingOrder false), skipping item load",
-            );
+            // console.log(
+            //     "[Order] Not an existing order (isExistingOrder false), skipping item load",
+            // );
             setInitializedFromExistingOrder(true);
             return;
         }
 
-        console.log(
-            "[Order] Processing",
-            operation.details?.length,
-            "details from operation",
-        );
+        // console.log(
+        //     "[Order] Processing",
+        //     operation.details?.length,
+        //     "details from operation",
+        // );
 
-        // ✅ LOG: Mostrar el primer detalle para ver si tiene promoInfo
-        if (operation.details && operation.details.length > 0) {
-            console.log(
-                "[Order] First detail sample:",
-                JSON.stringify(operation.details[0], null, 2),
-            );
-            console.log(
-                "[Order] promoInfo in first detail:",
-                operation.details[0].promoInfo,
-            );
-        }
+        // // ✅ LOG: Mostrar el primer detalle para ver si tiene promoInfo
+        // if (operation.details && operation.details.length > 0) {
+        //     console.log(
+        //         "[Order] First detail sample:",
+        //         JSON.stringify(operation.details[0], null, 2),
+        //     );
+        //     console.log(
+        //         "[Order] promoInfo in first detail:",
+        //         operation.details[0].promoInfo,
+        //     );
+        // }
 
         const mappedItems: OrderItem[] = (operation.details || []).map(
             (detail: any) => {
-                console.log(
-                    `[Order] 🔍 MAPPING DETAIL ${detail.id}:`,
-                    detail.productName,
-                );
+                // console.log(
+                //     `[Order] 🔍 MAPPING DETAIL ${detail.id}:`,
+                //     detail.productName,
+                // );
 
                 const rawQuantity = Number(detail.quantity) || 0;
                 const safeQuantity = rawQuantity > 0 ? rawQuantity : 1;
@@ -833,11 +929,18 @@ const Order: React.FC<OrderProps> = ({
                     },
                 );
 
+                // Verificar si es un ítem de regalo
+                const isGiftFromBackend =
+                    promotionName &&
+                    (promotionName.includes("REGALO") ||
+                        (safeUnitPrice === 0 && total === 0));
                 const mappedItem = {
-                    id: String(
-                        detail.id ??
-                            `${detail.productId}-${Date.now()}-${Math.random()}`,
-                    ),
+                    id: isGiftFromBackend
+                        ? GIFT_ITEM_ID
+                        : String(
+                              detail.id ??
+                                  `${detail.productId}-${Date.now()}-${Math.random()}`,
+                          ),
                     productId: String(detail.productId ?? ""),
                     name: detail.productName || "Producto sin nombre",
                     price: safeUnitPrice,
@@ -2142,10 +2245,28 @@ const Order: React.FC<OrderProps> = ({
                         </div>
                     </div>
 
-                    {/* NUEVO: Banner de regalo disponible */}
+                    {/* Banner de regalo disponible */}
                     {giftMessage && (
-                        <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg bg-yellow-500 px-3 py-2 text-sm font-semibold text-black animate-pulse">
-                            🎁 {giftMessage}
+                        <div className="mx-4 mt-4 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 shadow-sm dark:border-amber-900/50 dark:bg-amber-900/20">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-5 w-5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
+                                    />
+                                </svg>
+                            </div>
+                            <p className="flex-1 text-sm font-semibold text-amber-800 dark:text-amber-200">
+                                {giftMessage}
+                            </p>
                         </div>
                     )}
 
@@ -2886,11 +3007,18 @@ const Order: React.FC<OrderProps> = ({
                                         }}
                                     >
                                         {orderItems.map((item) => {
+                                            const isGift =
+                                                item.id === GIFT_ITEM_ID;
                                             const isEditable =
-                                                !isExistingOrder || item.isNew;
+                                                !isGift &&
+                                                (!isExistingOrder ||
+                                                    item.isNew);
                                             const canEditNotes =
-                                                !isExistingOrder || item.isNew;
+                                                !isGift &&
+                                                (!isExistingOrder ||
+                                                    item.isNew);
                                             const hasObservationContent =
+                                                !isGift &&
                                                 Boolean(
                                                     item.notes?.trim() ||
                                                     (selectedObservations[
@@ -2907,7 +3035,7 @@ const Order: React.FC<OrderProps> = ({
                                                             ] = el;
                                                         }
                                                     }}
-                                                    className={`${isExistingOrder && !item.isNew ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-900/20" : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"}`}
+                                                    className={`${isGift ? "border-amber-300 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-900/20" : isExistingOrder && !item.isNew ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-900/20" : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"}`}
                                                     style={{
                                                         borderWidth: "1px",
                                                         borderStyle: "solid",
@@ -2927,7 +3055,7 @@ const Order: React.FC<OrderProps> = ({
                                                                 : "0.35rem",
                                                     }}
                                                 >
-                                                    {/* Una sola fila: Cantidad, Producto, Precio + Tachito, Botón notas */}
+                                                    {/* Una sola fila: Cantidad (solo si no es regalo), Producto, Precio + Tachito (solo si no es regalo), Botón notas (solo si no es regalo) */}
                                                     <div
                                                         style={{
                                                             display: "flex",
@@ -2945,191 +3073,199 @@ const Order: React.FC<OrderProps> = ({
                                                             overflow: "hidden",
                                                         }}
                                                     >
-                                                        {/* Controles de cantidad */}
-                                                        <div
-                                                            style={{
-                                                                display: "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                gap: isXs
-                                                                    ? "0.4rem"
-                                                                    : isSmall
-                                                                      ? "0.1rem"
-                                                                      : isMedium
-                                                                        ? "0.15rem"
-                                                                        : "0.2rem",
-                                                                flexShrink: 0,
-                                                            }}
-                                                        >
-                                                            <button
-                                                                onClick={() =>
-                                                                    handleUpdateQuantity(
-                                                                        item.id,
-                                                                        item.quantity -
-                                                                            1,
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    !isEditable
-                                                                }
-                                                                className="border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
-                                                                style={{
-                                                                    width: isXs
-                                                                        ? "34px"
-                                                                        : isSmall
-                                                                          ? "20px"
-                                                                          : isMedium
-                                                                            ? "24px"
-                                                                            : "28px",
-                                                                    height: isXs
-                                                                        ? "34px"
-                                                                        : isSmall
-                                                                          ? "20px"
-                                                                          : isMedium
-                                                                            ? "24px"
-                                                                            : "28px",
-                                                                    borderRadius:
-                                                                        isXs
-                                                                            ? "8px"
-                                                                            : isSmall
-                                                                              ? "4px"
-                                                                              : "6px",
-                                                                    cursor: isEditable
-                                                                        ? "pointer"
-                                                                        : "not-allowed",
-                                                                    fontSize:
-                                                                        isXs
-                                                                            ? "1.1rem"
-                                                                            : isSmall
-                                                                              ? "0.75rem"
-                                                                              : isMedium
-                                                                                ? "0.85rem"
-                                                                                : "0.95rem",
-                                                                    display:
-                                                                        "flex",
-                                                                    alignItems:
-                                                                        "center",
-                                                                    justifyContent:
-                                                                        "center",
-                                                                    padding: 0,
-                                                                    flexShrink: 0,
-                                                                }}
-                                                            >
-                                                                −
-                                                            </button>
-                                                            <input
-                                                                type="number"
-                                                                value={
-                                                                    item.quantity
-                                                                }
-                                                                onChange={(e) =>
-                                                                    handleUpdateQuantity(
-                                                                        item.id,
-                                                                        parseInt(
-                                                                            e
-                                                                                .target
-                                                                                .value,
-                                                                        ) || 0,
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    !isEditable
-                                                                }
-                                                                min="0"
-                                                                className="border border-slate-300 bg-white text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
-                                                                style={{
-                                                                    width: isXs
-                                                                        ? "44px"
-                                                                        : isSmall
-                                                                          ? "28px"
-                                                                          : isMedium
-                                                                            ? "32px"
-                                                                            : "38px",
-                                                                    textAlign:
-                                                                        "center",
-                                                                    borderRadius:
-                                                                        isXs
-                                                                            ? "8px"
-                                                                            : isSmall
-                                                                              ? "4px"
-                                                                              : "6px",
-                                                                    padding:
-                                                                        isXs
+                                                        {!isGift && (
+                                                            <>
+                                                                {/* Controles de cantidad */}
+                                                                <div
+                                                                    style={{
+                                                                        display:
+                                                                            "flex",
+                                                                        alignItems:
+                                                                            "center",
+                                                                        gap: isXs
                                                                             ? "0.4rem"
                                                                             : isSmall
                                                                               ? "0.1rem"
                                                                               : isMedium
                                                                                 ? "0.15rem"
                                                                                 : "0.2rem",
-                                                                    fontWeight: 700,
-                                                                    fontSize:
-                                                                        isXs
-                                                                            ? "1rem"
-                                                                            : isSmall
-                                                                              ? "0.65rem"
-                                                                              : isMedium
-                                                                                ? "0.75rem"
-                                                                                : "0.85rem",
-                                                                    flexShrink: 0,
-                                                                }}
-                                                            />
-                                                            <button
-                                                                onClick={() =>
-                                                                    handleUpdateQuantity(
-                                                                        item.id,
-                                                                        item.quantity +
-                                                                            1,
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    !isEditable
-                                                                }
-                                                                className="border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
-                                                                style={{
-                                                                    width: isXs
-                                                                        ? "32px"
-                                                                        : isSmall
-                                                                          ? "16px"
-                                                                          : isMedium
-                                                                            ? "18px"
-                                                                            : "25px",
-                                                                    height: isXs
-                                                                        ? "32px"
-                                                                        : isSmall
-                                                                          ? "16px"
-                                                                          : isMedium
-                                                                            ? "18px"
-                                                                            : "25px",
-                                                                    borderRadius:
-                                                                        isXs
-                                                                            ? "6px"
-                                                                            : isSmall
-                                                                              ? "4px"
-                                                                              : "6px",
-                                                                    cursor: isEditable
-                                                                        ? "pointer"
-                                                                        : "not-allowed",
-                                                                    fontSize:
-                                                                        isXs
-                                                                            ? "1rem"
-                                                                            : isSmall
-                                                                              ? "0.7rem"
-                                                                              : isMedium
-                                                                                ? "0.75rem"
-                                                                                : "0.8rem",
-                                                                    display:
-                                                                        "flex",
-                                                                    alignItems:
-                                                                        "center",
-                                                                    justifyContent:
-                                                                        "center",
-                                                                    padding: 0,
-                                                                    flexShrink: 0,
-                                                                }}
-                                                            >
-                                                                +
-                                                            </button>
-                                                        </div>
+                                                                        flexShrink: 0,
+                                                                    }}
+                                                                >
+                                                                    <button
+                                                                        onClick={() =>
+                                                                            handleUpdateQuantity(
+                                                                                item.id,
+                                                                                item.quantity -
+                                                                                    1,
+                                                                            )
+                                                                        }
+                                                                        disabled={
+                                                                            !isEditable
+                                                                        }
+                                                                        className="border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
+                                                                        style={{
+                                                                            width: isXs
+                                                                                ? "34px"
+                                                                                : isSmall
+                                                                                  ? "20px"
+                                                                                  : isMedium
+                                                                                    ? "24px"
+                                                                                    : "28px",
+                                                                            height: isXs
+                                                                                ? "34px"
+                                                                                : isSmall
+                                                                                  ? "20px"
+                                                                                  : isMedium
+                                                                                    ? "24px"
+                                                                                    : "28px",
+                                                                            borderRadius:
+                                                                                isXs
+                                                                                    ? "8px"
+                                                                                    : isSmall
+                                                                                      ? "4px"
+                                                                                      : "6px",
+                                                                            cursor: isEditable
+                                                                                ? "pointer"
+                                                                                : "not-allowed",
+                                                                            fontSize:
+                                                                                isXs
+                                                                                    ? "1.1rem"
+                                                                                    : isSmall
+                                                                                      ? "0.75rem"
+                                                                                      : isMedium
+                                                                                        ? "0.85rem"
+                                                                                        : "0.95rem",
+                                                                            display:
+                                                                                "flex",
+                                                                            alignItems:
+                                                                                "center",
+                                                                            justifyContent:
+                                                                                "center",
+                                                                            padding: 0,
+                                                                            flexShrink: 0,
+                                                                        }}
+                                                                    >
+                                                                        −
+                                                                    </button>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={
+                                                                            item.quantity
+                                                                        }
+                                                                        onChange={(
+                                                                            e,
+                                                                        ) =>
+                                                                            handleUpdateQuantity(
+                                                                                item.id,
+                                                                                parseInt(
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                                ) ||
+                                                                                    0,
+                                                                            )
+                                                                        }
+                                                                        disabled={
+                                                                            !isEditable
+                                                                        }
+                                                                        min="0"
+                                                                        className="border border-slate-300 bg-white text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
+                                                                        style={{
+                                                                            width: isXs
+                                                                                ? "44px"
+                                                                                : isSmall
+                                                                                  ? "28px"
+                                                                                  : isMedium
+                                                                                    ? "32px"
+                                                                                    : "38px",
+                                                                            textAlign:
+                                                                                "center",
+                                                                            borderRadius:
+                                                                                isXs
+                                                                                    ? "8px"
+                                                                                    : isSmall
+                                                                                      ? "4px"
+                                                                                      : "6px",
+                                                                            padding:
+                                                                                isXs
+                                                                                    ? "0.4rem"
+                                                                                    : isSmall
+                                                                                      ? "0.1rem"
+                                                                                      : isMedium
+                                                                                        ? "0.15rem"
+                                                                                        : "0.2rem",
+                                                                            fontWeight: 700,
+                                                                            fontSize:
+                                                                                isXs
+                                                                                    ? "1rem"
+                                                                                    : isSmall
+                                                                                      ? "0.65rem"
+                                                                                      : isMedium
+                                                                                        ? "0.75rem"
+                                                                                        : "0.85rem",
+                                                                            flexShrink: 0,
+                                                                        }}
+                                                                    />
+                                                                    <button
+                                                                        onClick={() =>
+                                                                            handleUpdateQuantity(
+                                                                                item.id,
+                                                                                item.quantity +
+                                                                                    1,
+                                                                            )
+                                                                        }
+                                                                        disabled={
+                                                                            !isEditable
+                                                                        }
+                                                                        className="border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-100"
+                                                                        style={{
+                                                                            width: isXs
+                                                                                ? "32px"
+                                                                                : isSmall
+                                                                                  ? "16px"
+                                                                                  : isMedium
+                                                                                    ? "18px"
+                                                                                    : "25px",
+                                                                            height: isXs
+                                                                                ? "32px"
+                                                                                : isSmall
+                                                                                  ? "16px"
+                                                                                  : isMedium
+                                                                                    ? "18px"
+                                                                                    : "25px",
+                                                                            borderRadius:
+                                                                                isXs
+                                                                                    ? "6px"
+                                                                                    : isSmall
+                                                                                      ? "4px"
+                                                                                      : "6px",
+                                                                            cursor: isEditable
+                                                                                ? "pointer"
+                                                                                : "not-allowed",
+                                                                            fontSize:
+                                                                                isXs
+                                                                                    ? "1rem"
+                                                                                    : isSmall
+                                                                                      ? "0.7rem"
+                                                                                      : isMedium
+                                                                                        ? "0.75rem"
+                                                                                        : "0.8rem",
+                                                                            display:
+                                                                                "flex",
+                                                                            alignItems:
+                                                                                "center",
+                                                                            justifyContent:
+                                                                                "center",
+                                                                            padding: 0,
+                                                                            flexShrink: 0,
+                                                                        }}
+                                                                    >
+                                                                        +
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )}
 
                                                         {/* Nombre del producto */}
                                                         <div
@@ -3229,6 +3365,17 @@ const Order: React.FC<OrderProps> = ({
                                                         </div>
 
                                                         {/* Precio total */}
+                                                        {/* Agregamos un icono de regalo si es un ítem de regalo */}
+                                                        {isGift && (
+                                                            <div
+                                                                className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
+                                                                style={{
+                                                                    flexShrink: 0,
+                                                                }}
+                                                            >
+                                                                🎁
+                                                            </div>
+                                                        )}
                                                         <div
                                                             style={{
                                                                 display: "flex",
@@ -3250,7 +3397,9 @@ const Order: React.FC<OrderProps> = ({
                                                                         ? "65px"
                                                                         : "75px",
                                                                 marginLeft:
-                                                                    "auto",
+                                                                    isGift
+                                                                        ? "0"
+                                                                        : "auto",
                                                             }}
                                                         >
                                                             <div
@@ -3276,129 +3425,138 @@ const Order: React.FC<OrderProps> = ({
                                                             </div>
                                                         </div>
 
-                                                        {/* Icono observaciones - abre el modal para escribir observaciones al plato */}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                handleOpenObservationModal(
-                                                                    item.id,
-                                                                )
-                                                            }
-                                                            className={`border ${
-                                                                hasObservationContent
-                                                                    ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                                                                    : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                                                            }`}
-                                                            style={{
-                                                                padding: isSmall
-                                                                    ? "0.1rem 0.35rem"
-                                                                    : isMedium
-                                                                      ? "0.15rem 0.4rem"
-                                                                      : "0.15rem 0.45rem",
-                                                                borderRadius: 999,
-                                                                fontSize: isXs
-                                                                    ? "1.25rem"
-                                                                    : isSmall
-                                                                      ? "0.7rem"
-                                                                      : isMedium
-                                                                        ? "0.85rem"
-                                                                        : "1.1rem",
-                                                                fontWeight: 600,
-                                                                cursor: "pointer",
-                                                                flexShrink: 0,
-                                                                lineHeight: 1,
-                                                                opacity: 1,
-                                                                position:
-                                                                    "relative",
-                                                            }}
-                                                            title={
-                                                                canEditNotes
-                                                                    ? hasObservationContent
-                                                                        ? item.notes
-                                                                            ? "Editar observaciones"
-                                                                            : `${selectedObservations[item.id]?.size ?? 0} observación(es) seleccionada(s)`
-                                                                        : "Escribir observación al plato"
-                                                                    : hasObservationContent
-                                                                      ? "Ver observaciones (solo lectura)"
-                                                                      : "Ver observaciones (solo lectura; sin notas registradas)"
-                                                            }
-                                                        >
-                                                            📋
-                                                            {hasObservationContent && (
-                                                                <span
+                                                        {!isGift && (
+                                                            <>
+                                                                {/* Icono observaciones - abre el modal para escribir observaciones al plato */}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        handleOpenObservationModal(
+                                                                            item.id,
+                                                                        )
+                                                                    }
+                                                                    className={`border ${
+                                                                        hasObservationContent
+                                                                            ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                                                                            : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                                                    }`}
                                                                     style={{
-                                                                        position:
-                                                                            "absolute",
-                                                                        top: "-4px",
-                                                                        right: "-4px",
-                                                                        background:
-                                                                            "#3b82f6",
-                                                                        color: "white",
-                                                                        borderRadius:
-                                                                            "50%",
-                                                                        width: "12px",
-                                                                        height: "12px",
+                                                                        padding:
+                                                                            isSmall
+                                                                                ? "0.1rem 0.35rem"
+                                                                                : isMedium
+                                                                                  ? "0.15rem 0.4rem"
+                                                                                  : "0.15rem 0.45rem",
+                                                                        borderRadius: 999,
                                                                         fontSize:
-                                                                            "8px",
+                                                                            isXs
+                                                                                ? "1.25rem"
+                                                                                : isSmall
+                                                                                  ? "0.7rem"
+                                                                                  : isMedium
+                                                                                    ? "0.85rem"
+                                                                                    : "1.1rem",
+                                                                        fontWeight: 600,
+                                                                        cursor: "pointer",
+                                                                        flexShrink: 0,
+                                                                        lineHeight: 1,
+                                                                        opacity: 1,
+                                                                        position:
+                                                                            "relative",
+                                                                    }}
+                                                                    title={
+                                                                        canEditNotes
+                                                                            ? hasObservationContent
+                                                                                ? item.notes
+                                                                                    ? "Editar observaciones"
+                                                                                    : `${selectedObservations[item.id]?.size ?? 0} observación(es) seleccionada(s)`
+                                                                                : "Escribir observación al plato"
+                                                                            : hasObservationContent
+                                                                              ? "Ver observaciones (solo lectura)"
+                                                                              : "Ver observaciones (solo lectura; sin notas registradas)"
+                                                                    }
+                                                                >
+                                                                    📋
+                                                                    {hasObservationContent && (
+                                                                        <span
+                                                                            style={{
+                                                                                position:
+                                                                                    "absolute",
+                                                                                top: "-4px",
+                                                                                right: "-4px",
+                                                                                background:
+                                                                                    "#3b82f6",
+                                                                                color: "white",
+                                                                                borderRadius:
+                                                                                    "50%",
+                                                                                width: "12px",
+                                                                                height: "12px",
+                                                                                fontSize:
+                                                                                    "8px",
+                                                                                display:
+                                                                                    "flex",
+                                                                                alignItems:
+                                                                                    "center",
+                                                                                justifyContent:
+                                                                                    "center",
+                                                                                fontWeight: 700,
+                                                                            }}
+                                                                        >
+                                                                            {item.notes
+                                                                                ? "!"
+                                                                                : selectedObservations[
+                                                                                      item
+                                                                                          .id
+                                                                                  ]
+                                                                                      ?.size}
+                                                                        </span>
+                                                                    )}
+                                                                </button>
+
+                                                                {/* Icono tachito */}
+                                                                <button
+                                                                    onClick={() =>
+                                                                        handleRemoveItem(
+                                                                            item.id,
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        !isEditable
+                                                                    }
+                                                                    className="text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-slate-400 dark:text-red-400 dark:hover:text-red-300 dark:disabled:text-slate-600"
+                                                                    style={{
+                                                                        background:
+                                                                            "transparent",
+                                                                        border: "none",
+                                                                        cursor: isEditable
+                                                                            ? "pointer"
+                                                                            : "not-allowed",
+                                                                        fontSize:
+                                                                            isXs
+                                                                                ? "1.35rem"
+                                                                                : isSmall
+                                                                                  ? "0.85rem"
+                                                                                  : isMedium
+                                                                                    ? "0.95rem"
+                                                                                    : "1.15rem",
+                                                                        padding:
+                                                                            isXs
+                                                                                ? "0.5rem"
+                                                                                : "0.15rem",
+                                                                        flexShrink: 0,
                                                                         display:
                                                                             "flex",
                                                                         alignItems:
                                                                             "center",
                                                                         justifyContent:
                                                                             "center",
-                                                                        fontWeight: 700,
+                                                                        lineHeight: 1,
                                                                     }}
                                                                 >
-                                                                    {item.notes
-                                                                        ? "!"
-                                                                        : selectedObservations[
-                                                                              item
-                                                                                  .id
-                                                                          ]
-                                                                              ?.size}
-                                                                </span>
-                                                            )}
-                                                        </button>
-
-                                                        {/* Icono tachito */}
-                                                        <button
-                                                            onClick={() =>
-                                                                handleRemoveItem(
-                                                                    item.id,
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                !isEditable
-                                                            }
-                                                            className="text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-slate-400 dark:text-red-400 dark:hover:text-red-300 dark:disabled:text-slate-600"
-                                                            style={{
-                                                                background:
-                                                                    "transparent",
-                                                                border: "none",
-                                                                cursor: isEditable
-                                                                    ? "pointer"
-                                                                    : "not-allowed",
-                                                                fontSize: isXs
-                                                                    ? "1.35rem"
-                                                                    : isSmall
-                                                                      ? "0.85rem"
-                                                                      : isMedium
-                                                                        ? "0.95rem"
-                                                                        : "1.15rem",
-                                                                padding: isXs
-                                                                    ? "0.5rem"
-                                                                    : "0.15rem",
-                                                                flexShrink: 0,
-                                                                display: "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                justifyContent:
-                                                                    "center",
-                                                                lineHeight: 1,
-                                                            }}
-                                                        >
-                                                            🗑️
-                                                        </button>
+                                                                    🗑️
+                                                                </button>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </div>
                                             );
