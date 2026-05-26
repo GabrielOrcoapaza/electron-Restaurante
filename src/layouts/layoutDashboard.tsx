@@ -1662,7 +1662,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     }`}
                                 >
                                     <span>🖨️</span>
-                                    Impresoras en red (Raspberry Pi)
+                                    Impresoras de red
                                 </button>
                                 <button
                                     onClick={() =>

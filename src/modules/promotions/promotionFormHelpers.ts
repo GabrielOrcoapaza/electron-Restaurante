@@ -9,6 +9,12 @@ import {
     timeToInput,
 } from '../../types/promotions';
 
+function scopeRequiredQuantity(value: unknown): number {
+    const qty = Number(value);
+    if (!Number.isFinite(qty) || qty < 1) return 1;
+    return Math.floor(qty);
+}
+
 export function promotionToFormData(promo: IPromotion & Record<string, any>): PromotionFormData {
     const scopes: ScopeFormItem[] = (promo.scopes || []).map((scope: any) => {
         let scopeType: ScopeFormItem['scopeType'] = 'subcategory';
@@ -19,7 +25,7 @@ export function promotionToFormData(promo: IPromotion & Record<string, any>): Pr
             id: scope.id,
             label: scope.label || '',
             scopeLabel: scope.scopeLabel || '',
-            requiredQuantity: scope.requiredQuantity || 1,
+            requiredQuantity: scopeRequiredQuantity(scope.requiredQuantity),
             scopeType,
             subcategoryId: scope.subcategory?.id || '',
             categoryId: scope.category?.id || '',
@@ -102,25 +108,39 @@ export function buildPromotionVariables(
     return base;
 }
 
-export function buildScopeInputs(formData: PromotionFormData) {
+/** Campos que acepta ScopeInput en GraphQL (backend Django). */
+export type GraphQLScopeInput = {
+    label: string;
+    categoryId: string | null;
+    subcategoryId: string | null;
+    productId: string | null;
+    requiredQuantity: number;
+};
+
+export function buildScopeInputs(
+    formData: PromotionFormData,
+): GraphQLScopeInput[] {
     const needsScopes =
         formData.promotionType === 'COMBO' ||
+        formData.promotionType === 'NXM' ||
         (formData.appliesTo !== 'ALL' && formData.scopes.length > 0);
 
     if (!needsScopes) return [];
 
-    return formData.scopes.map((scope) => ({
-        label: scope.label || scope.scopeLabel || '',
-        categoryId:
-            scope.scopeType === 'category' ? scope.categoryId || null : null,
-        subcategoryId:
-            scope.scopeType === 'subcategory'
-                ? scope.subcategoryId || null
-                : null,
-        productId:
-            scope.scopeType === 'product' ? scope.productId || null : null,
-        requiredQuantity: scope.requiredQuantity || 1,
-    }));
+    return formData.scopes.map(
+        (scope): GraphQLScopeInput => ({
+            label: scope.scopeLabel || scope.label || '',
+            categoryId:
+                scope.scopeType === 'category' ? scope.categoryId || null : null,
+            subcategoryId:
+                scope.scopeType === 'subcategory'
+                    ? scope.subcategoryId || null
+                    : null,
+            productId:
+                scope.scopeType === 'product' ? scope.productId || null : null,
+            requiredQuantity: scopeRequiredQuantity(scope.requiredQuantity),
+        }),
+    );
 }
 
 export function validatePromotionForm(formData: PromotionFormData): string | null {
@@ -162,6 +182,10 @@ export function validatePromotionForm(formData: PromotionFormData): string | nul
     }
 
     for (const scope of formData.scopes) {
+        const qty = Number(scope.requiredQuantity);
+        if (!Number.isFinite(qty) || qty < 1) {
+            return 'La cantidad de cada scope debe ser al menos 1.';
+        }
         if (scope.scopeType === 'subcategory' && !scope.subcategoryId) {
             return 'Completa la subcategoría de todos los scopes.';
         }

@@ -2153,6 +2153,12 @@ export const SET_PROMOTION_SCOPES = gql`
             message
             promotion {
                 id
+                scopes {
+                    id
+                    label
+                    scopeLabel
+                    requiredQuantity
+                }
             }
         }
     }

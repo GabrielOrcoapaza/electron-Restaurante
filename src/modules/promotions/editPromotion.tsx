@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
-import { GET_PROMOTION_BY_ID } from '../../graphql/queries';
+import { GET_PROMOTION_BY_ID, GET_PROMOTIONS_BY_BRANCH } from '../../graphql/queries';
 import {
     SET_PROMOTION_SCOPES,
     UPDATE_PROMOTION,
@@ -39,10 +39,10 @@ const EditPromotion: React.FC<EditPromotionProps> = ({
     const [setPromotionScopes] = useMutation(SET_PROMOTION_SCOPES);
 
     const initialData = useMemo<PromotionFormData | undefined>(() => {
-        const promo = data?.promotionById || promotion;
+        const promo = data?.promotionById;
         if (!promo) return undefined;
         return promotionToFormData(promo);
-    }, [data, promotion]);
+    }, [data?.promotionById]);
 
     const handleSubmit = async (formData: PromotionFormData) => {
         if (!branchId) throw new Error('No se encontró la sucursal.');
@@ -67,6 +67,16 @@ const EditPromotion: React.FC<EditPromotionProps> = ({
             const scopes = buildScopeInputs(formData);
             const scopeResult = await setPromotionScopes({
                 variables: { promotionId: promotion.id, scopes },
+                refetchQueries: [
+                    {
+                        query: GET_PROMOTION_BY_ID,
+                        variables: { promotionId: promotion.id },
+                    },
+                    {
+                        query: GET_PROMOTIONS_BY_BRANCH,
+                        variables: { branchId },
+                    },
+                ],
             });
             if (!scopeResult.data?.setPromotionScopes?.success) {
                 throw new Error(

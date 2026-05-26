@@ -5,6 +5,7 @@ import {
     CREATE_PROMOTION,
     SET_PROMOTION_SCOPES,
 } from '../../graphql/mutations';
+import { GET_PROMOTIONS_BY_BRANCH } from '../../graphql/queries';
 import PromotionForm from './PromotionForm';
 import {
     buildPromotionVariables,
@@ -53,6 +54,12 @@ const CreatePromotion: React.FC<CreatePromotionProps> = ({
             if (promotionId && scopes.length > 0) {
                 const scopeResult = await setPromotionScopes({
                     variables: { promotionId, scopes },
+                    refetchQueries: [
+                        {
+                            query: GET_PROMOTIONS_BY_BRANCH,
+                            variables: { branchId },
+                        },
+                    ],
                 });
                 if (!scopeResult.data?.setPromotionScopes?.success) {
                     throw new Error(
