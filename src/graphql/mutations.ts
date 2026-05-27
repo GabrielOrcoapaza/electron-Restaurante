@@ -520,6 +520,7 @@ export const CREATE_ISSUED_DOCUMENT = gql`
         $tableId: ID
         $deviceId: String
         $printerId: ID
+        $shouldPrint: Boolean
     ) {
         createIssuedDocument(
             operationId: $operationId
@@ -550,6 +551,7 @@ export const CREATE_ISSUED_DOCUMENT = gql`
             tableId: $tableId
             deviceId: $deviceId
             printerId: $printerId
+            shouldPrint: $shouldPrint
         ) {
             success
             message
@@ -1812,6 +1814,7 @@ export const CREATE_SALE_CARRY_OUT = gql`
         $notes: String
         $deviceId: String
         $printerId: ID
+        $shouldPrint: Boolean
     ) {
         createSaleCarryOut(
             branchId: $branchId
@@ -1840,6 +1843,7 @@ export const CREATE_SALE_CARRY_OUT = gql`
             notes: $notes
             deviceId: $deviceId
             printerId: $printerId
+            shouldPrint: $shouldPrint
         ) {
             success
             message

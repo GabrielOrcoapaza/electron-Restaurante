@@ -32,7 +32,7 @@ import {
     GET_PERSONS_BY_BRANCH,
     GET_USERS_BY_BRANCH_LIGHT,
     SEARCH_PERSON_BY_DOCUMENT,
-  GET_ACTIVE_PROMOTIONS,
+    GET_ACTIVE_PROMOTIONS,
 } from "../../graphql/queries";
 import CreateClient from "../user/createClient";
 import EditClient from "../user/editClient";
@@ -42,7 +42,10 @@ import {
     formatInstantISO,
 } from "../../utils/localDateTime";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
-import { promotionBadgeLabel, findBadgePromotion } from "../../utils/promotionUtils";
+import {
+    promotionBadgeLabel,
+    findBadgePromotion,
+} from "../../utils/promotionUtils";
 import type { IPromotion } from "../../types/promotions";
 import {
     buildCashPayDocumentPreviewJson,
@@ -57,9 +60,7 @@ import {
 import { DocumentPrintPreviewModal } from "../../components/DocumentPrintPreviewModal";
 import { isElectronRenderer } from "../../utils/electronPrint";
 import { useTableSessionLock } from "../../hooks/useTableSessionLock";
-import {
-    fetchSystemPrinters,
-} from "../../utils/systemPrinters";
+import { fetchSystemPrinters } from "../../utils/systemPrinters";
 import {
     getIntegratedPrinterCashUiEnabled,
     getLocalTicketPrinterStorage,
@@ -89,8 +90,7 @@ const parsePromoInfo = (
     try {
         const parsed = JSON.parse(promoInfo);
         return {
-            discount:
-                typeof parsed.discount === "number" ? parsed.discount : 0,
+            discount: typeof parsed.discount === "number" ? parsed.discount : 0,
             promotionName: parsed.promotionName || null,
         };
     } catch {
@@ -165,7 +165,6 @@ const CashPay: React.FC<CashPayProps> = ({
     const isNarrow = isXs || isSmall || isMedium;
     const isElectron = isElectronRenderer();
 
-
     // Solo para diferentes tamaños de pantalla de PC (desktop)
     // lg: 1024px-1279px, xl: 1280px-1535px, 2xl: >=1536px
     const isSmallDesktop = breakpoint === "lg"; // 1024px - 1279px
@@ -237,8 +236,8 @@ const CashPay: React.FC<CashPayProps> = ({
     const [isRemovingItem, setIsRemovingItem] = useState(false);
 
     /** Impresora del equipo para ticket cuando el backend devuelve print_locally (nombre `name` de Chromium). */
-    const [selectedLocalPrinterName] = useState(
-        () => getLocalTicketPrinterStorage(),
+    const [selectedLocalPrinterName] = useState(() =>
+        getLocalTicketPrinterStorage(),
     );
 
     /**
@@ -263,7 +262,6 @@ const CashPay: React.FC<CashPayProps> = ({
         };
     }, []);
 
-
     useEffect(() => {
         if (!showLocalPrinterPicker || !table?.currentOperationId) return;
         (async () => {
@@ -275,7 +273,7 @@ const CashPay: React.FC<CashPayProps> = ({
         })();
     }, [table?.currentOperationId, showLocalPrinterPicker]);
 
-    const { data, refetch } = useQuery(GET_OPERATION_BY_ID, {
+    const { data: dataOperation, refetch } = useQuery(GET_OPERATION_BY_ID, {
         variables: {
             operationId: table?.currentOperationId || "",
         },
@@ -385,7 +383,7 @@ const CashPay: React.FC<CashPayProps> = ({
         }, 300);
     };
 
-    const operation = data?.operationById;
+    const operation = dataOperation?.operationById;
 
     useEffect(() => {
         const unsubscribeOperationCancelled = subscribe(
@@ -410,11 +408,20 @@ const CashPay: React.FC<CashPayProps> = ({
         (doc: any) => doc.isActive !== false,
     );
 
-  // Derive promotion categories
-  const activePromotions = (promotionsData?.activePromotions || []) as IPromotion[];
-  const discountPromotions = activePromotions.filter(p => p.promotionType === 'DISCOUNT_PERCENT' || p.promotionType === 'DISCOUNT_AMOUNT');
-  const nxmPromotions = activePromotions.filter(p => p.promotionType === 'NXM');
-  const giftPromotions = activePromotions.filter(p => p.promotionType === 'GIFT');
+    // Derive promotion categories
+    const activePromotions = (promotionsData?.activePromotions ||
+        []) as IPromotion[];
+    const discountPromotions = activePromotions.filter(
+        (p) =>
+            p.promotionType === "DISCOUNT_PERCENT" ||
+            p.promotionType === "DISCOUNT_AMOUNT",
+    );
+    const nxmPromotions = activePromotions.filter(
+        (p) => p.promotionType === "NXM",
+    );
+    const giftPromotions = activePromotions.filter(
+        (p) => p.promotionType === "GIFT",
+    );
     const allClients = (clientsData?.personsByBranch || []).filter(
         (person: any) => !person.isSupplier && person.isActive !== false,
     );
@@ -1001,7 +1008,11 @@ const CashPay: React.FC<CashPayProps> = ({
 
     /** Al pulsar Boleta / Factura / Nota: vista previa local (sin backend) y luego el pago. */
     const handleDocumentPayClick = async (documentId: string) => {
-        if (isProcessingRef.current || isProcessing || isPrintPreviewOpenRef.current) {
+        if (
+            isProcessingRef.current ||
+            isProcessing ||
+            isPrintPreviewOpenRef.current
+        ) {
             return;
         }
 
@@ -1061,15 +1072,17 @@ const CashPay: React.FC<CashPayProps> = ({
         try {
             let serial: string;
             try {
-                const { data: serialsFetched } =
-                    await fetchSerialsForDocument({
-                        variables: { documentId },
-                    });
+                const { data: serialsFetched } = await fetchSerialsForDocument({
+                    variables: { documentId },
+                });
                 const serialList = (
                     serialsFetched?.serialsByDocument || []
                 ).filter((ser: any) => ser.isActive !== false);
                 if (serialList.length === 0) {
-                    showToast("No hay serie activa para este documento", "error");
+                    showToast(
+                        "No hay serie activa para este documento",
+                        "error",
+                    );
                     return;
                 }
                 serial = serialList[0].serial || "";
@@ -1242,15 +1255,17 @@ const CashPay: React.FC<CashPayProps> = ({
         try {
             let serial: string;
             try {
-                const { data: serialsFetched } =
-                    await fetchSerialsForDocument({
-                        variables: { documentId },
-                    });
+                const { data: serialsFetched } = await fetchSerialsForDocument({
+                    variables: { documentId },
+                });
                 const serialList = (
                     serialsFetched?.serialsByDocument || []
                 ).filter((ser: any) => ser.isActive !== false);
                 if (serialList.length === 0) {
-                    showToast("No hay serie activa para este documento", "error");
+                    showToast(
+                        "No hay serie activa para este documento",
+                        "error",
+                    );
                     return;
                 }
                 serial = serialList[0].serial || "";
@@ -1469,9 +1484,7 @@ const CashPay: React.FC<CashPayProps> = ({
             const paymentGlobalDiscount = Math.max(
                 0,
                 payPct > 0
-                    ? roundMoney2(
-                          (paymentAfterItemDiscount * payPct) / 100,
-                      )
+                    ? roundMoney2((paymentAfterItemDiscount * payPct) / 100)
                     : Number(discountAmount) || 0,
             );
             const paymentTotalDiscount = roundMoney2(
@@ -2114,7 +2127,8 @@ const CashPay: React.FC<CashPayProps> = ({
             logPp("respuesta GraphQL (raw)", res.data?.printPartialPrecuenta);
 
             if (res.data?.printPartialPrecuenta?.success) {
-                const partialRes = res.data.printPartialPrecuenta as typeof res.data.printPartialPrecuenta & {
+                const partialRes = res.data
+                    .printPartialPrecuenta as typeof res.data.printPartialPrecuenta & {
                     print_locally?: boolean;
                     printLocally?: boolean;
                     document_data?: string | null;
@@ -2124,7 +2138,9 @@ const CashPay: React.FC<CashPayProps> = ({
                     partialRes?.printLocally === true ||
                     partialRes?.print_locally === true;
                 const docData =
-                    partialRes?.documentData ?? partialRes?.document_data ?? null;
+                    partialRes?.documentData ??
+                    partialRes?.document_data ??
+                    null;
                 logPp("éxito servidor", {
                     message: partialRes?.message,
                     printLocally: printLocallyFlag,
@@ -2449,16 +2465,24 @@ const CashPay: React.FC<CashPayProps> = ({
                         </div>
                     </div>
                 </div>
-                <div style={{ 
-                    display: isNarrow ? "grid" : "flex",
-                    gridTemplateColumns: isXs ? "repeat(2, 1fr)" : isNarrow ? "repeat(3, 1fr)" : "none",
-                    gap: isNarrow ? "0.4rem" : "0.5rem" 
-                }}>
+                <div
+                    style={{
+                        display: isNarrow ? "grid" : "flex",
+                        gridTemplateColumns: isXs
+                            ? "repeat(2, 1fr)"
+                            : isNarrow
+                              ? "repeat(3, 1fr)"
+                              : "none",
+                        gap: isNarrow ? "0.4rem" : "0.5rem",
+                    }}
+                >
                     <button
                         onClick={() => setShowChangeTableModal(true)}
                         className="rounded-lg border border-sky-200 bg-sky-50 text-sky-700 transition-colors hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/45"
                         style={{
-                            padding: isNarrow ? "0.6rem 0.4rem" : "0.4rem 0.8rem",
+                            padding: isNarrow
+                                ? "0.6rem 0.4rem"
+                                : "0.4rem 0.8rem",
                             fontSize: isNarrow ? "0.7rem" : "0.75rem",
                             borderRadius: "6px",
                             cursor: "pointer",
@@ -2472,7 +2496,9 @@ const CashPay: React.FC<CashPayProps> = ({
                         onClick={() => setShowTransferPlatesModal(true)}
                         className="rounded-lg border border-slate-300 bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         style={{
-                            padding: isNarrow ? "0.6rem 0.4rem" : "0.4rem 0.8rem",
+                            padding: isNarrow
+                                ? "0.6rem 0.4rem"
+                                : "0.4rem 0.8rem",
                             fontSize: isNarrow ? "0.7rem" : "0.75rem",
                             borderRadius: "6px",
                             cursor: "pointer",
@@ -2486,7 +2512,9 @@ const CashPay: React.FC<CashPayProps> = ({
                         onClick={() => setShowChangeUserModal(true)}
                         className="rounded-lg border border-orange-200 bg-orange-50 text-orange-700 transition-colors hover:bg-orange-100 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300 dark:hover:bg-orange-900/45"
                         style={{
-                            padding: isNarrow ? "0.6rem 0.4rem" : "0.4rem 0.8rem",
+                            padding: isNarrow
+                                ? "0.6rem 0.4rem"
+                                : "0.4rem 0.8rem",
                             fontSize: isNarrow ? "0.7rem" : "0.75rem",
                             borderRadius: "6px",
                             cursor: "pointer",
@@ -2505,7 +2533,9 @@ const CashPay: React.FC<CashPayProps> = ({
                         }
                         className="rounded-lg border border-amber-200 bg-amber-50 text-amber-700 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/45"
                         style={{
-                            padding: isNarrow ? "0.6rem 0.4rem" : "0.4rem 0.8rem",
+                            padding: isNarrow
+                                ? "0.6rem 0.4rem"
+                                : "0.4rem 0.8rem",
                             fontSize: isNarrow ? "0.7rem" : "0.75rem",
                             borderRadius: "6px",
                             cursor: "pointer",
@@ -2555,53 +2585,57 @@ const CashPay: React.FC<CashPayProps> = ({
                         position: "relative",
                     }}
                 >
-                        <div
-                            className="overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900"
+                    <div
+                        className="overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900"
+                        style={{
+                            flex: 1,
+                            display: "flex",
+                            height: isNarrow ? "44px" : "50px",
+                        }}
+                    >
+                        <input
+                            type="text"
+                            placeholder={
+                                isXs
+                                    ? "DNI/RUC..."
+                                    : "Buscar cliente (DNI/RUC)..."
+                            }
+                            value={clientSearchTerm}
+                            onFocus={() => setEnableBranchClientsQuery(true)}
+                            onChange={(e) => {
+                                setClientSearchTerm(e.target.value);
+                                setSelectedClientId("");
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleSearchSunat();
+                                }
+                            }}
+                            className="bg-transparent text-slate-900 placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
                             style={{
                                 flex: 1,
-                                display: "flex",
-                                height: isNarrow ? "44px" : "50px",
+                                padding: "0.3rem 0.75rem",
+                                border: "none",
+                                fontSize: isNarrow ? "0.9rem" : "0.75rem",
+                                outline: "none",
+                            }}
+                        />
+                        <button
+                            onClick={handleSearchSunat}
+                            disabled={sunatSearchLoading}
+                            title="Buscar en SUNAT"
+                            className="border-l border-slate-300 bg-sky-50 text-sky-700 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/45"
+                            style={{
+                                padding: "0 1rem",
+                                cursor: sunatSearchLoading
+                                    ? "not-allowed"
+                                    : "pointer",
                             }}
                         >
-                            <input
-                                type="text"
-                                placeholder={isXs ? "DNI/RUC..." : "Buscar cliente (DNI/RUC)..."}
-                                value={clientSearchTerm}
-                                onFocus={() => setEnableBranchClientsQuery(true)}
-                                onChange={(e) => {
-                                    setClientSearchTerm(e.target.value);
-                                    setSelectedClientId("");
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                        e.preventDefault();
-                                        handleSearchSunat();
-                                    }
-                                }}
-                                className="bg-transparent text-slate-900 placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
-                                style={{
-                                    flex: 1,
-                                    padding: "0.3rem 0.75rem",
-                                    border: "none",
-                                    fontSize: isNarrow ? "0.9rem" : "0.75rem",
-                                    outline: "none",
-                                }}
-                            />
-                            <button
-                                onClick={handleSearchSunat}
-                                disabled={sunatSearchLoading}
-                                title="Buscar en SUNAT"
-                                className="border-l border-slate-300 bg-sky-50 text-sky-700 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/45"
-                                style={{
-                                    padding: "0 1rem",
-                                    cursor: sunatSearchLoading
-                                        ? "not-allowed"
-                                        : "pointer",
-                                }}
-                            >
-                                🔍
-                            </button>
-                        </div>
+                            🔍
+                        </button>
+                    </div>
                     <div style={{ display: "flex", gap: "0.4rem" }}>
                         <button
                             type="button"
@@ -2680,8 +2714,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                             );
                                         }}
                                         className="cursor-pointer border-b border-slate-100 px-2 py-2 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
-                                        style={{
-                                        }}
+                                        style={{}}
                                     >
                                         <div
                                             className="text-slate-800 dark:text-slate-100"
@@ -2732,8 +2765,8 @@ const CashPay: React.FC<CashPayProps> = ({
                         className="border-b border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                         style={{
                             display: "grid",
-                            gridTemplateColumns: isNarrow 
-                                ? "40px 40px 1fr 90px" 
+                            gridTemplateColumns: isNarrow
+                                ? "40px 40px 1fr 90px"
                                 : "40px 40px 1fr 80px 80px 100px",
                             padding: isNarrow ? "0.6rem 0.4rem" : "0.5rem",
                             fontWeight: 800,
@@ -2743,9 +2776,15 @@ const CashPay: React.FC<CashPayProps> = ({
                         <div>SEL</div>
                         <div>CANT</div>
                         <div>PRODUCTO</div>
-                        <div style={{ textAlign: "right" }}>{isNarrow ? "TOTAL" : "UNIT"}</div>
-                        {!isNarrow && <div style={{ textAlign: "right" }}>TOTAL</div>}
-                        {!isNarrow && <div style={{ textAlign: "center" }}>OPC</div>}
+                        <div style={{ textAlign: "right" }}>
+                            {isNarrow ? "TOTAL" : "UNIT"}
+                        </div>
+                        {!isNarrow && (
+                            <div style={{ textAlign: "right" }}>TOTAL</div>
+                        )}
+                        {!isNarrow && (
+                            <div style={{ textAlign: "center" }}>OPC</div>
+                        )}
                     </div>
                     <div
                         className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/80"
@@ -2758,15 +2797,13 @@ const CashPay: React.FC<CashPayProps> = ({
                             fontSize: "0.7rem",
                         }}
                     >
-                        <span className="text-slate-500 dark:text-slate-400" style={{ fontWeight: 600 }}>Selección:</span>
-                        {giftEligiblePromo && (
-                            <div className="w-full rounded-lg bg-amber-400 px-3 py-2 text-sm font-semibold text-amber-950 dark:bg-amber-500/90 dark:text-amber-950">
-                                🎁 ¡Regalo disponible!{" "}
-                                {giftEligiblePromo.giftProduct?.name} ×{" "}
-                                {giftEligiblePromo.giftQuantity ?? 1} —{" "}
-                                {giftEligiblePromo.name}
-                            </div>
-                        )}
+                        <span
+                            className="text-slate-500 dark:text-slate-400"
+                            style={{ fontWeight: 600 }}
+                        >
+                            Selección:
+                        </span>
+
                         <label
                             className="inline-flex cursor-pointer items-center gap-1.5 text-slate-700 dark:text-slate-200"
                             style={{ userSelect: "none" }}
@@ -2790,9 +2827,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                         detailsToUse.length > 0 &&
                                         detailsToUse.every(
                                             (d: any) =>
-                                                !!itemAssignments[
-                                                    String(d.id)
-                                                ],
+                                                !!itemAssignments[String(d.id)],
                                         );
                                     el.indeterminate =
                                         anyChecked && !allChecked;
@@ -2802,9 +2837,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                         detailsToUse.length > 0 &&
                                         detailsToUse.every(
                                             (d: any) =>
-                                                !!itemAssignments[
-                                                    String(d.id)
-                                                ],
+                                                !!itemAssignments[String(d.id)],
                                         );
                                     if (allOn) handleDeselectAllLineItems();
                                     else handleSelectAllLineItems();
@@ -2864,132 +2897,276 @@ const CashPay: React.FC<CashPayProps> = ({
                             );
 
                             return (
-                            <div
-                                key={d.id}
-                                className={`${itemAssignments[d.id] ? "bg-sky-50 dark:bg-sky-900/20" : "bg-white dark:bg-slate-900"} border-b border-slate-100 dark:border-slate-800`}
-                                style={{
-                                    display: "grid",
-                                    gridTemplateColumns: isNarrow 
-                                        ? "40px 40px 1fr 90px" 
-                                        : "40px 40px 1fr 80px 80px 100px",
-                                    padding: isNarrow ? "0.75rem 0.4rem" : "0.5rem",
-                                    fontSize: isNarrow ? "0.9rem" : "0.8rem",
-                                    alignItems: "center"
-                                }}
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={!!itemAssignments[d.id]}
-                                    onChange={() =>
-                                        handleToggleItemSelection(d.id)
-                                    }
-                                    style={{ width: "20px", height: "20px", accentColor: "#4f46e5" }}
-                                />
-                                <div className="text-slate-800 dark:text-slate-100" style={{ fontWeight: 800 }}>{d.quantity}</div>
-                                <div className="text-slate-700 dark:text-slate-200">
-                                    <div style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
-                                        <span>{d.productName}</span>
-                                        {badgePromo && (
-                                            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[0.65rem] font-bold text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                                                {promotionBadgeLabel(badgePromo)}
-                                            </span>
-                                        )}
+                                <div
+                                    key={d.id}
+                                    className={`${itemAssignments[d.id] ? "bg-sky-50 dark:bg-sky-900/20" : "bg-white dark:bg-slate-900"} border-b border-slate-100 dark:border-slate-800`}
+                                    style={{
+                                        display: "grid",
+                                        gridTemplateColumns: isNarrow
+                                            ? "40px 40px 1fr 90px"
+                                            : "40px 40px 1fr 80px 80px 100px",
+                                        padding: isNarrow
+                                            ? "0.75rem 0.4rem"
+                                            : "0.5rem",
+                                        fontSize: isNarrow
+                                            ? "0.9rem"
+                                            : "0.8rem",
+                                        alignItems: "center",
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={!!itemAssignments[d.id]}
+                                        onChange={() =>
+                                            handleToggleItemSelection(d.id)
+                                        }
+                                        style={{
+                                            width: "20px",
+                                            height: "20px",
+                                            accentColor: "#4f46e5",
+                                        }}
+                                    />
+                                    <div
+                                        className="text-slate-800 dark:text-slate-100"
+                                        style={{ fontWeight: 800 }}
+                                    >
+                                        {d.quantity}
                                     </div>
-                                    {lineDiscount > 0 && (
-                                        <div className="mt-0.5 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                                            <span>
-                                                Descuento: -{currencyFormatter.format(lineDiscount)}
-                                            </span>
-                                            {promotionName && (
-                                                <span className="text-slate-400 dark:text-slate-500">
-                                                    ({promotionName})
+                                    <div className="text-slate-700 dark:text-slate-200">
+                                        <div
+                                            style={{
+                                                fontWeight: 600,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "0.35rem",
+                                                flexWrap: "wrap",
+                                            }}
+                                        >
+                                            <span>{d.productName}</span>
+                                            {badgePromo && (
+                                                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[0.65rem] font-bold text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                                                    {promotionBadgeLabel(
+                                                        badgePromo,
+                                                    )}
                                                 </span>
                                             )}
                                         </div>
-                                    )}
-                                    {d.productType === "PROMOTION" &&
-                                        d.comboComponents?.length > 0 && (
-                                            <div className="mt-1 space-y-0.5">
-                                                {d.comboComponents.map(
-                                                    (comp: any, ci: number) => (
-                                                        <div
-                                                            key={ci}
-                                                            className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-300"
-                                                        >
-                                                            <span>•</span>
-                                                            <span>{comp.productName}</span>
-                                                            {Number(comp.quantity) > 1 && (
-                                                                <span className="text-slate-400 dark:text-slate-500">
-                                                                    ×{comp.quantity}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    ),
+                                        {lineDiscount > 0 && (
+                                            <div className="mt-0.5 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                                                <span>
+                                                    Descuento: -
+                                                    {currencyFormatter.format(
+                                                        lineDiscount,
+                                                    )}
+                                                </span>
+                                                {promotionName && (
+                                                    <span className="text-slate-400 dark:text-slate-500">
+                                                        ({promotionName})
+                                                    </span>
                                                 )}
                                             </div>
                                         )}
-                                    {d.notes && (
-                                        <div className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                                            {d.notes}
-                                        </div>
-                                    )}
-                                    {isNarrow && (
-                                        <div className="text-slate-500 dark:text-slate-400" style={{ fontSize: "0.7rem", marginTop: "2px" }}>
-                                            PU: {currencyFormatter.format(d.unitPrice)}
-                                            {d.quantity > 1 && !String(d.id).includes("-split") && (
-                                                <button onClick={() => handleSplitItem(d.id)} className="ml-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" style={{ background: "none", border: "none", padding: 0 }}>Dividir</button>
+                                        {d.productType === "PROMOTION" &&
+                                            d.comboComponents?.length > 0 && (
+                                                <div className="mt-1 space-y-0.5">
+                                                    {d.comboComponents.map(
+                                                        (
+                                                            comp: any,
+                                                            ci: number,
+                                                        ) => (
+                                                            <div
+                                                                key={ci}
+                                                                className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-300"
+                                                            >
+                                                                <span>•</span>
+                                                                <span>
+                                                                    {
+                                                                        comp.productName
+                                                                    }
+                                                                </span>
+                                                                {Number(
+                                                                    comp.quantity,
+                                                                ) > 1 && (
+                                                                    <span className="text-slate-400 dark:text-slate-500">
+                                                                        ×
+                                                                        {
+                                                                            comp.quantity
+                                                                        }
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ),
+                                                    )}
+                                                </div>
                                             )}
-                                            {String(d.id).includes("-split") && (
-                                                <button onClick={() => handleMergeItem(d.id)} className="ml-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" style={{ background: "none", border: "none", padding: 0 }}>Unir</button>
-                                            )}
-                                            {canVoidInCashPay && (
-                                                <button onClick={() => handleDeleteItem(d.id)} className="ml-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300" style={{ background: "none", border: "none", padding: 0 }}>Quitar</button>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                                {isNarrow && (
-                                    <div
-                                        style={{
-                                            textAlign: "right",
-                                            fontWeight: 700,
-                                        }}
-                                    >
-                                        {lineDiscount > 0 && (
-                                            <div className="text-[0.65rem] font-normal text-slate-400 line-through dark:text-slate-500">
-                                                {currencyFormatter.format(lineGross)}
+                                        {d.notes && (
+                                            <div className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                                                {d.notes}
                                             </div>
                                         )}
-                                        {currencyFormatter.format(lineNet)}
+                                        {isNarrow && (
+                                            <div
+                                                className="text-slate-500 dark:text-slate-400"
+                                                style={{
+                                                    fontSize: "0.7rem",
+                                                    marginTop: "2px",
+                                                }}
+                                            >
+                                                PU:{" "}
+                                                {currencyFormatter.format(
+                                                    d.unitPrice,
+                                                )}
+                                                {d.quantity > 1 &&
+                                                    !String(d.id).includes(
+                                                        "-split",
+                                                    ) && (
+                                                        <button
+                                                            onClick={() =>
+                                                                handleSplitItem(
+                                                                    d.id,
+                                                                )
+                                                            }
+                                                            className="ml-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                            style={{
+                                                                background:
+                                                                    "none",
+                                                                border: "none",
+                                                                padding: 0,
+                                                            }}
+                                                        >
+                                                            Dividir
+                                                        </button>
+                                                    )}
+                                                {String(d.id).includes(
+                                                    "-split",
+                                                ) && (
+                                                    <button
+                                                        onClick={() =>
+                                                            handleMergeItem(
+                                                                d.id,
+                                                            )
+                                                        }
+                                                        className="ml-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                        style={{
+                                                            background: "none",
+                                                            border: "none",
+                                                            padding: 0,
+                                                        }}
+                                                    >
+                                                        Unir
+                                                    </button>
+                                                )}
+                                                {canVoidInCashPay && (
+                                                    <button
+                                                        onClick={() =>
+                                                            handleDeleteItem(
+                                                                d.id,
+                                                            )
+                                                        }
+                                                        className="ml-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                                        style={{
+                                                            background: "none",
+                                                            border: "none",
+                                                            padding: 0,
+                                                        }}
+                                                    >
+                                                        Quitar
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                                {!isNarrow && (
-                                    <>
-                                        <div style={{ textAlign: "right" }}>
-                                            {currencyFormatter.format(d.unitPrice)}
-                                        </div>
-                                        <div style={{ textAlign: "right", fontWeight: 700 }}>
+                                    {isNarrow && (
+                                        <div
+                                            style={{
+                                                textAlign: "right",
+                                                fontWeight: 700,
+                                            }}
+                                        >
                                             {lineDiscount > 0 && (
                                                 <div className="text-[0.65rem] font-normal text-slate-400 line-through dark:text-slate-500">
-                                                    {currencyFormatter.format(lineGross)}
+                                                    {currencyFormatter.format(
+                                                        lineGross,
+                                                    )}
                                                 </div>
                                             )}
                                             {currencyFormatter.format(lineNet)}
                                         </div>
-                                        <div style={{ textAlign: "center" }}>
-                                            {d.quantity > 1 && !String(d.id).includes("-split") && (
-                                                <button onClick={() => handleSplitItem(d.id)} className="text-lg">✂️</button>
-                                            )}
-                                            {String(d.id).includes("-split") && (
-                                                <button onClick={() => handleMergeItem(d.id)} className="text-lg">🔗</button>
-                                            )}
-                                            {canVoidInCashPay && (
-                                                <button type="button" onClick={() => handleDeleteItem(d.id)} className="text-lg" title="Quitar ítem">🗑️</button>
-                                            )}
-                                        </div>
-                                    </>
-                                )}
-                            </div>
+                                    )}
+                                    {!isNarrow && (
+                                        <>
+                                            <div style={{ textAlign: "right" }}>
+                                                {currencyFormatter.format(
+                                                    d.unitPrice,
+                                                )}
+                                            </div>
+                                            <div
+                                                style={{
+                                                    textAlign: "right",
+                                                    fontWeight: 700,
+                                                }}
+                                            >
+                                                {lineDiscount > 0 && (
+                                                    <div className="text-[0.65rem] font-normal text-slate-400 line-through dark:text-slate-500">
+                                                        {currencyFormatter.format(
+                                                            lineGross,
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {currencyFormatter.format(
+                                                    lineNet,
+                                                )}
+                                            </div>
+                                            <div
+                                                style={{ textAlign: "center" }}
+                                            >
+                                                {d.quantity > 1 &&
+                                                    !String(d.id).includes(
+                                                        "-split",
+                                                    ) && (
+                                                        <button
+                                                            onClick={() =>
+                                                                handleSplitItem(
+                                                                    d.id,
+                                                                )
+                                                            }
+                                                            className="text-lg"
+                                                        >
+                                                            ✂️
+                                                        </button>
+                                                    )}
+                                                {String(d.id).includes(
+                                                    "-split",
+                                                ) && (
+                                                    <button
+                                                        onClick={() =>
+                                                            handleMergeItem(
+                                                                d.id,
+                                                            )
+                                                        }
+                                                        className="text-lg"
+                                                    >
+                                                        🔗
+                                                    </button>
+                                                )}
+                                                {canVoidInCashPay && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleDeleteItem(
+                                                                d.id,
+                                                            )
+                                                        }
+                                                        className="text-lg"
+                                                        title="Quitar ítem"
+                                                    >
+                                                        🗑️
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                             );
                         })}
                     </div>
@@ -3018,87 +3195,7 @@ const CashPay: React.FC<CashPayProps> = ({
                             >
                                 Descuentos:
                             </div>
-                            {activePromotions.filter(
-                                (p) =>
-                                    p.promotionType !== "COMBO" &&
-                                    p.promotionType !== "GIFT",
-                            ).length > 0 && (
-                                <div style={{ marginBottom: "0.35rem" }}>
-                                    <div
-                                        className="text-slate-500 dark:text-slate-400"
-                                        style={{
-                                            fontSize: "0.65rem",
-                                            fontWeight: 600,
-                                            marginBottom: "0.25rem",
-                                        }}
-                                    >
-                                        Aplicar promoción rápida:
-                                    </div>
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            flexWrap: "wrap",
-                                            gap: "0.35rem",
-                                        }}
-                                    >
-                                        {discountPromotions.map((promo) => (
-                                            <button
-                                                key={promo.id}
-                                                type="button"
-                                                onClick={() => {
-                                                    if (
-                                                        promo.promotionType ===
-                                                        "DISCOUNT_PERCENT"
-                                                    ) {
-                                                        setDiscountPercent(
-                                                            Number(
-                                                                promo.discountPercent ??
-                                                                    0,
-                                                            ),
-                                                        );
-                                                        setDiscountAmount(0);
-                                                    } else {
-                                                        setDiscountAmount(
-                                                            Number(
-                                                                promo.discountAmount ??
-                                                                    0,
-                                                            ),
-                                                        );
-                                                        setDiscountPercent(0);
-                                                    }
-                                                }}
-                                                className="rounded-full border border-blue-600 bg-blue-800 px-2 py-1 text-xs font-semibold text-blue-200 transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-900/60 dark:hover:bg-blue-800"
-                                                title={promo.name}
-                                            >
-                                                {promotionBadgeLabel(promo)} —{" "}
-                                                {promo.name}
-                                            </button>
-                                        ))}
-                                        {nxmPromotions.map((promo) => (
-                                            <span
-                                                key={promo.id}
-                                                className="rounded-full border border-purple-600 bg-purple-800 px-2 py-1 text-xs font-semibold text-purple-200 dark:border-purple-500 dark:bg-purple-900/60"
-                                                title={`${promo.name} — aplicado automáticamente por ítem`}
-                                            >
-                                                {promotionBadgeLabel(promo)} —{" "}
-                                                {promo.name}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    {nxmPromotions.length > 0 && (
-                                        <div
-                                            className="text-slate-400 dark:text-slate-500"
-                                            style={{
-                                                fontSize: "0.6rem",
-                                                marginTop: "0.2rem",
-                                            }}
-                                        >
-                                            * NxM se aplica automáticamente por
-                                            ítem en el pedido.
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+
                             <div
                                 style={{
                                     display: "flex",
@@ -3125,7 +3222,9 @@ const CashPay: React.FC<CashPayProps> = ({
                                     style={{
                                         width: isNarrow ? "100px" : "80px",
                                         padding: "0.4rem",
-                                        fontSize: isNarrow ? "0.9rem" : "0.75rem",
+                                        fontSize: isNarrow
+                                            ? "0.9rem"
+                                            : "0.75rem",
                                         borderRadius: "6px",
                                     }}
                                 />
@@ -3152,7 +3251,9 @@ const CashPay: React.FC<CashPayProps> = ({
                                     style={{
                                         width: isNarrow ? "100px" : "80px",
                                         padding: "0.4rem",
-                                        fontSize: isNarrow ? "0.9rem" : "0.75rem",
+                                        fontSize: isNarrow
+                                            ? "0.9rem"
+                                            : "0.75rem",
                                         borderRadius: "6px",
                                     }}
                                 />
@@ -3194,7 +3295,9 @@ const CashPay: React.FC<CashPayProps> = ({
                                     }}
                                 >
                                     Desc. promoción: -
-                                    {currencyFormatter.format(itemsPromoDiscount)}
+                                    {currencyFormatter.format(
+                                        itemsPromoDiscount,
+                                    )}
                                 </div>
                             )}
                             {globalDiscount > 0 && (
@@ -3215,7 +3318,8 @@ const CashPay: React.FC<CashPayProps> = ({
                                     fontSize: isNarrow ? "1.1rem" : "0.9rem",
                                 }}
                             >
-                                Total: {currencyFormatter.format(subtotal + igvAmount)}
+                                Total:{" "}
+                                {currencyFormatter.format(subtotal + igvAmount)}
                             </div>
                             <div
                                 className="text-slate-900 dark:text-slate-100"
@@ -3233,7 +3337,11 @@ const CashPay: React.FC<CashPayProps> = ({
                 <section
                     className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
                     style={{
-                        flex: isNarrow ? "auto" : isSmallDesktop ? "35%" : "30%",
+                        flex: isNarrow
+                            ? "auto"
+                            : isSmallDesktop
+                              ? "35%"
+                              : "30%",
                         padding: isNarrow ? "0.75rem" : "1rem",
                         display: "flex",
                         flexDirection: "column",
@@ -3340,7 +3448,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                                 borderRadius: "6px",
                                                 cursor: "pointer",
                                                 fontWeight: 900,
-                                                fontSize: "1.2rem"
+                                                fontSize: "1.2rem",
                                             }}
                                         >
                                             ✕
@@ -3410,7 +3518,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                         borderRadius: "8px",
                                         display: "flex",
                                         flexDirection: "column",
-                                        gap: "0.4rem"
+                                        gap: "0.4rem",
                                     }}
                                 >
                                     <div
@@ -3419,29 +3527,39 @@ const CashPay: React.FC<CashPayProps> = ({
                                             fontSize: "0.65rem",
                                             fontWeight: 700,
                                             textTransform: "uppercase",
-                                            letterSpacing: "0.025em"
+                                            letterSpacing: "0.025em",
                                         }}
                                     >
                                         Impresora de tickets (USB)
                                     </div>
                                     <div
-                                        className={selectedLocalPrinterName ? "text-slate-800 dark:text-slate-100" : "text-red-600 dark:text-red-400"}
+                                        className={
+                                            selectedLocalPrinterName
+                                                ? "text-slate-800 dark:text-slate-100"
+                                                : "text-red-600 dark:text-red-400"
+                                        }
                                         style={{
                                             fontSize: "0.85rem",
                                             fontWeight: 600,
                                             display: "flex",
                                             alignItems: "center",
-                                            gap: "0.4rem"
+                                            gap: "0.4rem",
                                         }}
                                     >
                                         {selectedLocalPrinterName ? (
                                             <>
-                                                <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+                                                <span className="text-emerald-600 dark:text-emerald-400">
+                                                    ✓
+                                                </span>
                                                 {selectedLocalPrinterName}
                                             </>
                                         ) : (
                                             <>
-                                                <span style={{ fontSize: "1rem" }}>⚠️</span>
+                                                <span
+                                                    style={{ fontSize: "1rem" }}
+                                                >
+                                                    ⚠️
+                                                </span>
                                                 Predeterminada del sistema
                                             </>
                                         )}
@@ -3450,15 +3568,16 @@ const CashPay: React.FC<CashPayProps> = ({
                                         className="text-slate-400 dark:text-slate-500"
                                         style={{
                                             fontSize: "0.6rem",
-                                            lineHeight: 1.3
+                                            lineHeight: 1.3,
                                         }}
                                     >
-                                        {selectedLocalPrinterName 
-                                            ? "Se imprimirá directamente en esta impresora." 
+                                        {selectedLocalPrinterName
+                                            ? "Se imprimirá directamente en esta impresora."
                                             : "No hay una impresora seleccionada. Se usará la de Windows."}
                                         <br />
                                         <span className="font-semibold text-slate-500 dark:text-slate-400">
-                                            * Sujeto a configuración del servidor por tipo de documento.
+                                            * Sujeto a configuración del
+                                            servidor por tipo de documento.
                                         </span>
                                     </div>
                                 </div>
@@ -3483,7 +3602,8 @@ const CashPay: React.FC<CashPayProps> = ({
                                         borderRadius: "4px",
                                     }}
                                 >
-                                    ⚠️ La impresión física directa solo está disponible en la versión de escritorio.
+                                    ⚠️ La impresión física directa solo está
+                                    disponible en la versión de escritorio.
                                 </div>
                             )}
                             {payDocumentsOrdered.length === 0 ? (
@@ -3574,6 +3694,9 @@ const CashPay: React.FC<CashPayProps> = ({
                                 Anular Orden
                             </button>
                         )}
+                        <button onClick={() => console.log(operation)}>
+                            imprimir order en console
+                        </button>
                     </div>
                 </section>
             </main>
@@ -4045,7 +4168,6 @@ const CashPay: React.FC<CashPayProps> = ({
                     }}
                 />
             )}
-
         </div>
     );
 };
