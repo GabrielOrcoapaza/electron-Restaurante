@@ -1,5 +1,3 @@
-const ID_LIKE_KEY = /^(id|.*Id|.*_id)$/i;
-
 /** Convierte IDs vacíos o inválidos en `undefined` (no enviar a GraphQL). */
 export function normalizeGraphQLId(value: unknown): string | undefined {
 	if (value == null) return undefined;
@@ -8,7 +6,7 @@ export function normalizeGraphQLId(value: unknown): string | undefined {
 	return s;
 }
 
-/** Reemplaza `""` por `null` en claves tipo ID dentro de variables GraphQL. */
+/** Omite `""` en claves tipo ID GraphQL (no aplica a deviceId/MAC). */
 export function sanitizeGraphQLVariables<T>(variables: T): T {
 	if (variables == null) return variables;
 
@@ -24,8 +22,11 @@ export function sanitizeGraphQLVariables<T>(variables: T): T {
 	for (const [key, value] of Object.entries(
 		variables as Record<string, unknown>,
 	)) {
-		if (typeof value === "string" && value === "" && ID_LIKE_KEY.test(key)) {
-			// Omitir IDs vacíos: evita enviar null a campos ID! (p. ej. floorId).
+		if (
+			typeof value === "string" &&
+			value === "" &&
+			isGraphQLIdVariableKey(key)
+		) {
 			continue;
 		}
 		if (value != null && typeof value === "object") {
@@ -35,4 +36,9 @@ export function sanitizeGraphQLVariables<T>(variables: T): T {
 		result[key] = value;
 	}
 	return result as T;
+}
+
+function isGraphQLIdVariableKey(key: string): boolean {
+	if (/^deviceId$/i.test(key)) return false;
+	return /^(id|.*Id|.*_id)$/i.test(key);
 }

@@ -65,6 +65,7 @@ import {
     getLocalTicketPrinterStorage,
 } from "../../utils/localPrinterPreference";
 import { normalizeGraphQLId } from "../../utils/sanitizeGraphQLVariables";
+import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
 
 type CashPayProps = {
     table: Table | null;
@@ -164,6 +165,16 @@ const CashPay: React.FC<CashPayProps> = ({
     const isMedium = breakpoint === "md";
     const isNarrow = isXs || isSmall || isMedium;
     const isElectron = isElectronRenderer();
+
+    /**
+     * device_id para impresión/backend: MAC en Electron (SumApp), getDeviceId() como respaldo.
+     */
+    const getDeviceIdOrMac = async (): Promise<string> =>
+        resolveClientDeviceIdForPrint({
+            getMacAddress,
+            getDeviceId,
+            logPrefix: "[PAGO]",
+        });
 
     // Solo para diferentes tamaños de pantalla de PC (desktop)
     // lg: 1024px-1279px, xl: 1280px-1535px, 2xl: >=1536px
@@ -930,13 +941,13 @@ const CashPay: React.FC<CashPayProps> = ({
 
         setIsRemovingItem(true);
         try {
-            const mac = await getMacAddress();
+            const deviceId = await getDeviceIdOrMac();
             const res = await cancelOperationDetailMutation({
                 variables: {
                     detailId: realDetailId,
                     quantity,
                     userId: user.id,
-                    deviceId: mac,
+                    deviceId,
                     cancellationReason: detailCancellationReason.trim(),
                 },
             });
@@ -971,43 +982,6 @@ const CashPay: React.FC<CashPayProps> = ({
             setDetailCancellationReason("");
             setPendingDeleteItem(null);
         }
-    };
-
-    /**
-     * device_id en createIssuedDocument debe ser el del **equipo donde corre la app** (PC con SumApp),
-     * no un id de otro dispositivo. En Electron es la MAC de esta PC; fuera de Electron, getDeviceId() local.
-     */
-    const getDeviceIdOrMac = async (): Promise<string> => {
-        console.log(
-            "🔍 [PAGO] device_id: obteniendo identificador del equipo cliente (PC / esta máquina)…",
-        );
-        try {
-            const id = await getMacAddress();
-            if (id && id.trim() !== "") {
-                const trimmed = id.trim();
-                const isMac = trimmed.includes(":");
-                console.log(
-                    "✅ [PAGO] device_id para backend:",
-                    trimmed,
-                    isMac
-                        ? "(MAC de la PC — SumApp/Electron)"
-                        : "(id persistente de este equipo en localStorage)",
-                );
-                return trimmed;
-            }
-        } catch (error) {
-            console.error(
-                "❌ [PAGO] Error al obtener MAC / id de equipo:",
-                error,
-            );
-        }
-
-        const fallback = getDeviceId();
-        console.warn(
-            "⚠️ [PAGO] device_id fallback con getDeviceId() del equipo:",
-            fallback,
-        );
-        return fallback;
     };
 
     /** Al pulsar Boleta / Factura / Nota: vista previa local (sin backend) y luego el pago. */
@@ -2127,10 +2101,10 @@ const CashPay: React.FC<CashPayProps> = ({
         }
         setIsProcessing(true);
         try {
-            const mac = await getMacAddress();
-            if (!mac) {
-                logPp("abort: sin deviceId/MAC");
-                showToast("Error MAC", "error");
+            const resolvedDeviceId = await getDeviceIdOrMac();
+            if (!resolvedDeviceId?.trim()) {
+                logPp("abort: sin deviceId");
+                showToast("No se pudo identificar el equipo", "error");
                 return;
             }
             const selectedDetailIds = Object.keys(itemAssignments).filter(
@@ -2179,7 +2153,7 @@ const CashPay: React.FC<CashPayProps> = ({
                 tableId: normalizeGraphQLId(table.id) as string,
                 branchId: normalizeGraphQLId(companyData.branch.id) as string,
                 userId: normalizeGraphQLId(user.id) as string,
-                deviceId: mac,
+                deviceId: resolvedDeviceId,
             };
             logPp("mutación printPartialPrecuenta variables", variables);
 
@@ -2226,7 +2200,7 @@ const CashPay: React.FC<CashPayProps> = ({
                     {
                         label: "precuenta parcial",
                         operationId: operation.id,
-                        deviceId: mac,
+                        deviceId: resolvedDeviceId,
                         localPrinterName:
                             getLocalTicketPrinterStorage().trim() ||
                             selectedLocalPrinterName.trim() ||
@@ -2308,14 +2282,14 @@ const CashPay: React.FC<CashPayProps> = ({
         }
         setIsProcessing(true);
         try {
-            const mac = await getMacAddress();
+            const deviceId = await getDeviceIdOrMac();
             const res = await cancelOperationMutation({
                 variables: {
                     operationId: operation?.id,
                     branchId: companyData?.branch.id,
                     userId: user?.id,
                     cancellationReason: cancellationReason.trim(),
-                    deviceId: mac,
+                    deviceId,
                 },
             });
             if (res.data?.cancelOperation?.success) {

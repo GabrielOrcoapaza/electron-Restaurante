@@ -19,7 +19,7 @@ import {
     RestrictedTableAccessModal,
     type RestrictedModalPayload,
 } from "../../components/RestrictedTableAccessModal";
-import { ComboSelectorModal } from "../../components/ComboSelectorModal";
+import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
 import {
     CREATE_OPERATION,
     ADD_ITEMS_TO_OPERATION,
@@ -39,6 +39,7 @@ import {
 } from "../../graphql/queries";
 import ModalObservation from "./modalObservation";
 import CategoryIcon from "../../components/CategoryIcon";
+import { ComboSelectorModal } from "../../components/ComboSelectorModal";
 import VirtualKeyboard from "../../components/VirtualKeyboard";
 import { useTableSessionLock } from "../../hooks/useTableSessionLock";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
@@ -111,7 +112,6 @@ const Order: React.FC<OrderProps> = ({
     const {
         companyData,
         user,
-        deviceId,
         getDeviceId,
         getMacAddress,
         updateTableInContext,
@@ -1498,22 +1498,13 @@ const Order: React.FC<OrderProps> = ({
                     };
                 });
 
-                // Solo enviar deviceId si debe imprimir; si no, enviar vacío para que no imprima
                 let deviceIdForMutation = "";
                 if (shouldPrint) {
-                    if (deviceId) {
-                        deviceIdForMutation = deviceId;
-                    } else {
-                        try {
-                            deviceIdForMutation = await getMacAddress();
-                        } catch (error) {
-                            console.error(
-                                "Error al obtener MAC address:",
-                                error,
-                            );
-                            deviceIdForMutation = getDeviceId();
-                        }
-                    }
+                    deviceIdForMutation = await resolveClientDeviceIdForPrint({
+                        getMacAddress,
+                        getDeviceId,
+                        logPrefix: "[Order/addItems]",
+                    });
                 }
 
                 const addItemsVariables = {
@@ -1714,19 +1705,12 @@ const Order: React.FC<OrderProps> = ({
             if (user?.id) {
                 variables.userId = user.id;
             }
-            // Solo enviar deviceId cuando debe imprimir; si no, no enviar para que no imprima
             if (shouldPrint) {
-                if (deviceId) {
-                    variables.deviceId = deviceId;
-                } else {
-                    try {
-                        const macAddress = await getMacAddress();
-                        variables.deviceId = macAddress;
-                    } catch (error) {
-                        console.error("Error al obtener MAC address:", error);
-                        variables.deviceId = getDeviceId();
-                    }
-                }
+                variables.deviceId = await resolveClientDeviceIdForPrint({
+                    getMacAddress,
+                    getDeviceId,
+                    logPrefix: "[Order/createOperation]",
+                });
             }
 
             variables.shouldPrint = shouldPrint;
@@ -1922,20 +1906,11 @@ const Order: React.FC<OrderProps> = ({
         setIsPrintingPrecuenta(true);
 
         try {
-            // Obtener deviceId o MAC address
-            // Obtener deviceId o MAC address - Priorizar MAC address para impresión según requerimiento
-            let resolvedDeviceId: string;
-            try {
-                const mac = await getMacAddress();
-                if (mac) {
-                    resolvedDeviceId = mac;
-                } else {
-                    resolvedDeviceId = deviceId || getDeviceId();
-                }
-            } catch (error) {
-                console.error("Error al obtener MAC address:", error);
-                resolvedDeviceId = deviceId || getDeviceId();
-            }
+            const resolvedDeviceId = await resolveClientDeviceIdForPrint({
+                getMacAddress,
+                getDeviceId,
+                logPrefix: "[Order/precuenta]",
+            });
 
             const result = await printPrecuentaMutation({
                 variables: {
@@ -1943,7 +1918,6 @@ const Order: React.FC<OrderProps> = ({
                     tableId: table.id,
                     branchId: companyData.branch.id,
                     deviceId: resolvedDeviceId,
-                    printerId: null,
                 },
             });
 
