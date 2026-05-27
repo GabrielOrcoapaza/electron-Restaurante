@@ -4,12 +4,14 @@ import {
     createHttpLink,
     split,
     from,
+    ApolloLink,
 } from "@apollo/client";
 import { setContext } from "@apollo/client/link/context";
 import { onError } from "@apollo/client/link/error";
 import { createClient } from "graphql-ws";
 import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { getMainDefinition } from "@apollo/client/utilities";
+import { sanitizeGraphQLVariables } from "../utils/sanitizeGraphQLVariables";
 
 // Helper para verificar si un token JWT ha expirado
 const isTokenExpired = (token: string | null): boolean => {
@@ -55,11 +57,22 @@ const httpLink = createHttpLink({
     uri: graphqlUrl,
 });
 
+const sanitizeVariablesLink = new ApolloLink((operation, forward) => {
+    if (operation.variables) {
+        operation.variables = sanitizeGraphQLVariables(operation.variables);
+    }
+    return forward(operation);
+});
+
 // Link para manejar errores de autenticación
-const errorLink = onError(({ graphQLErrors, networkError }) => {
+const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
     if (graphQLErrors) {
-        graphQLErrors.forEach(({ message, extensions }) => {
-            console.error(`GraphQL error: ${message}`);
+        graphQLErrors.forEach(({ message, extensions, path }) => {
+            console.error(`GraphQL error: ${message}`, {
+                operation: operation?.operationName,
+                path: Array.isArray(path) ? path.join(".") : path,
+                code: extensions?.code,
+            });
 
             // Si el error es de token expirado o firma expirada, limpiar el localStorage
             if (
@@ -125,7 +138,7 @@ const splitLink = split(
         );
     },
     wsLink,
-    from([errorLink, authLink.concat(httpLink)]),
+    from([errorLink, sanitizeVariablesLink, authLink.concat(httpLink)]),
 );
 
 // Crear el cliente Apollo

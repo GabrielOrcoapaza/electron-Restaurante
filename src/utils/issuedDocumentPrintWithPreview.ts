@@ -11,7 +11,7 @@ import {
 
 const LOG = "[Vista previa impresión]";
 
-export type DocumentPreviewAction = "continue" | "cancel";
+export type DocumentPreviewAction = "print" | "continue" | "cancel";
 
 /** HTML del ticket en blob: para iframe en modal de caja. */
 export async function buildPreviewHtmlBlobUrl(

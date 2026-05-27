@@ -84,7 +84,7 @@ export function DocumentPrintPreviewModal({
                         disabled={loading}
                         className="flex-1 rounded-xl border border-emerald-700 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-200"
                     >
-                        Imprimir…
+                        Imprimir y cobrar
                     </button>
                     <button
                         type="button"

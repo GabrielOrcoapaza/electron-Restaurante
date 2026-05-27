@@ -53,7 +53,6 @@ import {
 } from "../../utils/buildCashPayDocumentPreview";
 import {
     buildPreviewHtmlBlobUrl,
-    openIssuedDocumentPrintPreview,
     revokePreviewHtmlBlobUrl,
     type DocumentPreviewAction,
 } from "../../utils/issuedDocumentPrintWithPreview";
@@ -65,6 +64,7 @@ import {
     getIntegratedPrinterCashUiEnabled,
     getLocalTicketPrinterStorage,
 } from "../../utils/localPrinterPreference";
+import { normalizeGraphQLId } from "../../utils/sanitizeGraphQLVariables";
 
 type CashPayProps = {
     table: Table | null;
@@ -273,65 +273,69 @@ const CashPay: React.FC<CashPayProps> = ({
         })();
     }, [table?.currentOperationId, showLocalPrinterPicker]);
 
+    const operationIdFromTable = normalizeGraphQLId(table?.currentOperationId);
+
     const { data: dataOperation, refetch } = useQuery(GET_OPERATION_BY_ID, {
         variables: {
-            operationId: table?.currentOperationId || "",
+            operationId: operationIdFromTable as string,
         },
-        skip: !table?.currentOperationId,
+        skip: !operationIdFromTable,
         fetchPolicy: "cache-and-network",
     });
 
+    const branchId = normalizeGraphQLId(companyData?.branch?.id);
+
     const { data: documentsData } = useQuery(GET_DOCUMENTS, {
-        variables: { branchId: companyData?.branch.id || "" },
-        skip: !companyData?.branch.id,
+        variables: { branchId: branchId as string },
+        skip: !branchId,
         fetchPolicy: "cache-and-network",
     });
 
     const { data: cashRegistersData } = useQuery(GET_CASH_REGISTERS, {
-        variables: { branchId: companyData?.branch.id || "" },
-        skip: !companyData?.branch.id,
+        variables: { branchId: branchId as string },
+        skip: !branchId,
         fetchPolicy: "cache-and-network",
     });
 
     const { data: floorsData } = useQuery(GET_FLOORS_BY_BRANCH, {
-        variables: { branchId: companyData?.branch.id || "" },
-        skip: !companyData?.branch.id || !showChangeTableModal,
+        variables: { branchId: branchId as string },
+        skip: !branchId || !showChangeTableModal,
         fetchPolicy: "network-only",
     });
 
     const { data: tablesData } = useQuery(GET_TABLES_BY_FLOOR, {
         variables: { floorId: selectedFloorId },
-        skip: !selectedFloorId,
+        skip: !normalizeGraphQLId(selectedFloorId),
         fetchPolicy: "network-only",
     });
 
     const { data: transferFloorsData } = useQuery(GET_FLOORS_BY_BRANCH, {
-        variables: { branchId: companyData?.branch.id || "" },
-        skip: !companyData?.branch.id || !showTransferPlatesModal,
+        variables: { branchId: branchId as string },
+        skip: !branchId || !showTransferPlatesModal,
         fetchPolicy: "network-only",
     });
 
     const { data: transferTablesData } = useQuery(GET_TABLES_BY_FLOOR, {
         variables: { floorId: selectedTransferFloorId },
-        skip: !selectedTransferFloorId,
+        skip: !normalizeGraphQLId(selectedTransferFloorId),
         fetchPolicy: "network-only",
     });
 
     const { data: clientsData, refetch: refetchClients } = useQuery(
         GET_PERSONS_BY_BRANCH,
         {
-            variables: { branchId: companyData?.branch.id || "" },
-            skip: !companyData?.branch.id || !enableBranchClientsQuery,
+            variables: { branchId: branchId as string },
+            skip: !branchId || !enableBranchClientsQuery,
             fetchPolicy: "cache-and-network",
         },
     );
 
     const { data: usersData } = useQuery(GET_USERS_BY_BRANCH_LIGHT, {
         variables: {
-            branchId: companyData?.branch.id || "",
+            branchId: branchId as string,
             includeInactive: false,
         },
-        skip: !companyData?.branch.id || !showChangeUserModal,
+        skip: !branchId || !showChangeUserModal,
         fetchPolicy: "network-only",
     });
 
@@ -347,8 +351,8 @@ const CashPay: React.FC<CashPayProps> = ({
     const [changeOperationTableMutation] = useMutation(CHANGE_OPERATION_TABLE);
     const [changeOperationUserMutation] = useMutation(CHANGE_OPERATION_USER);
     const { data: promotionsData } = useQuery(GET_ACTIVE_PROMOTIONS, {
-        variables: { branchId: companyData?.branch.id || "" },
-        skip: !companyData?.branch.id,
+        variables: { branchId: branchId as string },
+        skip: !branchId,
         fetchPolicy: "network-only",
     });
     const [transferItemsMutation] = useMutation(TRANSFER_ITEMS);
@@ -1182,13 +1186,16 @@ const CashPay: React.FC<CashPayProps> = ({
                 return;
             }
 
-            await handleProcessPayment(documentId);
+            await handleProcessPayment(documentId, userAction === "print");
         } finally {
             isPrintPreviewOpenRef.current = false;
         }
     };
 
-    const handleProcessPayment = async (documentId: string) => {
+    const handleProcessPayment = async (
+        documentId: string,
+        shouldPrint: boolean = true,
+    ) => {
         // ⚠️ PROTECCIÓN CONTRA DOBLE CLIC - Verificar ref primero (más confiable que estado)
         if (isProcessingRef.current) {
             console.warn(
@@ -1308,10 +1315,22 @@ const CashPay: React.FC<CashPayProps> = ({
                           operation?.id,
                       );
 
+            const operationIdForPay =
+                normalizeGraphQLId(operation?.id) ||
+                normalizeGraphQLId(table?.currentOperationId) ||
+                null;
+            if (!operationIdForPay) {
+                showToast(
+                    "No se encontró la operación a pagar. Vuelva al plano de mesas.",
+                    "error",
+                );
+                return;
+            }
+
             const { data: freshPayData } = await apolloClient.query({
                 query: GET_OPERATION_BY_ID,
                 variables: {
-                    operationId: table?.currentOperationId || "",
+                    operationId: String(operationIdForPay),
                 },
                 fetchPolicy: "no-cache",
             });
@@ -1598,15 +1617,52 @@ const CashPay: React.FC<CashPayProps> = ({
 
             // Igual que SumApp Android (CashViewModel): siempre enviar tableId de la mesa.
             // El backend solo libera la mesa si is_fully_paid(); no usar null en parciales en web.
-            const tableIdForPayment = table?.id || null;
+            const payOperationId = normalizeGraphQLId(operationToPay.id);
+            if (!payOperationId) {
+                showToast(
+                    "La operación no tiene un identificador válido. Vuelva al plano de mesas.",
+                    "error",
+                );
+                return;
+            }
+
+            const payBranchId = normalizeGraphQLId(companyData?.branch?.id);
+            const payUserId = normalizeGraphQLId(user.id);
+            const payDocumentIdValue = normalizeGraphQLId(documentId);
+            if (!payBranchId || !payUserId || !payDocumentIdValue) {
+                showToast(
+                    "Faltan datos de sucursal, usuario o documento para el pago.",
+                    "error",
+                );
+                return;
+            }
+
+            const payCashRegisterId = normalizeGraphQLId(cashRegisterIdToUse);
+            if (!payCashRegisterId) {
+                showToast("La caja registradora seleccionada no es válida.", "error");
+                return;
+            }
+
+            const sanitizedItems = items.filter((item) =>
+                Boolean(normalizeGraphQLId(item.operationDetailId)),
+            );
+            if (sanitizedItems.length === 0) {
+                showToast(
+                    "No hay líneas válidas para facturar. Revise los productos.",
+                    "error",
+                );
+                return;
+            }
+
+            const tableIdForPayment = normalizeGraphQLId(table?.id) || null;
 
             const variables = {
-                operationId: operationToPay.id,
-                branchId: companyData?.branch.id,
-                documentId: documentId,
+                operationId: payOperationId,
+                branchId: payBranchId,
+                documentId: payDocumentIdValue,
                 serial: serial,
-                personId: selectedClientId || null,
-                userId: user.id,
+                personId: normalizeGraphQLId(selectedClientId) || null,
+                userId: payUserId,
                 emissionDate: emissionDate,
                 emissionTime: emissionTime,
                 currency: "PEN",
@@ -1623,12 +1679,20 @@ const CashPay: React.FC<CashPayProps> = ({
                 totalExempt: 0.0,
                 totalFree: 0.0,
                 totalAmount: paymentTotal,
-                items: items,
-                payments: paymentsToSend,
+                items: sanitizedItems.map((item) => ({
+                    ...item,
+                    operationDetailId: normalizeGraphQLId(
+                        item.operationDetailId,
+                    ) as string,
+                })),
+                payments: paymentsToSend.map((payment) => ({
+                    ...payment,
+                    cashRegisterId: payCashRegisterId,
+                })),
                 notes: null,
                 tableId: tableIdForPayment,
                 deviceId: resolvedDeviceId,
-                printerId: null, // Opcional: se puede agregar selección de impresora si es necesario
+                shouldPrint,
             };
 
             // 🧪 LOG COMPLETO ANTES DEL PAGO - ESPECIALMENTE PARA PAGOS PARCIALES
@@ -1809,41 +1873,43 @@ const CashPay: React.FC<CashPayProps> = ({
                     print_via_bluetooth?: boolean;
                     document_data?: string | null;
                 };
-                const printLocallyFlag =
-                    issuedDocResult?.printLocally === true ||
-                    issuedDocResult?.print_locally === true;
+                if (shouldPrint) {
+                    const printLocallyFlag =
+                        issuedDocResult?.printLocally === true ||
+                        issuedDocResult?.print_locally === true;
 
-                const localPrintOk = await invokeLocalIssuedDocumentPrint(
-                    {
-                        printLocally:
-                            issuedDocResult?.printLocally ??
-                            issuedDocResult?.print_locally,
-                        printViaBluetooth:
-                            issuedDocResult?.printViaBluetooth ??
-                            issuedDocResult?.print_via_bluetooth,
-                        documentData:
-                            issuedDocResult?.documentData ??
-                            issuedDocResult?.document_data ??
-                            null,
-                    },
-                    {
-                        label: isPartialPayment
-                            ? "pago parcial"
-                            : "pago completo",
-                        operationId: variables.operationId,
-                        deviceId: variables.deviceId ?? null,
-                        localPrinterName:
-                            getLocalTicketPrinterStorage().trim() ||
-                            selectedLocalPrinterName.trim() ||
-                            null,
-                    },
-                );
-
-                if (printLocallyFlag && !localPrintOk) {
-                    showToast(
-                        "El pago se registró, pero no se pudo imprimir en la impresora local. Recompile SumApp (npm run build-electron), revise el nombre de la impresora o use la predeterminada de Windows.",
-                        "warning",
+                    const localPrintOk = await invokeLocalIssuedDocumentPrint(
+                        {
+                            printLocally:
+                                issuedDocResult?.printLocally ??
+                                issuedDocResult?.print_locally,
+                            printViaBluetooth:
+                                issuedDocResult?.printViaBluetooth ??
+                                issuedDocResult?.print_via_bluetooth,
+                            documentData:
+                                issuedDocResult?.documentData ??
+                                issuedDocResult?.document_data ??
+                                null,
+                        },
+                        {
+                            label: isPartialPayment
+                                ? "pago parcial"
+                                : "pago completo",
+                            operationId: variables.operationId,
+                            deviceId: variables.deviceId ?? null,
+                            localPrinterName:
+                                getLocalTicketPrinterStorage().trim() ||
+                                selectedLocalPrinterName.trim() ||
+                                null,
+                        },
                     );
+
+                    if (printLocallyFlag && !localPrintOk) {
+                        showToast(
+                            "El pago se registró, pero no se pudo imprimir en la impresora local. Recompile SumApp (npm run build-electron), revise el nombre de la impresora o use la predeterminada de Windows.",
+                            "warning",
+                        );
+                    }
                 }
 
                 // ✅ VERIFICAR SI EL DOCUMENTO SERÁ ENVIADO A SUNAT
@@ -2108,13 +2174,12 @@ const CashPay: React.FC<CashPayProps> = ({
             }
 
             const variables = {
-                operationId: operation.id,
+                operationId: normalizeGraphQLId(operation.id) as string,
                 detailItems,
-                tableId: table.id,
-                branchId: companyData.branch.id,
-                userId: user.id,
+                tableId: normalizeGraphQLId(table.id) as string,
+                branchId: normalizeGraphQLId(companyData.branch.id) as string,
+                userId: normalizeGraphQLId(user.id) as string,
                 deviceId: mac,
-                printerId: null as string | null,
             };
             logPp("mutación printPartialPrecuenta variables", variables);
 
@@ -4153,12 +4218,7 @@ const CashPay: React.FC<CashPayProps> = ({
                     htmlUrl={cashDocPreview.htmlUrl}
                     loading={cashDocPreview.loading}
                     onPrint={() => {
-                        void openIssuedDocumentPrintPreview(
-                            cashDocPreview.previewJson,
-                            getLocalTicketPrinterStorage().trim() ||
-                                selectedLocalPrinterName.trim() ||
-                                null,
-                        );
+                        cashDocPreviewResolverRef.current?.("print");
                     }}
                     onContinuePay={() => {
                         cashDocPreviewResolverRef.current?.("continue");

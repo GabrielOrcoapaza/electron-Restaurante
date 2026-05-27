@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { useResponsive } from "../../hooks/useResponsive";
@@ -37,6 +37,17 @@ import {
 } from "../../utils/promotionUtils";
 import type { IPromotion } from "../../types/promotions";
 import { ComboSelectorModal } from "../../components/ComboSelectorModal";
+import {
+    buildCashPayDocumentPreviewJson,
+    documentTypeLabelFromCode,
+} from "../../utils/buildCashPayDocumentPreview";
+import {
+    buildPreviewHtmlBlobUrl,
+    revokePreviewHtmlBlobUrl,
+    type DocumentPreviewAction,
+} from "../../utils/issuedDocumentPrintWithPreview";
+import { DocumentPrintPreviewModal } from "../../components/DocumentPrintPreviewModal";
+import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
 
 const roundMoney2 = (n: number): number =>
     Math.round((Number(n) || 0) * 100) / 100;
@@ -118,6 +129,15 @@ const Delivery: React.FC = () => {
     const [discountPercent, setDiscountPercent] = useState<number>(0);
     // Modal de información de pago (se abre al hacer click en Procesar Venta)
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [deliveryDocPreview, setDeliveryDocPreview] = useState<{
+        title: string;
+        htmlUrl: string | null;
+        previewJson: string;
+        loading: boolean;
+    } | null>(null);
+    const deliveryDocPreviewResolverRef = useRef<
+        ((action: DocumentPreviewAction) => void) | null
+    >(null);
 
     // Estados para combos y promociones
     const { data: promotionsData } = useQuery(GET_ACTIVE_PROMOTIONS, {
@@ -837,6 +857,93 @@ const Delivery: React.FC = () => {
             return;
         }
 
+        const docForPay = documents.find(
+            (d: any) => String(d.id) === String(selectedDocument),
+        );
+        if (!docForPay) {
+            showToast("Tipo de documento no válido", "error");
+            return;
+        }
+
+        const now = new Date();
+        const previewJson = buildCashPayDocumentPreviewJson({
+            documentTypeLabel: documentTypeLabelFromCode(
+                String(docForPay.code || ""),
+                docForPay.description,
+            ),
+            serial: selectedSerial,
+            company: companyData?.company ?? null,
+            branch: {
+                name: companyData?.branch?.name,
+                address: companyData?.branch?.address,
+                phone: companyData?.branch?.phone,
+            },
+            customer: selectedPerson
+                ? {
+                      name: selectedPerson.name || "Cliente",
+                      document: selectedPerson.documentNumber,
+                      document_type: selectedPerson.documentType,
+                  }
+                : null,
+            tableName: "PARA LLEVAR",
+            waiterName: user?.fullName?.trim() || null,
+            lineItems: itemsSource.map((item) => ({
+                product_name: item.name,
+                quantity: Math.max(1, Number(item.quantity) || 1),
+                unit_price: Number(item.price) || 0,
+                total: roundMoney2(getCartLineTotal(item)),
+                discount: item.discount ?? 0,
+                promotion_name: item.promotionName ?? null,
+                notes: item.notes || "",
+            })),
+            amounts: {
+                subtotal,
+                igv: igvAmount,
+                igv_percent: igvPercentageFromBranch,
+                items_discount: cartItems.reduce(
+                    (sum, item) => sum + (item.discount || 0),
+                    0,
+                ),
+                discount: manualDiscount,
+                discount_percent: pct,
+                total_discount: totalDiscount,
+                total: cartTotal,
+            },
+            emissionDate: formatLocalDateYYYYMMDD(now),
+            emissionTime: formatLocalTimeHHMMSS(now),
+            logoBase64:
+                companyData?.branchLogo ||
+                companyData?.companyLogo ||
+                companyData?.branch?.logo ||
+                null,
+        });
+
+        const previewTitle =
+            docForPay.description?.trim() || "Comprobante";
+        const htmlUrl = await buildPreviewHtmlBlobUrl(previewJson);
+
+        const userAction = await new Promise<DocumentPreviewAction>(
+            (resolve) => {
+                deliveryDocPreviewResolverRef.current = resolve;
+                setDeliveryDocPreview({
+                    title: previewTitle,
+                    htmlUrl,
+                    previewJson,
+                    loading: false,
+                });
+            },
+        );
+
+        revokePreviewHtmlBlobUrl(htmlUrl);
+        setDeliveryDocPreview(null);
+        deliveryDocPreviewResolverRef.current = null;
+
+        if (userAction === "cancel") {
+            return;
+        }
+
+        const shouldPrint = userAction === "print";
+
         setIsSaving(true);
 
         try {
@@ -1000,6 +1107,7 @@ const Delivery: React.FC = () => {
                 payments: paymentsPayload,
                 notes: "",
                 deviceId: resolvedDeviceId, // No truncar, el backend ya se encarga
+                shouldPrint,
             };
 
             if (selectedPerson) {
@@ -1009,6 +1117,46 @@ const Delivery: React.FC = () => {
             const result = await createSaleCarryOutMutation({ variables });
 
             if (result.data?.createSaleCarryOut?.success) {
+                if (shouldPrint) {
+                    const carryOutResult = result.data
+                        .createSaleCarryOut as typeof result.data.createSaleCarryOut & {
+                        print_locally?: boolean;
+                        print_via_bluetooth?: boolean;
+                        document_data?: string | null;
+                    };
+                    const printLocallyFlag =
+                        carryOutResult?.printLocally === true ||
+                        carryOutResult?.print_locally === true;
+
+                    const localPrintOk = await invokeLocalIssuedDocumentPrint(
+                        {
+                            printLocally:
+                                carryOutResult?.printLocally ??
+                                carryOutResult?.print_locally,
+                            printViaBluetooth:
+                                carryOutResult?.printViaBluetooth ??
+                                carryOutResult?.print_via_bluetooth,
+                            documentData:
+                                carryOutResult?.documentData ??
+                                carryOutResult?.document_data ??
+                                null,
+                        },
+                        {
+                            label: "venta para llevar",
+                            operationId:
+                                carryOutResult?.operation?.id ?? null,
+                            deviceId: resolvedDeviceId ?? null,
+                        },
+                    );
+
+                    if (printLocallyFlag && !localPrintOk) {
+                        showToast(
+                            "La venta se registró, pero no se pudo imprimir en la impresora local.",
+                            "warning",
+                        );
+                    }
+                }
+
                 showToast("Venta procesada exitosamente", "success");
                 setShowPaymentModal(false);
 
@@ -2233,6 +2381,23 @@ const Delivery: React.FC = () => {
                     }}
                     onConfirm={handleAddCombo}
                     initialProduct={pendingComboProduct}
+                />
+            )}
+
+            {deliveryDocPreview && (
+                <DocumentPrintPreviewModal
+                    title={deliveryDocPreview.title}
+                    htmlUrl={deliveryDocPreview.htmlUrl}
+                    loading={deliveryDocPreview.loading}
+                    onPrint={() => {
+                        deliveryDocPreviewResolverRef.current?.("print");
+                    }}
+                    onContinuePay={() => {
+                        deliveryDocPreviewResolverRef.current?.("continue");
+                    }}
+                    onCancel={() => {
+                        deliveryDocPreviewResolverRef.current?.("cancel");
+                    }}
                 />
             )}
         </div>

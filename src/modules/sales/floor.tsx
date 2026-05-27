@@ -26,6 +26,7 @@ import {
 import Order, { type OrderSuccessPayload } from "./order";
 import { logTableSessionLock } from "../../utils/tableSessionLockLog";
 import { useTableSessionLock } from "../../hooks/useTableSessionLock";
+import { normalizeGraphQLId } from "../../utils/sanitizeGraphQLVariables";
 import {
     RestrictedTableAccessModal,
     type RestrictedModalPayload,
@@ -190,7 +191,7 @@ const Floor: React.FC<FloorProps> = ({
             ? "repeat(6, 1fr)"
             : "repeat(10, 1fr)";
 
-    const [selectedFloorId, setSelectedFloorId] = useState<string>("");
+    const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
     const [selectedTable, setSelectedTable] = useState<Table | null>(null);
     const [showStatusModal, setShowStatusModal] = useState(false);
     const [showOrder, setShowOrder] = useState(false);
@@ -236,7 +237,7 @@ const Floor: React.FC<FloorProps> = ({
 
     useEffect(() => {
         if (activeFloors.length === 0) {
-            if (selectedFloorId) setSelectedFloorId("");
+            if (selectedFloorId) setSelectedFloorId(null);
             return;
         }
         const stillValid = activeFloors.some(
@@ -247,14 +248,16 @@ const Floor: React.FC<FloorProps> = ({
         }
     }, [activeFloors, selectedFloorId]);
 
+    const floorIdForQuery = normalizeGraphQLId(selectedFloorId);
+
     const {
         data: tablesData,
         loading: tablesLoading,
         error: tablesError,
         refetch: refetchTables,
     } = useQuery(GET_TABLES_BY_FLOOR, {
-        variables: { floorId: selectedFloorId },
-        skip: !selectedFloorId,
+        variables: { floorId: floorIdForQuery as string },
+        skip: !floorIdForQuery,
         fetchPolicy: "network-only",
         nextFetchPolicy: "network-only",
         onCompleted: (data) => {
@@ -338,14 +341,16 @@ const Floor: React.FC<FloorProps> = ({
         setSelectedTable(null);
     }, [showStatusModal, selectedTable, visibleTables, showToast]);
 
-    const refetchTablesFromServer = useCallback(
-        () => refetchTables({ fetchPolicy: "network-only" }),
-        [refetchTables],
-    );
+    const refetchTablesFromServer = useCallback(() => {
+        if (!floorIdForQuery) {
+            return Promise.resolve(null);
+        }
+        return refetchTables({ fetchPolicy: "network-only" });
+    }, [floorIdForQuery, refetchTables]);
 
     /** Tras Caja: el servidor ya liberó pero la primera query a veces llega en carrera; varios refetch cortos. */
     useEffect(() => {
-        if (tablesRefreshNonce === 0) return;
+        if (tablesRefreshNonce === 0 || !floorIdForQuery) return;
         const delays = [0, 400, 1200];
         const ids: number[] = [];
         delays.forEach((ms) => {
@@ -358,7 +363,7 @@ const Floor: React.FC<FloorProps> = ({
         return () => {
             ids.forEach((id) => window.clearTimeout(id));
         };
-    }, [tablesRefreshNonce, refetchTablesFromServer]);
+    }, [tablesRefreshNonce, refetchTablesFromServer, floorIdForQuery]);
 
     const tablesWsEventDebounceRef = useRef<ReturnType<
         typeof setTimeout
@@ -371,9 +376,10 @@ const Floor: React.FC<FloorProps> = ({
 
     useEffect(() => {
         const runRefetch = () => {
-            if (!selectedFloorId) return;
+            if (!floorIdForQuery) return;
             void refetchTablesFromServer()
                 .then((res) => {
+                    if (!res) return;
                     logTableSessionLock("refetch:tablesByFloor:ok", {
                         floorId: selectedFloorId,
                         count: res.data?.tablesByFloor?.length,
@@ -388,7 +394,7 @@ const Floor: React.FC<FloorProps> = ({
         };
 
         const scheduleEventRefetch = () => {
-            if (!selectedFloorId) return;
+            if (!floorIdForQuery) return;
             if (tablesWsEventDebounceRef.current) {
                 clearTimeout(tablesWsEventDebounceRef.current);
             }
@@ -399,7 +405,7 @@ const Floor: React.FC<FloorProps> = ({
         };
 
         const scheduleReconnectRefetch = () => {
-            if (!selectedFloorId) return;
+            if (!floorIdForQuery) return;
             if (tablesWsReconnectDebounceRef.current) {
                 clearTimeout(tablesWsReconnectDebounceRef.current);
             }
@@ -493,7 +499,7 @@ const Floor: React.FC<FloorProps> = ({
             unsubscribeError();
             unsubscribePong();
         };
-    }, [subscribe, refetchTablesFromServer, selectedFloorId, showToast]);
+    }, [subscribe, refetchTablesFromServer, floorIdForQuery, showToast]);
 
     const handleFloorSelect = (floorId: string) => {
         setSelectedFloorId(floorId);
