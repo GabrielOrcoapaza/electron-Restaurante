@@ -3,13 +3,34 @@ import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { GET_USER_SALES_REPORT, SEARCH_USERS } from '../../graphql/queries';
 import ReportEmployeeList from './reportEmployeeList';
+import ReportEmployeeDishesList from './reportEmployeeDishesList';
 import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
+type ReportViewMode = 'orders' | 'dishes';
+
+export interface UserSaleOperationDetail {
+  id: string;
+  productId?: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  notes?: string;
+  productName: string;
+  productCode?: string;
+  productType?: string;
+  comboComponents?: Array<{
+    id: string;
+    productId: string;
+    productName: string;
+    quantity: number;
+  }>;
+}
+
 export interface UserSaleOperation {
   id: string;
-  order: string;
+  order: string | number;
   operationDate: string;
   total: number;
   status: string;
@@ -17,11 +38,98 @@ export interface UserSaleOperation {
     id: string;
     fullName: string;
   };
+  details?: UserSaleOperationDetail[];
 }
 
 export interface UserSalesSummary {
   totalOperations: number;
   grandTotal: number;
+}
+
+export interface EmployeeDishLine {
+  lineKey: string;
+  order: string;
+  operationDate: string;
+  productId: string;
+  code: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+function formatOrderNumber(order: string | number | null | undefined): string {
+  return order == null ? '' : String(order);
+}
+
+function compareOrderDesc(
+  a: string | number | null | undefined,
+  b: string | number | null | undefined,
+): number {
+  const na = Number(a);
+  const nb = Number(b);
+  if (!Number.isNaN(na) && !Number.isNaN(nb)) return nb - na;
+  return formatOrderNumber(b).localeCompare(formatOrderNumber(a), undefined, {
+    numeric: true,
+  });
+}
+
+function buildEmployeeDishLines(operations: UserSaleOperation[]): EmployeeDishLine[] {
+  const lines: EmployeeDishLine[] = [];
+
+  for (const op of operations) {
+    if (op.status !== 'COMPLETED') continue;
+
+    for (const detail of op.details ?? []) {
+      const components = detail.comboComponents?.filter(Boolean) ?? [];
+
+      if (components.length > 0) {
+        const compQtyPerUnit = components.reduce(
+          (sum, comp) => sum + Number(comp.quantity || 1),
+          0,
+        );
+
+        for (const comp of components) {
+          const qty = Number(detail.quantity) * Number(comp.quantity || 1);
+          const share =
+            compQtyPerUnit > 0
+              ? Number(comp.quantity || 1) / compQtyPerUnit
+              : 0;
+          const total = Number(detail.total) * share;
+
+          lines.push({
+            lineKey: `${op.id}-${detail.id}-${comp.id}`,
+            order: formatOrderNumber(op.order),
+            operationDate: op.operationDate,
+            productId: comp.productId || comp.productName,
+            code: '',
+            name: comp.productName,
+            quantity: qty,
+            unitPrice: qty > 0 ? total / qty : 0,
+            total,
+          });
+        }
+      } else {
+        lines.push({
+          lineKey: `${op.id}-${detail.id}`,
+          order: formatOrderNumber(op.order),
+          operationDate: op.operationDate,
+          productId: detail.productId || detail.productCode || detail.productName,
+          code: detail.productCode || '',
+          name: detail.productName,
+          quantity: Number(detail.quantity),
+          unitPrice: Number(detail.unitPrice),
+          total: Number(detail.total),
+        });
+      }
+    }
+  }
+
+  return lines.sort(
+    (a, b) =>
+      new Date(b.operationDate).getTime() - new Date(a.operationDate).getTime() ||
+      compareOrderDesc(a.order, b.order),
+  );
 }
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
@@ -41,6 +149,7 @@ const ReportEmployee: React.FC = () => {
   const [searchInput, setSearchInput] = useState<string>('');
   const [debouncedQuery, setDebouncedQuery] = useState<string>('');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [viewMode, setViewMode] = useState<ReportViewMode>('orders');
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -92,6 +201,19 @@ const ReportEmployee: React.FC = () => {
 
   const operations: UserSaleOperation[] = data?.userSalesReport?.operations ?? [];
   const summary: UserSalesSummary | null = data?.userSalesReport?.summary ?? null;
+
+  const dishLines = useMemo(
+    () => buildEmployeeDishLines(operations),
+    [operations],
+  );
+
+  const dishTotals = useMemo(
+    () => ({
+      count: dishLines.length,
+      quantity: dishLines.reduce((sum, line) => sum + line.quantity, 0),
+    }),
+    [dishLines],
+  );
 
   const averageSale = useMemo(() => {
     if (!summary || summary.totalOperations === 0) return 0;
@@ -269,10 +391,40 @@ const ReportEmployee: React.FC = () => {
 
         {/* Results List Container */}
         <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-50 p-6 dark:border-slate-800/50">
-                <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">Desglose de Operaciones</h2>
+            <div className="flex flex-col gap-4 border-b border-slate-50 p-6 dark:border-slate-800/50 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3">
+                    <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                        {viewMode === 'orders' ? 'Desglose de Operaciones' : 'Desglose por Platos'}
+                    </h2>
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('orders')}
+                            className={`rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest transition-all ${
+                                viewMode === 'orders'
+                                    ? 'bg-amber-500 text-white shadow-md shadow-amber-200 dark:shadow-none'
+                                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            Por orden
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('dishes')}
+                            className={`rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest transition-all ${
+                                viewMode === 'dishes'
+                                    ? 'bg-amber-500 text-white shadow-md shadow-amber-200 dark:shadow-none'
+                                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            Por platos
+                        </button>
+                    </div>
+                </div>
                 <span className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800">
-                    {operations.length} Órdenes encontradas
+                    {viewMode === 'orders'
+                        ? `${operations.length} órdenes encontradas`
+                        : `${dishTotals.count} platos · ${dishTotals.quantity} und`}
                 </span>
             </div>
 
@@ -283,10 +435,16 @@ const ReportEmployee: React.FC = () => {
                             <div key={i} className="h-20 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50" />
                         ))}
                     </div>
-                ) : (
+                ) : viewMode === 'orders' ? (
                     <ReportEmployeeList
                         operations={operations}
                         summary={summary}
+                        loading={loading}
+                        error={error}
+                    />
+                ) : (
+                    <ReportEmployeeDishesList
+                        dishes={dishLines}
                         loading={loading}
                         error={error}
                     />

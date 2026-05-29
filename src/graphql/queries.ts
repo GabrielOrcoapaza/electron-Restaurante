@@ -1323,6 +1323,23 @@ export const GET_USER_SALES_REPORT = gql`
                     id
                     fullName
                 }
+                details {
+                    id
+                    productId
+                    quantity
+                    unitPrice
+                    total
+                    notes
+                    productName
+                    productCode
+                    productType
+                    comboComponents {
+                        id
+                        productId
+                        productName
+                        quantity
+                    }
+                }
             }
             summary {
                 totalOperations
@@ -1638,9 +1655,17 @@ export const GET_ACTIVE_PROMOTIONS = gql`
 `;
 
 // ── LISTAR TODAS LAS PROMOCIONES DE UNA SUCURSAL ──
+// includeInactive=false (por defecto): solo promociones activas (venta).
+// includeInactive=true: activas e inactivas (gestión).
 export const GET_PROMOTIONS_BY_BRANCH = gql`
-    query GetPromotionsByBranch($branchId: ID!) {
-        promotionsByBranch(branchId: $branchId) {
+    query GetPromotionsByBranch(
+        $branchId: ID!
+        $includeInactive: Boolean = false
+    ) {
+        promotionsByBranch(
+            branchId: $branchId
+            includeInactive: $includeInactive
+        ) {
             id
             name
             description

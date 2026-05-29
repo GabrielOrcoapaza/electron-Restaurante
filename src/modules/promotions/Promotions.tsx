@@ -18,6 +18,14 @@ const TAB_TYPES: PromotionTypeValue[] = [
     'GIFT',
 ];
 
+type StatusFilter = 'all' | 'active' | 'inactive';
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+    { value: 'all', label: 'Todas' },
+    { value: 'active', label: 'Activas' },
+    { value: 'inactive', label: 'Inactivas' },
+];
+
 const typeBadgeClass: Record<PromotionTypeValue, string> = {
     COMBO: 'bg-orange-500',
     DISCOUNT_PERCENT: 'bg-blue-500',
@@ -30,6 +38,7 @@ const Promotions: React.FC = () => {
     const { companyData } = useAuth();
     const branchId = companyData?.branch?.id;
     const [activeTab, setActiveTab] = useState<PromotionTypeValue>('COMBO');
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [showCreate, setShowCreate] = useState(false);
     const [editingPromotion, setEditingPromotion] = useState<IPromotion | null>(
         null,
@@ -37,7 +46,7 @@ const Promotions: React.FC = () => {
     const [refreshKey, setRefreshKey] = useState(0);
 
     const { data, loading, refetch } = useQuery(GET_PROMOTIONS_BY_BRANCH, {
-        variables: { branchId: branchId! },
+        variables: { branchId: branchId!, includeInactive: true },
         skip: !branchId,
         fetchPolicy: 'network-only',
     });
@@ -53,9 +62,33 @@ const Promotions: React.FC = () => {
         }));
     }, [data]);
 
-    const filteredPromotions = promotions.filter(
-        (promo) => promo.promotionType === activeTab,
+    const promotionsByType = useMemo(
+        () => promotions.filter((promo) => promo.promotionType === activeTab),
+        [promotions, activeTab],
     );
+
+    const statusCounts = useMemo(
+        () => ({
+            all: promotionsByType.length,
+            active: promotionsByType.filter((p) => p.isActive).length,
+            inactive: promotionsByType.filter((p) => !p.isActive).length,
+        }),
+        [promotionsByType],
+    );
+
+    const filteredPromotions = useMemo(() => {
+        const sorted = [...promotionsByType].sort((a, b) => {
+            if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+            return a.name.localeCompare(b.name, 'es');
+        });
+        if (statusFilter === 'active') {
+            return sorted.filter((promo) => promo.isActive);
+        }
+        if (statusFilter === 'inactive') {
+            return sorted.filter((promo) => !promo.isActive);
+        }
+        return sorted;
+    }, [promotionsByType, statusFilter]);
 
     const handleRefresh = () => {
         setRefreshKey((prev) => prev + 1);
@@ -108,20 +141,53 @@ const Promotions: React.FC = () => {
                 ))}
             </div>
 
+            <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Estado:
+                </span>
+                {STATUS_FILTERS.map(({ value, label }) => (
+                    <button
+                        key={value}
+                        onClick={() => setStatusFilter(value)}
+                        className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                            statusFilter === value
+                                ? value === 'active'
+                                    ? 'bg-green-600 text-white'
+                                    : value === 'inactive'
+                                      ? 'bg-slate-600 text-white'
+                                      : 'bg-indigo-600 text-white'
+                                : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                        }`}
+                    >
+                        {label} ({statusCounts[value]})
+                    </button>
+                ))}
+            </div>
+
             {loading ? (
                 <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900">
                     Cargando promociones...
                 </div>
             ) : filteredPromotions.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">
-                    No hay promociones de tipo {PROMOTION_TYPE_LABELS[activeTab]}.
+                    No hay promociones{' '}
+                    {statusFilter === 'active'
+                        ? 'activas'
+                        : statusFilter === 'inactive'
+                          ? 'inactivas'
+                          : ''}{' '}
+                    de tipo {PROMOTION_TYPE_LABELS[activeTab]}.
                 </div>
             ) : (
                 <div className="space-y-3">
                     {filteredPromotions.map((promo) => (
                         <div
                             key={promo.id}
-                            className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
+                            className={`flex flex-wrap items-start justify-between gap-4 rounded-xl border p-4 transition-opacity ${
+                                promo.isActive
+                                    ? 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'
+                                    : 'border-slate-200 bg-slate-50 opacity-80 dark:border-slate-700 dark:bg-slate-900/60'
+                            }`}
                         >
                             <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
