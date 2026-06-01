@@ -426,17 +426,6 @@ const CashPay: React.FC<CashPayProps> = ({
     // Derive promotion categories
     const activePromotions = (promotionsData?.activePromotions ||
         []) as IPromotion[];
-    const discountPromotions = activePromotions.filter(
-        (p) =>
-            p.promotionType === "DISCOUNT_PERCENT" ||
-            p.promotionType === "DISCOUNT_AMOUNT",
-    );
-    const nxmPromotions = activePromotions.filter(
-        (p) => p.promotionType === "NXM",
-    );
-    const giftPromotions = activePromotions.filter(
-        (p) => p.promotionType === "GIFT",
-    );
     const allClients = (clientsData?.personsByBranch || []).filter(
         (person: any) => !person.isSupplier && person.isActive !== false,
     );
@@ -624,11 +613,6 @@ const CashPay: React.FC<CashPayProps> = ({
     );
     const totalDiscount = roundMoney2(itemsPromoDiscount + globalDiscount);
     const totalToPay = Math.max(0, totalAfterItemDiscount - globalDiscount);
-    const giftEligiblePromo = giftPromotions.find(
-        (p) =>
-            totalAfterItemDiscount >= (p.minPurchaseAmount || 0) &&
-            p.giftProduct,
-    );
     const igvDecimal = igvPercentage / 100;
     const subtotal = parseFloat(
         (Math.round((totalToPay / (1 + igvDecimal)) * 100) / 100).toFixed(2),

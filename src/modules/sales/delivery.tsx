@@ -622,24 +622,6 @@ const Delivery: React.FC = () => {
         setCartItems(updatedItems);
     };
 
-    // Total de línea editable (S/): recalcula precio unitario = total / cantidad
-    const handleUpdateLineTotal = (itemId: string, rawValue: string) => {
-        const v = parseFloat(String(rawValue).replace(",", "."));
-        const lineTotal = Math.max(
-            0,
-            Number.isFinite(v) ? Math.round(v * 100) / 100 : 0,
-        );
-        setCartItems((prev) =>
-            prev.map((item) => {
-                if (item.id !== itemId) return item;
-                const qty = Math.max(1, Number(item.quantity) || 1);
-                const unitPrice = Math.round((lineTotal / qty) * 100) / 100;
-                const alignedTotal = Math.round(unitPrice * qty * 100) / 100;
-                return { ...item, price: unitPrice, total: alignedTotal };
-            }),
-        );
-    };
-
     // Función para eliminar ítem
     const handleRemoveItem = (itemId: string) => {
         setCartItems(cartItems.filter((item) => item.id !== itemId));
@@ -1758,7 +1740,6 @@ const Delivery: React.FC = () => {
                             <div className="flex flex-col gap-2.5">
                                 {cartItems.map((item) => {
                                     const isEditable = true;
-                                    const canEditNotes = true;
                                     const hasObservationContent = Boolean(
                                         item.notes?.trim(),
                                     );

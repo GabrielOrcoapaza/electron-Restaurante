@@ -294,7 +294,7 @@ const Order: React.FC<OrderProps> = ({
     const [activePromotions, setActivePromotions] = useState<IPromotion[]>([]);
     const [giftMessage, setGiftMessage] = useState<string | null>(null);
     const [showComboModal, setShowComboModal] = useState(false);
-    const [pendingComboProduct, setPendingComboProduct] = useState<any>(null);
+    const [, setPendingComboProduct] = useState<any>(null);
     const GIFT_ITEM_ID = "gift-item-unique-id";
 
     const handleVirtualKeyPress = (key: string) => {
