@@ -58,6 +58,12 @@ export interface PromotionFormData {
     appliesTo: 'ALL' | 'CATEGORY' | 'SUBCATEGORY' | 'PRODUCT';
     priority: string;
     scopes: ScopeFormItem[];
+    /** Base64 de foto nueva a subir (sin prefijo data:). */
+    photoBase64?: string | null;
+    /** URL de foto existente del servidor (solo edición / vista previa). */
+    existingPhoto?: string | null;
+    /** Marca eliminación de la foto al editar. */
+    photoRemoved?: boolean;
 }
 
 export const PROMOTION_TYPE_LABELS: Record<PromotionTypeValue, string> = {
@@ -151,6 +157,7 @@ export interface IPromotion {
     minPurchaseAmount: number;
     appliesTo: 'ALL' | 'CATEGORY' | 'SUBCATEGORY' | 'PRODUCT';
     priority: number;
+    photoUrl?: string | null;
 }
 
 // ─── Combos (producto PROMOTION con scopes de elección) ───────────────────────
@@ -161,6 +168,7 @@ export interface ComboPromotion {
     id: string;
     name: string;
     description: string | null;
+    photoUrl?: string | null;
     promotionType: string;
     isValidNow: boolean;
     daysDisplay: string;

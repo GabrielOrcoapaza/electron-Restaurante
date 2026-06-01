@@ -9,6 +9,41 @@ import {
     timeToInput,
 } from '../../types/promotions';
 
+export function promotionPhotoSrc(
+    value?: string | null,
+): string | null {
+    if (!value || value === 'NULL' || value === 'null') return null;
+    if (value.startsWith('data:') || value.startsWith('http')) return value;
+
+    const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || '';
+    const apiMediaUrl = graphqlUrl
+        ? graphqlUrl.replace('/graphql', '/media/')
+        : '/media/';
+
+    if (value.startsWith('/media/')) {
+        const base = apiMediaUrl.replace(/\/media\/?$/, '');
+        try {
+            return new URL(value, base || window.location.origin).toString();
+        } catch {
+            return `${base}${value}`.replace(/\/+/g, '/');
+        }
+    }
+
+    if (value.startsWith('/')) {
+        try {
+            const base = apiMediaUrl.startsWith('http')
+                ? apiMediaUrl
+                : `${window.location.origin}${apiMediaUrl.startsWith('/') ? '' : '/'}${apiMediaUrl}`;
+            return new URL(value, base).toString();
+        } catch {
+            return `${apiMediaUrl}${value}`.replace(/\/+/g, '/');
+        }
+    }
+
+    // Compatibilidad si el backend devolviera base64 sin prefijo
+    return `data:image/jpeg;base64,${value}`;
+}
+
 function scopeRequiredQuantity(value: unknown): number {
     const qty = Number(value);
     if (!Number.isFinite(qty) || qty < 1) return 1;
@@ -61,6 +96,7 @@ export function promotionToFormData(promo: IPromotion & Record<string, any>): Pr
         appliesTo: promo.appliesTo || 'ALL',
         priority: promo.priority != null ? String(promo.priority) : '0',
         scopes,
+        existingPhoto: promo.photoUrl || null,
     };
 }
 
@@ -100,6 +136,12 @@ export function buildPromotionVariables(
         appliesTo: formData.appliesTo,
         priority: formData.priority ? parseInt(formData.priority, 10) : 0,
     };
+
+    if (formData.photoRemoved) {
+        base.photoBase64 = '';
+    } else if (formData.photoBase64) {
+        base.photoBase64 = formData.photoBase64;
+    }
 
     if (branchId) {
         base.branchId = branchId;

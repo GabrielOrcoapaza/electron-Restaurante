@@ -1581,6 +1581,7 @@ export const GET_ACTIVE_COMBOS = gql`
                 id
                 name
                 description
+                photoUrl
                 promotionType
                 isValidNow
                 daysDisplay
@@ -1617,6 +1618,7 @@ export const GET_ACTIVE_PROMOTIONS = gql`
         activePromotions(branchId: $branchId) {
             id
             name
+            photoUrl
             promotionType
             discountPercent
             discountAmount
@@ -1669,6 +1671,7 @@ export const GET_PROMOTIONS_BY_BRANCH = gql`
             id
             name
             description
+            photoUrl
             promotionType
             isActive
             validFrom
@@ -1724,6 +1727,7 @@ export const GET_PROMOTION_BY_ID = gql`
             id
             name
             description
+            photoUrl
             promotionType
             isActive
             validFrom

@@ -2059,6 +2059,7 @@ export const CREATE_PROMOTION = gql`
         $appliesTo: String
         $priority: Int
         $isActive: Boolean
+        $photoBase64: String
     ) {
         createPromotion(
             branchId: $branchId
@@ -2080,6 +2081,7 @@ export const CREATE_PROMOTION = gql`
             appliesTo: $appliesTo
             priority: $priority
             isActive: $isActive
+            photoBase64: $photoBase64
         ) {
             success
             message
@@ -2088,6 +2090,7 @@ export const CREATE_PROMOTION = gql`
                 name
                 promotionType
                 isActive
+                photoUrl
             }
         }
     }
@@ -2115,6 +2118,7 @@ export const UPDATE_PROMOTION = gql`
         $appliesTo: String
         $priority: Int
         $isActive: Boolean
+        $photoBase64: String
     ) {
         updatePromotion(
             promotionId: $promotionId
@@ -2136,6 +2140,7 @@ export const UPDATE_PROMOTION = gql`
             appliesTo: $appliesTo
             priority: $priority
             isActive: $isActive
+            photoBase64: $photoBase64
         ) {
             success
             message
@@ -2144,6 +2149,7 @@ export const UPDATE_PROMOTION = gql`
                 name
                 promotionType
                 isActive
+                photoUrl
             }
         }
     }

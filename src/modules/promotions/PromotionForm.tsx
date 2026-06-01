@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLazyQuery, useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { GET_CATEGORIES_BY_BRANCH, SEARCH_PRODUCTS } from '../../graphql/queries';
 import ScopeEditor from './ScopeEditor';
+import { promotionPhotoSrc } from './promotionFormHelpers';
 import {
     DAY_LABELS,
     PROMOTION_TYPE_LABELS,
@@ -23,6 +24,8 @@ interface PromotionFormProps {
 const fieldClass =
     'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100';
 
+const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
+
 const PromotionForm: React.FC<PromotionFormProps> = ({
     initialData,
     defaultType = 'COMBO',
@@ -38,6 +41,16 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
     );
     const [giftSearch, setGiftSearch] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [newPhotoBase64, setNewPhotoBase64] = useState<string | null>(null);
+    const [newPhotoPreview, setNewPhotoPreview] = useState<string | null>(null);
+    const [photoRemoved, setPhotoRemoved] = useState(false);
+    const photoInputRef = useRef<HTMLInputElement>(null);
+
+    const existingPhotoSrc =
+        formData.existingPhoto && !photoRemoved
+            ? promotionPhotoSrc(formData.existingPhoto)
+            : null;
+    const displayPhotoSrc = newPhotoPreview ?? existingPhotoSrc;
 
     const { data: categoriesData } = useQuery(GET_CATEGORIES_BY_BRANCH, {
         variables: { branchId: branchId! },
@@ -52,6 +65,10 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
     useEffect(() => {
         if (initialData) {
             setFormData(initialData);
+            setNewPhotoBase64(null);
+            setNewPhotoPreview(null);
+            setPhotoRemoved(false);
+            if (photoInputRef.current) photoInputRef.current.value = '';
         }
     }, [initialData]);
 
@@ -85,11 +102,54 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
         }));
     };
 
+    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            setError('El archivo debe ser una imagen.');
+            e.target.value = '';
+            return;
+        }
+        if (file.size > MAX_PHOTO_BYTES) {
+            setError('La imagen no debe superar 3 MB.');
+            e.target.value = '';
+            return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const dataUrl = reader.result as string;
+            const comma = dataUrl.indexOf(',');
+            const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+            setNewPhotoBase64(b64);
+            setNewPhotoPreview(dataUrl);
+            setPhotoRemoved(false);
+            setError(null);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleClearPhoto = () => {
+        if (newPhotoBase64 !== null) {
+            setNewPhotoBase64(null);
+            setNewPhotoPreview(null);
+            if (photoInputRef.current) photoInputRef.current.value = '';
+            return;
+        }
+        if (formData.existingPhoto) {
+            setPhotoRemoved(true);
+        }
+        if (photoInputRef.current) photoInputRef.current.value = '';
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
         try {
-            await onSubmit(formData);
+            await onSubmit({
+                ...formData,
+                photoBase64: newPhotoBase64,
+                photoRemoved,
+            });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error al guardar');
         }
@@ -131,6 +191,42 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
                         rows={2}
                     />
                 </label>
+
+                <div className="block text-sm md:col-span-2">
+                    <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
+                        Foto (opcional, para pantalla TV)
+                    </span>
+                    <div className="flex flex-wrap items-start gap-3">
+                        {displayPhotoSrc && (
+                            <img
+                                src={displayPhotoSrc}
+                                alt="Vista previa promoción"
+                                className="h-20 w-20 shrink-0 rounded-lg border border-slate-200 object-cover dark:border-slate-600"
+                            />
+                        )}
+                        <div className="min-w-[160px] flex-1">
+                            <input
+                                ref={photoInputRef}
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                onChange={handlePhotoChange}
+                                className={fieldClass}
+                            />
+                            <p className="mt-1 text-xs text-slate-400">
+                                JPG, PNG, WebP o GIF. Máx. 3 MB.
+                            </p>
+                        </div>
+                        {displayPhotoSrc && (
+                            <button
+                                type="button"
+                                onClick={handleClearPhoto}
+                                className="self-center rounded-lg border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                            >
+                                Quitar foto
+                            </button>
+                        )}
+                    </div>
+                </div>
 
                 <label className="block text-sm">
                     <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">

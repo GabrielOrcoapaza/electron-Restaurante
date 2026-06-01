@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { GET_PROMOTIONS_BY_BRANCH } from '../../graphql/queries';
 import CreatePromotion from './createPromotion';
 import EditPromotion from './editPromotion';
+import { promotionPhotoSrc } from './promotionFormHelpers';
 import {
     PROMOTION_TYPE_LABELS,
     type IPromotion,
@@ -180,7 +181,9 @@ const Promotions: React.FC = () => {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {filteredPromotions.map((promo) => (
+                    {filteredPromotions.map((promo) => {
+                        const photoSrc = promotionPhotoSrc(promo.photoUrl);
+                        return (
                         <div
                             key={promo.id}
                             className={`flex flex-wrap items-start justify-between gap-4 rounded-xl border p-4 transition-opacity ${
@@ -189,6 +192,13 @@ const Promotions: React.FC = () => {
                                     : 'border-slate-200 bg-slate-50 opacity-80 dark:border-slate-700 dark:bg-slate-900/60'
                             }`}
                         >
+                            {photoSrc && (
+                                <img
+                                    src={photoSrc}
+                                    alt={promo.name}
+                                    className="h-16 w-16 shrink-0 rounded-lg border border-slate-200 object-cover dark:border-slate-600"
+                                />
+                            )}
                             <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
                                     <span className="font-semibold text-slate-800 dark:text-slate-100">
@@ -254,7 +264,8 @@ const Promotions: React.FC = () => {
                                 Editar
                             </button>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
