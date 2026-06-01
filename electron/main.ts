@@ -11,6 +11,71 @@ import { net } from "electron";
 import { registerPrintHandler } from "./printHandler";
 import { registerDocumentPreviewHandler } from "./documentPreviewHandler";
 
+type AppRuntimeConfig = {
+    graphqlUrl?: string;
+    wsUrl?: string;
+};
+
+/** Orígenes extra para CSP según VITE_GRAPHQL_URL / VITE_WS_URL del build. */
+function loadAppRuntimeConfig(): AppRuntimeConfig {
+    try {
+        const configPath = path.join(__dirname, "../dist/app-config.json");
+        if (!fs.existsSync(configPath)) return {};
+        return JSON.parse(fs.readFileSync(configPath, "utf-8")) as AppRuntimeConfig;
+    } catch (error) {
+        log.warn("No se pudo leer dist/app-config.json para CSP:", error);
+        return {};
+    }
+}
+
+function originsFromBackendUrls(...urls: (string | undefined)[]): string[] {
+    const origins = new Set<string>();
+    for (const raw of urls) {
+        if (!raw?.trim()) continue;
+        try {
+            const u = new URL(raw.trim());
+            origins.add(`${u.protocol}//${u.host}`);
+            if (u.protocol === "http:") origins.add(`ws://${u.host}`);
+            if (u.protocol === "https:") origins.add(`wss://${u.host}`);
+        } catch {
+            log.warn("URL de backend inválida para CSP:", raw);
+        }
+    }
+    return [...origins];
+}
+
+function buildProductionCsp(): string {
+    const runtimeConfig = loadAppRuntimeConfig();
+    const localOrigins = originsFromBackendUrls(
+        runtimeConfig.graphqlUrl,
+        runtimeConfig.wsUrl,
+    );
+    const localOriginsStr = localOrigins.join(" ");
+
+    const sumappOrigins =
+        "https://api.sumapp.pe https://sumapp.pe wss://api.sumapp.pe wss://sumapp.pe";
+    const connectSrc = [
+        "'self'",
+        sumappOrigins,
+        ...localOrigins,
+    ].join(" ");
+
+    const defaultSrc = ["'self'", "'unsafe-inline'", "data:", sumappOrigins, ...localOrigins].join(
+        " ",
+    );
+    const imgMediaSrc = ["'self'", "data:", "blob:", "https:", ...localOrigins].join(" ");
+
+    return [
+        `default-src ${defaultSrc}`,
+        "script-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        `connect-src ${connectSrc}`,
+        `img-src ${imgMediaSrc}`,
+        `media-src ${imgMediaSrc}`,
+    ].join("; ");
+}
+
 // Configurar switches de línea de comandos antes de que la app esté lista
 app.commandLine.appendSwitch("ignore-certificate-errors");
 app.commandLine.appendSwitch("disable-web-security");
@@ -507,9 +572,8 @@ app.whenReady().then(() => {
             return;
         }
 
-        // Cabecera de seguridad CSP para PRODUCCIÓN
-        const csp =
-            "default-src 'self' 'unsafe-inline' data: https://api.sumapp.pe https://sumapp.pe wss://api.sumapp.pe wss://sumapp.pe; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.sumapp.pe https://sumapp.pe wss://api.sumapp.pe wss://sumapp.pe; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:;";
+        // Cabecera de seguridad CSP para PRODUCCIÓN (incluye IP local del build si existe app-config.json)
+        const csp = buildProductionCsp();
         responseHeaders["Content-Security-Policy"] = [csp];
 
         callback({ responseHeaders });
