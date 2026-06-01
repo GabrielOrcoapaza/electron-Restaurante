@@ -70,22 +70,6 @@ export function promotionAppliesToProduct(
     if (!product) {
         return false;
     }
-    console.log("[promotionUtils] Evaluando:", {
-        promotionName: promo.name,
-        appliesTo: promo.appliesTo,
-        productId: product.id,
-        productCategoryId: getProductCategoryId(
-            product,
-            subcategoriesOfCategory,
-            selectedCategoryId, // ← PASA A getProductCategoryId
-        ),
-        productSubcategoryId: product.subcategoryId,
-        scopes: promo.scopes.map((s) => ({
-            categoryId: s.category?.id,
-            subcategoryId: s.subcategory?.id,
-            productId: s.product?.id,
-        })),
-    });
     switch (promo.appliesTo) {
         case "ALL":
             return true;

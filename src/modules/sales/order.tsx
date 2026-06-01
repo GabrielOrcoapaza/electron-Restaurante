@@ -89,6 +89,142 @@ type OrderItem = {
     comboComponents?: any[];
 };
 
+const GIFT_ITEM_ID = "gift-item-unique-id";
+
+function buildGiftOrderItem(promo: IPromotion): OrderItem | null {
+    const giftProduct = promo.giftProduct;
+    if (!giftProduct) return null;
+    return {
+        id: GIFT_ITEM_ID,
+        productId: String(giftProduct.id),
+        name: giftProduct.name,
+        price: 0,
+        quantity: parseInt(String(promo.giftQuantity || "1"), 10),
+        total: 0,
+        isNew: true,
+        notes: `Regalo: ${promo.name}`,
+        subcategoryId: (giftProduct as { subcategoryId?: string }).subcategoryId,
+        product: giftProduct,
+        discount: 0,
+        promotionName: promo.name,
+    };
+}
+
+/** Recalcula descuentos y regalo en un solo paso (sin setState). */
+function applyPromotionsToOrder(
+    items: OrderItem[],
+    promotions: IPromotion[],
+    subcategoriesOfCategoryParam?: any[],
+    selectedCategoryParam?: string | null,
+): { items: OrderItem[]; giftMessage: string | null } {
+    const nonGiftItems = items.filter((item) => item.id !== GIFT_ITEM_ID);
+
+    if (promotions.length === 0) {
+        return { items: nonGiftItems, giftMessage: null };
+    }
+
+    const cartTotal = nonGiftItems.reduce(
+        (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
+        0,
+    );
+
+    let updated = nonGiftItems.map((item) => {
+        if ((item.discount ?? 0) > 0 && !item.isNew) {
+            return item;
+        }
+        if (item.isCombo || item.isPrinted) {
+            return { ...item, discount: 0, promotionName: null };
+        }
+        const promo = findBestDiscountPromotion(
+            item.product,
+            promotions,
+            cartTotal,
+            subcategoriesOfCategoryParam,
+            selectedCategoryParam,
+        );
+        if (promo) {
+            const disc = calculateLineDiscount(
+                item.price,
+                item.quantity,
+                promo,
+            );
+            return {
+                ...item,
+                discount: disc,
+                promotionName: promo.name,
+            };
+        }
+        return { ...item, discount: 0, promotionName: null };
+    });
+
+    const nxmPromos = promotions.filter((p) => p.promotionType === "NXM");
+    if (nxmPromos.length > 0) {
+        const lines: CartLine[] = updated
+            .map((item, idx) =>
+                item.product
+                    ? {
+                          index: idx,
+                          product: item.product,
+                          unitPrice: item.price,
+                          quantity: item.quantity,
+                          isGift: false,
+                      }
+                    : null,
+            )
+            .filter(Boolean) as CartLine[];
+
+        const freeSet = computeNxMFreeSet(
+            lines,
+            nxmPromos,
+            subcategoriesOfCategoryParam,
+            selectedCategoryParam,
+        );
+        freeSet.forEach(({ promoName, freeUnits }, idx) => {
+            if (!updated[idx].isPrinted) {
+                updated[idx] = {
+                    ...updated[idx],
+                    discount:
+                        Math.round(updated[idx].price * freeUnits * 100) /
+                        100,
+                    promotionName: promoName,
+                };
+            }
+        });
+    }
+
+    const newTotal = updated.reduce(
+        (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
+        0,
+    );
+    const giftPromo = promotions.find(
+        (p) =>
+            p.promotionType === "GIFT" &&
+            newTotal >= (p.minPurchaseAmount || 0) &&
+            p.giftProduct,
+    );
+    const giftMessage = giftPromo
+        ? `¡Regalo disponible! ${giftPromo.giftProduct?.name} × ${giftPromo.giftQuantity ?? 1} — ${giftPromo.name}`
+        : null;
+
+    if (giftPromo) {
+        const giftItem = buildGiftOrderItem(giftPromo);
+        if (giftItem) {
+            return { items: [...updated, giftItem], giftMessage };
+        }
+    }
+
+    return { items: updated, giftMessage };
+}
+
+function orderItemsPromoSnapshot(items: OrderItem[]): string {
+    return items
+        .map(
+            (i) =>
+                `${i.id}:${i.quantity}:${i.price}:${i.discount ?? 0}:${i.promotionName ?? ""}`,
+        )
+        .join("|");
+}
+
 /** Referencias estables: evitan que el modal de observaciones re-sincronice en cada render del padre (|| [] y new Set() nuevos pisaban la selección). */
 const EMPTY_OBSERVATION_OPTIONS: any[] = [];
 const EMPTY_SELECTED_OBSERVATION_IDS = new Set<string>();
@@ -295,7 +431,6 @@ const Order: React.FC<OrderProps> = ({
     const [giftMessage, setGiftMessage] = useState<string | null>(null);
     const [showComboModal, setShowComboModal] = useState(false);
     const [, setPendingComboProduct] = useState<any>(null);
-    const GIFT_ITEM_ID = "gift-item-unique-id";
 
     const handleVirtualKeyPress = (key: string) => {
         setSearchTerm((prev) => prev + key);
@@ -308,8 +443,6 @@ const Order: React.FC<OrderProps> = ({
     const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const lastTableIdRef = useRef<string | null>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
-    const lastGiftPresenceRef = useRef<string | undefined>(undefined);
-    const lastNonGiftItemsLengthRef = useRef<string | undefined>(undefined);
 
     // Mutación para crear la operación
     const [createOperationMutation] = useMutation(CREATE_OPERATION);
@@ -338,11 +471,50 @@ const Order: React.FC<OrderProps> = ({
         },
     );
 
-    const subcategoriesOfCategory = selectedCategory
-        ? (subcategoriesData?.subcategoriesByCategory || []).filter(
-              (s: any) => s.isActive !== false,
-          )
-        : [];
+    const subcategoriesOfCategory = useMemo(
+        () =>
+            selectedCategory
+                ? (subcategoriesData?.subcategoriesByCategory || []).filter(
+                      (s: any) => s.isActive !== false,
+                  )
+                : [],
+        [selectedCategory, subcategoriesData?.subcategoriesByCategory],
+    );
+
+    const promotionRecalcKey = useMemo(
+        () =>
+            [
+                activePromotions.map((p) => p.id).join(","),
+                selectedCategory ?? "",
+                subcategoriesOfCategory.map((s: any) => s.id).join(","),
+            ].join("|"),
+        [activePromotions, selectedCategory, subcategoriesOfCategory],
+    );
+
+    const lastPromotionRecalcKeyRef = useRef("");
+
+    const commitOrderItems = useCallback(
+        (items: OrderItem[]) => {
+            const { items: nextItems, giftMessage: nextGiftMessage } =
+                applyPromotionsToOrder(
+                    items,
+                    activePromotions,
+                    subcategoriesOfCategory,
+                    selectedCategory,
+                );
+            setGiftMessage(nextGiftMessage);
+            setOrderItems((prev) => {
+                if (
+                    orderItemsPromoSnapshot(prev) ===
+                    orderItemsPromoSnapshot(nextItems)
+                ) {
+                    return prev;
+                }
+                return nextItems;
+            });
+        },
+        [activePromotions, subcategoriesOfCategory, selectedCategory],
+    );
 
     /** Hay subs pero el usuario aún no eligió una: mostrar grid de subs, no productos. */
     const awaitingSubcategoryPick =
@@ -556,249 +728,49 @@ const Order: React.FC<OrderProps> = ({
         }
     }, [promotionsData]);
 
-    // NUEVO: Función para recalcular promociones
-    const recalculatePromotions = useCallback(
-        (
-            items: OrderItem[],
-            promotions: IPromotion[],
-            subcategoriesOfCategoryParam?: any[],
-            selectedCategoryParam?: string | null,
-        ) => {
-            if (promotions.length === 0) {
-                return items;
-            }
-
-            // Filtrar items para excluir el regalo (si está presente)
-            const nonGiftItems = items.filter(
-                (item) => item.id !== GIFT_ITEM_ID,
-            );
-
-            const cartTotal = nonGiftItems.reduce(
-                (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
-                0,
-            );
-
-            // 1. DISCOUNT_PERCENT / DISCOUNT_AMOUNT por ítem
-            let updated = nonGiftItems.map((item) => {
-                // ✅ Si ya tiene descuento y no es nuevo, mantenerlo sin cambios
-                if ((item.discount ?? 0) > 0 && !item.isNew) {
-                    return item; // ← No modificar nada
-                }
-                // Solo recalcular para items sin descuento o nuevos
-                if (item.isCombo || item.isPrinted)
-                    return { ...item, discount: 0, promotionName: null };
-                const promo = findBestDiscountPromotion(
-                    item.product,
-                    promotions,
-                    cartTotal,
-                    subcategoriesOfCategoryParam,
-                    selectedCategoryParam,
-                );
-                if (promo) {
-                    const disc = calculateLineDiscount(
-                        item.price,
-                        item.quantity,
-                        promo,
-                    );
-                    return {
-                        ...item,
-                        discount: disc,
-                        promotionName: promo.name,
-                    };
-                }
-                return { ...item, discount: 0, promotionName: null };
-            });
-
-            // 2. NxM — los más baratos del grupo quedan gratis
-            const nxmPromos = promotions.filter(
-                (p) => p.promotionType === "NXM",
-            );
-            console.log("[Order] NxM Promotions:", nxmPromos);
-            console.log(
-                "[Order] Updated items (for NxM) — detailed:",
-                updated.map((item) => ({
-                    id: item.id,
-                    name: item.name,
-                    productId: item.productId,
-                    product: item.product
-                        ? { id: item.product.id, name: item.product.name }
-                        : null,
-                })),
-            );
-            if (nxmPromos.length > 0) {
-                const lines: CartLine[] = updated
-                    .map((item, idx) =>
-                        item.product
-                            ? {
-                                  index: idx,
-                                  product: item.product,
-                                  unitPrice: item.price,
-                                  quantity: item.quantity,
-                                  isGift: false,
-                              }
-                            : null,
-                    )
-                    .filter(Boolean) as CartLine[];
-                console.log("[Order] Lines for computeNxMFreeSet:", lines);
-
-                const freeSet = computeNxMFreeSet(
-                    lines,
-                    nxmPromos,
-                    subcategoriesOfCategoryParam,
-                    selectedCategoryParam,
-                );
-                console.log(
-                    "[Order] Free set from computeNxMFreeSet:",
-                    Array.from(freeSet.entries()),
-                );
-                freeSet.forEach(({ promoName, freeUnits }, idx) => {
-                    if (!updated[idx].isPrinted) {
-                        updated[idx] = {
-                            ...updated[idx],
-                            discount:
-                                Math.round(
-                                    updated[idx].price * freeUnits * 100,
-                                ) / 100,
-                            promotionName: promoName,
-                        };
-                    }
-                });
-            }
-
-            // 3. GIFT — solo notificación
-            const newTotal = updated.reduce(
-                (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
-                0,
-            );
-            const giftPromo = promotions.find(
-                (p) =>
-                    p.promotionType === "GIFT" &&
-                    newTotal >= (p.minPurchaseAmount || 0) &&
-                    p.giftProduct,
-            );
-            setGiftMessage(
-                giftPromo
-                    ? `¡Regalo disponible! ${giftPromo.giftProduct?.name} × ${giftPromo.giftQuantity ?? 1} — ${giftPromo.name}`
-                    : null,
-            );
-
-            // Preservar el ítem de regalo
-            const giftItem = items.find((item) => item.id === GIFT_ITEM_ID);
-            const finalResult = giftItem ? [...updated, giftItem] : updated;
-
-            return finalResult;
-        },
-        [],
-    );
-    // useEffect(() => {
-    //     console.log(
-    //         "[Order] 🎯 orderItems ACTUALIZADO:",
-    //         orderItems.map((i) => ({
-    //             id: i.id,
-    //             name: i.name,
-    //             discount: i.discount,
-    //             promotionName: i.promotionName,
-    //             isNew: i.isNew,
-    //         })),
-    //     );
-    // }, [orderItems]);
-    // Disparar recálculo de promociones
+    // Recalcular carrito solo cuando cambian promociones / categoría (no en cada render)
     useEffect(() => {
-        const nonGiftItems = orderItems.filter(
-            (item) => item.id !== GIFT_ITEM_ID,
-        );
-        // Crear un hash simple para comparar cambios en los items
-        const itemsHash = nonGiftItems
-            .map(
-                (item) =>
-                    `${item.id}-${item.quantity}-${item.price}-${item.discount}`,
-            )
-            .join("|");
-
-        // Solo recalcular si el hash de los items cambia
-        if (lastNonGiftItemsLengthRef.current !== itemsHash) {
-            lastNonGiftItemsLengthRef.current = itemsHash;
-            if (activePromotions.length > 0) {
-                setOrderItems((prev) =>
-                    recalculatePromotions(
-                        prev,
-                        activePromotions,
-                        subcategoriesOfCategory,
-                        selectedCategory,
-                    ),
-                );
-            }
+        if (lastPromotionRecalcKeyRef.current === promotionRecalcKey) {
+            return;
         }
+        lastPromotionRecalcKeyRef.current = promotionRecalcKey;
+
+        if (activePromotions.length === 0) {
+            setGiftMessage(null);
+            setOrderItems((prev) => {
+                if (!prev.some((item) => item.id === GIFT_ITEM_ID)) {
+                    return prev;
+                }
+                return prev.filter((item) => item.id !== GIFT_ITEM_ID);
+            });
+            return;
+        }
+
+        setOrderItems((prev) => {
+            if (prev.length === 0) return prev;
+            const { items, giftMessage: nextGiftMessage } =
+                applyPromotionsToOrder(
+                    prev,
+                    activePromotions,
+                    subcategoriesOfCategory,
+                    selectedCategory,
+                );
+            setGiftMessage(nextGiftMessage);
+            if (
+                orderItemsPromoSnapshot(prev) ===
+                orderItemsPromoSnapshot(items)
+            ) {
+                return prev;
+            }
+            return items;
+        });
     }, [
-        orderItems,
+        promotionRecalcKey,
         activePromotions,
-        recalculatePromotions,
         subcategoriesOfCategory,
         selectedCategory,
     ]);
-    // useEffect(() => {
-    //     console.log("[Order] activePromotions ACTUALIZADO:", activePromotions);
-    // }, [activePromotions]);
 
-    // Efecto para gestionar el producto de regalo automático
-    useEffect(() => {
-        const nonGiftItems = orderItems.filter(
-            (item) => item.id !== GIFT_ITEM_ID,
-        );
-        const hasGiftItem = orderItems.some((item) => item.id === GIFT_ITEM_ID);
-
-        // Calcular el total de la orden (sin incluir el regalo)
-        const currentTotal = nonGiftItems.reduce(
-            (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
-            0,
-        );
-
-        // Buscar la promoción de regalo que cumpla las condiciones
-        const eligibleGiftPromo = activePromotions.find(
-            (p) =>
-                p.promotionType === "GIFT" &&
-                currentTotal >= (p.minPurchaseAmount || 0) &&
-                p.giftProduct,
-        );
-
-        // Evitar ejecuciones innecesarias comparando el estado actual con el anterior
-        const shouldHaveGift = Boolean(eligibleGiftPromo);
-        const key = `${shouldHaveGift}-${eligibleGiftPromo?.id || "none"}-${hasGiftItem}`;
-
-        if (lastGiftPresenceRef.current === key) {
-            return;
-        }
-        lastGiftPresenceRef.current = key;
-
-        if (eligibleGiftPromo && !hasGiftItem) {
-            // Agregar el regalo
-            const giftProduct = eligibleGiftPromo.giftProduct;
-            if (giftProduct) {
-                const newGiftItem: OrderItem = {
-                    id: GIFT_ITEM_ID,
-                    productId: String(giftProduct.id),
-                    name: giftProduct.name,
-                    price: 0, // Precio 0 porque es un regalo
-                    quantity: parseInt(
-                        String(eligibleGiftPromo.giftQuantity || "1"),
-                    ),
-                    total: 0,
-                    isNew: true,
-                    notes: `Regalo: ${eligibleGiftPromo.name}`,
-                    subcategoryId: (giftProduct as any).subcategoryId,
-                    product: giftProduct as any,
-                    discount: 0,
-                    promotionName: eligibleGiftPromo.name,
-                };
-                setOrderItems((prev) => [...prev, newGiftItem]);
-            }
-        } else if (!eligibleGiftPromo && hasGiftItem) {
-            // Quitar el regalo
-            setOrderItems((prev) =>
-                prev.filter((item) => item.id !== GIFT_ITEM_ID),
-            );
-        }
-    }, [activePromotions, orderItems]);
     useEffect(() => {
         // Solo cargar items si hay una selección válida y no se ha inicializado ya
         if (!hasSelection || initializedFromExistingOrder) {
@@ -991,7 +963,7 @@ const Order: React.FC<OrderProps> = ({
         const newItems = orderItems.filter((item) => item.isNew);
         const finalItems = [...mappedItems, ...newItems];
 
-        setOrderItems(finalItems);
+        commitOrderItems(finalItems);
         setInitializedFromExistingOrder(true);
         // Ocultar las observaciones por defecto cuando se carga una orden existente
         const hideObservations: Record<string, boolean> = {};
@@ -1120,11 +1092,11 @@ const Order: React.FC<OrderProps> = ({
                 updatedItems[existingNewItemIndex].quantity = validQuantity;
                 updatedItems[existingNewItemIndex].total =
                     validPrice * validQuantity;
-                setOrderItems(updatedItems);
+                commitOrderItems(updatedItems);
                 setLastAddedItemId(existingItem.id);
             } else {
                 // Si no hay un item nuevo, crear una nueva fila (no afecta items guardados)
-                setOrderItems([...orderItems, newItem]);
+                commitOrderItems([...orderItems, newItem]);
                 setLastAddedItemId(newItem.id);
             }
         } else {
@@ -1143,11 +1115,11 @@ const Order: React.FC<OrderProps> = ({
                 updatedItems[existingItemIndex].total =
                     validPrice * validQuantity;
                 updatedItems[existingItemIndex].isNew = true;
-                setOrderItems(updatedItems);
+                commitOrderItems(updatedItems);
                 setLastAddedItemId(existingItem.id);
             } else {
                 // Si el producto no existe, agregarlo como nueva fila
-                setOrderItems([...orderItems, newItem]);
+                commitOrderItems([...orderItems, newItem]);
                 setLastAddedItemId(newItem.id);
             }
         }
@@ -1187,7 +1159,7 @@ const Order: React.FC<OrderProps> = ({
             }
             return item;
         });
-        setOrderItems(updatedItems);
+        commitOrderItems(updatedItems);
     };
 
     // Función para eliminar ítem
@@ -1201,7 +1173,7 @@ const Order: React.FC<OrderProps> = ({
             return;
         }
 
-        setOrderItems(orderItems.filter((item) => item.id !== itemId));
+        commitOrderItems(orderItems.filter((item) => item.id !== itemId));
     };
 
     // NUEVO: Handler para agregar combos
@@ -1221,7 +1193,7 @@ const Order: React.FC<OrderProps> = ({
             comboComponents: components,
             discount: 0,
         };
-        setOrderItems((prev) => [...prev, newItem]);
+        commitOrderItems([...orderItems, newItem]);
         setShowComboModal(false);
         setPendingComboProduct(null);
     };
@@ -3279,18 +3251,6 @@ const Order: React.FC<OrderProps> = ({
                                                             >
                                                                 {item.name}
                                                             </div>
-                                                            {/* Debug: console.log para ver valores */}
-                                                            {(() => {
-                                                                console.log(
-                                                                    "[Render] Item",
-                                                                    item.name,
-                                                                    "discount:",
-                                                                    item.discount,
-                                                                    "promotionName:",
-                                                                    item.promotionName,
-                                                                );
-                                                                return null;
-                                                            })()}
                                                             {/* NUEVO: Descuento en el carrito */}
                                                             {(item.discount ??
                                                                 0) > 0 && (
@@ -3875,4 +3835,4 @@ const Order: React.FC<OrderProps> = ({
     );
 };
 
-export default Order;
+export default React.memo(Order);
