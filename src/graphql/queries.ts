@@ -1382,6 +1382,7 @@ export const GET_CANCELLATION_REPORT = gql`
                 cancelledByName
                 operationDate
                 cancelledAt
+                cancellationReason
                 cancelledItems {
                     detailId
                     productName
@@ -1389,6 +1390,7 @@ export const GET_CANCELLATION_REPORT = gql`
                     unitPrice
                     total
                     notes
+                    cancellationReason
                     createdAt
                     createdByName
                     cancelledAt

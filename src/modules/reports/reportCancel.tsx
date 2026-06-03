@@ -28,6 +28,13 @@ const currencyFormatter = new Intl.NumberFormat("es-PE", {
     minimumFractionDigits: 2,
 });
 
+function formatCancellationReason(
+    reason: string | null | undefined,
+): string {
+    const trimmed = (reason ?? "").trim();
+    return trimmed || "No especificado";
+}
+
 const ReportCancel: React.FC = () => {
     const { companyData } = useAuth();
     const branchId = companyData?.branch?.id;
@@ -66,13 +73,17 @@ const ReportCancel: React.FC = () => {
             if (op.status === "CANCELLED") {
                 opsCount++;
                 totalAmount += op.cancelledTotal;
+                const opReason =
+                    op.cancellationReason?.trim() ||
+                    op.cancelledItems?.[0]?.cancellationReason?.trim() ||
+                    "";
                 items.push({
                     id: op.operationId,
                     type: "OPERATION",
                     operationId: op.operationId,
                     operationOrder: op.order,
                     amount: op.cancelledTotal,
-                    reason: "Anulación de operación completa",
+                    reason: formatCancellationReason(opReason),
                     cancelledAt: op.cancelledAt,
                     user: {
                         id: "",
@@ -94,7 +105,9 @@ const ReportCancel: React.FC = () => {
                         productName: item.productName,
                         quantity: item.quantity,
                         amount: item.total,
-                        reason: item.notes || "No especificado",
+                        reason: formatCancellationReason(
+                            item.cancellationReason,
+                        ),
                         cancelledAt: item.cancelledAt,
                         user: {
                             id: "",
