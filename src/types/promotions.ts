@@ -15,6 +15,8 @@ export interface IPromotionScope {
         isActive: boolean;
         currentStock?: number | null;
         managesStock?: boolean | null;
+        subcategoryId?: string | null;
+        subcategory?: { id: string; name: string } | null;
     } | null;
 }
 

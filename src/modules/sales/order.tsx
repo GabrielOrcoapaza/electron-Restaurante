@@ -53,6 +53,7 @@ import {
     type CartLine,
 } from "../../utils/promotionUtils";
 import type { IPromotion } from "../../types/promotions";
+import { productStockLabel } from "../../utils/productStockDisplay";
 
 export type OrderSuccessPayload = {
     operationId: string | number;
@@ -430,7 +431,7 @@ const Order: React.FC<OrderProps> = ({
     const [activePromotions, setActivePromotions] = useState<IPromotion[]>([]);
     const [giftMessage, setGiftMessage] = useState<string | null>(null);
     const [showComboModal, setShowComboModal] = useState(false);
-    const [, setPendingComboProduct] = useState<any>(null);
+    const [pendingComboProduct, setPendingComboProduct] = useState<any>(null);
 
     const handleVirtualKeyPress = (key: string) => {
         setSearchTerm((prev) => prev + key);
@@ -1026,7 +1027,7 @@ const Order: React.FC<OrderProps> = ({
         if (!product) return;
 
         // NUEVO: Si es un combo (PROMOTION), abrir modal para seleccionar componentes
-        if (product.productType === "PROMOTION") {
+        if (product.productType === "PROMOTION" && product.asPromotion) {
             setPendingComboProduct(product);
             setShowComboModal(true);
             return;
@@ -2148,7 +2149,11 @@ const Order: React.FC<OrderProps> = ({
                         >
                             {/* NUEVO: Botón de combos */}
                             <button
-                                onClick={() => setShowComboModal(true)}
+                                type="button"
+                                onClick={() => {
+                                    setPendingComboProduct(null);
+                                    setShowComboModal(true);
+                                }}
                                 className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white transition-all hover:bg-orange-600"
                             >
                                 ⭐ Combos
@@ -2791,6 +2796,21 @@ const Order: React.FC<OrderProps> = ({
                                                                         product.name
                                                                     }
                                                                 </div>
+                                                                {productStockLabel(
+                                                                    product,
+                                                                ) && (
+                                                                    <div
+                                                                        className="text-[0.65rem] font-semibold text-slate-500 dark:text-slate-400 md:text-xs"
+                                                                        style={{
+                                                                            marginBottom:
+                                                                                "0.2rem",
+                                                                        }}
+                                                                    >
+                                                                        {productStockLabel(
+                                                                            product,
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                                 <div
                                                                     style={{
                                                                         fontSize:
@@ -3250,6 +3270,18 @@ const Order: React.FC<OrderProps> = ({
                                                                 }}
                                                             >
                                                                 {item.name}
+                                                                {item.product &&
+                                                                    productStockLabel(
+                                                                        item.product,
+                                                                    ) && (
+                                                                        <span className="shrink-0 text-[0.65rem] font-semibold text-slate-500 dark:text-slate-400">
+                                                                            (
+                                                                            {productStockLabel(
+                                                                                item.product,
+                                                                            )}
+                                                                            )
+                                                                        </span>
+                                                                    )}
                                                             </div>
                                                             {/* NUEVO: Descuento en el carrito */}
                                                             {(item.discount ??
@@ -3820,9 +3852,10 @@ const Order: React.FC<OrderProps> = ({
                 )}
 
                 {/* NUEVO: Modal de selección de combos */}
-                {showComboModal && (
+                {showComboModal && companyData?.branch?.id && (
                     <ComboSelectorModal
-                        branchId={companyData?.branch?.id || ""}
+                        branchId={companyData.branch.id}
+                        initialProduct={pendingComboProduct}
                         onConfirm={handleAddCombo}
                         onClose={() => {
                             setShowComboModal(false);

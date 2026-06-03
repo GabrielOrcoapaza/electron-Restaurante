@@ -29,6 +29,7 @@ import Subcategory from "../modules/configuration/subcategory";
 import CategoryModule from "../modules/configuration/category";
 import Printers from "../modules/configuration/printers";
 import LocalPrinters from "../modules/configuration/localPrinters";
+import DevicePrintConfigs from "../modules/configuration/devicePrintConfigs";
 import FloorModule from "../modules/configuration/floor";
 import TableModule from "../modules/configuration/table";
 import Delivery from "../modules/sales/delivery";
@@ -228,6 +229,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         | "observation"
         | "printers"
         | "local_printers"
+        | "devices"
         | "floors_tables"
     >("category");
     const [floorsTablesSubTab, setFloorsTablesSubTab] = useState<
@@ -1690,6 +1692,19 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     <span>🪑</span>
                                     Pisos y Mesas
                                 </button>
+                                <button
+                                    onClick={() =>
+                                        setConfigurationTab("devices")
+                                    }
+                                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                        configurationTab === "devices"
+                                            ? "bg-amber-600 text-white dark:bg-amber-500"
+                                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                    }`}
+                                >
+                                    <span>📱</span>
+                                    Dispositivos
+                                </button>
                             </div>
 
                             {configurationTab === "floors_tables" && (
@@ -1742,6 +1757,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                             {configurationTab === "printers" && <Printers />}
                             {configurationTab === "local_printers" && (
                                 <LocalPrinters />
+                            )}
+                            {configurationTab === "devices" && (
+                                <DevicePrintConfigs />
                             )}
                         </div>
                     )}

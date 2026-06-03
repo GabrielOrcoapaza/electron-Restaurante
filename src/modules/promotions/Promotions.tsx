@@ -218,9 +218,9 @@ const Promotions: React.FC = () => {
                                     >
                                         {promo.isActive ? 'Activa' : 'Inactiva'}
                                     </span>
-                                    {promo.isValidNow && (
+                                    {!promo.validTo && (
                                         <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                                            Vigente ahora
+                                            Sin fin
                                         </span>
                                     )}
                                 </div>
@@ -248,7 +248,7 @@ const Promotions: React.FC = () => {
                                 )}
                                 {promo.promotionType === 'NXM' && (
                                     <div className="mt-1 text-xs text-purple-600 dark:text-purple-300">
-                                        Compra {promo.buyQuantity} lleva {promo.getQuantity}
+                                        Lleva {promo.buyQuantity} paga {promo.getQuantity}
                                     </div>
                                 )}
                                 {promo.promotionType === 'GIFT' && promo.giftProduct && (

@@ -47,15 +47,7 @@ import {
     findBadgePromotion,
 } from "../../utils/promotionUtils";
 import type { IPromotion } from "../../types/promotions";
-import {
-    buildCashPayDocumentPreviewJson,
-    documentTypeLabelFromCode,
-} from "../../utils/buildCashPayDocumentPreview";
-import {
-    buildPreviewHtmlBlobUrl,
-    revokePreviewHtmlBlobUrl,
-    type DocumentPreviewAction,
-} from "../../utils/issuedDocumentPrintWithPreview";
+import type { DocumentPreviewAction } from "../../utils/issuedDocumentPrintWithPreview";
 import { DocumentPrintPreviewModal } from "../../components/DocumentPrintPreviewModal";
 import { isElectronRenderer } from "../../utils/electronPrint";
 import { useTableSessionLock } from "../../hooks/useTableSessionLock";
@@ -208,9 +200,6 @@ const CashPay: React.FC<CashPayProps> = ({
     const isPrintPreviewOpenRef = useRef(false);
     const [cashDocPreview, setCashDocPreview] = useState<{
         title: string;
-        htmlUrl: string | null;
-        previewJson: string;
-        loading: boolean;
     } | null>(null);
     const cashDocPreviewResolverRef = useRef<
         ((action: DocumentPreviewAction) => void) | null
@@ -968,7 +957,7 @@ const CashPay: React.FC<CashPayProps> = ({
         }
     };
 
-    /** Al pulsar Boleta / Factura / Nota: vista previa local (sin backend) y luego el pago. */
+    /** Al pulsar Boleta / Factura / Nota: confirmación y luego el pago. */
     const handleDocumentPayClick = async (documentId: string) => {
         if (
             isProcessingRef.current ||
@@ -1032,111 +1021,15 @@ const CashPay: React.FC<CashPayProps> = ({
 
         isPrintPreviewOpenRef.current = true;
         try {
-            let serial: string;
-            try {
-                const { data: serialsFetched } = await fetchSerialsForDocument({
-                    variables: { documentId },
-                });
-                const serialList = (
-                    serialsFetched?.serialsByDocument || []
-                ).filter((ser: any) => ser.isActive !== false);
-                if (serialList.length === 0) {
-                    showToast(
-                        "No hay serie activa para este documento",
-                        "error",
-                    );
-                    return;
-                }
-                serial = serialList[0].serial || "";
-            } catch {
-                showToast(
-                    "No se pudieron cargar las series del documento",
-                    "error",
-                );
-                return;
-            }
-
-            const now = new Date();
-            const waiterName =
-                (operation?.user?.fullName || "").trim() ||
-                (table?.userName || "").trim() ||
-                null;
-
-            const previewJson = buildCashPayDocumentPreviewJson({
-                documentTypeLabel: documentTypeLabelFromCode(
-                    String(docForPay.code || ""),
-                    docForPay.description,
-                ),
-                serial,
-                company: companyData?.company ?? null,
-                branch: {
-                    name: companyData?.branch?.name,
-                    address: companyData?.branch?.address,
-                    phone: companyData?.branch?.phone,
-                },
-                customer: selectedClient
-                    ? {
-                          name: selectedClient.name || "Cliente",
-                          document: selectedClient.documentNumber,
-                          document_type: selectedClient.documentType,
-                          address: selectedClient.address,
-                      }
-                    : null,
-                tableName: table?.name ?? null,
-                waiterName,
-                lineItems: detailsForTotal.map((detail: any) => {
-                    const qty = Number(detail.quantity) || 0;
-                    const price = Number(detail.unitPrice) || 0;
-                    const lineDiscount = getDetailLineDiscount(detail);
-                    const lineGross = qty * price;
-                    return {
-                        product_name:
-                            detail.productName ||
-                            detail.product?.name ||
-                            "Producto",
-                        quantity: qty,
-                        unit_price: price,
-                        total: roundMoney2(lineGross - lineDiscount),
-                        discount: lineDiscount,
-                        promotion_name: getDetailPromotionName(detail),
-                        notes: detail.notes || "",
-                    };
-                }),
-                amounts: {
-                    subtotal,
-                    igv: igvAmount,
-                    igv_percent: igvPercentage,
-                    items_discount: itemsPromoDiscount,
-                    discount: globalDiscount,
-                    discount_percent: discountPct,
-                    total_discount: totalDiscount,
-                    total: totalToPay,
-                },
-                emissionDate: formatLocalDateYYYYMMDD(now),
-                emissionTime: formatLocalTimeHHMMSS(now),
-                logoBase64:
-                    companyData?.branchLogo ||
-                    companyData?.companyLogo ||
-                    companyData?.branch?.logo ||
-                    null,
-            });
-
             const previewTitle = payDocumentButtonLabel(docForPay);
-            const htmlUrl = await buildPreviewHtmlBlobUrl(previewJson);
 
             const userAction = await new Promise<DocumentPreviewAction>(
                 (resolve) => {
                     cashDocPreviewResolverRef.current = resolve;
-                    setCashDocPreview({
-                        title: previewTitle,
-                        htmlUrl,
-                        previewJson,
-                        loading: false,
-                    });
+                    setCashDocPreview({ title: previewTitle });
                 },
             );
 
-            revokePreviewHtmlBlobUrl(htmlUrl);
             setCashDocPreview(null);
             cashDocPreviewResolverRef.current = null;
 
@@ -4173,8 +4066,6 @@ const CashPay: React.FC<CashPayProps> = ({
             {cashDocPreview && (
                 <DocumentPrintPreviewModal
                     title={cashDocPreview.title}
-                    htmlUrl={cashDocPreview.htmlUrl}
-                    loading={cashDocPreview.loading}
                     onPrint={() => {
                         cashDocPreviewResolverRef.current?.("print");
                     }}

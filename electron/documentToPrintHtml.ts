@@ -52,18 +52,79 @@ function num2(v: unknown): string {
     return n(v);
 }
 
+function isLikelyImagePath(value: string): boolean {
+    const t = value.trim();
+    if (!t) return false;
+    if (
+        t.startsWith("http://") ||
+        t.startsWith("https://") ||
+        t.startsWith("/") ||
+        t.startsWith("branches/") ||
+        t.startsWith("companies/")
+    ) {
+        return true;
+    }
+    if (/\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(t)) return true;
+    if (t.includes("/") && t.length < 200 && !t.startsWith("data:")) return true;
+    return false;
+}
+
+function resolveMediaPath(path: string): string {
+    const t = path.trim();
+    if (t.startsWith("http://") || t.startsWith("https://") || t.startsWith("data:")) {
+        return t;
+    }
+    const graphql =
+        (typeof process !== "undefined" &&
+            (process.env.VITE_GRAPHQL_URL || process.env.GRAPHQL_URL)) ||
+        "";
+    const mediaBase = graphql
+        ? graphql.replace("/graphql", "/media/")
+        : "/media/";
+    try {
+        if (t.startsWith("/media/")) {
+            const base = mediaBase.replace(/\/media\/?$/, "");
+            return new URL(t, base || "http://localhost").toString();
+        }
+        const origin =
+            typeof window !== "undefined" ? window.location.origin : "http://localhost";
+        const base = mediaBase.startsWith("http")
+            ? mediaBase
+            : `${origin}${mediaBase.startsWith("/") ? "" : "/"}${mediaBase}`;
+        return new URL(t, base).toString();
+    } catch {
+        return `${mediaBase}${t}`.replace(/\/+/g, "/");
+    }
+}
+
+function logoImgHtml(doc: Record<string, unknown>): string {
+    const url =
+        typeof doc.logo_url === "string" ? doc.logo_url.trim() : "";
+    if (url) {
+        return `<div class="logo-wrap"><img class="logo" src="${escapeHtml(url)}" alt=""/></div>`;
+    }
+    const logo =
+        typeof doc.logo_base64 === "string" ? doc.logo_base64.trim() : "";
+    if (!logo) return "";
+    let src: string;
+    if (logo.startsWith("data:")) {
+        src = logo;
+    } else if (isLikelyImagePath(logo)) {
+        src = resolveMediaPath(logo);
+    } else {
+        src = `data:image/png;base64,${logo}`;
+    }
+    return `<div class="logo-wrap"><img class="logo" src="${escapeHtml(src)}" alt=""/></div>`;
+}
+
 /**
  * HTML que imita el layout del ticket térmico (logo, sucursal, documento, ítems alineados, totales).
  */
 async function renderThermalDocumentStyle(doc: Record<string, unknown>): Promise<string> {
     const parts: string[] = [];
 
-    const logo = typeof doc.logo_base64 === "string" ? doc.logo_base64 : "";
-    if (logo) {
-        parts.push(
-            `<div class="logo-wrap"><img class="logo" src="data:image/png;base64,${logo}" alt=""/></div>`
-        );
-    }
+    const logoHtml = logoImgHtml(doc);
+    if (logoHtml) parts.push(logoHtml);
 
     const branch = (doc.branch ?? {}) as Record<string, unknown>;
     const bCompany = String(branch.company ?? branch.name ?? "");
@@ -341,18 +402,15 @@ export async function documentDataJsonToHtml(jsonString: string): Promise<string
     }
 
     const parts: string[] = [];
-    const logo = typeof doc.logo_base64 === "string" ? doc.logo_base64 : "";
-    if (logo) {
-        parts.push(
-            `<div class="logo-wrap"><img class="logo" src="data:image/png;base64,${logo}" alt=""/></div>`
-        );
-    }
+    const logoHtml = logoImgHtml(doc);
+    if (logoHtml) parts.push(logoHtml);
 
     const title = String(doc.type ?? doc.document_type ?? doc.tipo ?? "Documento");
     parts.push(`<h1>${escapeHtml(title)}</h1>`);
 
     const nestedSkip = new Set([
         "logo_base64",
+        "logo_url",
         "logo",
         "items",
         "lines",

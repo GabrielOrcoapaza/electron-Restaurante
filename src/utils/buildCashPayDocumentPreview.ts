@@ -3,6 +3,8 @@
  * solo con datos visibles en caja, sin esperar createIssuedDocument.
  */
 
+import { getFullImageUrl, isLikelyImagePath } from "./getFullImageUrl";
+
 export type CashPayPreviewLineItem = {
 	product_name: string;
 	quantity: number;
@@ -127,8 +129,15 @@ export function buildCashPayDocumentPreviewJson(
 		},
 	};
 
-	const logo = stripLogoBase64(input.logoBase64);
-	if (logo) payload.logo_base64 = logo;
+	const rawLogo = input.logoBase64?.trim();
+	if (rawLogo) {
+		if (isLikelyImagePath(rawLogo)) {
+			payload.logo_url = getFullImageUrl(rawLogo);
+		} else {
+			const logo = stripLogoBase64(rawLogo);
+			if (logo) payload.logo_base64 = logo;
+		}
+	}
 
 	if (input.customer?.name || input.customer?.document) {
 		payload.customer = {

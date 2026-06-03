@@ -369,6 +369,8 @@ export const GET_PRODUCTS_BY_CATEGORY = gql`
             preparationTime
             productType
             isActive
+            currentStock
+            managesStock
             subcategoryId
             subcategory {
                 id
@@ -442,6 +444,11 @@ export const GET_PRODUCTS_BY_BRANCH = gql`
             stockMin
             stockMax
             managesStock
+            asPromotion {
+                id
+                name
+                promotionType
+            }
         }
     }
 `;
@@ -483,6 +490,11 @@ export const GET_PRODUCTS = gql`
             stockMin
             stockMax
             managesStock
+            asPromotion {
+                id
+                name
+                promotionType
+            }
         }
     }
 `;
@@ -1543,6 +1555,30 @@ export const GET_DEVICE_PRINT_INTEGRATION = gql`
     }
 `;
 
+export const GET_DEVICE_PRINT_CONFIGS_BY_BRANCH = gql`
+    query GetDevicePrintConfigsByBranch($branchId: ID!, $isActive: Boolean) {
+        devicePrintConfigsByBranch(branchId: $branchId, isActive: $isActive) {
+            id
+            deviceId
+            deviceName
+            printType
+            copies
+            priority
+            useIntegratedPrinter
+            useBluetoothPrinter
+            isActive
+            category {
+                id
+                name
+            }
+            printer {
+                id
+                name
+            }
+        }
+    }
+`;
+
 // Aliases para compatibilidad con el componente Delivery
 export const GET_DOCUMENTS_BY_BRANCH = GET_DOCUMENTS;
 export const GET_CASH_REGISTERS_BY_BRANCH = GET_CASH_REGISTERS;
@@ -1605,6 +1641,11 @@ export const GET_ACTIVE_COMBOS = gql`
                         isActive
                         currentStock
                         managesStock
+                        subcategoryId
+                        subcategory {
+                            id
+                            name
+                        }
                     }
                 }
             }

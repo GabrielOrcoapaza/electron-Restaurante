@@ -456,7 +456,7 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
                 <div className="grid gap-4 md:grid-cols-2">
                     <label className="block text-sm">
                         <span className="mb-1 block font-medium">
-                            Compra (N) *
+                            Lleva (N) *
                         </span>
                         <input
                             type="number"
@@ -469,7 +469,7 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
                         />
                     </label>
                     <label className="block text-sm">
-                        <span className="mb-1 block font-medium">Lleva (M) *</span>
+                        <span className="mb-1 block font-medium">Paga (M) *</span>
                         <input
                             type="number"
                             min={1}

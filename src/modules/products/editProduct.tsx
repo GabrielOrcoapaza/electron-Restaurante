@@ -1,7 +1,8 @@
 import React, { useState, useRef } from "react";
 import { useMutation, useQuery } from "@apollo/client";
-import { UPDATE_PRODUCT } from "../../graphql/mutations";
+import { UPDATE_PRODUCT, LINK_PRODUCT_TO_PROMOTION } from "../../graphql/mutations";
 import { GET_CATEGORIES_BY_BRANCH } from "../../graphql/queries";
+import { ComboPromotionLinkField } from "../../components/ComboPromotionLinkField";
 import { useAuth } from "../../hooks/useAuth";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useToast } from "../../context/ToastContext";
@@ -26,6 +27,7 @@ interface Product {
     currentStock?: number;
     isActive?: boolean;
     managesStock?: boolean;
+    asPromotion?: { id: string; name: string; promotionType?: string } | null;
 }
 
 interface EditProductProps {
@@ -122,7 +124,9 @@ const EditProduct: React.FC<EditProductProps> = ({
         currentStock: product.currentStock?.toString() || "0",
         isActive: product.isActive !== undefined ? product.isActive : true,
         managesStock: product.managesStock ?? false,
+        linkedPromotionId: product.asPromotion?.id || "",
     });
+    const initialLinkedPromotionId = product.asPromotion?.id || "";
     const [enableStockEdit, setEnableStockEdit] = useState(false);
     const [newImageBase64, setNewImageBase64] = useState<string | null>(null);
     const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
@@ -153,21 +157,8 @@ const EditProduct: React.FC<EditProductProps> = ({
     const availableSubcategories =
         selectedCategory?.subcategories?.filter((sub) => sub.isActive) || [];
 
-    const [updateProduct, { loading }] = useMutation(UPDATE_PRODUCT, {
-        onCompleted: (data) => {
-            if (data.updateProduct.success) {
-                showToast(data.updateProduct.message, "success");
-                setTimeout(() => {
-                    onSuccess();
-                }, 1000);
-            } else {
-                showToast(data.updateProduct.message, "error");
-            }
-        },
-        onError: (error) => {
-            showToast(error.message, "error");
-        },
-    });
+    const [updateProduct, { loading }] = useMutation(UPDATE_PRODUCT);
+    const [linkProductToPromotion] = useMutation(LINK_PRODUCT_TO_PROMOTION);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -223,12 +214,26 @@ const EditProduct: React.FC<EditProductProps> = ({
             if (name === "categoryId") {
                 newData.subcategoryId = "";
             }
+            if (name === "productType") {
+                setEnableStockEdit(false);
+            }
             return newData;
         });
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (
+            formData.productType === "PROMOTION" &&
+            !formData.linkedPromotionId
+        ) {
+            showToast(
+                "Selecciona la promoción COMBO / menú a vincular.",
+                "error",
+            );
+            return;
+        }
 
         const variables: any = {
             productId: product.id,
@@ -246,18 +251,38 @@ const EditProduct: React.FC<EditProductProps> = ({
             preparationTime: formData.preparationTime
                 ? parseInt(formData.preparationTime)
                 : undefined,
-            stockMin: formData.stockMin
-                ? parseFloat(formData.stockMin)
-                : undefined,
-            stockMax: formData.stockMax
-                ? parseFloat(formData.stockMax)
-                : undefined,
             isActive: formData.isActive,
-            managesStock: formData.managesStock,
         };
 
-        // Solo enviar el stock si la edición está habilitada y ha cambiado respecto al valor original
-        if (enableStockEdit) {
+        const isDish = formData.productType === "DISH";
+        const isStockManagedType =
+            formData.productType === "BEVERAGE" ||
+            formData.productType === "INGREDIENT";
+
+        if (isStockManagedType) {
+            variables.managesStock = formData.managesStock;
+            variables.stockMin = formData.stockMin
+                ? parseFloat(formData.stockMin)
+                : undefined;
+            variables.stockMax = formData.stockMax
+                ? parseFloat(formData.stockMax)
+                : undefined;
+        }
+
+        if (isDish && enableStockEdit) {
+            variables.stockMin = formData.stockMin
+                ? parseFloat(formData.stockMin)
+                : undefined;
+            variables.stockMax = formData.stockMax
+                ? parseFloat(formData.stockMax)
+                : undefined;
+        }
+
+        // Stock actual: bebida/ingrediente o plato (con «Editar stock» activo)
+        if (
+            enableStockEdit &&
+            (isStockManagedType || isDish)
+        ) {
             const currentStockFloat = formData.currentStock
                 ? parseFloat(formData.currentStock)
                 : 0;
@@ -289,7 +314,48 @@ const EditProduct: React.FC<EditProductProps> = ({
             variables.imageBase64 = imageMutation;
         }
 
-        updateProduct({ variables });
+        try {
+            const { data } = await updateProduct({ variables });
+
+            if (!data?.updateProduct?.success) {
+                showToast(
+                    data?.updateProduct?.message || "No se pudo actualizar.",
+                    "error",
+                );
+                return;
+            }
+
+            const needsPromotionLink = formData.productType === "PROMOTION";
+            const needsUnlink =
+                formData.productType !== "PROMOTION" &&
+                Boolean(initialLinkedPromotionId);
+
+            if (needsPromotionLink || needsUnlink) {
+                const { data: linkData } = await linkProductToPromotion({
+                    variables: {
+                        productId: product.id,
+                        promotionId: needsPromotionLink
+                            ? formData.linkedPromotionId
+                            : null,
+                    },
+                });
+                if (!linkData?.linkProductToPromotion?.success) {
+                    showToast(
+                        linkData?.linkProductToPromotion?.message ||
+                            "Producto guardado, pero no se pudo vincular la promoción.",
+                        "error",
+                    );
+                    return;
+                }
+            }
+
+            showToast(data.updateProduct.message, "success");
+            setTimeout(() => {
+                onSuccess();
+            }, 1000);
+        } catch (error: any) {
+            showToast(error?.message || "Error al actualizar el producto.", "error");
+        }
     };
 
     return (
@@ -451,6 +517,24 @@ const EditProduct: React.FC<EditProductProps> = ({
                                 </option>
                             </select>
                         </div>
+
+                        {formData.productType === "PROMOTION" && branchId && (
+                            <ComboPromotionLinkField
+                                branchId={branchId}
+                                value={formData.linkedPromotionId}
+                                onChange={(promotionId) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        linkedPromotionId: promotionId,
+                                    }))
+                                }
+                                labelClass={labelClass}
+                                fieldClass={fieldClass}
+                                labelFontSize={labelFontSize}
+                                inputPadding={inputPadding}
+                                inputFontSize={inputFontSize}
+                            />
+                        )}
 
                         {/* Código y Nombre */}
                         <div
@@ -746,7 +830,138 @@ const EditProduct: React.FC<EditProductProps> = ({
                             </div>
                         </div>
 
-                        {/* Stock - Solo visible para Bebidas e Ingredientes */}
+                        {/* Control de stock — Platos (contador de ventas, sin kardex) */}
+                        {formData.productType === "DISH" && (
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                                <h3
+                                    className="mb-1 font-semibold text-slate-800 dark:text-slate-100"
+                                    style={{ fontSize: labelFontSize }}
+                                >
+                                    Control de Stock
+                                </h3>
+                                <p className="mb-3 text-[0.7rem] text-slate-500 dark:text-slate-400">
+                                    Plato: solo contador de ventas (sin kardex ni
+                                    movimientos).
+                                </p>
+                                <label className="mb-2 flex cursor-pointer items-center gap-2 text-slate-600 dark:text-slate-300">
+                                    <input
+                                        type="checkbox"
+                                        checked={enableStockEdit}
+                                        onChange={(e) =>
+                                            setEnableStockEdit(e.target.checked)
+                                        }
+                                        className="h-4 w-4 cursor-pointer accent-indigo-600"
+                                    />
+                                    <span style={{ fontSize: labelFontSize }}>
+                                        Editar stock en este formulario
+                                    </span>
+                                </label>
+                                <p className="mb-3 text-[0.65rem] text-slate-500 dark:text-slate-400">
+                                    Si marca «Editar» y cambia Stock Actual, al
+                                    guardar se actualiza el contador de ventas
+                                    (sin movimientos de inventario).
+                                </p>
+                                <div
+                                    style={{
+                                        display: "grid",
+                                        gridTemplateColumns:
+                                            isXs || isSmall
+                                                ? "1fr"
+                                                : isMedium
+                                                  ? "1fr 1fr"
+                                                  : "1fr 1fr 1fr",
+                                        gap: gapSize,
+                                    }}
+                                >
+                                    <div>
+                                        <label
+                                            className={labelClass}
+                                            style={{ fontSize: labelFontSize }}
+                                        >
+                                            Stock Actual
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="currentStock"
+                                            value={formData.currentStock}
+                                            onChange={handleChange}
+                                            disabled={!enableStockEdit}
+                                            min="0"
+                                            step="0.01"
+                                            placeholder="0"
+                                            className={`${fieldClass} disabled:cursor-not-allowed ${
+                                                enableStockEdit
+                                                    ? ""
+                                                    : "bg-slate-100 dark:bg-slate-900"
+                                            }`}
+                                            style={{
+                                                padding: inputPadding,
+                                                fontSize: inputFontSize,
+                                                boxSizing: "border-box",
+                                            }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label
+                                            className={labelClass}
+                                            style={{ fontSize: labelFontSize }}
+                                        >
+                                            Stock Mín
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="stockMin"
+                                            value={formData.stockMin}
+                                            onChange={handleChange}
+                                            disabled={!enableStockEdit}
+                                            min="0"
+                                            step="0.01"
+                                            placeholder="0"
+                                            className={`${fieldClass} disabled:cursor-not-allowed ${
+                                                enableStockEdit
+                                                    ? ""
+                                                    : "bg-slate-100 dark:bg-slate-900"
+                                            }`}
+                                            style={{
+                                                padding: inputPadding,
+                                                fontSize: inputFontSize,
+                                                boxSizing: "border-box",
+                                            }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label
+                                            className={labelClass}
+                                            style={{ fontSize: labelFontSize }}
+                                        >
+                                            Stock Máx
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="stockMax"
+                                            value={formData.stockMax}
+                                            onChange={handleChange}
+                                            disabled={!enableStockEdit}
+                                            min="0"
+                                            step="0.01"
+                                            placeholder="0"
+                                            className={`${fieldClass} disabled:cursor-not-allowed ${
+                                                enableStockEdit
+                                                    ? ""
+                                                    : "bg-slate-100 dark:bg-slate-900"
+                                            }`}
+                                            style={{
+                                                padding: inputPadding,
+                                                fontSize: inputFontSize,
+                                                boxSizing: "border-box",
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Stock - Bebidas e Ingredientes (kardex) */}
                         {(formData.productType === "BEVERAGE" ||
                             formData.productType === "INGREDIENT") && (
                             <div

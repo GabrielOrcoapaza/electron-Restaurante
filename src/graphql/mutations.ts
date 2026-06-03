@@ -2037,6 +2037,93 @@ export const REMOVE_CATEGORY_PRINTERS = gql`
     }
 `;
 
+// ——— Configuración de impresión por dispositivo (DevicePrintConfig) ———
+export const CREATE_DEVICE_PRINT_CONFIG = gql`
+    mutation CreateDevicePrintConfig(
+        $branchId: ID!
+        $deviceId: String!
+        $deviceName: String!
+        $printType: String!
+        $categoryId: ID
+        $printerId: ID
+        $copies: Int
+        $priority: Int
+        $useIntegratedPrinter: Boolean
+        $useBluetoothPrinter: Boolean
+        $isActive: Boolean
+    ) {
+        createDevicePrintConfig(
+            branchId: $branchId
+            deviceId: $deviceId
+            deviceName: $deviceName
+            printType: $printType
+            categoryId: $categoryId
+            printerId: $printerId
+            copies: $copies
+            priority: $priority
+            useIntegratedPrinter: $useIntegratedPrinter
+            useBluetoothPrinter: $useBluetoothPrinter
+            isActive: $isActive
+        ) {
+            devicePrintConfig {
+                id
+                deviceId
+                deviceName
+                printType
+            }
+            success
+            message
+        }
+    }
+`;
+
+export const UPDATE_DEVICE_PRINT_CONFIG = gql`
+    mutation UpdateDevicePrintConfig(
+        $configId: ID!
+        $deviceName: String
+        $printType: String
+        $categoryId: ID
+        $printerId: ID
+        $copies: Int
+        $priority: Int
+        $useIntegratedPrinter: Boolean
+        $useBluetoothPrinter: Boolean
+        $isActive: Boolean
+    ) {
+        updateDevicePrintConfig(
+            configId: $configId
+            deviceName: $deviceName
+            printType: $printType
+            categoryId: $categoryId
+            printerId: $printerId
+            copies: $copies
+            priority: $priority
+            useIntegratedPrinter: $useIntegratedPrinter
+            useBluetoothPrinter: $useBluetoothPrinter
+            isActive: $isActive
+        ) {
+            devicePrintConfig {
+                id
+                deviceId
+                deviceName
+                printType
+            }
+            success
+            message
+        }
+    }
+`;
+
+export const DELETE_DEVICE_PRINT_CONFIGS = gql`
+    mutation DeleteDevicePrintConfigs($ids: [ID]!) {
+        deleteDevicePrintConfigs(ids: $ids) {
+            success
+            message
+            deletedCount
+        }
+    }
+`;
+
 // ── CREAR PROMOCIÓN ──
 export const CREATE_PROMOTION = gql`
     mutation CreatePromotion(
@@ -2151,6 +2238,19 @@ export const UPDATE_PROMOTION = gql`
                 isActive
                 photoUrl
             }
+        }
+    }
+`;
+
+// ── VINCULAR PRODUCTO PROMOTION CON PROMOCIÓN COMBO ──
+export const LINK_PRODUCT_TO_PROMOTION = gql`
+    mutation LinkProductToPromotion($productId: ID!, $promotionId: ID) {
+        linkProductToPromotion(
+            productId: $productId
+            promotionId: $promotionId
+        ) {
+            success
+            message
         }
     }
 `;

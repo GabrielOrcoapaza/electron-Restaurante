@@ -203,7 +203,7 @@ export function validatePromotionForm(formData: PromotionFormData): string | nul
         const n = parseInt(formData.buyQuantity, 10);
         const m = parseInt(formData.getQuantity, 10);
         if (!n || !m || m >= n) {
-            return 'NxM requiere N > M (ej: compra 3 lleva 2).';
+            return 'NxM requiere N > M (ej: lleva 3 paga 2).';
         }
     }
 

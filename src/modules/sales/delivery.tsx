@@ -36,16 +36,9 @@ import {
     type CartLine,
 } from "../../utils/promotionUtils";
 import type { IPromotion } from "../../types/promotions";
+import { productStockLabel } from "../../utils/productStockDisplay";
 import { ComboSelectorModal } from "../../components/ComboSelectorModal";
-import {
-    buildCashPayDocumentPreviewJson,
-    documentTypeLabelFromCode,
-} from "../../utils/buildCashPayDocumentPreview";
-import {
-    buildPreviewHtmlBlobUrl,
-    revokePreviewHtmlBlobUrl,
-    type DocumentPreviewAction,
-} from "../../utils/issuedDocumentPrintWithPreview";
+import type { DocumentPreviewAction } from "../../utils/issuedDocumentPrintWithPreview";
 import { DocumentPrintPreviewModal } from "../../components/DocumentPrintPreviewModal";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
 
@@ -131,9 +124,6 @@ const Delivery: React.FC = () => {
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [deliveryDocPreview, setDeliveryDocPreview] = useState<{
         title: string;
-        htmlUrl: string | null;
-        previewJson: string;
-        loading: boolean;
     } | null>(null);
     const deliveryDocPreviewResolverRef = useRef<
         ((action: DocumentPreviewAction) => void) | null
@@ -847,76 +837,16 @@ const Delivery: React.FC = () => {
             return;
         }
 
-        const now = new Date();
-        const previewJson = buildCashPayDocumentPreviewJson({
-            documentTypeLabel: documentTypeLabelFromCode(
-                String(docForPay.code || ""),
-                docForPay.description,
-            ),
-            serial: selectedSerial,
-            company: companyData?.company ?? null,
-            branch: {
-                name: companyData?.branch?.name,
-                address: companyData?.branch?.address,
-                phone: companyData?.branch?.phone,
-            },
-            customer: selectedPerson
-                ? {
-                      name: selectedPerson.name || "Cliente",
-                      document: selectedPerson.documentNumber,
-                      document_type: selectedPerson.documentType,
-                  }
-                : null,
-            tableName: "PARA LLEVAR",
-            waiterName: user?.fullName?.trim() || null,
-            lineItems: itemsSource.map((item) => ({
-                product_name: item.name,
-                quantity: Math.max(1, Number(item.quantity) || 1),
-                unit_price: Number(item.price) || 0,
-                total: roundMoney2(getCartLineTotal(item)),
-                discount: item.discount ?? 0,
-                promotion_name: item.promotionName ?? null,
-                notes: item.notes || "",
-            })),
-            amounts: {
-                subtotal,
-                igv: igvAmount,
-                igv_percent: igvPercentageFromBranch,
-                items_discount: cartItems.reduce(
-                    (sum, item) => sum + (item.discount || 0),
-                    0,
-                ),
-                discount: manualDiscount,
-                discount_percent: pct,
-                total_discount: totalDiscount,
-                total: cartTotal,
-            },
-            emissionDate: formatLocalDateYYYYMMDD(now),
-            emissionTime: formatLocalTimeHHMMSS(now),
-            logoBase64:
-                companyData?.branchLogo ||
-                companyData?.companyLogo ||
-                companyData?.branch?.logo ||
-                null,
-        });
-
         const previewTitle =
             docForPay.description?.trim() || "Comprobante";
-        const htmlUrl = await buildPreviewHtmlBlobUrl(previewJson);
 
         const userAction = await new Promise<DocumentPreviewAction>(
             (resolve) => {
                 deliveryDocPreviewResolverRef.current = resolve;
-                setDeliveryDocPreview({
-                    title: previewTitle,
-                    htmlUrl,
-                    previewJson,
-                    loading: false,
-                });
+                setDeliveryDocPreview({ title: previewTitle });
             },
         );
 
-        revokePreviewHtmlBlobUrl(htmlUrl);
         setDeliveryDocPreview(null);
         deliveryDocPreviewResolverRef.current = null;
 
@@ -1668,6 +1598,15 @@ const Delivery: React.FC = () => {
                                                         <h4 className="line-clamp-2 text-xs font-bold leading-tight text-slate-800 dark:text-slate-100 md:text-sm">
                                                             {product.name}
                                                         </h4>
+                                                        {productStockLabel(
+                                                            product,
+                                                        ) && (
+                                                            <span className="text-[0.65rem] font-semibold text-slate-500 dark:text-slate-400 md:text-xs">
+                                                                {productStockLabel(
+                                                                    product,
+                                                                )}
+                                                            </span>
+                                                        )}
                                                         <div className="mt-auto flex items-center justify-between pt-1">
                                                             <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 md:text-sm">
                                                                 S/{" "}
@@ -1953,6 +1892,18 @@ const Delivery: React.FC = () => {
                                                         }}
                                                     >
                                                         {item.name}
+                                                        {item.product &&
+                                                            productStockLabel(
+                                                                item.product,
+                                                            ) && (
+                                                                <span className="shrink-0 text-[0.65rem] font-semibold text-slate-500 dark:text-slate-400">
+                                                                    (
+                                                                    {productStockLabel(
+                                                                        item.product,
+                                                                    )}
+                                                                    )
+                                                                </span>
+                                                            )}
                                                     </div>
                                                     {/* Descuento en el carrito */}
                                                     {(item.discount ?? 0) >
@@ -2368,8 +2319,6 @@ const Delivery: React.FC = () => {
             {deliveryDocPreview && (
                 <DocumentPrintPreviewModal
                     title={deliveryDocPreview.title}
-                    htmlUrl={deliveryDocPreview.htmlUrl}
-                    loading={deliveryDocPreview.loading}
                     onPrint={() => {
                         deliveryDocPreviewResolverRef.current?.("print");
                     }}

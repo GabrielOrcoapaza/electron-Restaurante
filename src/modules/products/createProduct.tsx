@@ -1,8 +1,9 @@
 import React, { useState, useRef } from "react";
 import { useMutation, useQuery } from "@apollo/client";
 import { useResponsive } from "../../hooks/useResponsive";
-import { CREATE_PRODUCT } from "../../graphql/mutations";
+import { CREATE_PRODUCT, LINK_PRODUCT_TO_PROMOTION } from "../../graphql/mutations";
 import { GET_CATEGORIES_BY_BRANCH } from "../../graphql/queries";
+import { ComboPromotionLinkField } from "../../components/ComboPromotionLinkField";
 import { useAuth } from "../../hooks/useAuth";
 import {
     PRODUCT_UNIT_MEASURE_OPTIONS,
@@ -100,6 +101,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({
         stockMax: "",
         currentStock: "",
         managesStock: false,
+        linkedPromotionId: "",
     });
     const [message, setMessage] = useState<{
         type: "success" | "error";
@@ -122,24 +124,8 @@ const CreateProduct: React.FC<CreateProductProps> = ({
     const availableSubcategories =
         selectedCategory?.subcategories?.filter((sub) => sub.isActive) || [];
 
-    const [createProduct, { loading }] = useMutation(CREATE_PRODUCT, {
-        onCompleted: (data) => {
-            if (data.createProduct.success) {
-                setMessage({
-                    type: "success",
-                    text: data.createProduct.message,
-                });
-                setTimeout(() => {
-                    onSuccess();
-                }, 1000);
-            } else {
-                setMessage({ type: "error", text: data.createProduct.message });
-            }
-        },
-        onError: (error) => {
-            setMessage({ type: "error", text: error.message });
-        },
-    });
+    const [createProduct, { loading }] = useMutation(CREATE_PRODUCT);
+    const [linkProductToPromotion] = useMutation(LINK_PRODUCT_TO_PROMOTION);
 
     const handleChange = (
         e: React.ChangeEvent<
@@ -198,7 +184,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage(null);
 
@@ -206,6 +192,17 @@ const CreateProduct: React.FC<CreateProductProps> = ({
             setMessage({
                 type: "error",
                 text: "No se encontró información de la sucursal",
+            });
+            return;
+        }
+
+        if (
+            formData.productType === "PROMOTION" &&
+            !formData.linkedPromotionId
+        ) {
+            setMessage({
+                type: "error",
+                text: "Selecciona la promoción COMBO / menú a vincular.",
             });
             return;
         }
@@ -227,25 +224,73 @@ const CreateProduct: React.FC<CreateProductProps> = ({
             return +num;
         };
 
-        createProduct({
-            variables: {
-                branchId,
-                code: formData.code,
-                name: formData.name,
-                description: formData.description || null,
-                subcategoryId: formData.subcategoryId || null,
-                productType: formData.productType,
-                salePrice: toFloat(formData.salePrice),
-                purchasePrice: toFloat(formData.purchasePrice),
-                unitMeasure: normalizeProductUnitMeasure(formData.unitMeasure),
-                preparationTime: toInt(formData.preparationTime),
-                stockMin: toFloat(formData.stockMin),
-                stockMax: toFloat(formData.stockMax),
-                currentStock: toFloat(formData.currentStock),
-                managesStock: formData.managesStock,
-                imageBase64: imageBase64 || null,
-            },
-        });
+        try {
+            const { data } = await createProduct({
+                variables: {
+                    branchId,
+                    code: formData.code,
+                    name: formData.name,
+                    description: formData.description || null,
+                    subcategoryId: formData.subcategoryId || null,
+                    productType: formData.productType,
+                    salePrice: toFloat(formData.salePrice),
+                    purchasePrice: toFloat(formData.purchasePrice),
+                    unitMeasure: normalizeProductUnitMeasure(
+                        formData.unitMeasure,
+                    ),
+                    preparationTime: toInt(formData.preparationTime),
+                    stockMin: toFloat(formData.stockMin),
+                    stockMax: toFloat(formData.stockMax),
+                    currentStock: toFloat(formData.currentStock),
+                    managesStock: formData.managesStock,
+                    imageBase64: imageBase64 || null,
+                },
+            });
+
+            if (!data?.createProduct?.success) {
+                setMessage({
+                    type: "error",
+                    text: data?.createProduct?.message || "No se pudo crear el producto.",
+                });
+                return;
+            }
+
+            const productId = data.createProduct.product?.id;
+            if (
+                formData.productType === "PROMOTION" &&
+                productId &&
+                formData.linkedPromotionId
+            ) {
+                const { data: linkData } = await linkProductToPromotion({
+                    variables: {
+                        productId,
+                        promotionId: formData.linkedPromotionId,
+                    },
+                });
+                if (!linkData?.linkProductToPromotion?.success) {
+                    setMessage({
+                        type: "error",
+                        text:
+                            linkData?.linkProductToPromotion?.message ||
+                            "Producto creado, pero no se pudo vincular la promoción.",
+                    });
+                    return;
+                }
+            }
+
+            setMessage({
+                type: "success",
+                text: data.createProduct.message,
+            });
+            setTimeout(() => {
+                onSuccess();
+            }, 1000);
+        } catch (error: any) {
+            setMessage({
+                type: "error",
+                text: error?.message || "Error al crear el producto.",
+            });
+        }
     };
 
     return (
@@ -425,6 +470,24 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                 </option>
                             </select>
                         </div>
+
+                        {formData.productType === "PROMOTION" && branchId && (
+                            <ComboPromotionLinkField
+                                branchId={branchId}
+                                value={formData.linkedPromotionId}
+                                onChange={(promotionId) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        linkedPromotionId: promotionId,
+                                    }))
+                                }
+                                labelClass={labelClass}
+                                fieldClass={fieldClass}
+                                labelFontSize={labelFontSize}
+                                inputPadding={inputPadding}
+                                inputFontSize={inputFontSize}
+                            />
+                        )}
 
                         {/* Código y Nombre */}
                         <div

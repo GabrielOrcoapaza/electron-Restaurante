@@ -30,6 +30,7 @@ interface Product {
     isActive: boolean;
     subcategoryId?: string | null;
     subcategory?: ProductSubcategoryNested | null;
+    asPromotion?: { id: string; name: string; promotionType?: string } | null;
 }
 
 interface Subcategory {
@@ -563,6 +564,12 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                 COMBO
                                             </span>
                                         )}
+                                        {product.productType === "PROMOTION" &&
+                                            !product.asPromotion && (
+                                                <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded font-semibold align-middle">
+                                                    SIN VINCULAR
+                                                </span>
+                                            )}
                                     </div>
                                     <div
                                         className="text-slate-500 dark:text-slate-400"
@@ -857,6 +864,12 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                         COMBO
                                                     </span>
                                                 )}
+                                                {product.productType === "PROMOTION" &&
+                                                    !product.asPromotion && (
+                                                        <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded font-semibold align-middle">
+                                                            SIN VINCULAR
+                                                        </span>
+                                                    )}
                                             </div>
                                         </td>
                                         <td
