@@ -353,7 +353,7 @@ const CashPay: React.FC<CashPayProps> = ({
     const { data: promotionsData } = useQuery(GET_ACTIVE_PROMOTIONS, {
         variables: { branchId: branchId as string },
         skip: !branchId,
-        fetchPolicy: "network-only",
+        fetchPolicy: "cache-and-network",
     });
     const [transferItemsMutation] = useMutation(TRANSFER_ITEMS);
     const [cancelOperationDetailMutation] = useMutation(
@@ -581,34 +581,64 @@ const CashPay: React.FC<CashPayProps> = ({
               )
             : detailsToUse;
 
-    const grossTotal = detailsForTotal.reduce((sum: number, detail: any) => {
-        const quantity = Number(detail.quantity) || 0;
-        const unitPrice = Number(detail.unitPrice) || 0;
-        return sum + quantity * unitPrice;
-    }, 0);
-    const itemsPromoDiscount = roundMoney2(
-        detailsForTotal.reduce(
-            (sum: number, detail: any) => sum + getDetailLineDiscount(detail),
+    // Optimize expensive calculations by moving them out of render path
+    const calculatedValues = useMemo(() => {
+        const grossTotal = detailsForTotal.reduce((sum: number, detail: any) => {
+            const quantity = Number(detail.quantity) || 0;
+            const unitPrice = Number(detail.unitPrice) || 0;
+            return sum + quantity * unitPrice;
+        }, 0);
+        const itemsPromoDiscount = roundMoney2(
+            detailsForTotal.reduce(
+                (sum: number, detail: any) => sum + getDetailLineDiscount(detail),
+                0,
+            ),
+        );
+        const totalAfterItemDiscount = Math.max(0, grossTotal - itemsPromoDiscount);
+        const discountPct = Number(discountPercent) || 0;
+        const globalDiscount = Math.max(
             0,
-        ),
-    );
-    const totalAfterItemDiscount = Math.max(0, grossTotal - itemsPromoDiscount);
-    const discountPct = Number(discountPercent) || 0;
-    const globalDiscount = Math.max(
-        0,
-        discountPct > 0
-            ? roundMoney2((totalAfterItemDiscount * discountPct) / 100)
-            : Number(discountAmount) || 0,
-    );
-    const totalDiscount = roundMoney2(itemsPromoDiscount + globalDiscount);
-    const totalToPay = Math.max(0, totalAfterItemDiscount - globalDiscount);
-    const igvDecimal = igvPercentage / 100;
-    const subtotal = parseFloat(
-        (Math.round((totalToPay / (1 + igvDecimal)) * 100) / 100).toFixed(2),
-    );
-    const igvAmount = parseFloat(
-        (Math.round((totalToPay - subtotal) * 100) / 100).toFixed(2),
-    );
+            discountPct > 0
+                ? roundMoney2((totalAfterItemDiscount * discountPct) / 100)
+                : Number(discountAmount) || 0,
+        );
+        const totalDiscount = roundMoney2(itemsPromoDiscount + globalDiscount);
+        const totalToPay = Math.max(0, totalAfterItemDiscount - globalDiscount);
+        const igvDecimal = igvPercentage / 100;
+        const subtotal = parseFloat(
+            (Math.round((totalToPay / (1 + igvDecimal)) * 100) / 100).toFixed(2),
+        );
+        const igvAmount = parseFloat(
+            (Math.round((totalToPay - subtotal) * 100) / 100).toFixed(2),
+        );
+
+        return {
+            grossTotal,
+            itemsPromoDiscount,
+            totalAfterItemDiscount,
+            discountPct,
+            globalDiscount,
+            totalDiscount,
+            totalToPay,
+            igvDecimal,
+            subtotal,
+            igvAmount
+        };
+    }, [detailsForTotal, discountAmount, discountPercent, igvPercentage]);
+
+    // Destructure calculated values for use in the component
+    const {
+        grossTotal,
+        itemsPromoDiscount,
+        totalAfterItemDiscount,
+        discountPct,
+        globalDiscount,
+        totalDiscount,
+        totalToPay,
+        igvDecimal,
+        subtotal,
+        igvAmount
+    } = calculatedValues;
 
     const addPayment = () => {
         const currentTotalPaid = payments.reduce(

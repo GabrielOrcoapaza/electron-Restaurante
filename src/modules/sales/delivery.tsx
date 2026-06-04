@@ -1607,6 +1607,17 @@ const Delivery: React.FC = () => {
                                                                 )}
                                                             </span>
                                                         )}
+                                                        {Number(
+                                                            product.preparationTime,
+                                                        ) > 0 && (
+                                                            <span className="text-[0.65rem] font-medium text-slate-500 dark:text-slate-400 md:text-xs">
+                                                                ⏱️{" "}
+                                                                {
+                                                                    product.preparationTime
+                                                                }{" "}
+                                                                min
+                                                            </span>
+                                                        )}
                                                         <div className="mt-auto flex items-center justify-between pt-1">
                                                             <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 md:text-sm">
                                                                 S/{" "}
