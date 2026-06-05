@@ -81,14 +81,8 @@ const formatRelativeTime = (dateString?: string | null) => {
     return `Hace ${diffDays} d`;
 };
 
-interface LayoutDashboardProps {
-    children: React.ReactNode;
-}
-
 // Componente interno que usa el WebSocket
-const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
-    children,
-}) => {
+const LayoutDashboardContent: React.FC = () => {
     const navigate = useNavigate();
     const { user, companyData, logout, getMacAddress } = useAuth();
     const [macAddress, setMacAddress] = useState<string>("");
@@ -154,7 +148,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 
     const { hasPermission } = useUserPermissions();
     const [currentView, setCurrentView] = useState<
-        | "dashboard"
         | "floors"
         | "cash"
         | "cashs"
@@ -172,7 +165,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     >(() => {
         const savedView = localStorage.getItem("currentDashboardView");
         const validViews = [
-            "dashboard",
             "floors",
             "cash",
             "cashs",
@@ -190,7 +182,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         ];
         return savedView && validViews.includes(savedView)
             ? (savedView as any)
-            : "dashboard";
+            : "floors";
     });
 
     useEffect(() => {
@@ -534,7 +526,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 
     const handleMenuClick = async (
         view:
-            | "dashboard"
             | "floors"
             | "messages"
             | "employees"
@@ -647,9 +638,8 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     );
 
     const headerTitle =
-        currentView === "dashboard"
-            ? "Panel"
-            : currentView === "floors"
+     
+              currentView === "floors"
               ? "Mesas"
               : currentView === "messages"
                 ? "Mensajes"
@@ -678,9 +668,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                                     : "Caja";
 
     const headerSubtitle =
-        currentView === "dashboard"
-            ? "Bienvenido de vuelta"
-            : currentView === "floors"
+        currentView === "floors"
               ? "Gestiona la ocupación y las órdenes de tus mesas."
               : currentView === "messages"
                 ? "Envía mensajes a cocina, mozos u otros usuarios."
@@ -722,7 +710,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     const isAdmin = user?.role?.toUpperCase() === "ADMIN";
 
     // Permisos para visibilidad del menú (ADMIN ve todo)
-    const canSeeDashboard = isAdmin || hasPermission("branch.view");
     const canSeeProducts = isAdmin || hasPermission("products.view");
     const canSeePromotions = canSeeProducts;
     const canSeeFloors = isAdmin || hasPermission("orders.create");
@@ -761,7 +748,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
     // Si la vista actual no está permitida, redirigir a la primera permitida
     useEffect(() => {
         const allowed = (v: typeof currentView) =>
-            (v === "dashboard" && canSeeDashboard) ||
             (v === "floors" && canSeeFloors) ||
             (v === "cash" && canSeeFloors) ||
             (v === "delivery" && canSeeDelivery) ||
@@ -777,8 +763,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
             (v === "kardex" && canSeeKardex) ||
             (v === "reports" && canSeeReports);
         if (!allowed(currentView)) {
-            if (canSeeDashboard) setCurrentView("dashboard");
-            else if (canSeeFloors) setCurrentView("floors");
+            if (canSeeFloors) setCurrentView("floors");
             else if (canSeeDelivery) setCurrentView("delivery");
             else if (canSeeProducts) setCurrentView("products");
             else if (canSeePromotions) setCurrentView("promotions");
@@ -794,7 +779,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
         }
     }, [
         currentView,
-        canSeeDashboard,
         canSeeFloors,
         canSeeDelivery,
         canSeeProducts,
@@ -879,15 +863,6 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 
                     {/* Opciones del menú */}
                     <div className="flex flex-col">
-                        {canSeeDashboard && (
-                            <SidebarItem
-                                view="dashboard"
-                                icon="📊"
-                                label="Panel"
-                                isActive={currentView === "dashboard"}
-                            />
-                        )}
-
                         {canSeeProducts && (
                             <SidebarItem
                                 view="products"
@@ -1485,12 +1460,9 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                     className={`flex flex-1 flex-col overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 ${
                         currentView === "cash" || currentView === "delivery"
                             ? "p-1 overflow-hidden"
-                            : currentView === "dashboard"
-                              ? "p-6 overflow-y-auto"
-                              : "p-4 overflow-y-auto"
+                            : "p-4 overflow-y-auto"
                     }`}
                 >
-                    {currentView === "dashboard" && children}
                     {currentView === "floors" && (
                         <Floor
                             onOpenCash={handleOpenCash}
@@ -1519,7 +1491,7 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
                     {currentView === "cashs" && <Cashs />}
                     {currentView === "messages" && (
                         <Message
-                            onBack={() => handleMenuClick("dashboard")}
+                            onBack={() => handleMenuClick("floors")}
                             onSuccess={() => {
                                 // Opcional: puedes agregar lógica aquí después de enviar un mensaje exitosamente
                                 console.log("✅ Mensaje enviado exitosamente");
@@ -1771,10 +1743,10 @@ const LayoutDashboardContent: React.FC<LayoutDashboardProps> = ({
 };
 
 // Componente principal que envuelve con el WebSocketProvider
-const LayoutDashboard: React.FC<LayoutDashboardProps> = ({ children }) => {
+const LayoutDashboard: React.FC = () => {
     return (
         <WebSocketProvider>
-            <LayoutDashboardContent>{children}</LayoutDashboardContent>
+            <LayoutDashboardContent />
         </WebSocketProvider>
     );
 };

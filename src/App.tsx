@@ -4,9 +4,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LoginCompany from './home/loginCompany';
 import Login from './home/login';
 import LoginWeb from './home/loginWeb';
-import Dashboard from './components/Dashboard';
 import LandingPage from './home/landing/LandingPage';
 import FullMenuPage from './home/landing/FullMenuPage';
+import AppShell from './components/AppShell';
 import './App.css';
 
 const isElectron = navigator.userAgent.toLowerCase().includes('electron');
@@ -68,12 +68,12 @@ const AppRoutes = () => {
           }
         />
 
-        {/* Ruta del Dashboard (requiere autenticación completa) */}
+        {/* Ruta principal del sistema (requiere autenticación completa) */}
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute requireUser={true}>
-              <Dashboard />
+              <AppShell />
             </ProtectedRoute>
           }
         />
