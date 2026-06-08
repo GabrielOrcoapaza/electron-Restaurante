@@ -54,6 +54,14 @@ import {
 } from "../../utils/promotionUtils";
 import type { IPromotion } from "../../types/promotions";
 import { productStockLabel } from "../../utils/productStockDisplay";
+import {
+    buildCartStockUsage,
+    canAddComboQuantity,
+    canAddMoreProduct,
+    canAddProductQuantity,
+    canSetItemQuantity,
+    isStockWarningMessage,
+} from "../../utils/operationStock";
 
 export type OrderSuccessPayload = {
     operationId: string | number;
@@ -866,8 +874,26 @@ const Order: React.FC<OrderProps> = ({
                 const fullProduct = productsList.find(
                     (p: any) => p.id === String(detail.productId),
                 );
-                // ENRIQUECER EL PRODUCTO CON SU CATEGORÍA
-                let enrichedProduct = fullProduct ? { ...fullProduct } : null;
+                // ENRIQUECER EL PRODUCTO CON SU CATEGORÍA (incl. stock desde la operación)
+                let enrichedProduct = fullProduct
+                    ? { ...fullProduct }
+                    : detail.product
+                      ? { ...detail.product }
+                      : detail.productId
+                        ? {
+                              id: String(detail.productId),
+                              name: detail.productName,
+                              productType: detail.productType,
+                          }
+                        : null;
+                if (enrichedProduct && detail.product) {
+                    enrichedProduct.currentStock =
+                        detail.product.currentStock ??
+                        enrichedProduct.currentStock;
+                    enrichedProduct.managesStock =
+                        detail.product.managesStock ??
+                        enrichedProduct.managesStock;
+                }
                 if (
                     enrichedProduct &&
                     enrichedProduct.subcategoryId &&
@@ -931,10 +957,12 @@ const Order: React.FC<OrderProps> = ({
                         detail.comboComponents?.length > 0
                             ? detail.comboComponents.map((comp: any) => ({
                                   scopeId: comp.id,
-                                  product: {
-                                      id: comp.productId,
-                                      name: comp.productName,
-                                  },
+                                  product: comp.product
+                                      ? { ...comp.product }
+                                      : {
+                                            id: comp.productId,
+                                            name: comp.productName,
+                                        },
                                   quantity: comp.quantity,
                               }))
                             : undefined,
@@ -1049,6 +1077,14 @@ const Order: React.FC<OrderProps> = ({
         }
 
         const qty = qtyToAdd ?? 1;
+
+        const stockRunning = buildCartStockUsage(orderItems);
+        const stockCheck = canAddProductQuantity(product, qty, stockRunning);
+        if (!stockCheck.ok) {
+            showToast(stockCheck.message ?? "Sin stock disponible", "error");
+            return;
+        }
+
         // ENRIQUECER EL PRODUCTO CON SU CATEGORÍA
         let enrichedProduct = { ...product };
         if (enrichedProduct.subcategoryId && !enrichedProduct.subcategory) {
@@ -1148,6 +1184,12 @@ const Order: React.FC<OrderProps> = ({
             return;
         }
 
+        const stockCheck = canSetItemQuantity(targetItem, newQuantity, orderItems);
+        if (!stockCheck.ok) {
+            showToast(stockCheck.message ?? "Sin stock disponible", "error");
+            return;
+        }
+
         const updatedItems = orderItems.map((item) => {
             if (item.id === itemId) {
                 const validQuantity = Number(newQuantity) || 1;
@@ -1179,6 +1221,21 @@ const Order: React.FC<OrderProps> = ({
 
     // NUEVO: Handler para agregar combos
     const handleAddCombo = (combo: any, components: any[]) => {
+        const stockRunning = buildCartStockUsage(orderItems);
+        const stockCheck = canAddComboQuantity(
+            combo.name ?? "Combo",
+            components.map((c: any) => ({
+                product: c.product,
+                quantity: c.quantity,
+            })),
+            1,
+            stockRunning,
+        );
+        if (!stockCheck.ok) {
+            showToast(stockCheck.message ?? "Sin stock disponible", "error");
+            return;
+        }
+
         const newItem: OrderItem = {
             id: `combo-${combo.id}-${Date.now()}`,
             productId: combo.id,
@@ -1501,6 +1558,12 @@ const Order: React.FC<OrderProps> = ({
                 });
 
                 if (result.data?.addItemsToOperation?.success) {
+                    const addMsg =
+                        result.data?.addItemsToOperation?.message;
+                    if (isStockWarningMessage(addMsg)) {
+                        showToast(addMsg!, "warning");
+                    }
+
                     if (onSuccess) {
                         const opId = existingOperation?.id ?? operationId;
                         onSuccess({
@@ -1767,6 +1830,11 @@ const Order: React.FC<OrderProps> = ({
             });
 
             if (result.data?.createOperation?.success) {
+                const createMsg = result.data?.createOperation?.message;
+                if (isStockWarningMessage(createMsg)) {
+                    showToast(createMsg!, "warning");
+                }
+
                 // Actualizar el estado de la mesa a OCCUPIED
                 try {
                     const tableResult = await updateTableStatusMutation({
@@ -2699,16 +2767,36 @@ const Order: React.FC<OrderProps> = ({
                                                     </div>
                                                 ) : (
                                                     productsList.map(
-                                                        (product: any) => (
+                                                        (product: any) => {
+                                                            const outOfStock =
+                                                                product.productType !==
+                                                                    "PROMOTION" &&
+                                                                !canAddMoreProduct(
+                                                                    product,
+                                                                    orderItems,
+                                                                    1,
+                                                                );
+                                                            return (
                                                             <div
                                                                 key={product.id}
-                                                                onClick={() =>
+                                                                onClick={() => {
+                                                                    if (outOfStock) {
+                                                                        showToast(
+                                                                            `Sin stock: ${product.name}`,
+                                                                            "error",
+                                                                        );
+                                                                        return;
+                                                                    }
                                                                     handleAddProduct(
                                                                         product.id,
                                                                         1,
-                                                                    )
-                                                                }
-                                                                className="flex h-full cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/60 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10 relative"
+                                                                    );
+                                                                }}
+                                                                className={`flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 dark:border-slate-700 dark:bg-slate-900 relative ${
+                                                                    outOfStock
+                                                                        ? "cursor-not-allowed opacity-50"
+                                                                        : "cursor-pointer hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/60 hover:shadow-sm dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10"
+                                                                }`}
                                                             >
                                                                 {/* NUEVO: Badge de promoción */}
                                                                 {(() => {
@@ -2861,8 +2949,14 @@ const Order: React.FC<OrderProps> = ({
                                                                         min
                                                                     </div>
                                                                 )}
+                                                                {outOfStock && (
+                                                                    <div className="absolute inset-x-2 bottom-2 rounded-lg bg-red-500/90 px-2 py-0.5 text-[0.65rem] font-bold text-white">
+                                                                        Sin stock
+                                                                    </div>
+                                                                )}
                                                             </div>
-                                                        ),
+                                                            );
+                                                        },
                                                     )
                                                 ))}
                                         </div>

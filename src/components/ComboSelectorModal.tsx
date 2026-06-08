@@ -11,6 +11,7 @@ import type {
     ComboComponentSelection,
     ComboScope,
 } from "../types/promotions";
+import { isProductOrderable } from "../utils/operationStock";
 
 interface ComboSelectorModalProps {
     branchId: string;
@@ -31,6 +32,7 @@ interface ChoiceGroup {
 }
 
 const isOrderableProduct = (p: {
+    id?: string;
     isActive?: boolean;
     managesStock?: boolean | null;
     currentStock?: number | null;
@@ -38,7 +40,7 @@ const isOrderableProduct = (p: {
 }) =>
     p.isActive !== false &&
     p.productType !== "PROMOTION" &&
-    (!p.managesStock || (p.currentStock ?? 1) > 0);
+    isProductOrderable(p);
 
 const sameId = (a: unknown, b: unknown) => String(a) === String(b);
 

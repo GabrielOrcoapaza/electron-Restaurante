@@ -37,6 +37,14 @@ import {
 } from "../../utils/promotionUtils";
 import type { IPromotion } from "../../types/promotions";
 import { productStockLabel } from "../../utils/productStockDisplay";
+import {
+    buildCartStockUsage,
+    canAddComboQuantity,
+    canAddMoreProduct,
+    canAddProductQuantity,
+    canSetItemQuantity,
+    isStockWarningMessage,
+} from "../../utils/operationStock";
 import { ComboSelectorModal } from "../../components/ComboSelectorModal";
 import type { DocumentPreviewAction } from "../../utils/issuedDocumentPrintWithPreview";
 import { DocumentPrintPreviewModal } from "../../components/DocumentPrintPreviewModal";
@@ -534,6 +542,14 @@ const Delivery: React.FC = () => {
         }
 
         const qty = qtyToAdd ?? 1;
+
+        const stockRunning = buildCartStockUsage(cartItems);
+        const stockCheck = canAddProductQuantity(product, qty, stockRunning);
+        if (!stockCheck.ok) {
+            showToast(stockCheck.message ?? "Sin stock disponible", "error");
+            return;
+        }
+
         const existingItemIndex = cartItems.findIndex(
             (item) => item.productId === product.id,
         );
@@ -571,6 +587,21 @@ const Delivery: React.FC = () => {
 
     // Handler para cuando el usuario confirma el combo desde el modal
     const handleAddCombo = (comboProduct: any, selections: any[]) => {
+        const stockRunning = buildCartStockUsage(cartItems);
+        const stockCheck = canAddComboQuantity(
+            comboProduct.name ?? "Combo",
+            selections.map((c: any) => ({
+                product: c.product,
+                quantity: c.quantity,
+            })),
+            1,
+            stockRunning,
+        );
+        if (!stockCheck.ok) {
+            showToast(stockCheck.message ?? "Sin stock disponible", "error");
+            return;
+        }
+
         const newItem: CartItem = {
             id: `combo-${comboProduct.id}-${Date.now()}`,
             productId: comboProduct.id,
@@ -595,6 +626,19 @@ const Delivery: React.FC = () => {
         if (newQuantity <= 0) {
             handleRemoveItem(itemId);
             return;
+        }
+
+        const targetItem = cartItems.find((item) => item.id === itemId);
+        if (targetItem) {
+            const stockCheck = canSetItemQuantity(
+                targetItem,
+                newQuantity,
+                cartItems,
+            );
+            if (!stockCheck.ok) {
+                showToast(stockCheck.message ?? "Sin stock disponible", "error");
+                return;
+            }
         }
 
         const updatedItems = cartItems.map((item) => {
@@ -1029,6 +1073,11 @@ const Delivery: React.FC = () => {
             const result = await createSaleCarryOutMutation({ variables });
 
             if (result.data?.createSaleCarryOut?.success) {
+                const carryOutMsg = result.data?.createSaleCarryOut?.message;
+                if (isStockWarningMessage(carryOutMsg)) {
+                    showToast(carryOutMsg!, "warning");
+                }
+
                 if (shouldPrint) {
                     const carryOutResult = result.data
                         .createSaleCarryOut as typeof result.data.createSaleCarryOut & {
@@ -1559,16 +1608,35 @@ const Delivery: React.FC = () => {
                                                     product,
                                                     activePromotions,
                                                 );
+                                            const outOfStock =
+                                                product.productType !==
+                                                    "PROMOTION" &&
+                                                !canAddMoreProduct(
+                                                    product,
+                                                    cartItems,
+                                                    1,
+                                                );
                                             return (
                                                 <div
                                                     key={product.id}
-                                                    onClick={() =>
+                                                    onClick={() => {
+                                                        if (outOfStock) {
+                                                            showToast(
+                                                                `Sin stock: ${product.name}`,
+                                                                "error",
+                                                            );
+                                                            return;
+                                                        }
                                                         handleAddProduct(
                                                             product.id,
                                                             1,
-                                                        )
-                                                    }
-                                                    className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-2.5 transition-all duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50"
+                                                        );
+                                                    }}
+                                                    className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-2.5 transition-all duration-200 dark:border-slate-800 dark:bg-slate-900 ${
+                                                        outOfStock
+                                                            ? "cursor-not-allowed opacity-50"
+                                                            : "hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:hover:border-indigo-500/50"
+                                                    }`}
                                                 >
                                                     {promoBadge && (
                                                         <div className="absolute left-2 top-2 z-10">
@@ -1646,6 +1714,11 @@ const Delivery: React.FC = () => {
                                                             </div>
                                                         </div>
                                                     </div>
+                                                    {outOfStock && (
+                                                        <div className="absolute inset-x-2 bottom-2 rounded-lg bg-red-500/90 px-2 py-0.5 text-center text-[0.65rem] font-bold text-white">
+                                                            Sin stock
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })

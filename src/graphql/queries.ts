@@ -142,6 +142,44 @@ export const GET_CASH_REGISTERS = gql`
     }
 `;
 
+// Campos compartidos de detalle de operación (ventas / caja)
+const OPERATION_DETAIL_FIELDS = `
+    id
+    quantity
+    unitMeasure
+    unitValue
+    unitPrice
+    total
+    notes
+    productId
+    productCode
+    productName
+    productDescription
+    productType
+    isCanceled
+    isPrepared
+    isPrinted
+    printedAt
+    promoInfo
+    product {
+        id
+        code
+        name
+        productType
+        salePrice
+        subcategoryId
+        currentStock
+        managesStock
+        unitMeasure
+    }
+    comboComponents {
+        id
+        productId
+        productName
+        quantity
+    }
+`;
+
 // Query para obtener la operación activa de una mesa
 export const GET_OPERATION_BY_TABLE = gql`
     query GetOperationByTable($tableId: ID!, $branchId: ID!) {
@@ -163,20 +201,7 @@ export const GET_OPERATION_BY_TABLE = gql`
                 dni
             }
             details {
-                id
-                productId
-                productCode
-                productName
-                productDescription
-                quantity
-                unitMeasure
-                unitValue
-                unitPrice
-                total
-                notes
-                isCanceled
-                isPrinted
-                printedAt
+                ${OPERATION_DETAIL_FIELDS}
             }
         }
     }
@@ -212,28 +237,7 @@ export const GET_OPERATION_BY_ID = gql`
             personId
             branchId
             details {
-                id
-                quantity
-                unitMeasure
-                unitValue
-                unitPrice
-                total
-                notes
-                productId
-                productCode
-                productName
-                productDescription
-                isCanceled
-                isPrepared
-                isPrinted
-                promoInfo
-                productType
-                comboComponents {
-                    id
-                    productId
-                    productName
-                    quantity
-                }
+                ${OPERATION_DETAIL_FIELDS}
                 issuedItems {
                     id
                     quantity
@@ -490,6 +494,7 @@ export const GET_PRODUCTS = gql`
             stockMin
             stockMax
             managesStock
+            managesStockLocked
             asPromotion {
                 id
                 name
@@ -1048,91 +1053,83 @@ export const GET_PERSONS_BY_BRANCH = gql`
 // Usa GET_PERSONS_BY_BRANCH y filtra en el frontend
 export const GET_SUPPLIERS_BY_BRANCH = GET_PERSONS_BY_BRANCH;
 
-// Query para obtener operaciones de compra (usando purchases_by_branch del backend)
-export const GET_PURCHASE_OPERATIONS = gql`
-    query GetPurchaseOperations($branchId: ID!) {
-        purchasesByBranch(branchId: $branchId) {
+const PURCHASE_OPERATION_FIELDS = `
+    id
+    order
+    operationDate
+    operationType
+    status
+    subtotal
+    igvAmount
+    igvPercentage
+    total
+    notes
+    cancelledAt
+    person {
+        id
+        name
+        documentNumber
+        email
+        phone
+    }
+    user {
+        id
+        fullName
+    }
+    details {
+        id
+        quantity
+        unitMeasure
+        unitValue
+        unitPrice
+        notes
+        isCanceled
+        product {
             id
-            order
-            operationDate
-            status
-            subtotal
-            igvAmount
-            igvPercentage
-            total
-            notes
-            cancelledAt
-            person {
-                id
-                name
-                documentNumber
-            }
-            user {
-                id
-                fullName
-            }
-            details {
-                id
-                quantity
-                unitMeasure
-                unitValue
-                unitPrice
-                notes
-                isCanceled
-                product {
-                    id
-                    code
-                    name
-                    productType
-                    unitMeasure
-                }
-            }
+            code
+            name
+            productType
+            unitMeasure
+            purchasePrice
+            currentStock
+            managesStock
         }
     }
 `;
 
-// Query para obtener una operación de compra por ID
+// Query para obtener operaciones de compra (purchases_by_branch)
+export const GET_PURCHASE_OPERATIONS = gql`
+    query GetPurchaseOperations($branchId: ID!) {
+        purchasesByBranch(branchId: $branchId) {
+            ${PURCHASE_OPERATION_FIELDS}
+        }
+    }
+`;
+
+// Query para compras filtradas por fechas y tipo de producto
+export const GET_PURCHASES_FILTERED = gql`
+    query GetPurchasesFiltered(
+        $branchId: ID!
+        $startDate: Date!
+        $endDate: Date!
+        $productTypes: [String]
+    ) {
+        purchasesFiltered(
+            branchId: $branchId
+            startDate: $startDate
+            endDate: $endDate
+            productTypes: $productTypes
+        ) {
+            ${PURCHASE_OPERATION_FIELDS}
+        }
+    }
+`;
+
+// Query para obtener una operación de compra por ID (operation_by_id)
 export const GET_PURCHASE_OPERATION = gql`
     query GetPurchaseOperation($operationId: ID!) {
-        purchaseOperation(operationId: $operationId) {
-            id
-            order
-            operationDate
-            status
-            subtotal
-            igvAmount
-            igvPercentage
-            total
-            notes
-            cancelledAt
-            person {
-                id
-                name
-                documentNumber
-                email
-                phone
-            }
-            user {
-                id
-                fullName
-            }
-            details {
-                id
-                quantity
-                unitMeasure
-                unitValue
-                unitPrice
-                notes
-                isCanceled
-                product {
-                    id
-                    code
-                    name
-                    productType
-                    unitMeasure
-                    purchasePrice
-                }
-            }
+        operationById(pk: $operationId) {
+            ${PURCHASE_OPERATION_FIELDS}
         }
     }
 `;
@@ -1367,11 +1364,13 @@ export const GET_CANCELLATION_REPORT = gql`
         $branchId: ID!
         $startDate: Date!
         $endDate: Date!
+        $filterType: CancellationReportFilterEnum
     ) {
         cancellationReport(
             branchId: $branchId
             startDate: $startDate
             endDate: $endDate
+            filterType: $filterType
         ) {
             operations {
                 operationId

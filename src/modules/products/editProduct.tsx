@@ -27,6 +27,7 @@ interface Product {
     currentStock?: number;
     isActive?: boolean;
     managesStock?: boolean;
+    managesStockLocked?: boolean;
     asPromotion?: { id: string; name: string; promotionType?: string } | null;
 }
 
@@ -128,6 +129,9 @@ const EditProduct: React.FC<EditProductProps> = ({
     });
     const initialLinkedPromotionId = product.asPromotion?.id || "";
     const [enableStockEdit, setEnableStockEdit] = useState(false);
+    const managesStockLocked = product.managesStockLocked ?? false;
+    const canToggleManagesStock =
+        formData.productType === "DISH" || !managesStockLocked;
     const [newImageBase64, setNewImageBase64] = useState<string | null>(null);
     const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
     const [imageRemoved, setImageRemoved] = useState(false);
@@ -254,8 +258,8 @@ const EditProduct: React.FC<EditProductProps> = ({
             isActive: formData.isActive,
         };
 
-        const isDish = formData.productType === "DISH";
         const isStockManagedType =
+            formData.productType === "DISH" ||
             formData.productType === "BEVERAGE" ||
             formData.productType === "INGREDIENT";
 
@@ -269,20 +273,8 @@ const EditProduct: React.FC<EditProductProps> = ({
                 : undefined;
         }
 
-        if (isDish && enableStockEdit) {
-            variables.stockMin = formData.stockMin
-                ? parseFloat(formData.stockMin)
-                : undefined;
-            variables.stockMax = formData.stockMax
-                ? parseFloat(formData.stockMax)
-                : undefined;
-        }
-
-        // Stock actual: bebida/ingrediente o plato (con «Editar stock» activo)
-        if (
-            enableStockEdit &&
-            (isStockManagedType || isDish)
-        ) {
+        // Stock actual (con «Editar stock» activo)
+        if (enableStockEdit && isStockManagedType) {
             const currentStockFloat = formData.currentStock
                 ? parseFloat(formData.currentStock)
                 : 0;
@@ -830,139 +822,9 @@ const EditProduct: React.FC<EditProductProps> = ({
                             </div>
                         </div>
 
-                        {/* Control de stock — Platos (contador de ventas, sin kardex) */}
-                        {formData.productType === "DISH" && (
-                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
-                                <h3
-                                    className="mb-1 font-semibold text-slate-800 dark:text-slate-100"
-                                    style={{ fontSize: labelFontSize }}
-                                >
-                                    Control de Stock
-                                </h3>
-                                <p className="mb-3 text-[0.7rem] text-slate-500 dark:text-slate-400">
-                                    Plato: solo contador de ventas (sin kardex ni
-                                    movimientos).
-                                </p>
-                                <label className="mb-2 flex cursor-pointer items-center gap-2 text-slate-600 dark:text-slate-300">
-                                    <input
-                                        type="checkbox"
-                                        checked={enableStockEdit}
-                                        onChange={(e) =>
-                                            setEnableStockEdit(e.target.checked)
-                                        }
-                                        className="h-4 w-4 cursor-pointer accent-indigo-600"
-                                    />
-                                    <span style={{ fontSize: labelFontSize }}>
-                                        Editar stock en este formulario
-                                    </span>
-                                </label>
-                                <p className="mb-3 text-[0.65rem] text-slate-500 dark:text-slate-400">
-                                    Si marca «Editar» y cambia Stock Actual, al
-                                    guardar se actualiza el contador de ventas
-                                    (sin movimientos de inventario).
-                                </p>
-                                <div
-                                    style={{
-                                        display: "grid",
-                                        gridTemplateColumns:
-                                            isXs || isSmall
-                                                ? "1fr"
-                                                : isMedium
-                                                  ? "1fr 1fr"
-                                                  : "1fr 1fr 1fr",
-                                        gap: gapSize,
-                                    }}
-                                >
-                                    <div>
-                                        <label
-                                            className={labelClass}
-                                            style={{ fontSize: labelFontSize }}
-                                        >
-                                            Stock Actual
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="currentStock"
-                                            value={formData.currentStock}
-                                            onChange={handleChange}
-                                            disabled={!enableStockEdit}
-                                            min="0"
-                                            step="0.01"
-                                            placeholder="0"
-                                            className={`${fieldClass} disabled:cursor-not-allowed ${
-                                                enableStockEdit
-                                                    ? ""
-                                                    : "bg-slate-100 dark:bg-slate-900"
-                                            }`}
-                                            style={{
-                                                padding: inputPadding,
-                                                fontSize: inputFontSize,
-                                                boxSizing: "border-box",
-                                            }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label
-                                            className={labelClass}
-                                            style={{ fontSize: labelFontSize }}
-                                        >
-                                            Stock Mín
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="stockMin"
-                                            value={formData.stockMin}
-                                            onChange={handleChange}
-                                            disabled={!enableStockEdit}
-                                            min="0"
-                                            step="0.01"
-                                            placeholder="0"
-                                            className={`${fieldClass} disabled:cursor-not-allowed ${
-                                                enableStockEdit
-                                                    ? ""
-                                                    : "bg-slate-100 dark:bg-slate-900"
-                                            }`}
-                                            style={{
-                                                padding: inputPadding,
-                                                fontSize: inputFontSize,
-                                                boxSizing: "border-box",
-                                            }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label
-                                            className={labelClass}
-                                            style={{ fontSize: labelFontSize }}
-                                        >
-                                            Stock Máx
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="stockMax"
-                                            value={formData.stockMax}
-                                            onChange={handleChange}
-                                            disabled={!enableStockEdit}
-                                            min="0"
-                                            step="0.01"
-                                            placeholder="0"
-                                            className={`${fieldClass} disabled:cursor-not-allowed ${
-                                                enableStockEdit
-                                                    ? ""
-                                                    : "bg-slate-100 dark:bg-slate-900"
-                                            }`}
-                                            style={{
-                                                padding: inputPadding,
-                                                fontSize: inputFontSize,
-                                                boxSizing: "border-box",
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Stock - Bebidas e Ingredientes (kardex) */}
-                        {(formData.productType === "BEVERAGE" ||
+                        {/* Stock - Platos, Bebidas e Ingredientes */}
+                        {(formData.productType === "DISH" ||
+                            formData.productType === "BEVERAGE" ||
                             formData.productType === "INGREDIENT") && (
                             <div
                                 style={{
@@ -1038,10 +900,22 @@ const EditProduct: React.FC<EditProductProps> = ({
                                                     e.target.checked;
                                                 setEnableStockEdit(checked);
                                                 if (checked) {
-                                                    showToast(
-                                                        "Advertencia: Cambiar el stock afectará tu Kardex y generará un ajuste.",
-                                                        "warning",
-                                                    );
+                                                    if (
+                                                        formData.productType ===
+                                                        "DISH"
+                                                    ) {
+                                                        showToast(
+                                                            formData.managesStock
+                                                                ? "Advertencia: Cambiar el stock actualizará el inventario del plato."
+                                                                : "Advertencia: Cambiar el stock actualizará el contador de ventas del plato.",
+                                                            "warning",
+                                                        );
+                                                    } else {
+                                                        showToast(
+                                                            "Advertencia: Cambiar el stock afectará tu Kardex y generará un ajuste.",
+                                                            "warning",
+                                                        );
+                                                    }
                                                 }
                                             }}
                                             title="Habilitar edición de stock"
@@ -1072,16 +946,18 @@ const EditProduct: React.FC<EditProductProps> = ({
                             </div>
                         )}
 
-                        {/* Manejo de Stock - Solo para Bebidas e Ingredientes */}
-                        {(formData.productType === "BEVERAGE" ||
+                        {/* Manejo de Stock - Platos, Bebidas e Ingredientes */}
+                        {(formData.productType === "DISH" ||
+                            formData.productType === "BEVERAGE" ||
                             formData.productType === "INGREDIENT") && (
                             <div
-                                className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
+                                className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
                                     formData.managesStock
                                         ? "border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/25"
                                         : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
-                                }`}
+                                } ${canToggleManagesStock ? "cursor-pointer" : "cursor-not-allowed opacity-80"}`}
                                 onClick={() => {
+                                    if (!canToggleManagesStock) return;
                                     setFormData((prev) => ({
                                         ...prev,
                                         managesStock: !prev.managesStock,
@@ -1092,14 +968,16 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     type="checkbox"
                                     name="managesStock"
                                     checked={formData.managesStock}
+                                    disabled={!canToggleManagesStock}
                                     onChange={(e) => {
                                         e.stopPropagation();
+                                        if (!canToggleManagesStock) return;
                                         setFormData((prev) => ({
                                             ...prev,
                                             managesStock: e.target.checked,
                                         }));
                                     }}
-                                    className="h-[18px] w-[18px] cursor-pointer accent-indigo-600"
+                                    className="h-[18px] w-[18px] cursor-pointer accent-indigo-600 disabled:cursor-not-allowed"
                                 />
                                 <div>
                                     <div
@@ -1111,10 +989,11 @@ const EditProduct: React.FC<EditProductProps> = ({
                                         Manejar Stock e Inventario
                                     </div>
                                     <div className="text-[0.7rem] text-slate-500 dark:text-slate-400">
-                                        Si se activa, este producto generará
-                                        movimientos en el Kardex. Una vez
-                                        guardado con esta opción activa, no se
-                                        podrá desactivar.
+                                        {formData.productType === "DISH"
+                                            ? "Si se activa, el plato controlará stock. Puede activarse o desactivarse cuando lo necesite."
+                                            : managesStockLocked
+                                              ? "Esta opción quedó bloqueada porque el producto ya genera movimientos en el Kardex."
+                                              : "Si se activa, este producto generará movimientos en el Kardex. Una vez guardado con esta opción activa, no se podrá desactivar."}
                                     </div>
                                 </div>
                             </div>

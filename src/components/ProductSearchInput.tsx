@@ -11,6 +11,7 @@ interface SearchProduct {
     name: string;
     salePrice?: number;
     productType?: string | null;
+    unitMeasure?: string | null;
     isActive?: boolean | null;
 }
 
@@ -22,11 +23,23 @@ interface ProductSearchInputProps {
     onClear?: () => void;
     placeholder?: string;
     compact?: boolean;
+    /** Si se define, solo devuelve productos de estos tipos (ej. INGREDIENT). */
+    productTypes?: string[];
+    /** IDs de productos que no deben aparecer en los resultados. */
+    excludeProductIds?: string[];
 }
 
-function isSearchableProduct(p: SearchProduct): boolean {
+function isSearchableProduct(
+    p: SearchProduct,
+    allowedTypes?: string[],
+): boolean {
     if (p.isActive === false) return false;
-    const t = p.productType;
+    const t = String(p.productType || '').toUpperCase();
+    if (allowedTypes?.length) {
+        return allowedTypes.some(
+            (type) => type.toUpperCase() === t,
+        );
+    }
     return t === 'DISH' || t === 'BEVERAGE' || t === 'PROMOTION';
 }
 
@@ -38,6 +51,8 @@ const ProductSearchInput: React.FC<ProductSearchInputProps> = ({
     onClear,
     placeholder = 'Buscar producto o escanear código',
     compact = false,
+    productTypes,
+    excludeProductIds = [],
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchByCodeOnly, setSearchByCodeOnly] = useState(false);
@@ -78,19 +93,36 @@ const ProductSearchInput: React.FC<ProductSearchInputProps> = ({
     let products: SearchProduct[] = [];
     let loading = false;
 
+    const excludedIds = new Set(excludeProductIds.map(String));
+
     if (searchByCodeOnly && trimmedSearch.length >= 1) {
         const p =
             productByCodeData?.productByCode ??
             productByCodeData?.product_by_code;
-        products = p && isSearchableProduct(p) ? [p] : [];
+        products =
+            p &&
+            isSearchableProduct(p, productTypes) &&
+            !excludedIds.has(String(p.id))
+                ? [p]
+                : [];
         loading = productByCodeLoading;
     } else if (trimmedSearch.length >= 3) {
         const raw = searchData?.searchProducts;
         products = Array.isArray(raw)
-            ? raw.filter(isSearchableProduct)
+            ? raw.filter(
+                  (p) =>
+                      isSearchableProduct(p, productTypes) &&
+                      !excludedIds.has(String(p.id)),
+              )
             : [];
         loading = searchLoading;
     }
+
+    const resultsLabel =
+        productTypes?.length === 1 &&
+        productTypes[0].toUpperCase() === 'INGREDIENT'
+            ? 'ingredientes'
+            : 'productos';
 
     const inputClass = compact
         ? 'w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
@@ -175,7 +207,7 @@ const ProductSearchInput: React.FC<ProductSearchInputProps> = ({
                         </div>
                     ) : products.length === 0 ? (
                         <div className="px-3 py-4 text-center text-xs text-slate-500">
-                            No se encontraron productos
+                            No se encontraron {resultsLabel}
                         </div>
                     ) : (
                         products.map((product) => (

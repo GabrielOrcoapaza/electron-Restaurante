@@ -859,8 +859,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                             </div>
                         )}
 
-                        {/* Manejo de Stock - Solo para Bebidas e Ingredientes */}
-                        {(formData.productType === "BEVERAGE" ||
+                        {/* Manejo de Stock - Platos, Bebidas e Ingredientes */}
+                        {(formData.productType === "DISH" ||
+                            formData.productType === "BEVERAGE" ||
                             formData.productType === "INGREDIENT") && (
                             <div
                                 className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
@@ -899,10 +900,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                         Manejar Stock e Inventario
                                     </div>
                                     <div className="text-[0.7rem] text-slate-500 dark:text-slate-400">
-                                        Si se activa, este producto generará
-                                        movimientos en el Kardex. Una vez
-                                        guardado con esta opción activa, no se
-                                        podrá desactivar.
+                                        {formData.productType === "DISH"
+                                            ? "Si se activa, el plato controlará stock. Puede activarse o desactivarse cuando lo necesite."
+                                            : "Si se activa, este producto generará movimientos en el Kardex. Una vez guardado con esta opción activa, no se podrá desactivar."}
                                     </div>
                                 </div>
                             </div>

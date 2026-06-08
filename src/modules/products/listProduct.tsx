@@ -28,6 +28,8 @@ interface Product {
     stockMin?: number;
     stockMax?: number;
     isActive: boolean;
+    managesStock?: boolean;
+    managesStockLocked?: boolean;
     subcategoryId?: string | null;
     subcategory?: ProductSubcategoryNested | null;
     asPromotion?: { id: string; name: string; promotionType?: string } | null;

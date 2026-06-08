@@ -4,13 +4,11 @@ export type ProductStockInfo = {
     currentStock?: number | null;
 };
 
-/** Platos: contador de ventas. Bebidas: solo si manejan stock. */
+/** Muestra stock solo si el producto maneja inventario (managesStock). */
 export function shouldShowProductStock(p: ProductStockInfo): boolean {
     const t = p.productType;
-    if (t === "PROMOTION") return false;
-    if (t === "DISH") return true;
-    if (t === "BEVERAGE") return Boolean(p.managesStock);
-    return false;
+    if (t === "PROMOTION" || t === "INGREDIENT") return false;
+    return Boolean(p.managesStock);
 }
 
 export function formatProductStockQty(

@@ -54,6 +54,7 @@ const ReportCancel: React.FC = () => {
                 branchId: branchId!,
                 startDate: startDate,
                 endDate: endDate,
+                filterType: type,
             },
             skip: !branchId || !startDate || !endDate,
             fetchPolicy: "network-only",

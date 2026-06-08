@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_RECIPES_BY_PRODUCT, GET_PRODUCTS_WITH_STOCK } from '../../graphql/queries';
+import { GET_RECIPES_BY_PRODUCT } from '../../graphql/queries';
 import { ADD_RECIPE, REMOVE_RECIPE } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../context/ToastContext';
+import ProductSearchInput from '../../components/ProductSearchInput';
 import {
   PRODUCT_UNIT_MEASURES_TUPLES,
   normalizeProductUnitMeasure,
@@ -27,13 +28,6 @@ interface Recipe {
   };
 }
 
-interface Ingredient {
-  id: string;
-  name: string;
-  code: string;
-  unitMeasure?: string;
-}
-
 interface RecipeModalProps {
   productId: string;
   productName: string;
@@ -48,6 +42,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
   const branchId = companyData?.branch?.id;
   
   const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedIngredientLabel, setSelectedIngredientLabel] = useState('');
   const [formData, setFormData] = useState({
     ingredientId: '',
     quantity: '',
@@ -56,40 +51,27 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const resetIngredientSelection = () => {
+    setSelectedIngredientLabel('');
+    setFormData((prev) => ({ ...prev, ingredientId: '' }));
+  };
+
   const { data, loading, error, refetch } = useQuery(GET_RECIPES_BY_PRODUCT, {
     variables: { productId },
-    fetchPolicy: 'network-only'
-  });
-
-  const { data: productsData } = useQuery(GET_PRODUCTS_WITH_STOCK, {
-    variables: { branchId: branchId! },
-    skip: !branchId,
     fetchPolicy: 'network-only'
   });
 
   const rawRecipes: Recipe[] = data?.recipesByProduct || [];
   const recipes = rawRecipes.filter((r): r is Recipe => Boolean(r && r.ingredient));
 
-  const allProducts: any[] = productsData?.productsByBranch || [];
-  const availableIngredients: Ingredient[] = allProducts
-    .filter(p => p.productType === 'INGREDIENT' && p.isActive)
-    .map(p => ({
-      id: p.id,
-      name: p.name,
-      code: p.code,
-      unitMeasure: normalizeProductUnitMeasure(p.unitMeasure),
-    }));
-
-  const ingredientIdsInRecipe = recipes.map(r => r.ingredient!.id);
-  const filteredIngredients = availableIngredients.filter(
-    ing => !ingredientIdsInRecipe.includes(ing.id)
-  );
+  const ingredientIdsInRecipe = recipes.map((r) => r.ingredient!.id);
 
   const [addRecipe, { loading: addingRecipe }] = useMutation(ADD_RECIPE, {
     onCompleted: (data) => {
       if (data.addRecipe.success) {
         setMessage({ type: 'success', text: data.addRecipe.message });
         setFormData({ ingredientId: '', quantity: '', unitMeasure: 'NIU', notes: '' });
+        setSelectedIngredientLabel('');
         setShowAddForm(false);
         refetch();
         setTimeout(() => setMessage(null), 3000);
@@ -212,7 +194,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
           )}
 
           {/* Botón para agregar ingrediente */}
-          {isDish && !showAddForm && filteredIngredients.length > 0 && (
+          {isDish && !showAddForm && (
             <div className="mb-6 flex justify-end">
               <button
                 onClick={() => setShowAddForm(true)}
@@ -235,21 +217,35 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
               <form onSubmit={handleAddIngredient} className="flex flex-col gap-5">
                 <div className="flex flex-col gap-2">
                   <label className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                    Ingrediente *
+                    Buscar ingrediente *
                   </label>
-                  <select
-                    value={formData.ingredientId}
-                    onChange={(e) => setFormData({ ...formData, ingredientId: e.target.value })}
-                    required
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  >
-                    <option value="">Selecciona un ingrediente</option>
-                    {filteredIngredients.map((ingredient) => (
-                      <option key={ingredient.id} value={ingredient.id}>
-                        {ingredient.name} ({ingredient.code})
-                      </option>
-                    ))}
-                  </select>
+
+                  {branchId && (
+                    <ProductSearchInput
+                      branchId={branchId}
+                      productTypes={['INGREDIENT']}
+                      excludeProductIds={ingredientIdsInRecipe}
+                      selectedProductId={formData.ingredientId}
+                      selectedProductName={selectedIngredientLabel}
+                      placeholder="Buscar ingrediente o escanear código"
+                      compact
+                      onSelect={(product) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          ingredientId: product.id,
+                          unitMeasure:
+                            normalizeProductUnitMeasure(product.unitMeasure) ||
+                            prev.unitMeasure,
+                        }));
+                        setSelectedIngredientLabel(
+                          product.code
+                            ? `${product.name} (${product.code})`
+                            : product.name,
+                        );
+                      }}
+                      onClear={resetIngredientSelection}
+                    />
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -304,6 +300,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
                     onClick={() => {
                       setShowAddForm(false);
                       setFormData({ ingredientId: '', quantity: '', unitMeasure: 'NIU', notes: '' });
+                      setSelectedIngredientLabel('');
                       setMessage(null);
                     }}
                     className="rounded-xl border border-slate-200 px-6 py-2.5 text-xs font-bold text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -312,7 +309,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
                   </button>
                   <button
                     type="submit"
-                    disabled={addingRecipe || filteredIngredients.length === 0}
+                    disabled={addingRecipe || !formData.ingredientId}
                     className="flex min-w-[120px] items-center justify-center rounded-xl bg-indigo-600 px-6 py-2.5 text-xs font-bold text-white transition-all hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
                   >
                     {addingRecipe ? (
@@ -352,9 +349,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
               </div>
               <h3 className="text-base font-black text-slate-800 dark:text-slate-100">Sin Ingredientes</h3>
               <p className="mt-1 max-w-[280px] text-xs font-medium text-slate-500 dark:text-slate-400">
-                {filteredIngredients.length > 0 
-                  ? 'Este producto aún no tiene una receta definida. Comienza agregando su primer ingrediente.'
-                  : 'No hay ingredientes disponibles para agregar. Crea algunos primero en el inventario.'}
+                Este producto aún no tiene una receta definida. Comienza agregando su primer ingrediente.
               </p>
             </div>
           )}
