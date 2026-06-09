@@ -602,7 +602,6 @@ const CashPay: React.FC<CashPayProps> = ({
                 ? roundMoney2((totalAfterItemDiscount * discountPct) / 100)
                 : Number(discountAmount) || 0,
         );
-        const totalDiscount = roundMoney2(itemsPromoDiscount + globalDiscount);
         const totalToPay = Math.max(0, totalAfterItemDiscount - globalDiscount);
         const igvDecimal = igvPercentage / 100;
         const subtotal = parseFloat(
@@ -613,14 +612,10 @@ const CashPay: React.FC<CashPayProps> = ({
         );
 
         return {
-            grossTotal,
             itemsPromoDiscount,
-            totalAfterItemDiscount,
             discountPct,
             globalDiscount,
-            totalDiscount,
             totalToPay,
-            igvDecimal,
             subtotal,
             igvAmount
         };
@@ -628,14 +623,10 @@ const CashPay: React.FC<CashPayProps> = ({
 
     // Destructure calculated values for use in the component
     const {
-        grossTotal,
         itemsPromoDiscount,
-        totalAfterItemDiscount,
         discountPct,
         globalDiscount,
-        totalDiscount,
         totalToPay,
-        igvDecimal,
         subtotal,
         igvAmount
     } = calculatedValues;

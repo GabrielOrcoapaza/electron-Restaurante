@@ -74,23 +74,11 @@ export function promotionAppliesToProduct(
         case "ALL":
             return true;
         case "CATEGORY": {
-            // Obtener el categoryId del producto
-            let productCategoryId: string | null = null;
-
-            // Intentar obtener de diferentes fuentes
-            if (product.category?.id) productCategoryId = product.category.id;
-            else if (product.categoryId) productCategoryId = product.categoryId;
-            else if (product.subcategory?.category?.id)
-                productCategoryId = product.subcategory.category.id;
-            else if (product.subcategoryId && subcategoriesOfCategory) {
-                // Buscar en subcategoriesOfCategory
-                const subcat = subcategoriesOfCategory.find(
-                    (s) => String(s.id) === String(product.subcategoryId),
-                );
-                if (subcat?.category?.id) {
-                    productCategoryId = subcat.category.id;
-                }
-            }
+            const productCategoryId = getProductCategoryId(
+                product,
+                subcategoriesOfCategory,
+                selectedCategoryId,
+            );
 
             if (!productCategoryId) return false;
 
