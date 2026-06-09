@@ -3640,9 +3640,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                 Anular Orden
                             </button>
                         )}
-                        <button onClick={() => console.log(operation)}>
-                            imprimir order en console
-                        </button>
+                        
                     </div>
                 </section>
             </main>

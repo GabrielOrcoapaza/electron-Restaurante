@@ -12,6 +12,7 @@ import type {
     ComboScope,
 } from "../types/promotions";
 import { isProductOrderable } from "../utils/operationStock";
+import { productStockLabel } from "../utils/productStockDisplay";
 
 interface ComboSelectorModalProps {
     branchId: string;
@@ -31,16 +32,18 @@ interface ChoiceGroup {
     scopeByProductId: Map<string, { scopeId: string; quantity: number }>;
 }
 
-const isOrderableProduct = (p: {
+type ComboListProduct = {
     id?: string;
+    name?: string;
+    salePrice?: number;
     isActive?: boolean;
     managesStock?: boolean | null;
     currentStock?: number | null;
     productType?: string;
-}) =>
-    p.isActive !== false &&
-    p.productType !== "PROMOTION" &&
-    isProductOrderable(p);
+};
+
+const isComboListProduct = (p: ComboListProduct): boolean =>
+    p.isActive !== false && p.productType !== "PROMOTION";
 
 const sameId = (a: unknown, b: unknown) => String(a) === String(b);
 
@@ -212,7 +215,9 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                             [];
                         finishGroup(
                             group.key,
-                            raw.filter((p: any) => isOrderableProduct(p)),
+                            raw.filter((p: ComboListProduct) =>
+                                isComboListProduct(p),
+                            ),
                         );
                     })
                     .catch(() => finishGroup(group.key, []));
@@ -229,7 +234,9 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                             [];
                         finishGroup(
                             group.key,
-                            raw.filter((p: any) => isOrderableProduct(p)),
+                            raw.filter((p: ComboListProduct) =>
+                                isComboListProduct(p),
+                            ),
                         );
                     })
                     .catch(() => finishGroup(group.key, []));
@@ -243,7 +250,7 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                     if (
                         s.product?.id &&
                         sameId(s.product.id, productId) &&
-                        isOrderableProduct(s.product)
+                        isComboListProduct(s.product)
                     ) {
                         products.push(s.product);
                     }
@@ -257,7 +264,8 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
         };
     }, [selectedComboId, combos]);
 
-    const handleSelectProduct = useCallback((groupKey: string, product: any) => {
+    const handleSelectProduct = useCallback((groupKey: string, product: ComboListProduct) => {
+        if (!isProductOrderable(product)) return;
         setSelectedByGroup((prev) => {
             const current = prev[groupKey];
             if (current && sameId(current.id, product.id)) {
@@ -269,9 +277,25 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
         });
     }, []);
 
+    const groupHasSelectable = useCallback(
+        (group: ChoiceGroup) =>
+            (groupProducts[group.key] ?? []).some((p) =>
+                isProductOrderable(p),
+            ),
+        [groupProducts],
+    );
+
     const allSelected =
         choiceGroups.length > 0 &&
-        choiceGroups.every((g) => selectedByGroup[g.key]);
+        choiceGroups.every(
+            (g) => !groupHasSelectable(g) || selectedByGroup[g.key],
+        );
+
+    const canConfirm =
+        Boolean(activeCombo) &&
+        choiceGroups.length > 0 &&
+        choiceGroups.every((g) => groupHasSelectable(g)) &&
+        allSelected;
 
     const handleConfirm = () => {
         if (!activeCombo?.asPromotion) return;
@@ -393,6 +417,21 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                             {choiceGroups.map((group) => {
                                 const products = groupProducts[group.key] ?? [];
                                 const multiChoice = products.length > 1;
+                                const selectableProducts = products.filter((p) =>
+                                    isProductOrderable(p),
+                                );
+
+                                const renderProductStock = (
+                                    product: ComboListProduct,
+                                ) => {
+                                    const stockLabel = productStockLabel(product);
+                                    if (!stockLabel) return null;
+                                    return (
+                                        <span className="text-xs font-semibold text-slate-400">
+                                            {stockLabel}
+                                        </span>
+                                    );
+                                };
 
                                 return (
                                     <div key={group.key} className="space-y-2">
@@ -410,7 +449,31 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                                             </div>
                                         ) : products.length === 0 ? (
                                             <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm font-semibold text-red-300">
-                                                Sin stock disponible
+                                                No hay opciones disponibles
+                                            </div>
+                                        ) : selectableProducts.length === 0 ? (
+                                            <div className="grid gap-2">
+                                                {products.map((product) => (
+                                                    <div
+                                                        key={product.id}
+                                                        className="flex cursor-not-allowed items-center justify-between rounded-lg border border-slate-700 bg-slate-800/40 px-4 py-3 opacity-60"
+                                                    >
+                                                        <div className="flex min-w-0 items-center gap-3">
+                                                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-slate-600 bg-transparent" />
+                                                            <div className="flex min-w-0 flex-col gap-0.5">
+                                                                <span className="font-semibold text-slate-400">
+                                                                    {product.name}
+                                                                </span>
+                                                                {renderProductStock(
+                                                                    product,
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <span className="shrink-0 rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-bold text-red-300">
+                                                            Sin stock
+                                                        </span>
+                                                    </div>
+                                                ))}
                                             </div>
                                         ) : (
                                             <div className="grid gap-2">
@@ -420,46 +483,81 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                                                             ?.id,
                                                         product.id,
                                                     );
+                                                    const outOfStock =
+                                                        !isProductOrderable(
+                                                            product,
+                                                        );
                                                     return (
                                                         <button
                                                             type="button"
                                                             key={product.id}
+                                                            disabled={
+                                                                outOfStock
+                                                            }
                                                             onClick={() =>
                                                                 handleSelectProduct(
                                                                     group.key,
                                                                     product,
                                                                 )
                                                             }
-                                                            className={`flex cursor-pointer items-center justify-between rounded-lg border px-4 py-3 text-left transition-all active:scale-[0.99] ${
-                                                                isSelected
-                                                                    ? "border-orange-500 bg-orange-500/20 ring-2 ring-orange-500/40"
-                                                                    : "border-slate-600 bg-slate-800 hover:border-orange-400 hover:bg-slate-700"
+                                                            className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-all ${
+                                                                outOfStock
+                                                                    ? "cursor-not-allowed border-slate-700 bg-slate-800/40 opacity-60"
+                                                                    : isSelected
+                                                                      ? "cursor-pointer border-orange-500 bg-orange-500/20 ring-2 ring-orange-500/40 active:scale-[0.99]"
+                                                                      : "cursor-pointer border-slate-600 bg-slate-800 hover:border-orange-400 hover:bg-slate-700 active:scale-[0.99]"
                                                             }`}
                                                         >
-                                                            <div className="flex items-center gap-3">
+                                                            <div className="flex min-w-0 items-center gap-3">
                                                                 <span
                                                                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
-                                                                        isSelected
-                                                                            ? "border-orange-500 bg-orange-500 text-white"
-                                                                            : "border-slate-400 bg-transparent"
+                                                                        outOfStock
+                                                                            ? "border-slate-600 bg-transparent"
+                                                                            : isSelected
+                                                                              ? "border-orange-500 bg-orange-500 text-white"
+                                                                              : "border-slate-400 bg-transparent"
                                                                     }`}
                                                                 >
-                                                                    {isSelected && (
-                                                                        <span className="text-xs leading-none">
-                                                                            ✓
-                                                                        </span>
+                                                                    {isSelected &&
+                                                                        !outOfStock && (
+                                                                            <span className="text-xs leading-none">
+                                                                                ✓
+                                                                            </span>
+                                                                        )}
+                                                                </span>
+                                                                <div className="flex min-w-0 flex-col gap-0.5">
+                                                                    <span
+                                                                        className={`font-semibold ${
+                                                                            outOfStock
+                                                                                ? "text-slate-400"
+                                                                                : "text-white"
+                                                                        }`}
+                                                                    >
+                                                                        {
+                                                                            product.name
+                                                                        }
+                                                                    </span>
+                                                                    {renderProductStock(
+                                                                        product,
                                                                     )}
-                                                                </span>
-                                                                <span className="font-semibold text-white">
-                                                                    {product.name}
-                                                                </span>
+                                                                </div>
                                                             </div>
-                                                            <span className="text-sm text-slate-400">
-                                                                S/{" "}
-                                                                {Number(
-                                                                    product.salePrice,
-                                                                ).toFixed(2)}
-                                                            </span>
+                                                            <div className="flex shrink-0 flex-col items-end gap-1">
+                                                                {outOfStock ? (
+                                                                    <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-bold text-red-300">
+                                                                        Sin stock
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-sm text-slate-400">
+                                                                        S/{" "}
+                                                                        {Number(
+                                                                            product.salePrice,
+                                                                        ).toFixed(
+                                                                            2,
+                                                                        )}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </button>
                                                     );
                                                 })}
@@ -476,14 +574,16 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                     <button
                         type="button"
                         onClick={handleConfirm}
-                        disabled={!selectedCombo || !allSelected}
+                        disabled={!canConfirm}
                         className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-600 px-5 py-3 text-sm font-bold text-white transition-all hover:bg-orange-700 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500"
                     >
                         {!selectedCombo
                             ? "Selecciona un combo"
-                            : !allSelected
-                              ? "Selecciona todas las opciones"
-                              : "⭐ Agregar al pedido"}
+                            : !choiceGroups.every((g) => groupHasSelectable(g))
+                              ? "Sin stock en alguna opción del menú"
+                              : !allSelected
+                                ? "Selecciona todas las opciones"
+                                : "⭐ Agregar al pedido"}
                     </button>
                 </div>
             </div>

@@ -3795,10 +3795,7 @@ const Order: React.FC<OrderProps> = ({
                                         ? "Guardando..."
                                         : "Enviar orden (sin imprimir)"}
                                 </button>
-                                <button onClick={() => console.log(orderItems)}>
-                                    IMPRIMIR ORDEN EN CONSOLE
-                                </button>
-
+                         
                                 {/* Botón de Precuenta - solo visible cuando hay una orden existente */}
                                 {isExistingOrder && (
                                     <button

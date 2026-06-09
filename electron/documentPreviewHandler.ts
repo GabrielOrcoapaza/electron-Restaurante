@@ -1,82 +1,60 @@
 /**
- * Vista previa PDF del comprobante (document_data) antes de imprimir en caja.
+ * Vista previa / descarga PDF del comprobante (document_data).
  */
 
-import { ipcMain, BrowserWindow } from "electron";
+import { ipcMain, BrowserWindow, app } from "electron";
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 import log from "electron-log";
-import { documentDataJsonToHtml } from "./documentToPrintHtml";
-
-const PAPER_WIDTH_MM = 80;
-
-async function loadHtmlInHiddenWindow(htmlPath: string): Promise<BrowserWindow> {
-    const receiptViewportPx = Math.round((PAPER_WIDTH_MM * 96) / 25.4);
-    const win = new BrowserWindow({
-        show: false,
-        width: receiptViewportPx,
-        height: 4000,
-        backgroundColor: "#ffffff",
-        webPreferences: { nodeIntegration: false, contextIsolation: true },
-    });
-
-    await new Promise<void>((resolve, reject) => {
-        const t = setTimeout(() => reject(new Error("Timeout cargando vista previa")), 60000);
-        win.webContents.once("did-finish-load", () => {
-            clearTimeout(t);
-            resolve();
-        });
-        win.webContents.once("did-fail-load", (_e, _c, desc) => {
-            clearTimeout(t);
-            reject(new Error(desc));
-        });
-        win.loadFile(htmlPath).catch(reject);
-    });
-
-    await new Promise((r) => setTimeout(r, 400));
-    await win.webContents.executeJavaScript(`
-        new Promise(resolve => {
-            const ready = () => requestAnimationFrame(() => requestAnimationFrame(resolve));
-            document.fonts?.ready ? document.fonts.ready.then(ready) : ready();
-        })
-    `);
-
-    return win;
-}
+import {
+    documentJsonToPdfBuffer,
+} from "./ticketHtmlWindow";
 
 async function documentJsonToPdfBase64(documentJson: string): Promise<string> {
-    const html = await documentDataJsonToHtml(documentJson);
-    const tmp = path.join(os.tmpdir(), `sumapp-preview-${Date.now()}.html`);
-    fs.writeFileSync(tmp, html, "utf8");
+    const parentWin = BrowserWindow.getFocusedWindow();
+    const pdfBuffer = await documentJsonToPdfBuffer(documentJson, parentWin);
+    return pdfBuffer.toString("base64");
+}
 
-    let win: BrowserWindow | null = null;
-    try {
-        win = await loadHtmlInHiddenWindow(tmp);
-        const contentHeightPx: number = await win.webContents.executeJavaScript(
-            `document.documentElement.scrollHeight || document.body.scrollHeight`,
-        );
-        const heightMicrons =
-            Math.ceil((contentHeightPx * 25.4 * 1000) / 96) + 8000;
+function sanitizePdfFilename(filename: string): string {
+    const base = path.basename(String(filename || "comprobante.pdf"));
+    const withExt = base.toLowerCase().endsWith(".pdf") ? base : `${base}.pdf`;
+    return withExt.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
+}
 
-        const pdfBuffer = await win.webContents.printToPDF({
-            printBackground: true,
-            pageSize: {
-                width: PAPER_WIDTH_MM * 1000,
-                height: heightMicrons,
-            },
-            margins: { marginType: "none" },
-        });
+function resolveDownloadPath(filename: string): string {
+    const safeName = sanitizePdfFilename(filename);
+    const downloadsDir = app.getPath("downloads");
+    let filePath = path.join(downloadsDir, safeName);
+    if (!fs.existsSync(filePath)) return filePath;
 
-        return pdfBuffer.toString("base64");
-    } finally {
-        try {
-            fs.unlinkSync(tmp);
-        } catch {
-            /* ignore */
-        }
-        if (win && !win.isDestroyed()) win.destroy();
+    const parsed = path.parse(safeName);
+    const stamp = Date.now();
+    return path.join(
+        downloadsDir,
+        `${parsed.name}_${stamp}${parsed.ext || ".pdf"}`,
+    );
+}
+
+async function saveDocumentPdfToDownloads(
+    documentJson: string,
+    filename: string,
+): Promise<{ ok: boolean; path?: string; message?: string }> {
+    const base64 = await documentJsonToPdfBase64(documentJson);
+    if (!base64?.trim()) {
+        return { ok: false, message: "El PDF generado está vacío." };
     }
+
+    const buffer = Buffer.from(base64, "base64");
+    if (buffer.length < 128) {
+        return { ok: false, message: "El PDF generado es inválido." };
+    }
+
+    const filePath = resolveDownloadPath(filename);
+    fs.writeFileSync(filePath, buffer);
+    log.info(`[preview] PDF guardado en ${filePath} (${buffer.length} bytes)`);
+
+    return { ok: true, path: filePath };
 }
 
 export function registerDocumentPreviewHandler(): void {
@@ -110,6 +88,9 @@ export function registerDocumentPreviewHandler(): void {
                 return { ok: false, message: "documentJson vacío." };
             }
             try {
+                const { documentDataJsonToHtml } = await import(
+                    "./documentToPrintHtml"
+                );
                 const html = await documentDataJsonToHtml(documentJson);
                 return { ok: true, html };
             } catch (e: unknown) {
@@ -120,5 +101,37 @@ export function registerDocumentPreviewHandler(): void {
         },
     );
 
-    log.info("[main] Handlers de vista previa: document-json-to-pdf, document-json-to-html");
+    ipcMain.removeHandler("download-document-pdf");
+    ipcMain.handle(
+        "download-document-pdf",
+        async (_event, payload: { documentJson: string; filename: string }) => {
+            const { documentJson, filename } = payload;
+            if (!documentJson?.trim()) {
+                return { ok: false, message: "documentJson vacío." };
+            }
+            try {
+                log.info("[preview] Descargando PDF del comprobante…");
+                const result = await saveDocumentPdfToDownloads(
+                    documentJson,
+                    filename || "comprobante.pdf",
+                );
+                if (!result.ok) {
+                    return result;
+                }
+                return {
+                    ok: true,
+                    path: result.path,
+                    message: `PDF guardado en Descargas: ${path.basename(result.path || "")}`,
+                };
+            } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : String(e);
+                log.error("[preview] Error descargando PDF:", msg);
+                return { ok: false, message: msg };
+            }
+        },
+    );
+
+    log.info(
+        "[main] Handlers de vista previa: document-json-to-pdf, document-json-to-html, download-document-pdf",
+    );
 }

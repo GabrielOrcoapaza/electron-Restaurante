@@ -10,6 +10,11 @@ import { useUserPermissions } from "../../hooks/useUserPermissions";
 import ConvertDocumentModal from "./convertDocumentModal";
 import { parseLocalEmissionDateTime } from "../../utils/localDateTime";
 import { isElectronRenderer } from "../../utils/electronPrint";
+import {
+    buildIssuedDocumentReportJson,
+    issuedDocumentPdfFilename,
+} from "../../utils/buildIssuedDocumentReportJson";
+import { downloadIssuedDocumentPdf } from "../../utils/downloadIssuedDocumentPdf";
 
 interface IssuedDocument {
     id: string;
@@ -162,6 +167,9 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
         text: string;
     } | null>(null);
     const [printingDocId, setPrintingDocId] = useState<string | null>(null);
+    const [downloadingDocId, setDownloadingDocId] = useState<string | null>(
+        null,
+    );
     const [showConvertModal, setShowConvertModal] = useState(false);
     const [documentToConvert, setDocumentToConvert] =
         useState<IssuedDocument | null>(null);
@@ -411,6 +419,44 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
         });
     };
 
+    const handleDownloadPdf = async (
+        doc: IssuedDocument,
+        e: React.MouseEvent,
+    ) => {
+        e.stopPropagation();
+        setDownloadingDocId(doc.id);
+        setPrintMessage(null);
+
+        try {
+            const documentJson = buildIssuedDocumentReportJson(doc, companyData);
+            const result = await downloadIssuedDocumentPdf(
+                documentJson,
+                issuedDocumentPdfFilename(doc),
+            );
+
+            if (result.ok) {
+                setPrintMessage({
+                    type: "success",
+                    text:
+                        result.message ||
+                        `PDF descargado: ${doc.serial}-${doc.number}`,
+                });
+            } else {
+                setPrintMessage({
+                    type: "error",
+                    text: result.message || "No se pudo descargar el PDF.",
+                });
+            }
+        } catch (error) {
+            const msg =
+                error instanceof Error ? error.message : "Error al descargar PDF";
+            setPrintMessage({ type: "error", text: msg });
+        } finally {
+            setDownloadingDocId(null);
+            setTimeout(() => setPrintMessage(null), 5000);
+        }
+    };
+
     const handleReprint = async (doc: IssuedDocument, e: React.MouseEvent) => {
         e.stopPropagation();
         const mac = await getMacAddress();
@@ -607,8 +653,37 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                     </div>
 
                                     <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            title="Descargar PDF"
+                                            onClick={(e) =>
+                                                handleDownloadPdf(doc, e)
+                                            }
+                                            disabled={
+                                                downloadingDocId === doc.id
+                                            }
+                                            className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600 transition-all hover:bg-rose-600 hover:text-white disabled:opacity-50 dark:bg-rose-900/20 dark:text-rose-400"
+                                        >
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                className={`h-5 w-5 ${downloadingDocId === doc.id ? "animate-pulse" : ""}`}
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                                />
+                                            </svg>
+                                        </button>
+
                                         {isElectron && (
                                             <button
+                                                type="button"
+                                                title="Reimprimir"
                                                 onClick={(e) =>
                                                     handleReprint(doc, e)
                                                 }

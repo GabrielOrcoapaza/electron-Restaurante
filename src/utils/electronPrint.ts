@@ -8,6 +8,7 @@ export const PRINT_JSON_DOCUMENT_DIALOG_CHANNEL =
 	"print-json-document-dialog" as const;
 export const DOCUMENT_JSON_TO_PDF_CHANNEL = "document-json-to-pdf" as const;
 export const DOCUMENT_JSON_TO_HTML_CHANNEL = "document-json-to-html" as const;
+export const DOWNLOAD_DOCUMENT_PDF_CHANNEL = "download-document-pdf" as const;
 
 export type PrintJsonDocumentResult = { ok: boolean; message?: string };
 export type PrintJsonDocumentDialogResult = {
@@ -24,6 +25,11 @@ export type DocumentJsonToPdfResult = {
 export type DocumentJsonToHtmlResult = {
 	ok: boolean;
 	html?: string;
+	message?: string;
+};
+export type DownloadDocumentPdfResult = {
+	ok: boolean;
+	path?: string;
 	message?: string;
 };
 
@@ -125,4 +131,19 @@ export async function invokeElectronDocumentJsonToHtml(
 	return ipc.invoke(DOCUMENT_JSON_TO_HTML_CHANNEL, {
 		documentJson,
 	}) as Promise<DocumentJsonToHtmlResult>;
+}
+
+/** Genera el PDF en el proceso principal y lo guarda en la carpeta Descargas. */
+export async function invokeElectronDownloadDocumentPdf(
+	documentJson: string,
+	filename: string,
+): Promise<DownloadDocumentPdfResult> {
+	const ipc = getElectronIpcRenderer();
+	if (!ipc) {
+		return { ok: false, message: "No es entorno Electron." };
+	}
+	return ipc.invoke(DOWNLOAD_DOCUMENT_PDF_CHANNEL, {
+		documentJson,
+		filename,
+	}) as Promise<DownloadDocumentPdfResult>;
 }

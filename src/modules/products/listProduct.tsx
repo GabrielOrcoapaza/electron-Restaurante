@@ -7,6 +7,7 @@ import {
 import { useAuth } from "../../hooks/useAuth";
 import { useResponsive } from "../../hooks/useResponsive";
 import RecipeModal from "./recipe";
+import { productListStockDisplay } from "../../utils/productStockDisplay";
 
 interface ProductSubcategoryNested {
     id: string;
@@ -543,7 +544,10 @@ const ListProduct: React.FC<ListProductProps> = ({
                             gap: "0.75rem",
                         }}
                     >
-                        {paginatedProducts.map((product) => (
+                        {paginatedProducts.map((product) => {
+                            const stockQty =
+                                productListStockDisplay(product);
+                            return (
                             <div
                                 key={product.id}
                                 className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
@@ -594,6 +598,18 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             product.salePrice,
                                         )}
                                     </div>
+                                    {stockQty != null && (
+                                        <div
+                                            className="text-slate-600 dark:text-slate-300"
+                                            style={{
+                                                fontSize: "0.75rem",
+                                                fontWeight: 600,
+                                                marginTop: "0.25rem",
+                                            }}
+                                        >
+                                            Cant: {stockQty}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div
@@ -660,7 +676,8 @@ const ListProduct: React.FC<ListProductProps> = ({
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 ) : (
                     /* Vista de tabla para desktop/tablet */
@@ -687,15 +704,16 @@ const ListProduct: React.FC<ListProductProps> = ({
                             }}
                         >
                             <colgroup>
+                                <col style={{ width: "9%" }} />
+                                <col style={{ width: "13%" }} />
                                 <col style={{ width: "10%" }} />
-                                <col style={{ width: "14%" }} />
-                                <col style={{ width: "11%" }} />
-                                <col style={{ width: "11%" }} />
-                                <col style={{ width: "15%" }} />
-                                <col style={{ width: "9%" }} />
+                                <col style={{ width: "10%" }} />
+                                <col style={{ width: "13%" }} />
+                                <col style={{ width: "8%" }} />
                                 <col style={{ width: "7%" }} />
-                                <col style={{ width: "9%" }} />
-                                <col style={{ width: "14%" }} />
+                                <col style={{ width: "6%" }} />
+                                <col style={{ width: "8%" }} />
+                                <col style={{ width: "16%" }} />
                             </colgroup>
                             <thead>
                                 <tr className="border-b-2 border-slate-200 dark:border-slate-700">
@@ -776,6 +794,19 @@ const ListProduct: React.FC<ListProductProps> = ({
                                         }}
                                     >
                                         Precio
+                                    </th>
+                                    <th
+                                        className={tableThClass}
+                                        style={{
+                                            padding: isSmall
+                                                ? "0.5rem"
+                                                : "0.625rem",
+                                            textAlign: "center",
+                                            fontWeight: 600,
+                                            fontSize: tableFontSize,
+                                        }}
+                                    >
+                                        Cantidad
                                     </th>
                                     <th
                                         className={tableThClass}
@@ -970,6 +1001,21 @@ const ListProduct: React.FC<ListProductProps> = ({
                                             {currencyFormatter.format(
                                                 product.salePrice,
                                             )}
+                                        </td>
+                                        <td
+                                            className="text-slate-700 dark:text-slate-200"
+                                            style={{
+                                                padding: isSmall
+                                                    ? "0.375rem"
+                                                    : "0.5rem",
+                                                textAlign: "center",
+                                                fontWeight: 600,
+                                                fontSize: tableFontSize,
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            {productListStockDisplay(product) ??
+                                                "—"}
                                         </td>
                                         <td
                                             className="text-slate-500 dark:text-slate-400"

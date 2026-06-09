@@ -26,3 +26,13 @@ export function productStockLabel(p: ProductStockInfo): string | null {
     if (!shouldShowProductStock(p)) return null;
     return `Cant: ${formatProductStockQty(p.currentStock)}`;
 }
+
+/** Cantidad formateada para listados de productos (admin). Incluye insumos. */
+export function productListStockDisplay(p: ProductStockInfo): string | null {
+    const t = p.productType;
+    if (t === "PROMOTION") return null;
+    if (t === "INGREDIENT" || Boolean(p.managesStock)) {
+        return formatProductStockQty(p.currentStock);
+    }
+    return null;
+}
