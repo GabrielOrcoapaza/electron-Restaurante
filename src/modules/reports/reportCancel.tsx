@@ -5,12 +5,8 @@ import { GET_CANCELLATION_REPORT } from "../../graphql/queries";
 import ReportCancelList from "./reportCancelList";
 import { formatLocalDateYYYYMMDD } from "../../utils/localDateTime";
 
-export interface CancellationItem {
+export interface CancellationLineItem {
     id: string;
-    type: string;
-    operationId: string;
-    operationOrder: string;
-    detailId?: string;
     productName?: string;
     quantity?: number;
     amount: number;
@@ -22,11 +18,81 @@ export interface CancellationItem {
     };
 }
 
+export interface CancellationItem {
+    id: string;
+    type: string;
+    operationId: string;
+    operationOrder: string;
+    tableName?: string;
+    waiterName?: string;
+    detailId?: string;
+    productName?: string;
+    quantity?: number;
+    amount: number;
+    reason: string;
+    cancelledAt: string;
+    user: {
+        id: string;
+        fullName: string;
+    };
+    /** Productos de la orden; solo cuando type === "OPERATION" */
+    lineItems?: CancellationLineItem[];
+}
+
 const currencyFormatter = new Intl.NumberFormat("es-PE", {
     style: "currency",
     currency: "PEN",
     minimumFractionDigits: 2,
 });
+
+const roundMoney2 = (value: unknown): number => {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+};
+
+const getCancelledItemAmount = (item: {
+    total?: number | string | null;
+    quantity?: number | string | null;
+    unitPrice?: number | string | null;
+}): number => {
+    if (item.total != null && item.total !== "") {
+        const total = roundMoney2(item.total);
+        if (total !== 0) return total;
+    }
+
+    const quantity = Number(item.quantity);
+    const unitPrice = Number(item.unitPrice);
+    if (Number.isFinite(quantity) && Number.isFinite(unitPrice)) {
+        return roundMoney2(quantity * unitPrice);
+    }
+
+    return roundMoney2(item.total);
+};
+
+const getOperationAmount = (op: {
+    cancelledTotal?: number | string | null;
+    cancelledItems?: Array<{
+        total?: number | string | null;
+        quantity?: number | string | null;
+        unitPrice?: number | string | null;
+    }>;
+}): number => {
+    if (op.cancelledTotal != null && op.cancelledTotal !== "") {
+        const total = roundMoney2(op.cancelledTotal);
+        if (total !== 0) return total;
+    }
+
+    if (op.cancelledItems?.length) {
+        return roundMoney2(
+            op.cancelledItems.reduce(
+                (sum, item) => sum + getCancelledItemAmount(item),
+                0,
+            ),
+        );
+    }
+
+    return roundMoney2(op.cancelledTotal);
+};
 
 function formatCancellationReason(
     reason: string | null | undefined,
@@ -62,50 +128,68 @@ const ReportCancel: React.FC = () => {
     );
 
     const { cancellationItems, summary } = React.useMemo(() => {
-        if (!data?.cancellationReport?.operations) return { cancellationItems: [], summary: { total: 0, amount: 0, ops: 0, items: 0 } };
+        if (!data?.cancellationReport?.operations) {
+            return {
+                cancellationItems: [],
+                summary: { total: 0, amount: 0, ops: 0, items: 0 },
+            };
+        }
 
         const items: CancellationItem[] = [];
         const operations = data.cancellationReport.operations;
-        let totalAmount = 0;
-        let opsCount = 0;
-        let itemsCount = 0;
 
         operations.forEach((op: any) => {
-            if (op.status === "CANCELLED") {
-                opsCount++;
-                totalAmount += op.cancelledTotal;
+            const isOrderCancelled = op.status === "CANCELLED";
+
+            if (isOrderCancelled) {
+                const operationAmount = getOperationAmount(op);
                 const opReason =
                     op.cancellationReason?.trim() ||
                     op.cancelledItems?.[0]?.cancellationReason?.trim() ||
                     "";
+                const lineItems: CancellationLineItem[] = (
+                    op.cancelledItems ?? []
+                ).map((item: any) => ({
+                    id: item.detailId,
+                    productName: item.productName,
+                    quantity: item.quantity,
+                    amount: getCancelledItemAmount(item),
+                    reason: formatCancellationReason(item.cancellationReason),
+                    cancelledAt: item.cancelledAt,
+                    user: {
+                        id: "",
+                        fullName: item.cancelledByName || "Sistema",
+                    },
+                }));
+
                 items.push({
                     id: op.operationId,
                     type: "OPERATION",
                     operationId: op.operationId,
                     operationOrder: op.order,
-                    amount: op.cancelledTotal,
+                    tableName: op.tableName,
+                    waiterName: op.waiterName,
+                    amount: operationAmount,
                     reason: formatCancellationReason(opReason),
                     cancelledAt: op.cancelledAt,
                     user: {
                         id: "",
                         fullName: op.cancelledByName || "Sistema",
                     },
+                    lineItems,
                 });
-            }
-
-            if (op.cancelledItems && op.cancelledItems.length > 0) {
+            } else if (op.cancelledItems && op.cancelledItems.length > 0) {
                 op.cancelledItems.forEach((item: any) => {
-                    itemsCount++;
-                    totalAmount += item.total;
                     items.push({
                         id: item.detailId,
                         type: "ITEM",
                         operationId: op.operationId,
                         operationOrder: op.order,
+                        tableName: op.tableName,
                         detailId: item.detailId,
                         productName: item.productName,
                         quantity: item.quantity,
-                        amount: item.total,
+                        amount: getCancelledItemAmount(item),
                         reason: formatCancellationReason(
                             item.cancellationReason,
                         ),
@@ -126,14 +210,34 @@ const ReportCancel: React.FC = () => {
             return true;
         });
 
-        return { 
-            cancellationItems: filtered, 
-            summary: { 
-                total: items.length, 
-                amount: totalAmount, 
-                ops: opsCount, 
-                items: itemsCount 
-            } 
+        const filteredAmount = roundMoney2(
+            filtered.reduce((sum, item) => sum + item.amount, 0),
+        );
+
+        const apiSummary = data.cancellationReport.summary;
+        const amount =
+            type === "BOTH" &&
+            filteredAmount === 0 &&
+            apiSummary?.totalCancelledAmount != null
+                ? roundMoney2(apiSummary.totalCancelledAmount)
+                : filteredAmount;
+
+        return {
+            cancellationItems: filtered,
+            summary: {
+                total: filtered.length,
+                amount,
+                ops:
+                    type === "ITEMS"
+                        ? 0
+                        : filtered.filter((item) => item.type === "OPERATION")
+                              .length,
+                items:
+                    type === "OPERATIONS"
+                        ? 0
+                        : filtered.filter((item) => item.type === "ITEM")
+                              .length,
+            },
         };
     }, [data, type]);
 
