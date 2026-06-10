@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import {
@@ -16,6 +16,7 @@ import {
 } from "../../graphql/mutations";
 import ManualTransactionModal from "./manualTransactionModal";
 import CashDetailModal from "./cashDetailModal";
+import ConfirmModal from "../../components/ConfirmModal";
 import { useToast } from "../../context/ToastContext";
 import { isElectronRenderer } from "../../utils/electronPrint";
 
@@ -70,6 +71,10 @@ interface PaymentMovement {
     issuedDocument?: { id: string; serial?: string; number?: string };
 }
 
+type PendingConfirmAction =
+    | { type: "close_register"; registerId: string; registerName: string }
+    | { type: "cancel_payment"; paymentId: string };
+
 const currencyFormatter = new Intl.NumberFormat("es-PE", {
     style: "currency",
     currency: "PEN",
@@ -85,6 +90,25 @@ const formatLocalDateYYYYMMDD = (dateString: string) => {
         hour: "2-digit",
         minute: "2-digit",
     });
+};
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+    CASH: "Efectivo",
+    YAPE: "Yape",
+    PLIN: "Plin",
+    CARD: "Tarjeta",
+    TRANSFER: "Transferencia",
+};
+
+const isPaymentCancelled = (status?: string | null): boolean => {
+    const normalized = (status ?? "").trim().toUpperCase();
+    return (
+        normalized === "CANCELLED" ||
+        normalized === "CANCELED" ||
+        normalized === "ANULLED" ||
+        normalized === "VOID" ||
+        normalized === "INACTIVE"
+    );
 };
 
 const Cashs: React.FC = () => {
@@ -104,6 +128,12 @@ const Cashs: React.FC = () => {
     >(null);
     const [showMovements, setShowMovements] = useState(true);
     const [showHistory, setShowHistory] = useState(true);
+    const [pendingConfirm, setPendingConfirm] =
+        useState<PendingConfirmAction | null>(null);
+    const [confirmLoading, setConfirmLoading] = useState(false);
+    const [locallyCancelledMovements, setLocallyCancelledMovements] = useState<
+        PaymentMovement[]
+    >([]);
 
     // Queries
     const {
@@ -156,19 +186,32 @@ const Cashs: React.FC = () => {
     const [cancelPaymentMutation] = useMutation(CANCEL_PAYMENT);
     const [updatePaymentMethodMutation] = useMutation(UPDATE_PAYMENT_METHOD);
 
+    useEffect(() => {
+        setLocallyCancelledMovements([]);
+    }, [selectedRegister?.id]);
+
+    const apiMovements: PaymentMovement[] =
+        movementsData?.paymentsPendingClosure ||
+        movementsData?.payments_pending_closure ||
+        [];
+
+    const movements = useMemo(() => {
+        const apiIds = new Set(apiMovements.map((m) => m.id));
+        const preservedCancelled = locallyCancelledMovements.filter(
+            (m) => !apiIds.has(m.id),
+        );
+        return [...apiMovements, ...preservedCancelled];
+    }, [apiMovements, locallyCancelledMovements]);
+
     const cashRegisters: CashRegister[] =
         registersData?.cashRegistersByBranch || [];
     const preview: CashPreview | null = previewData?.cashClosurePreview || null;
     const history: CashClosure[] =
         historyData?.cashClosures || historyData?.cash_closures || [];
-    const movements: PaymentMovement[] =
-        movementsData?.paymentsPendingClosure ||
-        movementsData?.payments_pending_closure ||
-        [];
+
     const handleCloseRegister = async (registerId: string) => {
-        if (!window.confirm("¿Está seguro de que desea cerrar esta caja?"))
-            return;
         try {
+            setConfirmLoading(true);
             const deviceId = await getMacAddress();
             const result = await closeCashRegister({
                 variables: {
@@ -183,6 +226,7 @@ const Cashs: React.FC = () => {
                 refetchRegisters();
                 refetchHistory();
                 setSelectedRegister(null);
+                setPendingConfirm(null);
             } else {
                 showToast(
                     result.data?.closeCash?.message ||
@@ -192,6 +236,8 @@ const Cashs: React.FC = () => {
             }
         } catch (error: any) {
             showToast(error.message || "Error al cerrar la caja", "error");
+        } finally {
+            setConfirmLoading(false);
         }
     };
 
@@ -239,18 +285,26 @@ const Cashs: React.FC = () => {
     };
 
     const handleCancelPayment = async (paymentId: string) => {
-        if (
-            !window.confirm("¿Está seguro de que desea anular este movimiento?")
-        )
-            return;
+        const movementToCancel = movements.find((m) => m.id === paymentId);
         try {
+            setConfirmLoading(true);
             const result = await cancelPaymentMutation({
                 variables: { paymentId },
             });
             if (result.data?.cancelPayment?.success) {
+                if (movementToCancel) {
+                    setLocallyCancelledMovements((prev) => {
+                        if (prev.some((m) => m.id === paymentId)) return prev;
+                        return [
+                            ...prev,
+                            { ...movementToCancel, status: "CANCELLED" },
+                        ];
+                    });
+                }
                 showToast("Movimiento anulado correctamente", "success");
                 refetchMovements();
                 refetchPreview();
+                setPendingConfirm(null);
             } else {
                 showToast(
                     result.data?.cancelPayment?.message || "Error al anular",
@@ -259,13 +313,45 @@ const Cashs: React.FC = () => {
             }
         } catch (error: any) {
             showToast(error.message || "Error al anular", "error");
+        } finally {
+            setConfirmLoading(false);
         }
     };
+
+    const handleConfirmAction = async () => {
+        if (!pendingConfirm) return;
+        if (pendingConfirm.type === "close_register") {
+            await handleCloseRegister(pendingConfirm.registerId);
+        } else {
+            await handleCancelPayment(pendingConfirm.paymentId);
+        }
+    };
+
+    const confirmModalConfig =
+        pendingConfirm?.type === "close_register"
+            ? {
+                  title: "Cerrar caja",
+                  message: `¿Está seguro de que desea cerrar la caja "${pendingConfirm.registerName}"? Esta acción generará el cierre del turno actual.`,
+                  confirmLabel: "Cerrar caja",
+                  variant: "danger" as const,
+              }
+            : pendingConfirm?.type === "cancel_payment"
+              ? {
+                    title: "Anular movimiento",
+                    message:
+                        "¿Está seguro de que desea anular este movimiento? Esta acción no se puede deshacer.",
+                    confirmLabel: "Anular movimiento",
+                    variant: "danger" as const,
+                }
+              : null;
 
     const handleUpdatePaymentMethod = async (
         paymentId: string,
         method: string,
     ) => {
+        const movement = movements.find((m) => m.id === paymentId);
+        if (movement && isPaymentCancelled(movement.status)) return;
+
         try {
             const result = await updatePaymentMethodMutation({
                 variables: { paymentId, newPaymentMethod: method },
@@ -469,9 +555,13 @@ const Cashs: React.FC = () => {
                                                           e.stopPropagation();
                                                           if (!isElectron)
                                                               return;
-                                                          handleCloseRegister(
-                                                              register.id,
-                                                          );
+                                                          setPendingConfirm({
+                                                              type: "close_register",
+                                                              registerId:
+                                                                  register.id,
+                                                              registerName:
+                                                                  register.name,
+                                                          });
                                                       }}
                                                       disabled={!isElectron}
                                                       className={`flex flex-1 items-center justify-center gap-2 rounded-2xl py-3 text-xs font-black text-white shadow-lg transition-all ${
@@ -906,12 +996,22 @@ const Cashs: React.FC = () => {
                                                                     </tr>
                                                                 ) : (
                                                                     movements.map(
-                                                                        (m) => (
+                                                                        (m) => {
+                                                                            const isCancelled =
+                                                                                isPaymentCancelled(
+                                                                                    m.status,
+                                                                                );
+
+                                                                            return (
                                                                             <tr
                                                                                 key={
                                                                                     m.id
                                                                                 }
-                                                                                className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30"
+                                                                                className={`transition-colors ${
+                                                                                    isCancelled
+                                                                                        ? "bg-slate-50/80 opacity-75 dark:bg-slate-800/40"
+                                                                                        : "hover:bg-slate-50/50 dark:hover:bg-slate-800/30"
+                                                                                }`}
                                                                             >
                                                                                 <td className="px-6 py-4 font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                                                                     {formatLocalDateYYYYMMDD(
@@ -919,55 +1019,71 @@ const Cashs: React.FC = () => {
                                                                                     )}
                                                                                 </td>
                                                                                 <td className="px-6 py-4 text-center">
-                                                                                    <span
-                                                                                        className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wider ${
-                                                                                            m.transactionType ===
+                                                                                    <div className="flex flex-col items-center gap-1">
+                                                                                        <span
+                                                                                            className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wider ${
+                                                                                                m.transactionType ===
+                                                                                                "INCOME"
+                                                                                                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
+                                                                                                    : "bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400"
+                                                                                            }`}
+                                                                                        >
+                                                                                            {m.transactionType ===
                                                                                             "INCOME"
-                                                                                                ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
-                                                                                                : "bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400"
-                                                                                        }`}
-                                                                                    >
-                                                                                        {m.transactionType ===
-                                                                                        "INCOME"
-                                                                                            ? "Ingreso"
-                                                                                            : "Egreso"}
-                                                                                    </span>
+                                                                                                ? "Ingreso"
+                                                                                                : "Egreso"}
+                                                                                        </span>
+                                                                                        {isCancelled && (
+                                                                                            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+                                                                                                Anulado
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
                                                                                 </td>
                                                                                 <td className="px-6 py-4">
-                                                                                    <select
-                                                                                        value={
-                                                                                            m.paymentMethod
-                                                                                        }
-                                                                                        onChange={(
-                                                                                            e,
-                                                                                        ) =>
-                                                                                            handleUpdatePaymentMethod(
-                                                                                                m.id,
-                                                                                                e
-                                                                                                    .target
-                                                                                                    .value,
-                                                                                            )
-                                                                                        }
-                                                                                        className="rounded-lg border border-slate-200 bg-transparent px-2 py-1 text-[11px] font-bold text-slate-600 transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:text-slate-300"
-                                                                                    >
-                                                                                        <option value="CASH">
-                                                                                            Efectivo
-                                                                                        </option>
-                                                                                        <option value="YAPE">
-                                                                                            Yape
-                                                                                        </option>
-                                                                                        <option value="PLIN">
-                                                                                            Plin
-                                                                                        </option>
-                                                                                        <option value="CARD">
-                                                                                            Tarjeta
-                                                                                        </option>
-                                                                                        <option value="TRANSFER">
-                                                                                            Transferencia
-                                                                                        </option>
-                                                                                    </select>
+                                                                                    {isCancelled ? (
+                                                                                        <span className="text-[11px] font-bold text-slate-400">
+                                                                                            {PAYMENT_METHOD_LABELS[
+                                                                                                m.paymentMethod
+                                                                                            ] ??
+                                                                                                m.paymentMethod}
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <select
+                                                                                            value={
+                                                                                                m.paymentMethod
+                                                                                            }
+                                                                                            onChange={(
+                                                                                                e,
+                                                                                            ) =>
+                                                                                                handleUpdatePaymentMethod(
+                                                                                                    m.id,
+                                                                                                    e
+                                                                                                        .target
+                                                                                                        .value,
+                                                                                                )
+                                                                                            }
+                                                                                            className="rounded-lg border border-slate-200 bg-transparent px-2 py-1 text-[11px] font-bold text-slate-600 transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:text-slate-300"
+                                                                                        >
+                                                                                            <option value="CASH">
+                                                                                                Efectivo
+                                                                                            </option>
+                                                                                            <option value="YAPE">
+                                                                                                Yape
+                                                                                            </option>
+                                                                                            <option value="PLIN">
+                                                                                                Plin
+                                                                                            </option>
+                                                                                            <option value="CARD">
+                                                                                                Tarjeta
+                                                                                            </option>
+                                                                                            <option value="TRANSFER">
+                                                                                                Transferencia
+                                                                                            </option>
+                                                                                        </select>
+                                                                                    )}
                                                                                 </td>
-                                                                                <td className="px-6 py-4 font-black text-slate-700 dark:text-slate-200">
+                                                                                <td className={`px-6 py-4 font-black ${isCancelled ? "text-slate-400 line-through" : "text-slate-700 dark:text-slate-200"}`}>
                                                                                     {currencyFormatter.format(
                                                                                         m.paidAmount,
                                                                                     )}
@@ -1006,6 +1122,7 @@ const Cashs: React.FC = () => {
                                                                                                 m.id,
                                                                                             )
                                                                                         }
+                                                                                        title="Imprimir comprobante"
                                                                                         className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 transition-all hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 mx-auto"
                                                                                     >
                                                                                         <svg
@@ -1023,30 +1140,56 @@ const Cashs: React.FC = () => {
                                                                                     </button>
                                                                                 </td>
                                                                                 <td className="px-6 py-4 text-center">
-                                                                                    <button
-                                                                                        onClick={() =>
-                                                                                            handleCancelPayment(
-                                                                                                m.id,
-                                                                                            )
-                                                                                        }
-                                                                                        className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 text-rose-600 transition-all hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400 dark:hover:bg-rose-900/40 mx-auto"
-                                                                                    >
-                                                                                        <svg
-                                                                                            xmlns="http://www.w3.org/2000/svg"
-                                                                                            className="h-4 w-4"
-                                                                                            viewBox="0 0 20 20"
-                                                                                            fill="currentColor"
+                                                                                    {isCancelled ? (
+                                                                                        <span
+                                                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-300 dark:bg-slate-800 dark:text-slate-600 mx-auto"
+                                                                                            title="Movimiento anulado"
                                                                                         >
-                                                                                            <path
-                                                                                                fillRule="evenodd"
-                                                                                                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                                                                                clipRule="evenodd"
-                                                                                            />
-                                                                                        </svg>
-                                                                                    </button>
+                                                                                            <svg
+                                                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                                                className="h-4 w-4"
+                                                                                                viewBox="0 0 20 20"
+                                                                                                fill="currentColor"
+                                                                                            >
+                                                                                                <path
+                                                                                                    fillRule="evenodd"
+                                                                                                    d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z"
+                                                                                                    clipRule="evenodd"
+                                                                                                />
+                                                                                            </svg>
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <button
+                                                                                            onClick={() =>
+                                                                                                setPendingConfirm(
+                                                                                                    {
+                                                                                                        type: "cancel_payment",
+                                                                                                        paymentId:
+                                                                                                            m.id,
+                                                                                                    },
+                                                                                                )
+                                                                                            }
+                                                                                            title="Anular movimiento"
+                                                                                            className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 text-rose-600 transition-all hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400 dark:hover:bg-rose-900/40 mx-auto"
+                                                                                        >
+                                                                                            <svg
+                                                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                                                className="h-4 w-4"
+                                                                                                viewBox="0 0 20 20"
+                                                                                                fill="currentColor"
+                                                                                            >
+                                                                                                <path
+                                                                                                    fillRule="evenodd"
+                                                                                                    d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                                                                                    clipRule="evenodd"
+                                                                                                />
+                                                                                            </svg>
+                                                                                        </button>
+                                                                                    )}
                                                                                 </td>
                                                                             </tr>
-                                                                        ),
+                                                                            );
+                                                                        },
                                                                     )
                                                                 )}
                                                             </tbody>
@@ -1260,6 +1403,20 @@ const Cashs: React.FC = () => {
                 closure={selectedClosureDetail}
                 onReprint={handleReprint}
                 reprintingClosureId={reprintingClosureId}
+            />
+
+            <ConfirmModal
+                isOpen={pendingConfirm !== null}
+                title={confirmModalConfig?.title ?? ""}
+                message={confirmModalConfig?.message ?? ""}
+                confirmLabel={confirmModalConfig?.confirmLabel}
+                variant={confirmModalConfig?.variant}
+                loading={confirmLoading}
+                onConfirm={handleConfirmAction}
+                onClose={() => {
+                    if (confirmLoading) return;
+                    setPendingConfirm(null);
+                }}
             />
         </div>
     );
