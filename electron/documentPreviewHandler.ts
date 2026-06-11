@@ -2,7 +2,7 @@
  * Vista previa / descarga PDF del comprobante (document_data).
  */
 
-import { ipcMain, BrowserWindow, app } from "electron";
+import { ipcMain, app } from "electron";
 import * as fs from "fs";
 import * as path from "path";
 import log from "electron-log";
@@ -11,8 +11,7 @@ import {
 } from "./ticketHtmlWindow";
 
 async function documentJsonToPdfBase64(documentJson: string): Promise<string> {
-    const parentWin = BrowserWindow.getFocusedWindow();
-    const pdfBuffer = await documentJsonToPdfBuffer(documentJson, parentWin);
+    const pdfBuffer = await documentJsonToPdfBuffer(documentJson, null);
     return pdfBuffer.toString("base64");
 }
 

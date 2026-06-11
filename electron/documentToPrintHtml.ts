@@ -141,9 +141,12 @@ async function renderThermalDocumentStyle(doc: Record<string, unknown>): Promise
     parts.push(`<div class="t-title">${n(title)}</div>`);
 
     const d = (doc.document ?? {}) as Record<string, unknown>;
-    if (d.invoice) parts.push(`<div class="t-center t-docline t-bold">${n(d.invoice)}</div>`);
-    if (d.number) parts.push(`<div class="t-center t-docline t-bold">${n(d.number)}</div>`);
-    const dt = [d.date, d.time].filter(Boolean).join(" ");
+    if (d.invoice) {
+        parts.push(`<div class="t-center t-docline t-bold">${n(d.invoice)}</div>`);
+    } else if (d.number) {
+        parts.push(`<div class="t-center t-docline t-bold">${n(d.number)}</div>`);
+    }
+    const dt = String(d.datetime ?? "").trim() || [d.date, d.time].filter(Boolean).join(" ");
     if (dt) parts.push(`<div class="t-center t-meta">${n(dt)}</div>`);
 
     const customer = (doc.customer ?? doc.cliente) as Record<string, unknown> | undefined;
@@ -160,9 +163,29 @@ async function renderThermalDocumentStyle(doc: Record<string, unknown>): Promise
     if (doc.table) parts.push(`<div class="t-bodyline">Mesa: ${n(doc.table)}</div>`);
     if (doc.waiter) parts.push(`<div class="t-bodyline">Atendido por: ${n(doc.waiter)}</div>`);
 
+    const billingStatus = doc.billing_status ?? doc.billingStatus;
+    if (billingStatus) {
+        parts.push(`<div class="t-bodyline">Estado: ${n(String(billingStatus))}</div>`);
+    }
+
+    const payments = doc.payments;
+    if (Array.isArray(payments)) {
+        for (const row of payments) {
+            if (!row || typeof row !== "object") continue;
+            const r = row as Record<string, unknown>;
+            const method = String(r.method ?? r.payment_method ?? r.paymentMethod ?? "").trim();
+            const amount = r.amount ?? r.paid_amount ?? r.paidAmount;
+            if (method && amount != null) {
+                parts.push(
+                    `<div class="t-bodyline">${n(method)}: S/ ${num2(amount)}</div>`,
+                );
+            }
+        }
+    }
+
     parts.push(`<div class="t-sep">================================================</div>`);
     parts.push(
-        `<div class="t-rowline"><span>CANT</span><span>DESCRIPCION</span><span class="n">P.UNIT</span><span class="n">TOTAL</span></div>`
+        `<div class="t-rowline"><span>CANT</span><span>DESC</span><span class="n">P.U</span><span class="n">TOTAL</span></div>`
     );
     parts.push(`<div class="t-sep2">------------------------------------------------</div>`);
 
@@ -253,7 +276,7 @@ async function renderThermalDocumentStyle(doc: Record<string, unknown>): Promise
         minute: "2-digit",
         second: "2-digit",
     });
-    parts.push(`<div class="t-center t-footer t-pad">Gracias por su preferencia!</div>`);
+    parts.push(`<div class="t-center t-footer t-pad">Gracias por su preferencia</div>`);
     parts.push(`<div class="t-center t-footer">Impreso: ${n(foot)}</div>`);
     parts.push(`<div class="t-center t-footer">https://sumapp.pe</div>`);
 
@@ -276,7 +299,7 @@ const thermalDocumentCss = `
       background: #fff;
     }
     body.ticket {
-      font-family: "Consolas", "Courier New", monospace;
+      font-family: Arial, Helvetica, sans-serif;
       font-size: 11px;
       line-height: 1.35;
       color: #000;
