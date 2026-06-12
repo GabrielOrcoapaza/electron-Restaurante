@@ -12,7 +12,10 @@ function writeAppConfigPlugin(mode: string): Plugin {
         graphqlUrl: env.VITE_GRAPHQL_URL || '',
         wsUrl: env.VITE_WS_URL || '',
       }
-      const outPath = path.resolve(process.cwd(), 'dist/app-config.json')
+      const distDir = path.resolve(process.cwd(), 'dist')
+      const outPath = path.join(distDir, 'app-config.json')
+      // 🔥 FIX CLAVE
+      fs.mkdirSync(distDir, { recursive: true })
       fs.writeFileSync(outPath, JSON.stringify(config, null, 2), 'utf-8')
     },
   }
