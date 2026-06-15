@@ -56,7 +56,7 @@ const cacheDB = {
         } catch (e) {
             return null;
         }
-    }
+    },
 };
 
 /**
@@ -133,7 +133,7 @@ const LandingPage: React.FC = () => {
                 cacheDB.set("cache_landing_companies", data.allCompanies);
             }
         },
-        fetchPolicy: 'cache-and-network'
+        fetchPolicy: "cache-and-network",
     });
 
     const { data: _menuData } = useQuery(GET_COMPANIES_FOR_CARTA_DIGITAL, {
@@ -142,7 +142,7 @@ const LandingPage: React.FC = () => {
                 const companies = data.allCompanies;
                 setDisplayMenu(companies);
                 cacheDB.set("cache_landing_menu", companies);
-                
+
                 // Inicializar selección si no hay nada seleccionado
                 if (companies.length > 0 && !selectedCompanyId) {
                     const firstCompany = companies[0];
@@ -153,7 +153,7 @@ const LandingPage: React.FC = () => {
                 }
             }
         },
-        fetchPolicy: 'cache-and-network'
+        fetchPolicy: "cache-and-network",
     });
 
     // Estados para manejar los datos combinados (Query + Cache)
@@ -165,9 +165,9 @@ const LandingPage: React.FC = () => {
         const loadInitialCache = async () => {
             const [cachedCompanies, cachedMenu] = await Promise.all([
                 cacheDB.get("cache_landing_companies"),
-                cacheDB.get("cache_landing_menu")
+                cacheDB.get("cache_landing_menu"),
             ]);
-            
+
             if (cachedCompanies) setDisplayCompanies(cachedCompanies as any[]);
             if (cachedMenu) {
                 const menu = cachedMenu as any[];
@@ -197,16 +197,13 @@ const LandingPage: React.FC = () => {
         return () => clearInterval(timer);
     }, []);
 
-
     useEffect(() => {
         localStorage.setItem("sumaq-theme", darkMode ? "dark" : "light");
     }, [darkMode]);
 
     const selectedCompany = useMemo(() => {
         if (!displayMenu || !selectedCompanyId) return null;
-        return displayMenu.find(
-            (c: any) => c.id === selectedCompanyId,
-        );
+        return displayMenu.find((c: any) => c.id === selectedCompanyId);
     }, [displayMenu, selectedCompanyId]);
 
     const selectedBranch = useMemo(() => {
@@ -237,6 +234,13 @@ const LandingPage: React.FC = () => {
                     >
                         {darkMode ? "☀️" : "🌙"}
                     </button>
+                    <Link
+                        to="/login-kitchen"
+                        className="login-link"
+                        style={{ marginRight: "10px" }}
+                    >
+                        COCINA
+                    </Link>
                     <Link to="/login" className="login-link">
                         ACCEDER
                     </Link>
@@ -277,38 +281,65 @@ const LandingPage: React.FC = () => {
                 <div className="section-wrapper">
                     <span className="info-badge">Tecnología de Vanguardia</span>
                     <h2>Ecosistema Integrado</h2>
-                    
+
                     <div className="info-grid">
                         <div className="info-card">
                             <div className="card-icon">📱</div>
                             <h3>App de Mozos</h3>
-                            <p>Toma pedidos instantáneos que se sincronizan en tiempo real con cocina y caja.</p>
+                            <p>
+                                Toma pedidos instantáneos que se sincronizan en
+                                tiempo real con cocina y caja.
+                            </p>
                             <ul className="info-feature-list">
-                                <li className="info-point">✓ Interfaz táctil rápida</li>
-                                <li className="info-point">✓ Notas y preferencias</li>
-                                <li className="info-point">✓ División de cuentas</li>
+                                <li className="info-point">
+                                    ✓ Interfaz táctil rápida
+                                </li>
+                                <li className="info-point">
+                                    ✓ Notas y preferencias
+                                </li>
+                                <li className="info-point">
+                                    ✓ División de cuentas
+                                </li>
                             </ul>
                         </div>
-                        
+
                         <div className="info-card">
                             <div className="card-icon">📠</div>
                             <h3>Control de Cocina</h3>
-                            <p>Evita errores con un sistema inteligente de comandas impresas o digitales.</p>
+                            <p>
+                                Evita errores con un sistema inteligente de
+                                comandas impresas o digitales.
+                            </p>
                             <ul className="info-feature-list">
-                                <li className="info-point">✓ Múltiples impresoras</li>
-                                <li className="info-point">✓ Alertas de demora</li>
-                                <li className="info-point">✓ Orden por categorías</li>
+                                <li className="info-point">
+                                    ✓ Múltiples impresoras
+                                </li>
+                                <li className="info-point">
+                                    ✓ Alertas de demora
+                                </li>
+                                <li className="info-point">
+                                    ✓ Orden por categorías
+                                </li>
                             </ul>
                         </div>
 
                         <div className="info-card">
                             <div className="card-icon">🖥️</div>
                             <h3>Gestión de Caja</h3>
-                            <p>Software robusto para controlar ventas, inventarios y reportes detallados.</p>
+                            <p>
+                                Software robusto para controlar ventas,
+                                inventarios y reportes detallados.
+                            </p>
                             <ul className="info-feature-list">
-                                <li className="info-point">✓ Facturación electrónica</li>
-                                <li className="info-point">✓ Arqueos automáticos</li>
-                                <li className="info-point">✓ Control de stock</li>
+                                <li className="info-point">
+                                    ✓ Facturación electrónica
+                                </li>
+                                <li className="info-point">
+                                    ✓ Arqueos automáticos
+                                </li>
+                                <li className="info-point">
+                                    ✓ Control de stock
+                                </li>
                             </ul>
                         </div>
                     </div>
@@ -323,10 +354,21 @@ const LandingPage: React.FC = () => {
                         {displayCompanies?.slice(0, 8).map((c: any) => (
                             <img
                                 key={c.id}
-                                src={c.logo ? getFullImageUrl(c.logo) : c.logoBase64 ? (c.logoBase64.startsWith("data:") ? c.logoBase64 : `data:image/png;base64,${c.logoBase64}`) : "/logo_company.png"}
+                                src={
+                                    c.logo
+                                        ? getFullImageUrl(c.logo)
+                                        : c.logoBase64
+                                          ? c.logoBase64.startsWith("data:")
+                                              ? c.logoBase64
+                                              : `data:image/png;base64,${c.logoBase64}`
+                                          : "/logo_company.png"
+                                }
                                 alt={c.commercialName}
                                 className="client-logo"
-                                onError={(e) => { (e.target as HTMLImageElement).src = "/logo_company.png"; }}
+                                onError={(e) => {
+                                    (e.target as HTMLImageElement).src =
+                                        "/logo_company.png";
+                                }}
                             />
                         ))}
                     </div>
@@ -340,15 +382,22 @@ const LandingPage: React.FC = () => {
                         <div className="menu-info">
                             <span className="preview-pill">NUEVA FUNCIÓN</span>
                             <h2>Carta Digital Interactiva</h2>
-                            <p>Ofrece a tus clientes una experiencia visual de primer nivel directamente en su smartphone.</p>
-                            
+                            <p>
+                                Ofrece a tus clientes una experiencia visual de
+                                primer nivel directamente en su smartphone.
+                            </p>
+
                             <select
                                 className="company-select"
                                 value={selectedCompanyId}
-                                onChange={(e) => setSelectedCompanyId(e.target.value)}
+                                onChange={(e) =>
+                                    setSelectedCompanyId(e.target.value)
+                                }
                             >
                                 {displayMenu?.map((c: any) => (
-                                    <option key={c.id} value={c.id}>{c.denomination}</option>
+                                    <option key={c.id} value={c.id}>
+                                        {c.denomination}
+                                    </option>
                                 ))}
                             </select>
 
@@ -368,25 +417,65 @@ const LandingPage: React.FC = () => {
                                 <header className="preview-header">
                                     <div className="preview-avatar">
                                         <img
-                                            src={selectedCompany?.logo ? getFullImageUrl(selectedCompany.logo) : selectedCompany?.logoBase64 ? (selectedCompany.logoBase64.startsWith("data:") ? selectedCompany.logoBase64 : `data:image/png;base64,${selectedCompany.logoBase64}`) : "/logo_company.png"}
+                                            src={
+                                                selectedCompany?.logo
+                                                    ? getFullImageUrl(
+                                                          selectedCompany.logo,
+                                                      )
+                                                    : selectedCompany?.logoBase64
+                                                      ? selectedCompany.logoBase64.startsWith(
+                                                            "data:",
+                                                        )
+                                                          ? selectedCompany.logoBase64
+                                                          : `data:image/png;base64,${selectedCompany.logoBase64}`
+                                                      : "/logo_company.png"
+                                            }
                                             alt="Logo"
                                         />
                                     </div>
-                                    <h3>{selectedCompany?.commercialName || "Restaurante"}</h3>
+                                    <h3>
+                                        {selectedCompany?.commercialName ||
+                                            "Restaurante"}
+                                    </h3>
                                 </header>
                                 <div className="preview-items">
-                                    {selectedBranch?.categories?.[0]?.subcategories?.[0]?.products?.slice(0, 4).map((p: any) => (
-                                        <div key={p.id} className="preview-item">
-                                            <div className="preview-item-image">
-                                                <img src={p.image ? getFullImageUrl(p.image) : p.imageBase64 ? (p.imageBase64.startsWith("data:") ? p.imageBase64 : `data:image/png;base64,${p.imageBase64}`) : "/default_dish.png"} alt={p.name} />
+                                    {selectedBranch?.categories?.[0]?.subcategories?.[0]?.products
+                                        ?.slice(0, 4)
+                                        .map((p: any) => (
+                                            <div
+                                                key={p.id}
+                                                className="preview-item"
+                                            >
+                                                <div className="preview-item-image">
+                                                    <img
+                                                        src={
+                                                            p.image
+                                                                ? getFullImageUrl(
+                                                                      p.image,
+                                                                  )
+                                                                : p.imageBase64
+                                                                  ? p.imageBase64.startsWith(
+                                                                        "data:",
+                                                                    )
+                                                                      ? p.imageBase64
+                                                                      : `data:image/png;base64,${p.imageBase64}`
+                                                                  : "/default_dish.png"
+                                                        }
+                                                        alt={p.name}
+                                                    />
+                                                </div>
+                                                <div className="item-info">
+                                                    <h4>{p.name}</h4>
+                                                    <p>{p.description}</p>
+                                                    <span className="item-price">
+                                                        S/{" "}
+                                                        {Number(
+                                                            p.salePrice,
+                                                        ).toFixed(2)}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="item-info">
-                                                <h4>{p.name}</h4>
-                                                <p>{p.description}</p>
-                                                <span className="item-price">S/ {Number(p.salePrice).toFixed(2)}</span>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        ))}
                                 </div>
                             </div>
                         </div>
@@ -400,10 +489,13 @@ const LandingPage: React.FC = () => {
                     <div className="download-box">
                         <span className="download-badge">SISTEMA COMPLETO</span>
                         <h2>Lleva Sumapp a tu negocio</h2>
-                        <a href="https://github.com/GabrielOrcoapaza/electron-Restaurante/releases/latest/download/SumApp.exe" className="download-btn">
+                        <a
+                            href="https://github.com/GabrielOrcoapaza/electron-Restaurante/releases/latest/download/SumApp.exe"
+                            className="download-btn"
+                        >
                             Descargar para Windows
                         </a>
-                        
+
                         <div className="platform-grid">
                             <div className="platform-card">
                                 <h4>Desktop App</h4>
@@ -423,7 +515,10 @@ const LandingPage: React.FC = () => {
                 <div className="section-wrapper">
                     <h2>¿Listo para empezar?</h2>
                     <p>Contáctanos y digitaliza tu restaurante hoy mismo.</p>
-                    <a href={`https://wa.me/51973591709?text=${encodeURIComponent("Hola, quiero información sobre Sumaq.")}`} className="whatsapp-btn">
+                    <a
+                        href={`https://wa.me/51973591709?text=${encodeURIComponent("Hola, quiero información sobre Sumaq.")}`}
+                        className="whatsapp-btn"
+                    >
                         SOLICITAR DEMO
                     </a>
                 </div>
@@ -431,7 +526,10 @@ const LandingPage: React.FC = () => {
 
             <footer className="landing-footer">
                 <div className="footer-brand">SUMAPP</div>
-                <p>&copy; {new Date().getFullYear()} Soluciones 4 Sumapp. Tecnología para crecer.</p>
+                <p>
+                    &copy; {new Date().getFullYear()} Soluciones 4 Sumapp.
+                    Tecnología para crecer.
+                </p>
             </footer>
         </div>
     );

@@ -2273,3 +2273,107 @@ export const SET_PROMOTION_SCOPES = gql`
         }
     }
 `;
+
+// -- COCINA: Mutaciones --
+export const MARK_ITEM_PREPARED = gql`
+    mutation MarkItemPrepared(
+        $detailId: ID!
+        $userId: ID!
+        $branchId: ID!
+    ) {
+        markItemPrepared(
+            detailId: $detailId
+            userId: $userId
+            branchId: $branchId
+        ) {
+            success
+            message
+            detail {
+                id
+                isPrepared
+                preparedAt
+                preparedBy {
+                    id
+                    firstName
+                    lastName
+                }
+            }
+        }
+    }
+`;
+
+export const MARK_PARTIAL_PREPARED = gql`
+    mutation MarkPartialPrepared(
+        $detailId: ID!
+        $quantity: Float!
+        $userId: ID!
+        $branchId: ID!
+    ) {
+        markPartialPrepared(
+            detailId: $detailId
+            quantity: $quantity
+            userId: $userId
+            branchId: $branchId
+        ) {
+            success
+            message
+            detail {
+                id
+                quantity
+                isPrepared
+                preparedAt
+                preparedBy {
+                    id
+                    firstName
+                    lastName
+                }
+            }
+        }
+    }
+`;
+
+export const MARK_ORDER_PREPARED = gql`
+    mutation MarkOrderPrepared(
+        $operationId: ID!
+        $userId: ID!
+        $branchId: ID!
+    ) {
+        markOrderPrepared(
+            operationId: $operationId
+            userId: $userId
+            branchId: $branchId
+        ) {
+            success
+            message
+            operation {
+                id
+                order
+                details {
+                    id
+                    isPrepared
+                }
+            }
+        }
+    }
+`;
+
+export const MARK_GROUP_PREPARED = gql`
+    mutation MarkGroupPrepared(
+        $detailIds: [ID!]!
+        $userId: ID!
+        $branchId: ID!
+    ) {
+        markGroupPrepared(
+            detailIds: $detailIds
+            userId: $userId
+            branchId: $branchId
+        ) {
+            success
+            message
+            details {
+                id
+                isPrepared
+            }
+        }
+    }
+`;

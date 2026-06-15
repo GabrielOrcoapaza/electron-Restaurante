@@ -1817,3 +1817,93 @@ export const GET_PROMOTION_BY_ID = gql`
         }
     }
 `;
+
+// -- COCINA: Items pendientes de preparación --
+export const GET_PENDING_KITCHEN_ITEMS = gql`
+    query GetPendingKitchenItems($branchId: ID!, $userId: ID!) {
+        pendingKitchenItems(branchId: $branchId, userId: $userId) {
+            id
+            quantity
+            notes
+            createdAt
+            productName
+            productId
+            operationId
+            isPrepared
+            isCanceled
+            operation {
+                id
+                order
+                serviceType
+                table {
+                    id
+                    name
+                    floor {
+                        id
+                        name
+                    }
+                }
+                user {
+                    firstName
+                    lastName
+                }
+            }
+            product {
+                id
+                name
+                preparationTime
+                subcategory {
+                    id
+                    name
+                    category {
+                        id
+                        name
+                        color
+                    }
+                }
+            }
+            createdBy {
+                firstName
+                lastName
+            }
+            comboComponents {
+                id
+                productName
+                categoryId
+                quantity
+                isPrepared
+                isCanceled
+            }
+        }
+    }
+`;
+
+// -- COCINA: Login de cocinero --
+export const KITCHEN_LOGIN = gql`
+    mutation KitchenLogin($dni: String!, $password: String!, $deviceId: String!) {
+        kitchenLogin(dni: $dni, password: $password, deviceId: $deviceId) {
+            success
+            message
+            token
+            user {
+                id
+                dni
+                firstName
+                lastName
+                role
+                fullName
+            }
+            branch {
+                id
+                name
+                isKitchenDisplay
+            }
+            displayCategories {
+                id
+                name
+                color
+            }
+            permissions
+        }
+    }
+`;
