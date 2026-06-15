@@ -121,7 +121,7 @@ const PrintersCreate: React.FC<PrintersCreateProps> = ({
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all animate-in fade-in duration-200"
-            onClick={handleClose}
+            
         >
             <div
                 className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl transition-colors duration-200 dark:border-slate-800 dark:bg-slate-950"

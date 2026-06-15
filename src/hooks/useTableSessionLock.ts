@@ -29,15 +29,46 @@ const pendingReleaseTimersByLockKey = new Map<
     ReturnType<typeof setTimeout>
 >();
 
+/** Candados ya liberados de forma explícita (p. ej. mozo → login tras guardar orden). */
+const explicitlyReleasedSessionLockKeys = new Set<string>();
+
 /** Coherente con el debounce de refetch tras eventos WS en el plano. */
 const SESSION_LOCK_RELEASE_DEBOUNCE_MS = 450;
 
+function sessionLockKey(tableId: string, userId: string): string {
+    return `${tableId}|${userId}`;
+}
+
 function cancelScheduledSessionLockRelease(tableId: string, userId: string) {
-    const key = `${tableId}|${userId}`;
+    const key = sessionLockKey(tableId, userId);
     const t = pendingReleaseTimersByLockKey.get(key);
     if (t) {
         clearTimeout(t);
         pendingReleaseTimersByLockKey.delete(key);
+    }
+}
+
+/** Libera el candado de inmediato (con token aún válido) y evita un release duplicado al desmontar. */
+export async function releaseTableSessionLockImmediately(
+    releaseMut: (args: {
+        variables: { tableId: string; userId: string };
+    }) => Promise<unknown>,
+    tableId: string,
+    userId: string,
+): Promise<void> {
+    if (!isTableSessionLockApiEnabled()) return;
+
+    const key = sessionLockKey(tableId, userId);
+    explicitlyReleasedSessionLockKeys.add(key);
+    cancelScheduledSessionLockRelease(tableId, userId);
+
+    logTableSessionLock("hook:release:immediate", { tableId, userId });
+
+    try {
+        await releaseMut({ variables: { tableId, userId } });
+    } catch (e: unknown) {
+        explicitlyReleasedSessionLockKeys.delete(key);
+        throw e;
     }
 }
 
@@ -49,7 +80,7 @@ function scheduleSessionLockRelease(opts: {
     }) => unknown;
 }) {
     const { tableId, userId, releaseMut } = opts;
-    const key = `${tableId}|${userId}`;
+    const key = sessionLockKey(tableId, userId);
     const existing = pendingReleaseTimersByLockKey.get(key);
     if (existing) clearTimeout(existing);
     pendingReleaseTimersByLockKey.set(
@@ -160,6 +191,15 @@ export function useTableSessionLock(opts: {
                 clearInterval(intervalId);
             }
             if (claimedSuccessfully) {
+                const key = sessionLockKey(tableId, userId);
+                if (explicitlyReleasedSessionLockKeys.has(key)) {
+                    explicitlyReleasedSessionLockKeys.delete(key);
+                    logTableSessionLock("hook:release:skip-already-released", {
+                        tableId,
+                        userId,
+                    });
+                    return;
+                }
                 logTableSessionLock("hook:release:unmount-scheduled", {
                     tableId,
                     debounceMs: SESSION_LOCK_RELEASE_DEBOUNCE_MS,

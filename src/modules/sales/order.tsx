@@ -5,6 +5,7 @@ import React, {
     useMemo,
     useCallback,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { useResponsive } from "../../hooks/useResponsive";
@@ -25,6 +26,7 @@ import {
     ADD_ITEMS_TO_OPERATION,
     UPDATE_TABLE_STATUS,
     PRINT_PRECUENTA,
+    RELEASE_TABLE_SESSION_LOCK,
 } from "../../graphql/mutations";
 import {
     GET_CATEGORIES_BY_BRANCH_LIGHT,
@@ -41,7 +43,11 @@ import ModalObservation from "./modalObservation";
 import CategoryIcon from "../../components/CategoryIcon";
 import { ComboSelectorModal } from "../../components/ComboSelectorModal";
 import VirtualKeyboard from "../../components/VirtualKeyboard";
-import { useTableSessionLock } from "../../hooks/useTableSessionLock";
+import {
+    useTableSessionLock,
+    isTableSessionLockApiEnabled,
+    releaseTableSessionLockImmediately,
+} from "../../hooks/useTableSessionLock";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
 import { getLocalTicketPrinterStorage } from "../../utils/localPrinterPreference";
 import {
@@ -260,11 +266,13 @@ const Order: React.FC<OrderProps> = ({
         getDeviceId,
         getMacAddress,
         updateTableInContext,
+        logout,
     } = useAuth();
     const { hasPermission } = useUserPermissions();
     const { breakpoint, width: viewportWidth } = useResponsive();
-    const { sendMessage } = useWebSocket();
+    const { sendMessage, disconnect } = useWebSocket();
     const { showToast } = useToast();
+    const navigate = useNavigate();
     /** Claim fallido en servidor → mismo modal que en el plano (sin toast rojo). */
     const [claimSessionDenied, setClaimSessionDenied] = useState(false);
     const isExistingOrder =
@@ -273,6 +281,7 @@ const Order: React.FC<OrderProps> = ({
         table?.status === "TO_PAY";
 
     const userRoleUpper = user?.role?.toUpperCase() ?? "";
+    const isMozo = userRoleUpper === "WAITER";
     const canNavigateToCashPay =
         userRoleUpper === "ADMIN" ||
         userRoleUpper === "CASHIER" ||
@@ -458,6 +467,56 @@ const Order: React.FC<OrderProps> = ({
     const [addItemsToOperationMutation] = useMutation(ADD_ITEMS_TO_OPERATION);
     const [updateTableStatusMutation] = useMutation(UPDATE_TABLE_STATUS);
     const [printPrecuentaMutation] = useMutation(PRINT_PRECUENTA);
+    const [releaseTableSessionLockMutation] = useMutation(
+        RELEASE_TABLE_SESSION_LOCK,
+    );
+
+    const completeOrderSave = useCallback(
+        async (payload?: OrderSuccessPayload) => {
+            if (onSuccess) {
+                onSuccess(payload);
+            }
+
+            if (isMozo) {
+                const tableId = table?.id;
+                const userId = user?.id ? String(user.id) : undefined;
+                if (tableId && userId && isTableSessionLockApiEnabled()) {
+                    try {
+                        await releaseTableSessionLockImmediately(
+                            releaseTableSessionLockMutation,
+                            tableId,
+                            userId,
+                        );
+                    } catch (error) {
+                        console.error(
+                            "Error al liberar candado de mesa del mozo:",
+                            error,
+                        );
+                    }
+                }
+                onClose();
+                disconnect();
+                logout();
+                navigate("/login-employee", { replace: true });
+                return;
+            }
+
+            setTimeout(() => {
+                onClose();
+            }, 500);
+        },
+        [
+            onSuccess,
+            onClose,
+            isMozo,
+            table?.id,
+            user?.id,
+            releaseTableSessionLockMutation,
+            disconnect,
+            logout,
+            navigate,
+        ],
+    );
 
     // Categorías sin subcategorías anidadas (menos peso al abrir mesa)
     const { data: categoriesData, loading: categoriesLoading } = useQuery(
@@ -1564,15 +1623,6 @@ const Order: React.FC<OrderProps> = ({
                         showToast(addMsg!, "warning");
                     }
 
-                    if (onSuccess) {
-                        const opId = existingOperation?.id ?? operationId;
-                        onSuccess({
-                            operationId: opId,
-                            operationDate:
-                                existingOperation?.operationDate ?? null,
-                        });
-                    }
-
                     setInitializedFromExistingOrder(false);
                     try {
                         await refetchExistingOperation();
@@ -1583,9 +1633,11 @@ const Order: React.FC<OrderProps> = ({
                         );
                     }
 
-                    setTimeout(() => {
-                        onClose();
-                    }, 500);
+                    await completeOrderSave({
+                        operationId: existingOperation?.id ?? operationId,
+                        operationDate:
+                            existingOperation?.operationDate ?? null,
+                    });
                 } else {
                     throw new Error(
                         result.data?.addItemsToOperation?.message ||
@@ -1900,20 +1952,17 @@ const Order: React.FC<OrderProps> = ({
                     // Continuar aunque falle la actualización de la mesa
                 }
 
-                if (onSuccess) {
-                    const newOpId = result.data.createOperation.operation?.id;
-                    if (newOpId != null && newOpId !== "") {
-                        onSuccess({
-                            operationId: newOpId,
-                            operationDate:
-                                result.data.createOperation.operation
-                                    ?.operationDate ?? null,
-                        });
-                    }
+                const newOpId = result.data.createOperation.operation?.id;
+                if (newOpId != null && newOpId !== "") {
+                    await completeOrderSave({
+                        operationId: newOpId,
+                        operationDate:
+                            result.data.createOperation.operation
+                                ?.operationDate ?? null,
+                    });
+                } else {
+                    await completeOrderSave();
                 }
-                setTimeout(() => {
-                    onClose();
-                }, 500);
             } else {
                 showToast(
                     result.data?.createOperation?.message ||

@@ -354,7 +354,6 @@ const EditProduct: React.FC<EditProductProps> = ({
         <div
             className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]"
             style={{ zIndex: 1000 }}
-            onClick={onClose}
         >
             <div
                 className="relative max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900"

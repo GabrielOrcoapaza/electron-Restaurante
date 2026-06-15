@@ -21,6 +21,7 @@ import {
     CANCEL_OPERATION,
     PRINT_PARTIAL_PRECUENTA,
     CREATE_PERSON,
+    RELEASE_TABLE_SESSION_LOCK,
 } from "../../graphql/mutations";
 import {
     GET_DOCUMENTS,
@@ -50,7 +51,11 @@ import type { IPromotion } from "../../types/promotions";
 import type { DocumentPreviewAction } from "../../utils/issuedDocumentPrintWithPreview";
 import { DocumentPrintPreviewModal } from "../../components/DocumentPrintPreviewModal";
 import { isElectronRenderer } from "../../utils/electronPrint";
-import { useTableSessionLock } from "../../hooks/useTableSessionLock";
+import {
+    useTableSessionLock,
+    isTableSessionLockApiEnabled,
+    releaseTableSessionLockImmediately,
+} from "../../hooks/useTableSessionLock";
 import { fetchSystemPrinters } from "../../utils/systemPrinters";
 import {
     getIntegratedPrinterCashUiEnabled,
@@ -356,6 +361,51 @@ const CashPay: React.FC<CashPayProps> = ({
         fetchPolicy: "cache-and-network",
     });
     const [transferItemsMutation] = useMutation(TRANSFER_ITEMS);
+    const [releaseTableSessionLockMutation] = useMutation(
+        RELEASE_TABLE_SESSION_LOCK,
+    );
+
+    const releaseOriginTableSessionLock = async (
+        tableId?: string | number | null,
+    ) => {
+        const tid =
+            tableId != null && String(tableId).trim() !== ""
+                ? String(tableId)
+                : table?.id
+                  ? String(table.id)
+                  : null;
+        const uid = user?.id ? String(user.id) : undefined;
+        if (!tid || !uid || !isTableSessionLockApiEnabled()) return;
+        try {
+            await releaseTableSessionLockImmediately(
+                releaseTableSessionLockMutation,
+                tid,
+                uid,
+            );
+        } catch (error) {
+            console.error("Error al liberar candado de mesa origen:", error);
+        }
+    };
+
+    const notifyTableStatusUpdate = (updatedTable: {
+        id: string | number;
+        status?: string | null;
+        currentOperationId?: string | number | null;
+        occupiedById?: string | number | null;
+        userName?: string | null;
+    }) => {
+        sendMessage({
+            type: "table_status_update",
+            table_id: updatedTable.id,
+            status: updatedTable.status ?? "AVAILABLE",
+            current_operation_id: updatedTable.currentOperationId ?? null,
+            occupied_by_user_id: updatedTable.occupiedById ?? null,
+            waiter_name: updatedTable.userName ?? null,
+        });
+        setTimeout(() => {
+            sendMessage({ type: "table_update_request" });
+        }, 500);
+    };
     const [cancelOperationDetailMutation] = useMutation(
         CANCEL_OPERATION_DETAIL,
     );
@@ -2225,8 +2275,45 @@ const CashPay: React.FC<CashPayProps> = ({
                 },
             });
             if (res.data?.transferItems?.success) {
+                const transferData = res.data.transferItems;
+                const oldTable = transferData.oldTable;
+                const fromOperation = transferData.fromOperation;
+                const remainingDetails = (fromOperation?.details ?? []).filter(
+                    (d: { isCanceled?: boolean }) => !d.isCanceled,
+                );
+                const originTableFreed =
+                    oldTable?.status === "AVAILABLE" ||
+                    oldTable?.currentOperationId == null ||
+                    remainingDetails.length === 0;
+
                 await refetch();
                 setShowTransferPlatesModal(false);
+
+                if (originTableFreed) {
+                    await releaseOriginTableSessionLock(
+                        oldTable?.id ?? table?.id,
+                    );
+                    if (oldTable && updateTableInContext) {
+                        updateTableInContext({
+                            id: oldTable.id,
+                            status: oldTable.status,
+                            currentOperationId:
+                                oldTable.currentOperationId ?? null,
+                            occupiedById: oldTable.occupiedById ?? null,
+                            userName: oldTable.userName ?? null,
+                        });
+                    }
+                    notifyTableStatusUpdate(
+                        oldTable ?? {
+                            id: table?.id ?? "",
+                            status: "AVAILABLE",
+                            currentOperationId: null,
+                            occupiedById: null,
+                            userName: null,
+                        },
+                    );
+                    onBack();
+                }
             }
         } catch (e: any) {
             showToast(e.message, "error");
@@ -2245,7 +2332,30 @@ const CashPay: React.FC<CashPayProps> = ({
                     branchId: companyData?.branch.id,
                 },
             });
-            if (res.data?.changeOperationTable?.success) onBack();
+            if (res.data?.changeOperationTable?.success) {
+                const changeData = res.data.changeOperationTable;
+                const oldTable = changeData.oldTable;
+                await releaseOriginTableSessionLock(oldTable?.id ?? table?.id);
+                if (oldTable && updateTableInContext) {
+                    updateTableInContext({
+                        id: oldTable.id,
+                        status: oldTable.status,
+                        currentOperationId: null,
+                        occupiedById: null,
+                        userName: null,
+                    });
+                }
+                notifyTableStatusUpdate(
+                    oldTable ?? {
+                        id: table?.id ?? "",
+                        status: "AVAILABLE",
+                        currentOperationId: null,
+                        occupiedById: null,
+                        userName: null,
+                    },
+                );
+                onBack();
+            }
         } catch (e: any) {
             showToast(e.message, "error");
         } finally {

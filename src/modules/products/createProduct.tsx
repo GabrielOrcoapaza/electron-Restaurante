@@ -299,7 +299,7 @@ const CreateProduct: React.FC<CreateProductProps> = ({
             style={{
                 zIndex: 1000,
             }}
-            onClick={onClose}
+            
         >
             <div
                 className="relative max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900"

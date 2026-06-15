@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, gql } from "@apollo/client";
-import { isTableSessionLockApiEnabled } from "../hooks/useTableSessionLock";
+import { isTableSessionLockApiEnabled, releaseTableSessionLockImmediately } from "../hooks/useTableSessionLock";
 import { useAuth } from "../hooks/useAuth";
 import { useResponsive } from "../hooks/useResponsive";
 import { useSwitchBranch } from "../hooks/useSwitchBranch";
@@ -546,12 +546,11 @@ const LayoutDashboardContent: React.FC = () => {
             lastCashTableIdRef.current = null;
             if (tid && uid && isTableSessionLockApiEnabled()) {
                 try {
-                    await releaseTableSessionLockMutation({
-                        variables: {
-                            tableId: tid,
-                            userId: String(uid),
-                        },
-                    });
+                    await releaseTableSessionLockImmediately(
+                        releaseTableSessionLockMutation,
+                        tid,
+                        String(uid),
+                    );
                 } catch {
                     /* el desmontaje de CashPay puede programar otro release */
                 }
@@ -583,9 +582,11 @@ const LayoutDashboardContent: React.FC = () => {
         lastCashTableIdRef.current = null;
         if (t?.id && uid && isTableSessionLockApiEnabled()) {
             try {
-                await releaseTableSessionLockMutation({
-                    variables: { tableId: t.id, userId: String(uid) },
-                });
+                await releaseTableSessionLockImmediately(
+                    releaseTableSessionLockMutation,
+                    String(t.id),
+                    String(uid),
+                );
             } catch {
                 /* noop */
             }
