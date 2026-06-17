@@ -78,9 +78,7 @@ const TableUpdateModal: React.FC<TableUpdateModalProps> = ({ table, onClose, onU
   return (
     <div
       className="fixed inset-0 z-[12000] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-300"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+     
     >
       <div
         className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-300 dark:bg-slate-900"

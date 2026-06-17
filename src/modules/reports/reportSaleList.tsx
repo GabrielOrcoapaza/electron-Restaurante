@@ -15,6 +15,11 @@ import {
     issuedDocumentPdfFilename,
 } from "../../utils/buildIssuedDocumentReportJson";
 import { downloadIssuedDocumentPdf } from "../../utils/downloadIssuedDocumentPdf";
+import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
+import {
+    getIntegratedPrinterCashUiEnabled,
+    getLocalTicketPrinterStorage,
+} from "../../utils/localPrinterPreference";
 
 interface IssuedDocument {
     id: string;
@@ -195,33 +200,21 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
         return map[code] || description || code;
     };
 
-    const [reprintDocument, { loading: reprinting }] = useMutation(
-        REPRINT_DOCUMENT,
-        {
-            onCompleted: (data) => {
-                const result = data?.reprintDocument;
-                if (result?.success) {
-                    setPrintMessage({ type: "success", text: result.message });
-                } else {
-                    setPrintMessage({
-                        type: "error",
-                        text: result?.message || "Error al imprimir",
-                    });
-                }
-                setPrintingDocId(null);
-                setTimeout(() => setPrintMessage(null), 4000);
-            },
-            onError: (err) => {
-                const msg = err.graphQLErrors?.[0]?.message || err.message;
-                setPrintMessage({
-                    type: "error",
-                    text: msg || "Error al enviar a la impresora",
-                });
-                setPrintingDocId(null);
-                setTimeout(() => setPrintMessage(null), 4000);
-            },
-        },
-    );
+    const [reprintDocument, { loading: reprinting }] =
+        useMutation(REPRINT_DOCUMENT);
+
+    const preferLocalUsbPrint = () =>
+        getIntegratedPrinterCashUiEnabled() ||
+        Boolean(getLocalTicketPrinterStorage().trim()) ||
+        isElectron;
+
+    const resolveReprintPrintPayload = (doc: IssuedDocument) => {
+        if (!preferLocalUsbPrint()) return null;
+        return {
+            printLocally: true,
+            documentData: buildIssuedDocumentReportJson(doc, companyData),
+        };
+    };
 
     const [reopenOrderFromAnnulledDocument, { loading: reopening }] =
         useMutation(REOPEN_ORDER_FROM_ANNULLED_DOCUMENT, {
@@ -469,27 +462,101 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
             setTimeout(() => setPrintMessage(null), 4000);
             return;
         }
+
         setPrintingDocId(doc.id);
-        console.log("Documento a reimprimir:", {
-            operationId: doc.operation?.id || null,
-            issuedDocumentId: doc.id,
-            documentType: getReprintDocumentType(
+        setPrintMessage(null);
+
+        try {
+            const documentType = getReprintDocumentType(
                 doc.document.code,
                 doc.document.description,
-            ),
-            deviceId: resolvedDeviceId,
-        });
-        reprintDocument({
-            variables: {
+            );
+
+            console.log("Documento a reimprimir:", {
                 operationId: doc.operation?.id || null,
                 issuedDocumentId: doc.id,
-                documentType: getReprintDocumentType(
-                    doc.document.code,
-                    doc.document.description,
-                ),
+                documentType,
                 deviceId: resolvedDeviceId,
-            },
-        });
+            });
+
+            const { data } = await reprintDocument({
+                variables: {
+                    operationId: doc.operation?.id || null,
+                    issuedDocumentId: doc.id,
+                    documentType,
+                    deviceId: resolvedDeviceId,
+                },
+            });
+
+            const result = data?.reprintDocument as
+                | Record<string, unknown>
+                | null
+                | undefined;
+
+            if (!result?.success) {
+                setPrintMessage({
+                    type: "error",
+                    text: String(result?.message || "Error al imprimir"),
+                });
+                return;
+            }
+
+            const localPrintPayload = resolveReprintPrintPayload(doc);
+            if (localPrintPayload) {
+                const localPrintOk = await invokeLocalIssuedDocumentPrint(
+                    localPrintPayload,
+                    {
+                        label: "reimpresión reporte ventas",
+                        operationId: doc.operation?.id ?? null,
+                        deviceId: resolvedDeviceId,
+                        localPrinterName:
+                            getLocalTicketPrinterStorage().trim() || null,
+                    },
+                );
+
+                if (!localPrintOk) {
+                    setPrintMessage({
+                        type: "error",
+                        text:
+                            "El documento se registró para reimpresión, pero no se pudo enviar a la impresora USB/local. Revise la impresora en Configuración → Impresoras locales.",
+                    });
+                    return;
+                }
+
+                setPrintMessage({
+                    type: "success",
+                    text:
+                        String(result.message || "").trim() ||
+                        "Documento reimpreso en la impresora local.",
+                });
+                return;
+            }
+
+            setPrintMessage({
+                type: "success",
+                text: String(result.message || "Documento enviado a impresión."),
+            });
+        } catch (err: unknown) {
+            const graphQLError =
+                err &&
+                typeof err === "object" &&
+                "graphQLErrors" in err &&
+                Array.isArray(
+                    (err as { graphQLErrors?: Array<{ message?: string }> })
+                        .graphQLErrors,
+                )
+                    ? (err as { graphQLErrors: Array<{ message?: string }> })
+                          .graphQLErrors[0]?.message
+                    : undefined;
+            const msg =
+                graphQLError ||
+                (err instanceof Error ? err.message : undefined) ||
+                "Error al enviar a la impresora";
+            setPrintMessage({ type: "error", text: msg });
+        } finally {
+            setPrintingDocId(null);
+            setTimeout(() => setPrintMessage(null), 5000);
+        }
     };
 
     const cancellationReasonsList = [

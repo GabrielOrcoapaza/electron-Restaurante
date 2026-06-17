@@ -163,6 +163,30 @@ const CashPay: React.FC<CashPayProps> = ({
     const isNarrow = isXs || isSmall || isMedium;
     const isElectron = isElectronRenderer();
 
+    const cashModalOverlayClass =
+        "fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4";
+    const cashModalPanelClass =
+        "w-full max-w-[300px] rounded-lg border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
+    const cashModalPanelWideClass =
+        "w-full max-w-[380px] rounded-lg border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
+    const cashModalTitleClass =
+        "mb-3 text-base font-semibold text-slate-900 dark:text-slate-100";
+    const cashModalTextClass =
+        "mb-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400";
+    const cashModalLabelClass =
+        "mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300";
+    const cashModalSelectClass =
+        "mb-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
+    const cashModalTextareaClass =
+        "mb-4 w-full min-h-[72px] resize-y rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500";
+    const cashModalActionsClass = "flex gap-2";
+    const cashModalBtnSecondaryClass =
+        "flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700";
+    const cashModalBtnPrimaryClass =
+        "flex-1 rounded-md bg-sky-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-700 dark:bg-sky-600 dark:hover:bg-sky-500";
+    const cashModalBtnDangerClass =
+        "flex-1 rounded-md bg-red-600 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-400 dark:disabled:bg-slate-600";
+
     /**
      * device_id para impresión/backend: MAC en Electron (SumApp), getDeviceId() como respaldo.
      */
@@ -3675,30 +3699,13 @@ const CashPay: React.FC<CashPayProps> = ({
             </main>
 
             {showChangeTableModal && (
-                <div
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0,0,0,0.5)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        zIndex: 1000,
-                    }}
-                >
-                    <div
-                        style={{
-                            background: "white",
-                            padding: "1.5rem",
-                            borderRadius: "8px",
-                            width: "300px",
-                        }}
-                    >
-                        <h3>Cambiar Mesa</h3>
+                <div className={cashModalOverlayClass}>
+                    <div className={cashModalPanelClass}>
+                        <h3 className={cashModalTitleClass}>Cambiar Mesa</h3>
                         <select
                             value={selectedFloorId}
                             onChange={(e) => setSelectedFloorId(e.target.value)}
-                            style={{ width: "100%", marginBottom: "0.5rem" }}
+                            className={cashModalSelectClass}
                         >
                             <option value="">Piso...</option>
                             {floorsData?.floorsByBranch.map((f: any) => (
@@ -3710,7 +3717,7 @@ const CashPay: React.FC<CashPayProps> = ({
                         <select
                             value={selectedTableId}
                             onChange={(e) => setSelectedTableId(e.target.value)}
-                            style={{ width: "100%", marginBottom: "1rem" }}
+                            className={`${cashModalSelectClass} mb-4`}
                         >
                             <option value="">Mesa...</option>
                             {tablesData?.tablesByFloor.map((t: any) => (
@@ -3719,16 +3726,18 @@ const CashPay: React.FC<CashPayProps> = ({
                                 </option>
                             ))}
                         </select>
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <div className={cashModalActionsClass}>
                             <button
+                                type="button"
                                 onClick={() => setShowChangeTableModal(false)}
-                                style={{ flex: 1 }}
+                                className={cashModalBtnSecondaryClass}
                             >
                                 Volver
                             </button>
                             <button
+                                type="button"
                                 onClick={handleChangeTable}
-                                style={{ flex: 1 }}
+                                className={cashModalBtnPrimaryClass}
                             >
                                 Cambiar
                             </button>
@@ -3738,32 +3747,15 @@ const CashPay: React.FC<CashPayProps> = ({
             )}
 
             {showTransferPlatesModal && (
-                <div
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0,0,0,0.5)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        zIndex: 1000,
-                    }}
-                >
-                    <div
-                        style={{
-                            background: "white",
-                            padding: "1.5rem",
-                            borderRadius: "8px",
-                            width: "300px",
-                        }}
-                    >
-                        <h3>Transferir Platos</h3>
+                <div className={cashModalOverlayClass}>
+                    <div className={cashModalPanelClass}>
+                        <h3 className={cashModalTitleClass}>Transferir Platos</h3>
                         <select
                             value={selectedTransferFloorId}
                             onChange={(e) =>
                                 setSelectedTransferFloorId(e.target.value)
                             }
-                            style={{ width: "100%", marginBottom: "0.5rem" }}
+                            className={cashModalSelectClass}
                         >
                             <option value="">Piso...</option>
                             {transferFloorsData?.floorsByBranch.map(
@@ -3779,7 +3771,7 @@ const CashPay: React.FC<CashPayProps> = ({
                             onChange={(e) =>
                                 setSelectedTransferTableId(e.target.value)
                             }
-                            style={{ width: "100%", marginBottom: "1rem" }}
+                            className={`${cashModalSelectClass} mb-4`}
                         >
                             <option value="">Mesa destino...</option>
                             {transferTablesData?.tablesByFloor.map((t: any) => (
@@ -3788,18 +3780,20 @@ const CashPay: React.FC<CashPayProps> = ({
                                 </option>
                             ))}
                         </select>
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <div className={cashModalActionsClass}>
                             <button
+                                type="button"
                                 onClick={() =>
                                     setShowTransferPlatesModal(false)
                                 }
-                                style={{ flex: 1 }}
+                                className={cashModalBtnSecondaryClass}
                             >
                                 Cerrar
                             </button>
                             <button
+                                type="button"
                                 onClick={handleTransferPlates}
-                                style={{ flex: 1 }}
+                                className={cashModalBtnPrimaryClass}
                             >
                                 Transferir
                             </button>
@@ -3809,30 +3803,13 @@ const CashPay: React.FC<CashPayProps> = ({
             )}
 
             {showChangeUserModal && (
-                <div
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0,0,0,0.5)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        zIndex: 1000,
-                    }}
-                >
-                    <div
-                        style={{
-                            background: "white",
-                            padding: "1.5rem",
-                            borderRadius: "8px",
-                            width: "300px",
-                        }}
-                    >
-                        <h3>Cambiar Mozo</h3>
+                <div className={cashModalOverlayClass}>
+                    <div className={cashModalPanelClass}>
+                        <h3 className={cashModalTitleClass}>Cambiar Mozo</h3>
                         <select
                             value={selectedUserId}
                             onChange={(e) => setSelectedUserId(e.target.value)}
-                            style={{ width: "100%", marginBottom: "1rem" }}
+                            className={`${cashModalSelectClass} mb-4`}
                         >
                             <option value="">Mozo...</option>
                             {availableUsers.map((u: any) => (
@@ -3841,16 +3818,18 @@ const CashPay: React.FC<CashPayProps> = ({
                                 </option>
                             ))}
                         </select>
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <div className={cashModalActionsClass}>
                             <button
+                                type="button"
                                 onClick={() => setShowChangeUserModal(false)}
-                                style={{ flex: 1 }}
+                                className={cashModalBtnSecondaryClass}
                             >
                                 Cerrar
                             </button>
                             <button
+                                type="button"
                                 onClick={handleChangeUser}
-                                style={{ flex: 1 }}
+                                className={cashModalBtnPrimaryClass}
                             >
                                 Cambiar
                             </button>
@@ -3864,49 +3843,24 @@ const CashPay: React.FC<CashPayProps> = ({
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="delete-item-modal-title"
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0,0,0,0.5)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        zIndex: 1000,
-                    }}
+                    className={cashModalOverlayClass}
                     onClick={closeDeleteItemModal}
                 >
                     <div
-                        style={{
-                            background: "white",
-                            padding: "1.5rem",
-                            borderRadius: "8px",
-                            width: "min(380px, calc(100vw - 2rem))",
-                            boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
-                        }}
+                        className={cashModalPanelWideClass}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <h3
                             id="delete-item-modal-title"
-                            style={{
-                                margin: "0 0 0.75rem",
-                                fontSize: "1.05rem",
-                                color: "#0f172a",
-                            }}
+                            className={cashModalTitleClass}
                         >
                             Quitar producto
                         </h3>
-                        <p
-                            style={{
-                                margin: "0 0 0.75rem",
-                                fontSize: "0.875rem",
-                                lineHeight: 1.5,
-                                color: "#475569",
-                            }}
-                        >
+                        <p className={cashModalTextClass}>
                             {pendingDeleteItem.removalIsPartial ? (
                                 <>
                                     ¿Quitar{" "}
-                                    <strong>
+                                    <strong className="text-slate-800 dark:text-slate-200">
                                         {pendingDeleteItem.rowQuantity === 1
                                             ? "1 unidad"
                                             : `${pendingDeleteItem.rowQuantity} unidades`}
@@ -3917,7 +3871,7 @@ const CashPay: React.FC<CashPayProps> = ({
                             ) : (
                                 <>
                                     ¿Quitar por completo «
-                                    <strong>
+                                    <strong className="text-slate-800 dark:text-slate-200">
                                         {pendingDeleteItem.productLabel}
                                     </strong>
                                     » de la orden?
@@ -3926,13 +3880,7 @@ const CashPay: React.FC<CashPayProps> = ({
                         </p>
                         <label
                             htmlFor="delete-item-reason"
-                            style={{
-                                display: "block",
-                                fontSize: "0.8rem",
-                                fontWeight: 600,
-                                color: "#334155",
-                                marginBottom: "0.35rem",
-                            }}
+                            className={cashModalLabelClass}
                         >
                             Motivo (obligatorio)
                         </label>
@@ -3947,34 +3895,14 @@ const CashPay: React.FC<CashPayProps> = ({
                             aria-required="true"
                             disabled={isRemovingItem}
                             rows={3}
-                            style={{
-                                width: "100%",
-                                boxSizing: "border-box",
-                                marginBottom: "1rem",
-                                padding: "0.5rem 0.65rem",
-                                fontSize: "0.875rem",
-                                borderRadius: "6px",
-                                border: "1px solid #cbd5e1",
-                                resize: "vertical",
-                                minHeight: "72px",
-                            }}
+                            className={cashModalTextareaClass}
                         />
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <div className={cashModalActionsClass}>
                             <button
                                 type="button"
                                 onClick={closeDeleteItemModal}
                                 disabled={isRemovingItem}
-                                style={{
-                                    flex: 1,
-                                    padding: "0.5rem",
-                                    border: "1px solid #cbd5e1",
-                                    borderRadius: "6px",
-                                    background: "white",
-                                    cursor: isRemovingItem
-                                        ? "not-allowed"
-                                        : "pointer",
-                                    fontWeight: 600,
-                                }}
+                                className={cashModalBtnSecondaryClass}
                             >
                                 Cancelar
                             </button>
@@ -3982,20 +3910,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                 type="button"
                                 onClick={handleConfirmRemoveItem}
                                 disabled={isRemovingItem}
-                                style={{
-                                    flex: 1,
-                                    padding: "0.5rem",
-                                    border: "none",
-                                    borderRadius: "6px",
-                                    background: isRemovingItem
-                                        ? "#94a3b8"
-                                        : "#dc2626",
-                                    color: "white",
-                                    cursor: isRemovingItem
-                                        ? "not-allowed"
-                                        : "pointer",
-                                    fontWeight: 700,
-                                }}
+                                className={cashModalBtnDangerClass}
                             >
                                 {isRemovingItem ? "Quitando…" : "Quitar"}
                             </button>
@@ -4005,44 +3920,15 @@ const CashPay: React.FC<CashPayProps> = ({
             )}
 
             {showCancelOperationModal && (
-                <div
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0,0,0,0.5)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        zIndex: 1000,
-                    }}
-                >
-                    <div
-                        style={{
-                            background: "white",
-                            padding: "1.5rem",
-                            borderRadius: "8px",
-                            width: "min(380px, calc(100vw - 2rem))",
-                        }}
-                    >
-                        <h3 style={{ margin: "0 0 0.5rem" }}>Anular orden</h3>
-                        <p
-                            style={{
-                                margin: "0 0 0.75rem",
-                                fontSize: "0.875rem",
-                                color: "#64748b",
-                            }}
-                        >
+                <div className={cashModalOverlayClass}>
+                    <div className={cashModalPanelWideClass}>
+                        <h3 className={cashModalTitleClass}>Anular orden</h3>
+                        <p className={cashModalTextClass}>
                             Debes indicar por qué se anula la orden.
                         </p>
                         <label
                             htmlFor="cancel-operation-reason"
-                            style={{
-                                display: "block",
-                                fontSize: "0.8rem",
-                                fontWeight: 600,
-                                color: "#334155",
-                                marginBottom: "0.35rem",
-                            }}
+                            className={cashModalLabelClass}
                         >
                             Motivo (obligatorio)
                         </label>
@@ -4056,18 +3942,10 @@ const CashPay: React.FC<CashPayProps> = ({
                             required
                             aria-required="true"
                             disabled={isProcessing}
-                            style={{
-                                width: "100%",
-                                height: "88px",
-                                marginBottom: "1rem",
-                                padding: "0.5rem 0.65rem",
-                                fontSize: "0.875rem",
-                                borderRadius: "6px",
-                                border: "1px solid #cbd5e1",
-                                boxSizing: "border-box",
-                            }}
+                            rows={3}
+                            className={cashModalTextareaClass}
                         />
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <div className={cashModalActionsClass}>
                             <button
                                 type="button"
                                 onClick={() => {
@@ -4075,7 +3953,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                     setCancellationReason("");
                                 }}
                                 disabled={isProcessing}
-                                style={{ flex: 1 }}
+                                className={cashModalBtnSecondaryClass}
                             >
                                 Cerrar
                             </button>
@@ -4083,16 +3961,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                 type="button"
                                 onClick={handleCancelOperation}
                                 disabled={isProcessing}
-                                style={{
-                                    flex: 1,
-                                    background: "#dc2626",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: "6px",
-                                    cursor: isProcessing
-                                        ? "not-allowed"
-                                        : "pointer",
-                                }}
+                                className={cashModalBtnDangerClass}
                             >
                                 {isProcessing ? "Anulando…" : "Anular"}
                             </button>
