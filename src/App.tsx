@@ -15,6 +15,7 @@ import FullMenuPage from "./home/landing/FullMenuPage";
 import AppShell from "./components/AppShell";
 import LoginKitchen from "./modules/kitchen/LoginKitchen";
 import KitchenScreen from "./modules/kitchen/KitchenScreen";
+import PromotionsScreen from "./modules/kitchen/PromotionsScreen";
 import "./App.css";
 
 const isElectron = navigator.userAgent.toLowerCase().includes("electron");
@@ -96,6 +97,15 @@ const AppRoutes = () => {
                     element={
                         <ProtectedKitchenRoute>
                             <KitchenScreen />
+                        </ProtectedKitchenRoute>
+                    }
+                />
+
+                <Route
+                    path="/promotions"
+                    element={
+                        <ProtectedKitchenRoute>
+                            <PromotionsScreen />
                         </ProtectedKitchenRoute>
                     }
                 />

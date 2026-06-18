@@ -565,29 +565,29 @@ colors: {
 
 - [x] **Integrar WebSocketContext en KitchenContext** (actualización en tiempo real de items)
 - [x] **Query inicial GET_PENDING_KITCHEN_ITEMS**
-- [ ] **Filtrado por displayCategories del cocinero** (pendiente)
+- [x] **Filtrado por displayCategories del cocinero** (Completada!)
 
-### Fase 3 — KitchenScreen y vistas (En curso)
+### Fase 3 — KitchenScreen y vistas (Completada!)
 
 - [x] **Crear KitchenScreen.tsx** (pantalla principal de cocina)
 - [x] **ByOrderView** y **ByItemView** (integradas en KitchenScreen)
-- [ ] **ByGroupView** (pendiente)
-- [ ] **ItemCard completo** con timer, badges, combo components (pendiente)
-- [ ] **QuantityPickerDialog y ConfirmDialog** (pendiente)
-- [ ] **Filtros de categoría y piso** (colapsables, pendiente)
-- [ ] **TopBar y BottomBar de cocina** (pendiente)
-- [ ] **BroadcastBanner** (pendiente)
-- [x] **Mutations de marcado** (integradas en KitchenContext, pendiente de probar)
+- [x] **ByGroupView** (Completada!)
+- [x] **ItemCard completo** con timer, badges, combo components (Completada!)
+- [x] **QuantityPickerDialog y ConfirmDialog** (Completada!)
+- [x] **Filtros de categoría y piso** (Completada!)
+- [x] **TopBar y BottomBar de cocina** (Completada!)
+- [x] **BroadcastBanner** (Completada!)
+- [x] **Mutations de marcado** (integradas en KitchenContext)
 
-### Fase 4 — TTS y notificaciones web (Pendiente)
+### Fase 4 — TTS y notificaciones web (Completada!)
 
-- [ ] **useTts hook con Web Speech API** (pendiente)
-- [ ] **Notificaciones Web** (pendiente)
+- [x] **useTts hook con Web Speech API** (Completada!)
+- [x] **Notificaciones Web** (Completada!)
 
-### Fase 5 — PromotionsScreen (Pendiente)
+### Fase 5 — PromotionsScreen (Completada!)
 
-- [ ] **PromotionsScreen** (pantalla de promociones activas, pendiente)
-- [ ] **Query GetActivePromotions** (pendiente)
+- [x] **PromotionsScreen** (pantalla de promociones activas, completada)
+- [x] **Query GetActivePromotions** (ya existía, completada)
 
 ---
 

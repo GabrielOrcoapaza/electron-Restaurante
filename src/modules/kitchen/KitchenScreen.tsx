@@ -480,6 +480,12 @@ const KitchenScreen: React.FC = () => {
 
                 {/* View Switcher */}
                 <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate("/promotions")}
+                        className="px-4 py-2 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center gap-2 bg-[#1A2E45] text-[#FF6F00] hover:bg-[#1E3A5F]"
+                    >
+                        🏷️ Promociones
+                    </button>
                     <div className="flex bg-[#060E1F] rounded-xl p-1 border border-[#2A3F5F]">
                         <button
                             onClick={() => setActiveView("byOrder")}

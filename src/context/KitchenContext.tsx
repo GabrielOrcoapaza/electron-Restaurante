@@ -87,6 +87,7 @@ export interface KitchenContextType {
     activeView: KitchenViewType;
     isAuthenticated: boolean;
     displayCategories: Array<{ id: string; name: string; color?: string }>;
+    kitchenBranchId: string | null;
     // TTS
     ttsIsSupported: boolean;
     ttsIsSpeaking: boolean;
@@ -188,10 +189,15 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
                 }
 
                 if (permission === "granted") {
-                    new Notification(title, {
+                    const notification = new Notification(title, {
                         body,
-                        icon: "/favicon.ico", // O una URL a un ícono
+                        icon: "/public/SumApp.ico",
                     });
+
+                    // Cerrar la notificación al hacer clic
+                    notification.onclick = () => {
+                        notification.close();
+                    };
                 }
             } catch (err) {
                 console.error("Error al enviar notificación:", err);
@@ -491,6 +497,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
             activeView,
             isAuthenticated,
             displayCategories,
+            kitchenBranchId,
             // TTS
             ttsIsSupported: tts.isSupported,
             ttsIsSpeaking: tts.isSpeaking,
@@ -522,6 +529,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
             activeView,
             isAuthenticated,
             displayCategories,
+            kitchenBranchId,
             tts,
             notificationsSupported,
             sendNotification,
