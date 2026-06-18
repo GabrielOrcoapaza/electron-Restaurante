@@ -8,6 +8,7 @@ import React, {
     useMemo,
 } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { isTokenExpired } from "../utils/jwt";
 
 // Tipos para los mensajes del WebSocket
 export interface WebSocketMessage {
@@ -57,6 +58,14 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     const subscribersRef = useRef<
         Map<string, Set<(message: WebSocketMessage) => void>>
     >(new Map());
+
+    // Obtener datos de autenticación de cocina desde localStorage
+    const getKitchenAuthData = useCallback(() => {
+        const kitchenToken = localStorage.getItem("kitchenToken");
+        const kitchenBranchId = localStorage.getItem("kitchenBranchId");
+        const kitchenUserId = localStorage.getItem("kitchenUserId");
+        return { kitchenToken, kitchenBranchId, kitchenUserId };
+    }, []);
 
     // Función para suscribirse a eventos
     const subscribe = useCallback(
@@ -131,29 +140,40 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     // Guardar la URL actual para evitar reconexiones innecesarias
     const lastWsUrlRef = useRef<string>("");
 
-    // Helper para verificar si un token JWT ha expirado
-    const isTokenExpired = useCallback((jwtToken: string | null): boolean => {
-        if (!jwtToken) return true;
-        try {
-            const parts = jwtToken.split(".");
-            if (parts.length !== 3) return true;
-            const payload = JSON.parse(atob(parts[1]));
-            const now = Math.floor(Date.now() / 1000);
-            return payload.exp < now;
-        } catch (e) {
-            return true;
-        }
-    }, []);
-
     const connectWebSocket = useCallback(() => {
-        if (!companyData?.branch.id || !user?.id) {
+        // Obtener datos de cocina desde localStorage
+        const { kitchenToken, kitchenBranchId, kitchenUserId } =
+            getKitchenAuthData();
+
+        // Determinar qué datos usar (preferir datos de cocina si existen)
+        let effectiveBranchId: string | null = null;
+        let effectiveUserId: string | null = null;
+        let tokenToUse: string | null = null;
+        let isKitchenMode = false;
+
+        if (kitchenToken && kitchenBranchId && kitchenUserId) {
+            // Modo cocina
+            effectiveBranchId = kitchenBranchId;
+            effectiveUserId = kitchenUserId;
+            tokenToUse = kitchenToken;
+            isKitchenMode = true;
+            console.log("🍳 WebSocket en modo COCINA");
+        } else if (token && companyData?.branch.id && user?.id) {
+            // Modo normal
+            effectiveBranchId = companyData.branch.id;
+            effectiveUserId = user.id;
+            tokenToUse = token;
+            console.log("📱 WebSocket en modo NORMAL");
+        } else {
+            // No hay datos suficientes
             return;
         }
 
-        let tokenToUse = token || localStorage.getItem("token");
         if (!tokenToUse || isTokenExpired(tokenToUse)) {
             if (tokenToUse && isTokenExpired(tokenToUse)) {
-                console.warn("🚫 WebSocket: Token expirado, no se intentará conectar.");
+                console.warn(
+                    "🚫 WebSocket: Token expirado, no se intentará conectar.",
+                );
             }
             return;
         }
@@ -165,7 +185,20 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
             wSocketBaseUrl += "/";
         }
 
-        const wsUrl = `${wSocketBaseUrl}?token=${encodeURIComponent(tokenToUse)}`;
+        // Construir URL según el modo
+        let wsUrl: string;
+        if (isKitchenMode) {
+            // Modo cocina: /ws/restaurant/<branchId>/
+            wsUrl = `${wSocketBaseUrl}${effectiveBranchId}/?token=${encodeURIComponent(tokenToUse)}`;
+        } else {
+            // Modo normal: URL original
+            wsUrl = `${wSocketBaseUrl}?token=${encodeURIComponent(tokenToUse)}`;
+        }
+
+        console.log(
+            "🌐 WebSocket URL:",
+            wsUrl.replace(encodeURIComponent(tokenToUse), "TOKEN_OCULTO"),
+        );
 
         // Si ya hay una conexión a la MISMA URL, no hacer nada
         if (
@@ -246,7 +279,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                 console.log("✅ WebSocket OPEN");
                 console.log(
                     "✅ WebSocket conectado para branch:",
-                    companyData.branch.id,
+                    effectiveBranchId,
                 );
                 setIsConnected(true);
                 reconnectAttemptsRef.current = 0;
@@ -383,10 +416,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
             unmountTimeoutRef.current = null;
         }
 
-        // Solo conectar si tenemos los datos necesarios
-        if (companyData?.branch.id && user?.id && token) {
-            connectWebSocket();
-        }
+        // Intentar conectar (connectWebSocket ya verifica qué datos usar)
+        connectWebSocket();
 
         // Cleanup
         return () => {
@@ -418,6 +449,42 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
             }, 100); // 100ms es suficiente para cubrir el doble mount de React 18
         };
     }, [connectWebSocket, companyData?.branch.id, user?.id, token]);
+
+    // Efecto adicional para escuchar cambios en localStorage (datos de cocina)
+    useEffect(() => {
+        const handleStorageChange = (e: StorageEvent) => {
+            if (
+                e.key === "kitchenToken" ||
+                e.key === "kitchenBranchId" ||
+                e.key === "kitchenUserId"
+            ) {
+                console.log(
+                    "🔄 Datos de cocina cambiados en localStorage, reconectando WebSocket...",
+                );
+                connectWebSocket();
+            }
+        };
+
+        window.addEventListener("storage", handleStorageChange);
+
+        // Verificar cada 500ms si los datos de cocina han cambiado (para cambios en la misma pestaña)
+        let lastKitchenToken = localStorage.getItem("kitchenToken");
+        const interval = setInterval(() => {
+            const currentKitchenToken = localStorage.getItem("kitchenToken");
+            if (currentKitchenToken !== lastKitchenToken) {
+                console.log(
+                    "🔄 Datos de cocina cambiados en la misma pestaña, reconectando WebSocket...",
+                );
+                lastKitchenToken = currentKitchenToken;
+                connectWebSocket();
+            }
+        }, 500);
+
+        return () => {
+            window.removeEventListener("storage", handleStorageChange);
+            clearInterval(interval);
+        };
+    }, [connectWebSocket]);
 
     const value: WebSocketContextType = useMemo(
         () => ({
