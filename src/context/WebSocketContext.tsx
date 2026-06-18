@@ -147,21 +147,18 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // Determinar qué datos usar (preferir datos de cocina si existen)
         let effectiveBranchId: string | null = null;
-        let effectiveUserId: string | null = null;
         let tokenToUse: string | null = null;
         let isKitchenMode = false;
 
         if (kitchenToken && kitchenBranchId && kitchenUserId) {
             // Modo cocina
             effectiveBranchId = kitchenBranchId;
-            effectiveUserId = kitchenUserId;
             tokenToUse = kitchenToken;
             isKitchenMode = true;
             console.log("🍳 WebSocket en modo COCINA");
         } else if (token && companyData?.branch.id && user?.id) {
             // Modo normal
             effectiveBranchId = companyData.branch.id;
-            effectiveUserId = user.id;
             tokenToUse = token;
             console.log("📱 WebSocket en modo NORMAL");
         } else {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@apollo/client";
 import { GET_ACTIVE_PROMOTIONS } from "../../graphql/queries";
@@ -31,16 +31,6 @@ const getPromotionBadge = (type: string) => {
     return badges[type] || type;
 };
 
-const formatDate = (dateString?: string) => {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("es-ES", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-    });
-};
-
 const PromotionsScreen: React.FC = () => {
     const navigate = useNavigate();
     const { kitchenBranchId } = useKitchen();
@@ -53,7 +43,7 @@ const PromotionsScreen: React.FC = () => {
 
     const promotions: Promotion[] = useMemo(
         () => data?.activePromotions || [],
-        [data]
+        [data],
     );
 
     return (
@@ -139,7 +129,9 @@ const PromotionsScreen: React.FC = () => {
 
                                 <div className="mb-3 flex items-center gap-2">
                                     <span className="rounded-full bg-[#FF6F00] px-3 py-1 text-xs font-bold uppercase">
-                                        {getPromotionBadge(promotion.promotionType)}
+                                        {getPromotionBadge(
+                                            promotion.promotionType,
+                                        )}
                                     </span>
                                 </div>
 
@@ -148,19 +140,23 @@ const PromotionsScreen: React.FC = () => {
                                 </h3>
 
                                 <div className="mb-4 space-y-1 text-sm text-[#8A9BBE]">
-                                    {promotion.promotionType === "PERCENTAGE" && (
+                                    {promotion.promotionType ===
+                                        "PERCENTAGE" && (
                                         <p className="text-3xl font-bold text-[#4CAF50]">
                                             -{promotion.discountPercent}%
                                         </p>
                                     )}
-                                    {promotion.promotionType === "FIXED_AMOUNT" && (
+                                    {promotion.promotionType ===
+                                        "FIXED_AMOUNT" && (
                                         <p className="text-3xl font-bold text-[#4CAF50]">
                                             -${promotion.discountAmount}
                                         </p>
                                     )}
-                                    {promotion.promotionType === "BUY_X_GET_Y" && (
+                                    {promotion.promotionType ===
+                                        "BUY_X_GET_Y" && (
                                         <p className="text-3xl font-bold text-[#4CAF50]">
-                                            ¡{promotion.buyQuantity}x{promotion.getQuantity}!
+                                            ¡{promotion.buyQuantity}x
+                                            {promotion.getQuantity}!
                                         </p>
                                     )}
                                     {promotion.promotionType === "GIFT" && (
@@ -173,7 +169,8 @@ const PromotionsScreen: React.FC = () => {
 
                                 {promotion.minPurchaseAmount && (
                                     <p className="mb-2 text-xs text-[#8A9BBE]">
-                                        Compra mínima: ${promotion.minPurchaseAmount}
+                                        Compra mínima: $
+                                        {promotion.minPurchaseAmount}
                                     </p>
                                 )}
                             </div>
