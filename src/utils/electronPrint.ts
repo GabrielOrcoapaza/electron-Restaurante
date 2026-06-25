@@ -9,6 +9,10 @@ export const PRINT_JSON_DOCUMENT_DIALOG_CHANNEL =
 export const DOCUMENT_JSON_TO_PDF_CHANNEL = "document-json-to-pdf" as const;
 export const DOCUMENT_JSON_TO_HTML_CHANNEL = "document-json-to-html" as const;
 export const DOWNLOAD_DOCUMENT_PDF_CHANNEL = "download-document-pdf" as const;
+export const OPEN_EXTERNAL_URL_CHANNEL = "open-external-url" as const;
+export const DOWNLOAD_OFFICIAL_DOCUMENT_PDF_CHANNEL =
+	"download-official-document-pdf" as const;
+export const DOWNLOAD_REMOTE_FILE_CHANNEL = "download-remote-file" as const;
 
 export type PrintJsonDocumentResult = { ok: boolean; message?: string };
 export type PrintJsonDocumentDialogResult = {
@@ -28,6 +32,20 @@ export type DocumentJsonToHtmlResult = {
 	message?: string;
 };
 export type DownloadDocumentPdfResult = {
+	ok: boolean;
+	path?: string;
+	message?: string;
+};
+export type OpenExternalUrlResult = {
+	ok: boolean;
+	message?: string;
+};
+export type DownloadOfficialDocumentPdfResult = {
+	ok: boolean;
+	path?: string;
+	message?: string;
+};
+export type DownloadRemoteFileResult = {
 	ok: boolean;
 	path?: string;
 	message?: string;
@@ -146,4 +164,44 @@ export async function invokeElectronDownloadDocumentPdf(
 		documentJson,
 		filename,
 	}) as Promise<DownloadDocumentPdfResult>;
+}
+
+export async function invokeElectronOpenExternalUrl(
+	url: string,
+): Promise<OpenExternalUrlResult> {
+	const ipc = getElectronIpcRenderer();
+	if (!ipc) {
+		return { ok: false, message: "No es entorno Electron." };
+	}
+	return ipc.invoke(OPEN_EXTERNAL_URL_CHANNEL, { url }) as Promise<OpenExternalUrlResult>;
+}
+
+export async function invokeElectronDownloadOfficialDocumentPdf(
+	url: string,
+	filename: string,
+	fallbackHtml?: string | null,
+): Promise<DownloadOfficialDocumentPdfResult> {
+	const ipc = getElectronIpcRenderer();
+	if (!ipc) {
+		return { ok: false, message: "No es entorno Electron." };
+	}
+	return ipc.invoke(DOWNLOAD_OFFICIAL_DOCUMENT_PDF_CHANNEL, {
+		url,
+		filename,
+		fallbackHtml: fallbackHtml?.trim() || null,
+	}) as Promise<DownloadOfficialDocumentPdfResult>;
+}
+
+export async function invokeElectronDownloadRemoteFile(
+	url: string,
+	filename: string,
+): Promise<DownloadRemoteFileResult> {
+	const ipc = getElectronIpcRenderer();
+	if (!ipc) {
+		return { ok: false, message: "No es entorno Electron." };
+	}
+	return ipc.invoke(DOWNLOAD_REMOTE_FILE_CHANNEL, {
+		url,
+		filename,
+	}) as Promise<DownloadRemoteFileResult>;
 }

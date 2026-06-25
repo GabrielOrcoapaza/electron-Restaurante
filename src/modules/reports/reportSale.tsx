@@ -19,7 +19,11 @@ interface SalesReportSummary {
 interface IssuedDocument {
     id: string;
     serial: string;
-    number: string;
+    number: string | number;
+    cdrPath?: string | null;
+    signedXmlPath?: string | null;
+    xmlPath?: string | null;
+    sunatOperationId?: string | number | null;
     emissionDate: string;
     emissionTime: string;
     totalAmount: number;
@@ -27,6 +31,7 @@ interface IssuedDocument {
     globalDiscount?: number;
     globalDiscountPercent?: number;
     igvAmount: number;
+    hashCode?: string | null;
     billingStatus: string;
     notes?: string;
     document: {
@@ -61,6 +66,7 @@ interface IssuedDocument {
     items: Array<{
         id: string;
         quantity: number;
+        unitValue?: number;
         unitPrice: number;
         total: number;
         notes?: string;

@@ -28,6 +28,10 @@ interface ComboSelectorModalProps {
 interface ChoiceGroup {
     key: string;
     title: string;
+    /** Cuántos platos debe elegir el usuario en este grupo */
+    requiredPickCount: number;
+    /** pick_many: menú (subcategoría/categoría); pick_one: producto fijo del combo */
+    pickMode: "pick_many" | "pick_one";
     /** scopeId → cantidad requerida, para mapear al confirmar */
     scopeByProductId: Map<string, { scopeId: string; quantity: number }>;
 }
@@ -57,6 +61,12 @@ function scopeGroupTitle(scope: ComboScope): string {
     );
 }
 
+function scopeRequiredQuantity(scope: ComboScope): number {
+    const qty = Number(scope.requiredQuantity);
+    if (!Number.isFinite(qty) || qty < 1) return 1;
+    return Math.floor(qty);
+}
+
 /** Agrupa scopes de producto fijo que comparten subcategoría en un solo grupo de elección */
 function buildChoiceGroups(scopes: ComboScope[]): ChoiceGroup[] {
     const groups: ChoiceGroup[] = [];
@@ -67,6 +77,8 @@ function buildChoiceGroups(scopes: ComboScope[]): ChoiceGroup[] {
             groups.push({
                 key: scope.id,
                 title: scopeGroupTitle(scope),
+                requiredPickCount: scopeRequiredQuantity(scope),
+                pickMode: "pick_many",
                 scopeByProductId: new Map(),
             });
             continue;
@@ -93,6 +105,8 @@ function buildChoiceGroups(scopes: ComboScope[]): ChoiceGroup[] {
             productBuckets.set(subKey, {
                 key: `product-group-${subKey}`,
                 title: bucketTitle,
+                requiredPickCount: 1,
+                pickMode: "pick_one",
                 scopeByProductId: new Map(),
             });
         }
@@ -100,7 +114,7 @@ function buildChoiceGroups(scopes: ComboScope[]): ChoiceGroup[] {
         const bucket = productBuckets.get(subKey)!;
         bucket.scopeByProductId.set(String(scope.product.id), {
             scopeId: scope.id,
-            quantity: scope.requiredQuantity,
+            quantity: scopeRequiredQuantity(scope),
         });
     }
 
@@ -122,9 +136,9 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
     const [loadingGroups, setLoadingGroups] = useState<Record<string, boolean>>(
         {},
     );
-    const [selectedByGroup, setSelectedByGroup] = useState<Record<string, any>>(
-        {},
-    );
+    const [selectedByGroup, setSelectedByGroup] = useState<
+        Record<string, ComboListProduct[]>
+    >({});
 
     const { data, loading } = useQuery(GET_ACTIVE_COMBOS, {
         variables: { branchId },
@@ -264,18 +278,48 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
         };
     }, [selectedComboId, combos]);
 
-    const handleSelectProduct = useCallback((groupKey: string, product: ComboListProduct) => {
-        if (!isProductOrderable(product)) return;
-        setSelectedByGroup((prev) => {
-            const current = prev[groupKey];
-            if (current && sameId(current.id, product.id)) {
-                const next = { ...prev };
-                delete next[groupKey];
-                return next;
-            }
-            return { ...prev, [groupKey]: product };
-        });
-    }, []);
+    const handleSelectProduct = useCallback(
+        (groupKey: string, product: ComboListProduct, group: ChoiceGroup) => {
+            if (!isProductOrderable(product)) return;
+            setSelectedByGroup((prev) => {
+                const current = prev[groupKey] ?? [];
+
+                if (group.pickMode === "pick_one") {
+                    const only = current[0];
+                    if (only && sameId(only.id, product.id)) {
+                        return { ...prev, [groupKey]: [] };
+                    }
+                    return { ...prev, [groupKey]: [product] };
+                }
+
+                if (current.length >= group.requiredPickCount) {
+                    return prev;
+                }
+                return { ...prev, [groupKey]: [...current, product] };
+            });
+        },
+        [],
+    );
+
+    const handleRemoveSelection = useCallback(
+        (groupKey: string, index: number) => {
+            setSelectedByGroup((prev) => {
+                const current = prev[groupKey] ?? [];
+                if (index < 0 || index >= current.length) return prev;
+                const next = current.filter((_, i) => i !== index);
+                return { ...prev, [groupKey]: next };
+            });
+        },
+        [],
+    );
+
+    const groupSelectionComplete = useCallback(
+        (group: ChoiceGroup) => {
+            const selections = selectedByGroup[group.key] ?? [];
+            return selections.length === group.requiredPickCount;
+        },
+        [selectedByGroup],
+    );
 
     const groupHasSelectable = useCallback(
         (group: ChoiceGroup) =>
@@ -288,7 +332,7 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
     const allSelected =
         choiceGroups.length > 0 &&
         choiceGroups.every(
-            (g) => !groupHasSelectable(g) || selectedByGroup[g.key],
+            (g) => !groupHasSelectable(g) || groupSelectionComplete(g),
         );
 
     const canConfirm =
@@ -303,25 +347,47 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
         const components: ComboComponentSelection[] = [];
 
         for (const group of choiceGroups) {
-            const product = selectedByGroup[group.key];
-            if (!product) continue;
+            const selections = selectedByGroup[group.key] ?? [];
+            if (selections.length === 0) continue;
 
-            const mapping = group.scopeByProductId.get(String(product.id));
-            const scopeId = mapping?.scopeId ?? group.key;
-            const scope = scopesById.get(scopeId);
-            const quantity = mapping?.quantity ?? scope?.requiredQuantity ?? 1;
+            if (group.pickMode === "pick_one") {
+                const product = selections[0];
+                const mapping = group.scopeByProductId.get(String(product.id));
+                const scopeId = mapping?.scopeId ?? group.key;
+                const scope = scopesById.get(scopeId);
+                const quantity =
+                    mapping?.quantity ?? scope?.requiredQuantity ?? 1;
 
-            components.push({
-                scopeId,
-                scopeLabel:
-                    scope?.scopeLabel || scope?.label || group.title || "",
-                product: {
-                    id: product.id,
-                    name: product.name,
-                    salePrice: Number(product.salePrice) || 0,
-                },
-                quantity,
-            });
+                components.push({
+                    scopeId,
+                    scopeLabel:
+                        scope?.scopeLabel || scope?.label || group.title || "",
+                    product: {
+                        id: product.id!,
+                        name: product.name ?? "",
+                        salePrice: Number(product.salePrice) || 0,
+                    },
+                    quantity,
+                });
+                continue;
+            }
+
+            for (const product of selections) {
+                const scopeId = group.key;
+                const scope = scopesById.get(scopeId);
+
+                components.push({
+                    scopeId,
+                    scopeLabel:
+                        scope?.scopeLabel || scope?.label || group.title || "",
+                    product: {
+                        id: product.id!,
+                        name: product.name ?? "",
+                        salePrice: Number(product.salePrice) || 0,
+                    },
+                    quantity: 1,
+                });
+            }
         }
 
         onConfirm(activeCombo, components);
@@ -420,6 +486,14 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                                 const selectableProducts = products.filter((p) =>
                                     isProductOrderable(p),
                                 );
+                                const selections = selectedByGroup[group.key] ?? [];
+                                const pickLabel =
+                                    group.requiredPickCount === 1
+                                        ? "(elige 1)"
+                                        : `(elige ${group.requiredPickCount})`;
+                                const atMaxSelections =
+                                    group.pickMode === "pick_many" &&
+                                    selections.length >= group.requiredPickCount;
 
                                 const renderProductStock = (
                                     product: ComboListProduct,
@@ -433,16 +507,68 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                                     );
                                 };
 
+                                const selectionCountForProduct = (
+                                    product: ComboListProduct,
+                                ) =>
+                                    selections.filter((s) =>
+                                        sameId(s.id, product.id),
+                                    ).length;
+
                                 return (
                                     <div key={group.key} className="space-y-2">
-                                        <h4 className="font-semibold text-slate-200">
-                                            {group.title}
-                                            {multiChoice && (
-                                                <span className="ml-2 text-xs font-normal text-slate-400">
-                                                    (elige 1)
-                                                </span>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h4 className="font-semibold text-slate-200">
+                                                {group.title}
+                                                {(multiChoice ||
+                                                    group.requiredPickCount >
+                                                        1) && (
+                                                    <span className="ml-2 text-xs font-normal text-slate-400">
+                                                        {pickLabel}
+                                                    </span>
+                                                )}
+                                            </h4>
+                                            {group.pickMode === "pick_many" &&
+                                                group.requiredPickCount > 1 && (
+                                                    <span
+                                                        className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                                                            groupSelectionComplete(
+                                                                group,
+                                                            )
+                                                                ? "bg-emerald-500/20 text-emerald-300"
+                                                                : "bg-slate-700 text-slate-300"
+                                                        }`}
+                                                    >
+                                                        {selections.length}/
+                                                        {group.requiredPickCount}
+                                                    </span>
+                                                )}
+                                        </div>
+                                        {selections.length > 0 &&
+                                            group.pickMode === "pick_many" &&
+                                            group.requiredPickCount > 1 && (
+                                                <div className="flex flex-wrap gap-2">
+                                                    {selections.map(
+                                                        (product, index) => (
+                                                            <button
+                                                                type="button"
+                                                                key={`${product.id}-${index}`}
+                                                                onClick={() =>
+                                                                    handleRemoveSelection(
+                                                                        group.key,
+                                                                        index,
+                                                                    )
+                                                                }
+                                                                className="inline-flex items-center gap-1 rounded-full border border-orange-500/40 bg-orange-500/10 px-2.5 py-1 text-xs font-semibold text-orange-200 hover:bg-orange-500/20"
+                                                            >
+                                                                {product.name}
+                                                                <span className="text-orange-300">
+                                                                    ✕
+                                                                </span>
+                                                            </button>
+                                                        ),
+                                                    )}
+                                                </div>
                                             )}
-                                        </h4>
                                         {loadingGroups[group.key] ? (
                                             <div className="rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3 text-sm text-slate-400">
                                                 Cargando opciones...
@@ -478,26 +604,34 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                                         ) : (
                                             <div className="grid gap-2">
                                                 {products.map((product) => {
-                                                    const isSelected = sameId(
-                                                        selectedByGroup[group.key]
-                                                            ?.id,
-                                                        product.id,
-                                                    );
+                                                    const pickedCount =
+                                                        selectionCountForProduct(
+                                                            product,
+                                                        );
+                                                    const isSelected =
+                                                        pickedCount > 0;
                                                     const outOfStock =
                                                         !isProductOrderable(
                                                             product,
                                                         );
+                                                    const disabledAdd =
+                                                        outOfStock ||
+                                                        (group.pickMode ===
+                                                            "pick_many" &&
+                                                            atMaxSelections &&
+                                                            pickedCount === 0);
                                                     return (
                                                         <button
                                                             type="button"
                                                             key={product.id}
                                                             disabled={
-                                                                outOfStock
+                                                                disabledAdd
                                                             }
                                                             onClick={() =>
                                                                 handleSelectProduct(
                                                                     group.key,
                                                                     product,
+                                                                    group,
                                                                 )
                                                             }
                                                             className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-all ${
@@ -505,7 +639,9 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                                                                     ? "cursor-not-allowed border-slate-700 bg-slate-800/40 opacity-60"
                                                                     : isSelected
                                                                       ? "cursor-pointer border-orange-500 bg-orange-500/20 ring-2 ring-orange-500/40 active:scale-[0.99]"
-                                                                      : "cursor-pointer border-slate-600 bg-slate-800 hover:border-orange-400 hover:bg-slate-700 active:scale-[0.99]"
+                                                                      : disabledAdd
+                                                                        ? "cursor-not-allowed border-slate-700 bg-slate-800/40 opacity-50"
+                                                                        : "cursor-pointer border-slate-600 bg-slate-800 hover:border-orange-400 hover:bg-slate-700 active:scale-[0.99]"
                                                             }`}
                                                         >
                                                             <div className="flex min-w-0 items-center gap-3">
@@ -519,11 +655,19 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                                                                     }`}
                                                                 >
                                                                     {isSelected &&
-                                                                        !outOfStock && (
+                                                                        !outOfStock &&
+                                                                        (pickedCount >
+                                                                        1 ? (
+                                                                            <span className="text-[10px] leading-none font-bold">
+                                                                                {
+                                                                                    pickedCount
+                                                                                }
+                                                                            </span>
+                                                                        ) : (
                                                                             <span className="text-xs leading-none">
                                                                                 ✓
                                                                             </span>
-                                                                        )}
+                                                                        ))}
                                                                 </span>
                                                                 <div className="flex min-w-0 flex-col gap-0.5">
                                                                     <span

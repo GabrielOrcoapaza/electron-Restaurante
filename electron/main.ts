@@ -1,7 +1,7 @@
 import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
-import { app, BrowserWindow, session, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, session, dialog, ipcMain, shell } from "electron";
 import type { WebContentsPrintOptions } from "electron";
 import { autoUpdater } from "electron-updater";
 import log from "electron-log";
@@ -10,6 +10,7 @@ import { documentDataJsonToHtml } from "./documentToPrintHtml";
 import { net } from "electron";
 import { registerPrintHandler } from "./printHandler";
 import { registerDocumentPreviewHandler } from "./documentPreviewHandler";
+import { registerSunatDownloadHandler } from "./sunatDownloadHandler";
 
 type AppRuntimeConfig = {
     graphqlUrl?: string;
@@ -177,6 +178,32 @@ function createWindow() {
     });
 
     mainWindowRef = mainWindow;
+
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        const target = String(url || "").trim();
+        if (!target || target === "about:blank") {
+            return { action: "allow" };
+        }
+        if (isDev && target.startsWith("http://localhost:5173")) {
+            return { action: "allow" };
+        }
+        shell.openExternal(target).catch((err) => {
+            log.warn("[main] openExternal falló:", err);
+        });
+        return { action: "deny" };
+    });
+
+    mainWindow.webContents.on("will-navigate", (event, navigationUrl) => {
+        const allowed = isDev
+            ? navigationUrl.startsWith("http://localhost:5173")
+            : navigationUrl.startsWith("file://");
+        if (!allowed) {
+            event.preventDefault();
+            shell.openExternal(navigationUrl).catch((err) => {
+                log.warn("[main] will-navigate openExternal falló:", err);
+            });
+        }
+    });
 
     // Maximizar la ventana cuando esté lista
     mainWindow.once("ready-to-show", () => {
@@ -508,6 +535,7 @@ function registerIpcHandlers(): void {
 
     registerPrintHandler();
     registerDocumentPreviewHandler();
+    registerSunatDownloadHandler();
 
     ipcMain.removeHandler("check-for-updates");
     ipcMain.handle("check-for-updates", async () => {
@@ -537,7 +565,7 @@ function registerIpcHandlers(): void {
     });
 
     log.info(
-        "[main] Handlers IPC registrados: get-system-printers, print-json-document, print-json-document-dialog, document-json-to-pdf, document-json-to-html, download-document-pdf, check-for-updates",
+        "[main] Handlers IPC registrados: get-system-printers, print-json-document, print-json-document-dialog, document-json-to-pdf, document-json-to-html, download-document-pdf, open-external-url, download-official-document-pdf, download-remote-file, check-for-updates",
     );
 }
 if (isDev) {

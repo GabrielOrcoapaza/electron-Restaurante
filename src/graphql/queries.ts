@@ -1152,6 +1152,10 @@ export const GET_SALES_REPORT = gql`
                 id
                 serial
                 number
+                cdrPath
+                signedXmlPath
+                xmlPath
+                sunatOperationId
                 emissionDate
                 emissionTime
                 totalAmount
@@ -1160,6 +1164,7 @@ export const GET_SALES_REPORT = gql`
                 globalDiscountPercent
                 billingStatus
                 igvAmount
+                hashCode
                 notes
                 document {
                     id

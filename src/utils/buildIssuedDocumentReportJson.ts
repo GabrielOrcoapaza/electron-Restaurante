@@ -8,7 +8,7 @@ import type { CompanyData } from "../context/AuthContext";
 
 export type IssuedDocumentReportSource = {
     serial: string;
-    number: string;
+    number: string | number;
     emissionDate: string;
     emissionTime: string;
     totalAmount: number;
@@ -16,6 +16,7 @@ export type IssuedDocumentReportSource = {
     globalDiscount?: number;
     globalDiscountPercent?: number;
     igvAmount: number;
+    hashCode?: string | null;
     billingStatus?: string;
     document: {
         code: string;
@@ -32,12 +33,14 @@ export type IssuedDocumentReportSource = {
     } | null;
     items: Array<{
         quantity: number;
+        unitValue?: number;
         unitPrice: number;
         total: number;
         notes?: string;
         operationDetail?: {
             notes?: string;
             product?: {
+                code?: string;
                 name: string;
             };
         };
@@ -67,9 +70,9 @@ function reportDocumentTypeLabel(
     return d ? d.toUpperCase() : "NOTA DE VENTA";
 }
 
-function formatDocNumber(serial: string, number: string): string {
+function formatDocNumber(serial: string, number: string | number): string {
     const s = String(serial || "").trim();
-    const n = String(number || "").trim();
+    const n = String(number ?? "").trim();
     const padded = n.padStart(6, "0");
     return `N° ${s}-${padded}`;
 }

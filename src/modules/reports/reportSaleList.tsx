@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useMutation } from "@apollo/client";
 import {
     CANCEL_ISSUED_DOCUMENT,
@@ -15,6 +15,17 @@ import {
     issuedDocumentPdfFilename,
 } from "../../utils/buildIssuedDocumentReportJson";
 import { downloadIssuedDocumentPdf } from "../../utils/downloadIssuedDocumentPdf";
+import {
+    buildIssuedDocumentSunatUrls,
+    buildPrintInvoiceUrl,
+    canDownloadSunatXmlFiles,
+    canOpenOfficialIssuedDocument,
+    downloadIssuedDocumentSunatFile,
+    downloadOfficialIssuedDocumentPdf,
+    isElectronicBillingDocumentCode,
+    officialDocumentUnavailableMessage,
+    resolvePrintInvoiceId,
+} from "../../utils/issuedDocumentSunatUrls";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
 import {
     getIntegratedPrinterCashUiEnabled,
@@ -24,7 +35,11 @@ import {
 interface IssuedDocument {
     id: string;
     serial: string;
-    number: string;
+    number: string | number;
+    cdrPath?: string | null;
+    signedXmlPath?: string | null;
+    xmlPath?: string | null;
+    sunatOperationId?: string | number | null;
     emissionDate: string;
     emissionTime: string;
     totalAmount: number;
@@ -32,6 +47,7 @@ interface IssuedDocument {
     globalDiscount?: number;
     globalDiscountPercent?: number;
     igvAmount: number;
+    hashCode?: string | null;
     billingStatus: string;
     notes?: string;
     document: {
@@ -66,6 +82,7 @@ interface IssuedDocument {
     items: Array<{
         id: string;
         quantity: number;
+        unitValue?: number;
         unitPrice: number;
         total: number;
         notes?: string;
@@ -175,6 +192,10 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     const [downloadingDocId, setDownloadingDocId] = useState<string | null>(
         null,
     );
+    const [downloadMenuDocId, setDownloadMenuDocId] = useState<string | null>(
+        null,
+    );
+    const downloadMenuRef = useRef<HTMLDivElement | null>(null);
     const [showConvertModal, setShowConvertModal] = useState(false);
     const [documentToConvert, setDocumentToConvert] =
         useState<IssuedDocument | null>(null);
@@ -187,6 +208,20 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     React.useEffect(() => {
         setLocalDocuments(documents);
     }, [documents]);
+
+    useEffect(() => {
+        if (!downloadMenuDocId) return;
+        const onPointerDown = (event: MouseEvent) => {
+            if (
+                downloadMenuRef.current &&
+                !downloadMenuRef.current.contains(event.target as Node)
+            ) {
+                setDownloadMenuDocId(null);
+            }
+        };
+        document.addEventListener("mousedown", onPointerDown);
+        return () => document.removeEventListener("mousedown", onPointerDown);
+    }, [downloadMenuDocId]);
 
     const getReprintDocumentType = (
         code: string,
@@ -417,15 +452,29 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
         e: React.MouseEvent,
     ) => {
         e.stopPropagation();
+        setDownloadMenuDocId(null);
         setDownloadingDocId(doc.id);
         setPrintMessage(null);
 
         try {
-            const documentJson = buildIssuedDocumentReportJson(doc, companyData);
-            const result = await downloadIssuedDocumentPdf(
-                documentJson,
-                issuedDocumentPdfFilename(doc),
-            );
+            let result: { ok: boolean; message?: string };
+
+            if (isElectronicBillingDocumentCode(doc.document.code)) {
+                result = await downloadOfficialIssuedDocumentPdf(
+                    doc,
+                    issuedDocumentPdfFilename(doc),
+                    companyData,
+                );
+            } else {
+                const documentJson = buildIssuedDocumentReportJson(
+                    doc,
+                    companyData,
+                );
+                result = await downloadIssuedDocumentPdf(
+                    documentJson,
+                    issuedDocumentPdfFilename(doc),
+                );
+            }
 
             if (result.ok) {
                 setPrintMessage({
@@ -449,6 +498,127 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
             setTimeout(() => setPrintMessage(null), 5000);
         }
     };
+
+    const handleDownloadSunatFile = async (
+        doc: IssuedDocument,
+        kind: "pdf" | "cdr" | "xml",
+        e: React.MouseEvent,
+    ) => {
+        e.stopPropagation();
+        setDownloadMenuDocId(null);
+        setPrintMessage(null);
+
+        const label =
+            kind === "pdf"
+                ? "PDF oficial (SUNAT)"
+                : kind === "cdr"
+                  ? "CDR (XML)"
+                  : "XML firmado";
+
+        if (kind === "pdf") {
+            const printInvoiceUrl = buildPrintInvoiceUrl(doc);
+            if (!printInvoiceUrl) {
+                setPrintMessage({
+                    type: "error",
+                    text: officialDocumentUnavailableMessage(doc),
+                });
+                setTimeout(() => setPrintMessage(null), 5000);
+                return;
+            }
+
+            console.log("[Reporte ventas - descarga PDF oficial]", {
+                issuedDocumentLocalId: doc.id,
+                sunatOperationId: doc.sunatOperationId ?? null,
+                printInvoiceOperationId: resolvePrintInvoiceId(doc),
+                printInvoiceUrl,
+                serial: doc.serial,
+                number: doc.number,
+                documentCode: doc.document.code,
+            });
+
+            setDownloadingDocId(doc.id);
+            try {
+                const result = await downloadOfficialIssuedDocumentPdf(
+                    doc,
+                    issuedDocumentPdfFilename(doc),
+                    companyData,
+                );
+                setPrintMessage({
+                    type: result.ok ? "success" : "error",
+                    text:
+                        result.message ||
+                        (result.ok
+                            ? `${label} descargado: ${doc.serial}-${doc.number}`
+                            : "No se pudo descargar el PDF oficial."),
+                });
+            } catch (error) {
+                const msg =
+                    error instanceof Error
+                        ? error.message
+                        : "Error al descargar comprobante";
+                setPrintMessage({ type: "error", text: msg });
+            } finally {
+                setDownloadingDocId(null);
+                setTimeout(() => setPrintMessage(null), 5000);
+            }
+            return;
+        }
+
+        const urls = buildIssuedDocumentSunatUrls(
+            doc,
+            companyData?.company?.ruc,
+        );
+        if (!urls) {
+            setPrintMessage({
+                type: "error",
+                text: "No se pudieron generar las URLs del comprobante electrónico.",
+            });
+            setTimeout(() => setPrintMessage(null), 5000);
+            return;
+        }
+
+        const targetUrl =
+            kind === "cdr" ? urls.cdrXmlUrl : urls.signedXmlUrl;
+
+        console.log("[Reporte ventas - descarga tuf4ctur4]", {
+            kind,
+            issuedDocumentLocalId: doc.id,
+            sunatOperationId: doc.sunatOperationId ?? null,
+            printInvoiceOperationId: urls.printInvoiceOperationId,
+            companyRuc: urls.companyRuc,
+            serial: doc.serial,
+            number: doc.number,
+            fileBaseName: urls.fileBaseName,
+            cdrPath: doc.cdrPath ?? null,
+            signedXmlPath: doc.signedXmlPath ?? null,
+            printInvoiceUrl: urls.printInvoiceUrl,
+            url: targetUrl,
+            isElectron,
+        });
+
+        setDownloadingDocId(doc.id);
+        try {
+            const result = await downloadIssuedDocumentSunatFile(urls, kind);
+            setPrintMessage({
+                type: result.ok ? "success" : "error",
+                text:
+                    result.message ||
+                    (result.ok
+                        ? `${label}: ${doc.serial}-${doc.number}`
+                        : `No se pudo descargar ${label.toLowerCase()}.`),
+            });
+        } catch (error) {
+            const msg =
+                error instanceof Error ? error.message : "Error al descargar";
+            setPrintMessage({ type: "error", text: msg });
+        } finally {
+            setDownloadingDocId(null);
+            setTimeout(() => setPrintMessage(null), 5000);
+        }
+    };
+
+    const canDownloadSunatXml = (doc: IssuedDocument): boolean =>
+        canDownloadSunatXmlFiles(doc, companyData?.company?.ruc);
 
     const handleReprint = async (doc: IssuedDocument, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -720,32 +890,158 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                     </div>
 
                                     <div className="flex items-center gap-2">
-                                        <button
-                                            type="button"
-                                            title="Descargar PDF"
-                                            onClick={(e) =>
-                                                handleDownloadPdf(doc, e)
+                                        <div
+                                            ref={
+                                                downloadMenuDocId === doc.id
+                                                    ? downloadMenuRef
+                                                    : null
                                             }
-                                            disabled={
-                                                downloadingDocId === doc.id
-                                            }
-                                            className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600 transition-all hover:bg-rose-600 hover:text-white disabled:opacity-50 dark:bg-rose-900/20 dark:text-rose-400"
+                                            className="relative"
                                         >
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                className={`h-5 w-5 ${downloadingDocId === doc.id ? "animate-pulse" : ""}`}
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
+                                            <button
+                                                type="button"
+                                                title="Descargar comprobante"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setDownloadMenuDocId((prev) =>
+                                                        prev === doc.id
+                                                            ? null
+                                                            : doc.id,
+                                                    );
+                                                }}
+                                                disabled={
+                                                    downloadingDocId === doc.id
+                                                }
+                                                className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600 transition-all hover:bg-rose-600 hover:text-white disabled:opacity-50 dark:bg-rose-900/20 dark:text-rose-400"
                                             >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                                />
-                                            </svg>
-                                        </button>
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    className={`h-5 w-5 ${downloadingDocId === doc.id ? "animate-pulse" : ""}`}
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth={2}
+                                                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                                    />
+                                                </svg>
+                                            </button>
+
+                                            {downloadMenuDocId === doc.id && (
+                                                <div className="absolute right-0 top-11 z-30 min-w-[240px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                                                    {canOpenOfficialIssuedDocument(
+                                                        doc,
+                                                    ) ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) =>
+                                                                handleDownloadSunatFile(
+                                                                    doc,
+                                                                    "pdf",
+                                                                    e,
+                                                                )
+                                                            }
+                                                            className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-rose-50 hover:text-rose-700 dark:text-slate-200 dark:hover:bg-rose-900/20 dark:hover:text-rose-300"
+                                                        >
+                                                            <span>📄</span>
+                                                            <span>
+                                                                Descargar PDF
+                                                                A4 (SUNAT)
+                                                            </span>
+                                                        </button>
+                                                    ) : null}
+                                                    {canDownloadSunatXml(doc) ? (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) =>
+                                                                    handleDownloadSunatFile(
+                                                                        doc,
+                                                                        "cdr",
+                                                                        e,
+                                                                    )
+                                                                }
+                                                                className={`flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-rose-50 hover:text-rose-700 dark:text-slate-200 dark:hover:bg-rose-900/20 dark:hover:text-rose-300 ${
+                                                                    canOpenOfficialIssuedDocument(
+                                                                        doc,
+                                                                    )
+                                                                        ? "border-t border-slate-100 dark:border-slate-800"
+                                                                        : ""
+                                                                }`}
+                                                            >
+                                                                <span>📋</span>
+                                                                <span>
+                                                                    CDR (XML)
+                                                                </span>
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) =>
+                                                                    handleDownloadSunatFile(
+                                                                        doc,
+                                                                        "xml",
+                                                                        e,
+                                                                    )
+                                                                }
+                                                                className="flex w-full items-center gap-2 border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-rose-50 hover:text-rose-700 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-rose-900/20 dark:hover:text-rose-300"
+                                                            >
+                                                                <span>🧾</span>
+                                                                <span>
+                                                                    XML firmado
+                                                                </span>
+                                                            </button>
+                                                        </>
+                                                    ) : null}
+                                                    {isElectron && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) =>
+                                                                handleDownloadPdf(
+                                                                    doc,
+                                                                    e,
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                downloadingDocId ===
+                                                                doc.id
+                                                            }
+                                                            className={`flex w-full items-center gap-2 px-4 py-3 text-left text-xs font-semibold text-slate-500 transition hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800 ${
+                                                                canOpenOfficialIssuedDocument(
+                                                                    doc,
+                                                                ) ||
+                                                                canDownloadSunatXml(
+                                                                    doc,
+                                                                )
+                                                                    ? "border-t border-slate-100 dark:border-slate-800"
+                                                                    : ""
+                                                            }`}
+                                                        >
+                                                            <span>💾</span>
+                                                            <span>
+                                                                PDF del reporte
+                                                                (SumApp)
+                                                            </span>
+                                                        </button>
+                                                    )}
+                                                    {!canOpenOfficialIssuedDocument(
+                                                        doc,
+                                                    ) &&
+                                                        !canDownloadSunatXml(
+                                                            doc,
+                                                        ) &&
+                                                        !isElectron && (
+                                                            <div className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                                                No hay opciones
+                                                                de descarga para
+                                                                este documento.
+                                                            </div>
+                                                        )}
+                                                </div>
+                                            )}
+                                        </div>
 
                                         {isElectron && (
                                             <button

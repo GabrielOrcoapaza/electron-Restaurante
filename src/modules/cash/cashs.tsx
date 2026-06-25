@@ -19,8 +19,20 @@ import CashDetailModal from "./cashDetailModal";
 import ConfirmModal from "../../components/ConfirmModal";
 import { useToast } from "../../context/ToastContext";
 import { isElectronRenderer } from "../../utils/electronPrint";
+import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
+import { getLocalTicketPrinterStorage } from "../../utils/localPrinterPreference";
 
 const isElectron = isElectronRenderer();
+
+const LOG_CASH_PRINT = "[Cierre de caja - impresión]";
+
+function logCashPrint(msg: string, extra?: unknown) {
+    if (extra !== undefined) {
+        console.log(`${LOG_CASH_PRINT} ${msg}`, extra);
+    } else {
+        console.log(`${LOG_CASH_PRINT} ${msg}`);
+    }
+}
 
 interface CashRegister {
     id: string;
@@ -213,6 +225,16 @@ const Cashs: React.FC = () => {
         try {
             setConfirmLoading(true);
             const deviceId = await getMacAddress();
+            const localPrinterName =
+                getLocalTicketPrinterStorage().trim() || null;
+
+            logCashPrint("inicio cierre de caja", {
+                registerId,
+                deviceId,
+                localPrinterName,
+                isElectron,
+            });
+
             const result = await closeCashRegister({
                 variables: {
                     cashRegisterId: registerId,
@@ -221,13 +243,69 @@ const Cashs: React.FC = () => {
                     deviceId,
                 },
             });
+
+            logCashPrint("respuesta closeCash (raw)", result.data?.closeCash);
+
             if (result.data?.closeCash?.success) {
-                showToast("Caja cerrada correctamente", "success");
+                const closeResult = result.data
+                    .closeCash as typeof result.data.closeCash & {
+                    print_locally?: boolean;
+                    document_data?: string | null;
+                };
+                const printLocallyFlag =
+                    closeResult?.printLocally === true ||
+                    closeResult?.print_locally === true;
+                const docData =
+                    closeResult?.documentData ??
+                    closeResult?.document_data ??
+                    null;
+
+                logCashPrint("datos impresión del servidor", {
+                    printLocally: printLocallyFlag,
+                    documentDataChars:
+                        docData != null && String(docData).trim() !== ""
+                            ? String(docData).length
+                            : 0,
+                    ruta: printLocallyFlag
+                        ? "LOCAL (USB/integrada → invokeLocalIssuedDocumentPrint)"
+                        : "SERVIDOR/RED (backend imprime; cliente no envía document_data)",
+                });
+
+                const localPrintOk = await invokeLocalIssuedDocumentPrint(
+                    {
+                        printLocally:
+                            closeResult?.printLocally ??
+                            closeResult?.print_locally,
+                        documentData: docData,
+                    },
+                    {
+                        label: "cierre de caja",
+                        deviceId,
+                        localPrinterName,
+                    },
+                );
+
+                logCashPrint("resultado impresión local", {
+                    printLocallyFlag,
+                    localPrintOk,
+                });
+
+                if (printLocallyFlag && !localPrintOk) {
+                    showToast(
+                        "La caja se cerró, pero no se pudo imprimir en la impresora local. Revise la impresora en Configuración → Impresoras locales.",
+                        "warning",
+                    );
+                } else {
+                    showToast("Caja cerrada correctamente", "success");
+                }
                 refetchRegisters();
                 refetchHistory();
                 setSelectedRegister(null);
                 setPendingConfirm(null);
             } else {
+                logCashPrint("cierre fallido", {
+                    message: result.data?.closeCash?.message,
+                });
                 showToast(
                     result.data?.closeCash?.message ||
                         "Error al cerrar la caja",
@@ -235,6 +313,7 @@ const Cashs: React.FC = () => {
                 );
             }
         } catch (error: any) {
+            logCashPrint("error en cierre de caja", error);
             showToast(error.message || "Error al cerrar la caja", "error");
         } finally {
             setConfirmLoading(false);
@@ -244,15 +323,83 @@ const Cashs: React.FC = () => {
     const handleReprint = async (closure: CashClosure) => {
         setReprintingClosureId(closure.id);
         try {
+            const deviceId = await getMacAddress();
+            const localPrinterName =
+                getLocalTicketPrinterStorage().trim() || null;
+
+            logCashPrint("inicio reimpresión cierre", {
+                closureId: closure.id,
+                closureNumber: closure.closureNumber,
+                deviceId,
+                localPrinterName,
+                isElectron,
+            });
+
             const result = await reprintClosureMutation({
                 variables: {
                     closureId: closure.id,
-                    deviceId: await getMacAddress(),
+                    deviceId,
                 },
             });
+
+            logCashPrint("respuesta reprintClosure (raw)", result.data?.reprintClosure);
+
             if (result.data?.reprintClosure?.success) {
-                showToast("Ticket enviado a impresión", "success");
+                const reprintResult = result.data
+                    .reprintClosure as typeof result.data.reprintClosure & {
+                    print_locally?: boolean;
+                    document_data?: string | null;
+                };
+                const printLocallyFlag =
+                    reprintResult?.printLocally === true ||
+                    reprintResult?.print_locally === true;
+                const docData =
+                    reprintResult?.documentData ??
+                    reprintResult?.document_data ??
+                    null;
+
+                logCashPrint("datos impresión del servidor", {
+                    printLocally: printLocallyFlag,
+                    documentDataChars:
+                        docData != null && String(docData).trim() !== ""
+                            ? String(docData).length
+                            : 0,
+                    ruta: printLocallyFlag
+                        ? "LOCAL (USB/integrada → invokeLocalIssuedDocumentPrint)"
+                        : "SERVIDOR/RED (backend imprime; cliente no envía document_data)",
+                });
+
+                const localPrintOk = await invokeLocalIssuedDocumentPrint(
+                    {
+                        printLocally:
+                            reprintResult?.printLocally ??
+                            reprintResult?.print_locally,
+                        documentData: docData,
+                    },
+                    {
+                        label: "reimpresión cierre de caja",
+                        deviceId,
+                        localPrinterName,
+                    },
+                );
+
+                logCashPrint("resultado impresión local", {
+                    printLocallyFlag,
+                    localPrintOk,
+                });
+
+                if (printLocallyFlag && !localPrintOk) {
+                    showToast(
+                        "No se pudo imprimir el ticket en la impresora local. Revise la impresora en Configuración → Impresoras locales.",
+                        "error",
+                    );
+                } else {
+                    showToast("Ticket enviado a impresión", "success");
+                }
             } else {
+                logCashPrint("reimpresión fallida", {
+                    message: result.data?.reprintClosure?.message,
+                });
                 showToast(
                     result.data?.reprintClosure?.message ||
                         "Error al imprimir el ticket",
@@ -260,6 +407,7 @@ const Cashs: React.FC = () => {
                 );
             }
         } catch (error: any) {
+            logCashPrint("error en reimpresión cierre", error);
             showToast(error.message || "Error al imprimir el ticket", "error");
         } finally {
             setReprintingClosureId(null);

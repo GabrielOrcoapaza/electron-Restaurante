@@ -3454,13 +3454,15 @@ const Order: React.FC<OrderProps> = ({
                                                                         {item.comboComponents.map(
                                                                             (
                                                                                 comp: any,
+                                                                                compIdx: number,
                                                                             ) => (
                                                                                 <div
-                                                                                    key={
-                                                                                        comp.scopeId
-                                                                                    }
+                                                                                    key={`${comp.scopeId}-${comp.product?.id ?? compIdx}-${compIdx}`}
                                                                                 >
                                                                                     •{" "}
+                                                                                    {Number(comp.quantity) > 1
+                                                                                        ? `${comp.quantity}× `
+                                                                                        : ""}
                                                                                     {
                                                                                         comp
                                                                                             .product
