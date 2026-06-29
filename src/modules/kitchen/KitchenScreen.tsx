@@ -42,10 +42,13 @@ const KitchenScreen: React.FC = () => {
         ttsSelectedVoice,
         setTtsSelectedVoice,
         speak,
+        kitchenUser,
+        kitchenBranch,
+        displayCategories,
     } = useKitchen();
 
     const { showToast } = useToast();
-    const { companyData, user } = useAuth();
+    const { companyData, user: authUser } = useAuth();
     const { isConnected, subscribe } = useWebSocket();
 
     // Estados locales para filtros y temporizadores
@@ -81,6 +84,14 @@ const KitchenScreen: React.FC = () => {
     const parseQuantity = (qty: string | number): number => {
         if (typeof qty === "number") return qty;
         return parseFloat(qty) || 0;
+    };
+
+    // Función para obtener total, preparado y restante de un item
+    const getItemQuantities = (item: KitchenItem) => {
+        const total = parseQuantity(item.quantity);
+        const prepared = parseQuantity(item.preparedQuantity);
+        const remaining = total - prepared;
+        return { total, prepared, remaining };
     };
 
     // Estados para diálogos
@@ -276,6 +287,8 @@ const KitchenScreen: React.FC = () => {
                 productId: number; // API devuelve number
                 productName: string;
                 totalQty: number;
+                preparedQty: number;
+                remainingQty: number;
                 preparationTime?: number;
                 categoryColor?: string;
                 earliestCreatedAt: string;
@@ -284,7 +297,10 @@ const KitchenScreen: React.FC = () => {
                     orderNumber: number; // API devuelve number
                     tableName: string;
                     quantity: number;
+                    preparedQuantity: number;
+                    remainingQuantity: number;
                     notes?: string;
+                    item: KitchenItem;
                 }>;
                 itemIds: string[];
             }
@@ -292,12 +308,14 @@ const KitchenScreen: React.FC = () => {
 
         filteredItems.forEach((item) => {
             const prodName = item.productName;
-            const qty = parseQuantity(item.quantity);
+            const { total, prepared, remaining } = getItemQuantities(item);
             if (!groups[prodName]) {
                 groups[prodName] = {
                     productId: item.productId,
                     productName: prodName,
                     totalQty: 0,
+                    preparedQty: 0,
+                    remainingQty: 0,
                     preparationTime: item.product?.preparationTime,
                     categoryColor: item.product?.subcategory?.category?.color,
                     earliestCreatedAt: item.createdAt,
@@ -306,7 +324,9 @@ const KitchenScreen: React.FC = () => {
                 };
             }
 
-            groups[prodName].totalQty += qty;
+            groups[prodName].totalQty += total;
+            groups[prodName].preparedQty += prepared;
+            groups[prodName].remainingQty += remaining;
             groups[prodName].itemIds.push(item.id);
 
             const tableName =
@@ -317,8 +337,11 @@ const KitchenScreen: React.FC = () => {
                 itemId: item.id,
                 orderNumber: item.operation.order,
                 tableName,
-                quantity: qty,
+                quantity: total,
+                preparedQuantity: prepared,
+                remainingQuantity: remaining,
                 notes: item.notes,
+                item,
             });
 
             if (
@@ -339,22 +362,22 @@ const KitchenScreen: React.FC = () => {
 
     // Manejar el marcado de preparado (con QuantityPickerDialog si aplica)
     const handleMarkItemPrepared = (item: KitchenItem) => {
-        const qty = parseQuantity(item.quantity);
-        if (qty > 1) {
+        const { remaining } = getItemQuantities(item);
+        if (remaining > 1) {
             setQtyPickerDialog({
                 isOpen: true,
                 itemId: item.id,
                 productName: item.productName,
-                maxQty: qty,
+                maxQty: remaining,
                 onConfirm: async (selectedQty) => {
                     try {
-                        if (selectedQty === qty) {
+                        if (selectedQty === remaining) {
                             await markItemPrepared(item.id);
                         } else {
                             await markPartialPrepared(item.id, selectedQty);
                         }
                         showToast(
-                            `Preparado parcial (${selectedQty}/${qty}) registrado`,
+                            `Preparado parcial (${selectedQty}/${remaining}) registrado`,
                             "success",
                         );
                     } catch (err) {
@@ -366,7 +389,7 @@ const KitchenScreen: React.FC = () => {
                     setQtyPickerDialog((prev) => ({ ...prev, isOpen: false }));
                 },
             });
-        } else {
+        } else if (remaining === 1) {
             setConfirmDialog({
                 isOpen: true,
                 title: "¿Marcar plato como listo?",
@@ -469,10 +492,14 @@ const KitchenScreen: React.FC = () => {
                             </span>
                         </div>
                         <p className="text-sm text-[#8A9BBE]">
-                            {companyData?.branch.name || "Cocina Principal"} •
-                            Cocinero:{" "}
+                            {kitchenBranch?.name ||
+                                companyData?.branch.name ||
+                                "Sin sucursal"}{" "}
+                            •{kitchenUser?.role || authUser?.role}
                             <span className="text-white font-medium">
-                                {user?.fullName || "Personal"}
+                                {kitchenUser?.fullName ||
+                                    authUser?.fullName ||
+                                    "Sin nombre"}
                             </span>
                         </p>
                     </div>
@@ -574,6 +601,7 @@ const KitchenScreen: React.FC = () => {
                     </div>
 
                     <button
+                        type="button"
                         onClick={handleLogout}
                         className="px-4 py-2 bg-rose-600/90 hover:bg-rose-600 text-white font-semibold text-sm rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-rose-950/40"
                     >
@@ -653,6 +681,42 @@ const KitchenScreen: React.FC = () => {
                 </div>
             </section>
 
+            {/* Warning: Display categories configuration */}
+            {displayCategories.length === 0 ? (
+                <div className="bg-amber-500/10 border border-amber-500/30 px-6 py-3 text-amber-400">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xl">⚠️</span>
+                        <div>
+                            <p className="font-semibold">
+                                Sin categorías de visualización asignadas
+                            </p>
+                            <p className="text-sm text-amber-300/80">
+                                Estás viendo todos los platos pendientes de la
+                                sucursal. Contacta con un administrador para
+                                asignar categorías específicas.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 px-6 py-3 text-emerald-400">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xl">ℹ️</span>
+                        <div>
+                            <p className="font-semibold">
+                                Visualizando categorías asignadas
+                            </p>
+                            <p className="text-sm text-emerald-300/80">
+                                Solo verás platos de las categorías:{" "}
+                                {displayCategories
+                                    .map((c) => c.name)
+                                    .join(", ")}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Main Grid Content */}
             <main className="flex-1 p-6 overflow-y-auto">
                 {isLoading ? (
@@ -701,67 +765,99 @@ const KitchenScreen: React.FC = () => {
                             return (
                                 <div
                                     key={order.id}
-                                    className={`bg-[#0D2137] rounded-2xl border-2 transition-all flex flex-col shadow-lg hover:shadow-2xl ${
+                                    className={`bg-[#0D2137] rounded-2xl border-2 transition-all flex flex-col shadow-lg hover:shadow-2xl overflow-hidden ${
                                         allPrepared
                                             ? "border-emerald-500/50 bg-[#0d2732]"
                                             : "border-[#2A3F5F]/60"
                                     }`}
                                 >
-                                    {/* Tarjeta Orden Cabecera */}
-                                    <div className="p-4 bg-[#1A2E45]/80 rounded-t-2xl border-b border-[#2A3F5F]/40 flex justify-between items-start">
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xs bg-[#4CAF50]/15 text-[#4CAF50] font-bold px-2 py-0.5 rounded">
-                                                    Orden #{order.order}
-                                                </span>
-                                                <span className="text-xs font-semibold text-[#8A9BBE]">
-                                                    {order.table?.name ||
-                                                        order.serviceType}
-                                                </span>
-                                            </div>
-                                            <p className="text-xs text-[#8A9BBE] mt-1">
-                                                Piso:{" "}
-                                                <span className="text-white font-medium">
-                                                    {order.table?.floor?.name ||
-                                                        "Salón"}
-                                                </span>
-                                            </p>
-                                            {order.user && (
-                                                <p className="text-[10px] text-[#8A9BBE]">
-                                                    Mozo:{" "}
-                                                    <span className="text-white">
+                                    {/* Tarjeta Orden Cabecera - MEJORADA */}
+                                    <div className="p-4 bg-gradient-to-r from-[#1A2E45] to-[#163046] border-b border-[#2A3F5F]/40">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-3 py-1 bg-gradient-to-r from-[#4CAF50] to-emerald-600 text-[#060E1F] text-xs font-black rounded-lg shadow-md shadow-emerald-900/30">
+                                                        ORDEN #{order.order}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-bold text-white">
+                                                        {order.table?.name ||
+                                                            order.serviceType}
+                                                    </span>
+                                                    <span className="text-xs text-[#8A9BBE] bg-[#2A3F5F]/30 px-2 py-0.5 rounded">
+                                                        {order.table?.floor
+                                                            ?.name || "Salón"}
+                                                    </span>
+                                                </div>
+                                                {order.user && (
+                                                    <p className="text-xs text-[#8A9BBE] flex items-center gap-1">
+                                                        <span className="text-lg">
+                                                            👤
+                                                        </span>
                                                         {order.user.firstName}{" "}
                                                         {order.user.lastName}
-                                                    </span>
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        <div className="flex flex-col items-end gap-1">
-                                            <span
-                                                className={`text-sm font-mono ${getTimerColorClass(order.earliestCreatedAt)}`}
-                                            >
-                                                {getElapsedTime(
-                                                    order.earliestCreatedAt,
+                                                    </p>
                                                 )}
-                                            </span>
-                                            {!allPrepared && (
-                                                <button
-                                                    onClick={() =>
-                                                        triggerMarkOrderPrepared(
-                                                            order.id,
-                                                            order.order,
-                                                        )
-                                                    }
-                                                    className="px-2.5 py-1 bg-emerald-500/90 hover:bg-emerald-500 text-white text-[11px] font-bold rounded-lg transition-all"
-                                                >
-                                                    Completar
-                                                </button>
-                                            )}
+                                            </div>
+
+                                            <div className="flex flex-col items-end gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-1 bg-[#2A3F5F]/40 px-2.5 py-1 rounded-lg">
+                                                        <span className="text-lg">
+                                                            🥘
+                                                        </span>
+                                                        <span className="text-xs text-white font-bold">
+                                                            {order.items.length}
+                                                        </span>
+                                                    </div>
+                                                    <div
+                                                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-mono text-sm ${
+                                                            getTimerColorClass(
+                                                                order.earliestCreatedAt,
+                                                            ).includes("red")
+                                                                ? "bg-red-500/10"
+                                                                : getTimerColorClass(
+                                                                        order.earliestCreatedAt,
+                                                                    ).includes(
+                                                                        "amber",
+                                                                    )
+                                                                  ? "bg-amber-500/10"
+                                                                  : "bg-emerald-500/10"
+                                                        }`}
+                                                    >
+                                                        <span className="text-lg">
+                                                            ⏱️
+                                                        </span>
+                                                        <span
+                                                            className={getTimerColorClass(
+                                                                order.earliestCreatedAt,
+                                                            )}
+                                                        >
+                                                            {getElapsedTime(
+                                                                order.earliestCreatedAt,
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {!allPrepared && (
+                                                    <button
+                                                        onClick={() =>
+                                                            triggerMarkOrderPrepared(
+                                                                order.id,
+                                                                order.order,
+                                                            )
+                                                        }
+                                                        className="w-full px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xs font-bold rounded-lg transition-all shadow-md shadow-emerald-900/30 hover:shadow-lg"
+                                                    >
+                                                        COMPLETAR ORDEN
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 
-                                    {/* Items de la orden */}
+                                    {/* Items de la orden - MEJORADA */}
                                     <div className="p-4 flex-1 space-y-3">
                                         {order.items.map((item) => (
                                             <div
@@ -771,53 +867,65 @@ const KitchenScreen: React.FC = () => {
                                                     !item.isCanceled &&
                                                     handleMarkItemPrepared(item)
                                                 }
-                                                className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                                                className={`p-4 rounded-xl border transition-all cursor-pointer ${
                                                     item.isPrepared
-                                                        ? "bg-emerald-950/20 border-emerald-500/30 opacity-60"
+                                                        ? "bg-gradient-to-r from-emerald-900/30 to-emerald-950/20 border-emerald-500/40 opacity-70"
                                                         : item.isCanceled
-                                                          ? "bg-rose-950/10 border-rose-500/20 opacity-40 line-through"
-                                                          : "bg-[#1A2E45]/40 border-[#2A3F5F] hover:bg-[#1A2E45]/80 hover:border-emerald-500/40"
+                                                          ? "bg-gradient-to-r from-rose-900/20 to-rose-950/10 border-rose-500/30 opacity-50 line-through"
+                                                          : "bg-gradient-to-r from-[#1A2E45]/70 to-[#1A2E45]/40 border-[#2A3F5F]/70 hover:from-[#1A2E45] hover:to-[#1E3A5F] hover:border-emerald-500/50 hover:shadow-md"
                                                 }`}
                                             >
-                                                <div className="flex justify-between items-start gap-2">
+                                                <div className="flex justify-between items-start gap-3">
                                                     <p
-                                                        className={`font-semibold text-sm ${item.isPrepared ? "text-emerald-400" : "text-white"}`}
+                                                        className={`font-bold text-base flex-1 ${item.isPrepared ? "text-emerald-300" : "text-white"}`}
                                                     >
-                                                        {item.quantity}x{" "}
                                                         {item.productName}
                                                     </p>
-                                                    {item.isPrepared && (
-                                                        <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                                                            Listo
-                                                        </span>
-                                                    )}
+                                                    <span className="text-sm text-white font-black px-3 py-1 bg-gradient-to-r from-[#2A3F5F] to-[#334969] rounded-lg shadow-sm">
+                                                        {Number(
+                                                            item.preparedQuantity,
+                                                        )}
+                                                        /{Number(item.quantity)}
+                                                    </span>
                                                 </div>
 
                                                 {/* Notas */}
                                                 {item.notes && (
-                                                    <p className="text-[11px] text-amber-400/95 italic mt-1 font-medium bg-amber-500/5 p-1 rounded">
-                                                        📝 {item.notes}
-                                                    </p>
+                                                    <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-2">
+                                                        <span className="text-lg">
+                                                            📝
+                                                        </span>
+                                                        <p className="text-xs text-amber-300 italic font-medium">
+                                                            {item.notes}
+                                                        </p>
+                                                    </div>
                                                 )}
 
                                                 {/* Componentes de combo */}
                                                 {item.comboComponents &&
                                                     item.comboComponents
                                                         .length > 0 && (
-                                                        <div className="mt-2 pl-3 border-l-2 border-[#2A3F5F] space-y-1">
+                                                        <div className="mt-3 pl-4 border-l-3 border-[#4CAF50]/30 space-y-2">
+                                                            <p className="text-[11px] text-[#8A9BBE] font-semibold uppercase tracking-wider">
+                                                                Combo:
+                                                            </p>
                                                             {item.comboComponents.map(
                                                                 (comp) => (
                                                                     <p
                                                                         key={
                                                                             comp.id
                                                                         }
-                                                                        className="text-[11px] text-[#8A9BBE]"
+                                                                        className="text-xs text-[#A8B8D8] flex items-center gap-2"
                                                                     >
-                                                                        •{" "}
-                                                                        {
-                                                                            comp.quantity
-                                                                        }
-                                                                        x{" "}
+                                                                        <span className="text-[#4CAF50]">
+                                                                            •
+                                                                        </span>
+                                                                        <span className="font-bold">
+                                                                            {
+                                                                                comp.quantity
+                                                                            }
+                                                                            x
+                                                                        </span>
                                                                         {
                                                                             comp.productName
                                                                         }
@@ -865,7 +973,9 @@ const KitchenScreen: React.FC = () => {
                                         </div>
 
                                         <h3 className="text-lg font-bold text-white line-clamp-2">
-                                            {item.quantity}x {item.productName}
+                                            {Number(item.preparedQuantity)}/
+                                            {Number(item.quantity)}x{" "}
+                                            {item.productName}
                                         </h3>
 
                                         <p className="text-xs text-[#8A9BBE] mt-1">
@@ -951,7 +1061,7 @@ const KitchenScreen: React.FC = () => {
                                     <h3 className="text-lg font-bold text-white flex justify-between items-center">
                                         <span>{group.productName}</span>
                                         <span className="bg-[#4CAF50]/15 text-[#4CAF50] text-xl px-2.5 py-0.5 rounded-xl font-extrabold border border-[#4CAF50]/20">
-                                            {group.totalQty}
+                                            {group.preparedQty}/{group.totalQty}
                                         </span>
                                     </h3>
 
@@ -960,11 +1070,31 @@ const KitchenScreen: React.FC = () => {
                                         {group.details.map((detail, idx) => (
                                             <div
                                                 key={idx}
-                                                className="flex justify-between text-xs bg-[#1A2E45]/40 p-2 rounded-lg border border-[#2A3F5F]/40"
+                                                onClick={() => {
+                                                    const { remaining } =
+                                                        getItemQuantities(
+                                                            detail.item,
+                                                        );
+                                                    if (remaining > 0) {
+                                                        handleMarkItemPrepared(
+                                                            detail.item,
+                                                        );
+                                                    }
+                                                }}
+                                                className={`flex justify-between text-xs p-2 rounded-lg border transition-all cursor-pointer ${
+                                                    getItemQuantities(
+                                                        detail.item,
+                                                    ).remaining === 0
+                                                        ? "bg-gradient-to-r from-emerald-900/30 to-emerald-950/20 border-emerald-500/40 opacity-70"
+                                                        : "bg-[#1A2E45]/40 border-[#2A3F5F]/40 hover:from-[#1A2E45] hover:to-[#1E3A5F] hover:border-emerald-500/50 hover:shadow-md"
+                                                }`}
                                             >
                                                 <div>
                                                     <span className="font-semibold text-emerald-400">
-                                                        x{detail.quantity}
+                                                        {
+                                                            detail.preparedQuantity
+                                                        }
+                                                        /{detail.quantity}
                                                     </span>
                                                     <span className="text-[#8A9BBE] ml-1">
                                                         en Mesa{" "}
@@ -993,7 +1123,7 @@ const KitchenScreen: React.FC = () => {
                                     }
                                     className="w-full mt-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold rounded-xl transition-all shadow-md"
                                 >
-                                    Preparar Todo ({group.totalQty})
+                                    Preparar Todo ({group.remainingQty})
                                 </button>
                             </div>
                         ))}

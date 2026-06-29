@@ -23,6 +23,7 @@ import {
 export interface KitchenItem {
     id: string;
     quantity: string; // La API devuelve string (ej: "1.0000")
+    preparedQuantity: string; // La API devuelve string (ej: "0.0000")
     notes?: string;
     createdAt: string;
     productName: string;
@@ -78,6 +79,21 @@ export interface KitchenItem {
 // Tipo para la vista activa
 export type KitchenViewType = "byOrder" | "byItem" | "byGroup";
 
+interface KitchenUser {
+    id: string;
+    dni: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    fullName: string;
+}
+
+interface KitchenBranch {
+    id: string;
+    name: string;
+    isKitchenDisplay: boolean;
+}
+
 // Tipo para el estado de la cocina
 export interface KitchenContextType {
     // Estado
@@ -88,6 +104,8 @@ export interface KitchenContextType {
     isAuthenticated: boolean;
     displayCategories: Array<{ id: string; name: string; color?: string }>;
     kitchenBranchId: string | null;
+    kitchenUser: KitchenUser | null;
+    kitchenBranch: KitchenBranch | null;
     // TTS
     ttsIsSupported: boolean;
     ttsIsSpeaking: boolean;
@@ -150,6 +168,30 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
     );
     const [kitchenUserId, setKitchenUserId] = useState<string | null>(() =>
         localStorage.getItem("kitchenUserId"),
+    );
+    const [kitchenUser, setKitchenUser] = useState<KitchenUser | null>(() => {
+        const stored = localStorage.getItem("kitchenUser");
+        if (stored) {
+            try {
+                return JSON.parse(stored);
+            } catch {
+                return null;
+            }
+        }
+        return null;
+    });
+    const [kitchenBranch, setKitchenBranch] = useState<KitchenBranch | null>(
+        () => {
+            const stored = localStorage.getItem("kitchenBranch");
+            if (stored) {
+                try {
+                    return JSON.parse(stored);
+                } catch {
+                    return null;
+                }
+            }
+            return null;
+        },
     );
 
     // Usar los datos del cocinero si existen, de lo contrario caer de vuelta al AuthContext
@@ -214,7 +256,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
                 setItems(data?.pendingKitchenItems || []);
             },
             onError: (err) => {
-                console.error("❌ Error al obtener items de cocina:", err);
+                console.error("Error al obtener items de cocina:", err);
                 setError(err.message);
             },
         });
@@ -242,7 +284,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
                 },
             });
         } catch (err) {
-            console.error("❌ Error al obtener items de cocina:", err);
+            console.error("Error al obtener items de cocina:", err);
             setError(
                 err instanceof Error
                     ? err.message
@@ -271,6 +313,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
                         data.kitchenLogin.displayCategories || [];
                     const branchId = data.kitchenLogin.branch?.id;
                     const userId = data.kitchenLogin.user?.id;
+                    const kitchenUser = data.kitchenLogin.user;
+                    const kitchenBranch = data.kitchenLogin.branch;
 
                     setIsAuthenticated(true);
                     localStorage.setItem("kitchenToken", token);
@@ -285,6 +329,20 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
                     if (userId) {
                         localStorage.setItem("kitchenUserId", userId);
                         setKitchenUserId(userId);
+                    }
+                    if (kitchenUser) {
+                        localStorage.setItem(
+                            "kitchenUser",
+                            JSON.stringify(kitchenUser),
+                        );
+                        setKitchenUser(kitchenUser);
+                    }
+                    if (kitchenBranch) {
+                        localStorage.setItem(
+                            "kitchenBranch",
+                            JSON.stringify(kitchenBranch),
+                        );
+                        setKitchenBranch(kitchenBranch);
                     }
                     setDisplayCategories(displayCategories);
 
@@ -329,10 +387,14 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
         setItems([]);
         setKitchenBranchId(null);
         setKitchenUserId(null);
+        setKitchenUser(null);
+        setKitchenBranch(null);
         localStorage.removeItem("kitchenToken");
         localStorage.removeItem("kitchenDisplayCategories");
         localStorage.removeItem("kitchenBranchId");
         localStorage.removeItem("kitchenUserId");
+        localStorage.removeItem("kitchenUser");
+        localStorage.removeItem("kitchenBranch");
     }, []);
 
     // Métodos para marcar items como preparados
@@ -417,30 +479,18 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
     // Efecto para escuchar eventos de WebSocket
     useEffect(() => {
         if (!isAuthenticated || !effectiveBranchId || !effectiveUserId) {
-            console.log(
-                "🍳 KitchenContext: No hay datos suficientes para suscribirse a WebSocket",
-                {
-                    isAuthenticated,
-                    effectiveBranchId,
-                    effectiveUserId,
-                },
-            );
             return;
         }
 
-        console.log(
-            "🍳 KitchenContext: Suscribiéndose a eventos de WebSocket...",
+        // Tipos de eventos que necesitan refrescar items de cocina
+        const relevantEvents = ["kitchen_item_update", "kitchen_items_batch"];
+
+        const unsubscribers = relevantEvents.map((eventType) =>
+            subscribe(eventType, () => refreshItems()),
         );
 
-        const unsubscribe = subscribe("*", (message) => {
-            console.log("📡 Evento de cocina recibido:", message);
-            // Cuando llegue cualquier evento, refrescamos los items
-            refreshItems();
-        });
-
         return () => {
-            console.log("🍳 KitchenContext: Desuscribiéndose de WebSocket");
-            unsubscribe();
+            unsubscribers.forEach((unsubscribe) => unsubscribe());
         };
     }, [
         isAuthenticated,
@@ -455,10 +505,10 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
         if (!displayCategories || displayCategories.length === 0) {
             return rawItems;
         }
-        const allowedIds = new Set(displayCategories.map((c) => c.id));
+        const allowedIds = new Set(displayCategories.map((c) => String(c.id)));
         return rawItems.filter((item: KitchenItem) => {
             const categoryId = item.product?.subcategory?.category?.id;
-            return categoryId ? allowedIds.has(categoryId) : true;
+            return categoryId ? allowedIds.has(String(categoryId)) : true;
         });
     }, [items, itemsData, displayCategories]);
 
@@ -472,16 +522,43 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
         );
 
         if (newItems.length > 0) {
+            // Agrupar nuevos items por operationId (orden)
+            const newItemsByOrder: Record<string, typeof newItems> = {};
             for (const item of newItems) {
-                // TTS
-                const ttsText = `Nuevo pedido: ${item.quantity} ${item.productName} para la mesa ${item.operation.table?.name || "desconocida"}`;
+                if (!newItemsByOrder[item.operation.id]) {
+                    newItemsByOrder[item.operation.id] = [];
+                }
+                newItemsByOrder[item.operation.id].push(item);
+            }
+
+            // Por cada orden, generar un mensaje completo
+            for (const orderId in newItemsByOrder) {
+                const orderItems = newItemsByOrder[orderId];
+                const firstItem = orderItems[0];
+                const tableName =
+                    firstItem.operation.table?.name || "desconocida";
+                const orderNumber = firstItem.operation.order;
+
+                // Generar texto de items
+                const itemsText = orderItems
+                    .map((item) => {
+                        let text = `${parseInt(item.quantity)} ${item.productName}`;
+                        if (item.notes && item.notes.trim()) {
+                            text += `, nota: ${item.notes.trim()}`;
+                        }
+                        return text;
+                    })
+                    .join(", ");
+
+                // Mensaje completo TTS
+                const ttsText = `Nuevo pedido: orden número ${orderNumber}, mesa ${tableName}. ${itemsText}`;
                 tts.speak(ttsText);
 
-                // Notificación
-                sendNotification(
-                    `Nuevo item: ${item.productName}`,
-                    `Mesa: ${item.operation.table?.name || "desconocida"} | Cantidad: ${item.quantity}`,
-                );
+                // Notificación (opcional, descomentar si es necesario)
+                /*sendNotification(
+                    `Nueva orden: #${orderNumber}`,
+                    `Mesa: ${tableName} | ${orderItems.length} item(s)`,
+                );*/
             }
         }
 
@@ -498,6 +575,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
             isAuthenticated,
             displayCategories,
             kitchenBranchId,
+            kitchenUser,
+            kitchenBranch,
             // TTS
             ttsIsSupported: tts.isSupported,
             ttsIsSpeaking: tts.isSpeaking,
@@ -530,6 +609,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
             isAuthenticated,
             displayCategories,
             kitchenBranchId,
+            kitchenUser,
+            kitchenBranch,
             tts,
             notificationsSupported,
             sendNotification,

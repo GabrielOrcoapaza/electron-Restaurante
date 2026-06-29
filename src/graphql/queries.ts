@@ -1895,6 +1895,7 @@ export const GET_PENDING_KITCHEN_ITEMS = gql`
         pendingKitchenItems(branchId: $branchId, userId: $userId) {
             id
             quantity
+            preparedQuantity
             notes
             createdAt
             productName
@@ -1951,7 +1952,11 @@ export const GET_PENDING_KITCHEN_ITEMS = gql`
 
 // -- COCINA: Login de cocinero --
 export const KITCHEN_LOGIN = gql`
-    mutation KitchenLogin($dni: String!, $password: String!, $deviceId: String!) {
+    mutation KitchenLogin(
+        $dni: String!
+        $password: String!
+        $deviceId: String!
+    ) {
         kitchenLogin(dni: $dni, password: $password, deviceId: $deviceId) {
             success
             message

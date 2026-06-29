@@ -297,7 +297,10 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                             : rawData.toString();
                     const message = JSON.parse(messageString);
 
-                    console.log("🔄 Mensaje WebSocket recibido:", message);
+                    // Solo loguear mensajes importantes (no ping/pong)
+                    if (message.type !== "ping" && message.type !== "pong") {
+                        console.log("🔄 Mensaje WebSocket recibido:", message);
+                    }
                     notifySubscribers(message);
                 } catch (error) {
                     console.error(
@@ -375,7 +378,6 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                 if (ws.readyState === 1) {
                     // OPEN = 1
                     ws.send(JSON.stringify({ type: "ping" }));
-                    console.log("🏓 Ping enviado");
                 }
             }, 25000); // Cada 25 segundos
         } catch (error) {
