@@ -27,7 +27,7 @@ import {
     GET_DOCUMENTS,
     GET_CASH_REGISTERS,
     GET_SERIALS_BY_DOCUMENT,
-    GET_OPERATION_BY_ID,
+    GET_OPERATION_BY_ID_FOR_CASH,
     GET_FLOORS_BY_BRANCH,
     GET_TABLES_BY_FLOOR,
     GET_PERSONS_BY_BRANCH,
@@ -304,13 +304,16 @@ const CashPay: React.FC<CashPayProps> = ({
 
     const operationIdFromTable = normalizeGraphQLId(table?.currentOperationId);
 
-    const { data: dataOperation, refetch } = useQuery(GET_OPERATION_BY_ID, {
-        variables: {
-            operationId: operationIdFromTable as string,
+    const { data: dataOperation, refetch } = useQuery(
+        GET_OPERATION_BY_ID_FOR_CASH,
+        {
+            variables: {
+                operationId: operationIdFromTable as string,
+            },
+            skip: !operationIdFromTable,
+            fetchPolicy: "cache-and-network",
         },
-        skip: !operationIdFromTable,
-        fetchPolicy: "cache-and-network",
-    });
+    );
 
     const branchId = normalizeGraphQLId(companyData?.branch?.id);
 
@@ -1274,7 +1277,7 @@ const CashPay: React.FC<CashPayProps> = ({
             }
 
             const { data: freshPayData } = await apolloClient.query({
-                query: GET_OPERATION_BY_ID,
+                query: GET_OPERATION_BY_ID_FOR_CASH,
                 variables: {
                     operationId: String(operationIdForPay),
                 },

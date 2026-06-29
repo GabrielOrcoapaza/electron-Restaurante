@@ -142,7 +142,7 @@ export const GET_CASH_REGISTERS = gql`
     }
 `;
 
-// Campos compartidos de detalle de operación (ventas / caja)
+// Campos de detalle de operación para Orden (incluye product anidado: stock, subcategoría)
 const OPERATION_DETAIL_FIELDS = `
     id
     quantity
@@ -238,6 +238,72 @@ export const GET_OPERATION_BY_ID = gql`
             branchId
             details {
                 ${OPERATION_DETAIL_FIELDS}
+                issuedItems {
+                    id
+                    quantity
+                    issuedDocument {
+                        id
+                        billingStatus
+                    }
+                }
+            }
+        }
+    }
+`;
+
+// Operación por ID para caja: mismos datos que GET_OPERATION_BY_ID, query más liviana en details
+export const GET_OPERATION_BY_ID_FOR_CASH = gql`
+    query GetOperationByIdForCash($operationId: ID!) {
+        operationById(pk: $operationId) {
+            id
+            order
+            status
+            operationType
+            operationDate
+            subtotal
+            igvAmount
+            igvPercentage
+            total
+            notes
+            tableId
+            table {
+                id
+                name
+            }
+            userId
+            user {
+                id
+                firstName
+                lastName
+                fullName
+                dni
+            }
+            personId
+            branchId
+            details {
+                id
+                quantity
+                unitMeasure
+                unitValue
+                unitPrice
+                total
+                notes
+                productId
+                productCode
+                productName
+                productDescription
+                productType
+                isCanceled
+                isPrepared
+                isPrinted
+                printedAt
+                promoInfo
+                comboComponents {
+                    id
+                    productId
+                    productName
+                    quantity
+                }
                 issuedItems {
                     id
                     quantity

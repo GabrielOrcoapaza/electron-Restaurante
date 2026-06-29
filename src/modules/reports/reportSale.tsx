@@ -252,13 +252,22 @@ const ReportSale: React.FC = () => {
                             onChange={(e) =>
                                 setSelectedDocumentId(e.target.value)
                             }
-                            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200 cursor-pointer"
+                            className="w-full cursor-pointer bg-transparent text-sm font-bold text-slate-700 outline-none dark:bg-slate-800/60 dark:text-slate-100 dark:[color-scheme:light]"
                         >
-                            <option value="">Todos los documentos</option>
+                            <option
+                                value=""
+                                className="bg-white text-slate-900"
+                            >
+                                Todos los documentos
+                            </option>
                             {documentsList
                                 .filter((doc) => doc.isActive)
                                 .map((doc) => (
-                                    <option key={doc.id} value={doc.id}>
+                                    <option
+                                        key={doc.id}
+                                        value={doc.id}
+                                        className="bg-white text-slate-900"
+                                    >
                                         {doc.code} - {doc.description}
                                     </option>
                                 ))}
