@@ -51,6 +51,17 @@ const KitchenScreen: React.FC = () => {
     const { companyData, user: authUser } = useAuth();
     const { isConnected, subscribe } = useWebSocket();
 
+    // Helper para traducir roles a español
+    const getRoleInSpanish = (role: string | undefined) => {
+        const roleMap: Record<string, string> = {
+            ADMIN: "Administrador",
+            CASHIER: "Cajero",
+            WAITER: "Mesero",
+            COOK: "Cocinero",
+        };
+        return role ? roleMap[role] || role : "";
+    };
+
     // Estados locales para filtros y temporizadores
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
         null,
@@ -491,17 +502,24 @@ const KitchenScreen: React.FC = () => {
                                 {isConnected ? "En línea" : "Desconectado"}
                             </span>
                         </div>
-                        <p className="text-sm text-[#8A9BBE]">
-                            {kitchenBranch?.name ||
-                                companyData?.branch.name ||
-                                "Sin sucursal"}{" "}
-                            •{kitchenUser?.role || authUser?.role}
-                            <span className="text-white font-medium">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 mt-1">
+                            <p className="text-sm text-[#8A9BBE]">
+                                {kitchenBranch?.name ||
+                                    companyData?.branch.name ||
+                                    "Sin sucursal"}
+                            </p>
+                            <span className="text-sm text-[#4CAF50] font-semibold">
+                                •{" "}
+                                {getRoleInSpanish(
+                                    kitchenUser?.role || authUser?.role,
+                                )}
+                            </span>
+                            <span className="text-white font-medium text-sm">
                                 {kitchenUser?.fullName ||
                                     authUser?.fullName ||
                                     "Sin nombre"}
                             </span>
-                        </p>
+                        </div>
                     </div>
                 </div>
 

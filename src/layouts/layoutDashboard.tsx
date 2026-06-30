@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, gql } from "@apollo/client";
-import { isTableSessionLockApiEnabled, releaseTableSessionLockImmediately } from "../hooks/useTableSessionLock";
+import { useQuery, useMutation } from "@apollo/client";
+import {
+    isTableSessionLockApiEnabled,
+    releaseTableSessionLockImmediately,
+} from "../hooks/useTableSessionLock";
 import { useAuth } from "../hooks/useAuth";
 import { useResponsive } from "../hooks/useResponsive";
 import { useSwitchBranch } from "../hooks/useSwitchBranch";
 // import { useIntegratedPrinterSyncFromServer } from "../hooks/useIntegratedPrinterSyncFromServer";
 import { useUserPermissions } from "../hooks/useUserPermissions";
 import { WebSocketProvider, useWebSocket } from "../context/WebSocketContext";
+import { useToast } from "../context/ToastContext";
 import Floor from "../modules/sales/floor";
 import CashPay from "../modules/cash/cashPay";
 import Cashs from "../modules/cash/cashs";
@@ -40,32 +44,6 @@ import {
 } from "../graphql/mutations";
 import type { Table } from "../types/table";
 
-const GET_MY_KITCHEN_NOTIFICATIONS = gql`
-    query GetMyKitchenNotifications($limit: Int) {
-        myKitchenNotifications(limit: $limit) {
-            id
-            message
-            createdAt
-            operation {
-                id
-                table {
-                    id
-                    name
-                }
-            }
-            operationDetail {
-                id
-                productName
-                quantity
-            }
-            preparedBy {
-                id
-                fullName
-            }
-        }
-    }
-`;
-
 const formatRelativeTime = (dateString?: string | null) => {
     if (!dateString) return "";
     const date = new Date(dateString);
@@ -89,6 +67,7 @@ const LayoutDashboardContent: React.FC = () => {
     const { disconnect, subscribe } = useWebSocket();
     const { switchToBranch, loading: switchingBranch } = useSwitchBranch();
     const { breakpoint, isMobile } = useResponsive();
+    const { showToast } = useToast();
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
     // Dark Mode
@@ -239,8 +218,7 @@ const LayoutDashboardContent: React.FC = () => {
     );
     /** Mesa abierta en Caja (para liberar candado aunque `selectedCashTable` se nullifique al cambiar de vista). */
     const lastCashTableIdRef = useRef<string | null>(null);
-    const [floorsTablesRefreshNonce, setFloorsTablesRefreshNonce] =
-        useState(0);
+    const [floorsTablesRefreshNonce, setFloorsTablesRefreshNonce] = useState(0);
     const [showNotifications, setShowNotifications] = useState(false);
     const [showUserPopover, setShowUserPopover] = useState(false);
     const notificationsRef = useRef<HTMLDivElement | null>(null);
@@ -248,17 +226,6 @@ const LayoutDashboardContent: React.FC = () => {
     const [hiddenNotificationIds, setHiddenNotificationIds] = useState<
         string[]
     >([]);
-
-    const {
-        data: notificationsData,
-        loading: notificationsLoading,
-        error: notificationsError,
-        refetch: refetchKitchenNotifications,
-    } = useQuery(GET_MY_KITCHEN_NOTIFICATIONS, {
-        variables: { limit: 20 },
-        skip: !user?.id,
-        pollInterval: 30000,
-    });
 
     const {
         data: broadcastMessagesData,
@@ -286,15 +253,6 @@ const LayoutDashboardContent: React.FC = () => {
     }, [getMacAddress]);
 
     useEffect(() => {
-        if (notificationsError) {
-            console.error(
-                "❌ Error al obtener notificaciones de cocina:",
-                notificationsError,
-            );
-        }
-    }, [notificationsError]);
-
-    useEffect(() => {
         if (broadcastMessagesError) {
             console.error(
                 "❌ Error al obtener mensajes broadcast:",
@@ -307,9 +265,6 @@ const LayoutDashboardContent: React.FC = () => {
         if (!user?.id) {
             return;
         }
-        const unsubscribeKitchen = subscribe("kitchen_notification", () => {
-            refetchKitchenNotifications();
-        });
         const unsubscribeBroadcast = subscribe(
             "broadcast_message",
             (message: any) => {
@@ -326,16 +281,44 @@ const LayoutDashboardContent: React.FC = () => {
                 }
             },
         );
+
+        const unsubscribeKitchenNotification = subscribe(
+            "kitchen_notification",
+            (notification: any) => {
+                console.log(
+                    "🍳 Notificación de cocina recibida por WebSocket:",
+                    notification,
+                );
+
+                let message = "";
+                let toastType: "success" | "info" = "info";
+
+                if (notification.is_pending) {
+                    message = `Nuevo pedido: ${notification.product_name} para ${notification.table_name}`;
+                    toastType = "info";
+                } else if (notification.product_name.startsWith("Orden #")) {
+                    // Full order completion
+                    message = `${notification.product_name} lista para ${notification.table_name}, preparada por ${notification.prepared_by}`;
+                    toastType = "info";
+                } else {
+                    // Single item completion
+                    const quantityText =
+                        notification.quantity > 1
+                            ? `${notification.quantity}x `
+                            : "";
+                    message = `${quantityText}${notification.product_name} listo para ${notification.table_name} (Orden #${notification.operation_number})`;
+                    toastType = "success";
+                }
+
+                showToast(message, toastType, true);
+            },
+        );
+
         return () => {
-            unsubscribeKitchen();
             unsubscribeBroadcast();
+            unsubscribeKitchenNotification();
         };
-    }, [
-        subscribe,
-        refetchKitchenNotifications,
-        refetchBroadcastMessages,
-        user?.id,
-    ]);
+    }, [subscribe, refetchBroadcastMessages, user?.id, showToast]);
 
     // Función para verificar si el usuario debe ver un mensaje broadcast según su rol
     const shouldUserSeeMessage = (
@@ -360,15 +343,6 @@ const LayoutDashboardContent: React.FC = () => {
         return userRecipientGroup === messageRecipients;
     };
 
-    // Notificaciones de cocina
-    const unreadKitchenNotifications = useMemo(
-        () =>
-            (notificationsData?.myKitchenNotifications ?? []).filter(
-                (notification: any) => !notification?.isRead,
-            ),
-        [notificationsData?.myKitchenNotifications],
-    );
-
     // Mensajes broadcast - filtrar solo los que corresponden al rol del usuario
     const broadcastMessages = useMemo(() => {
         const allMessages = broadcastMessagesData?.myUnreadMessages ?? [];
@@ -386,25 +360,21 @@ const LayoutDashboardContent: React.FC = () => {
         return role || "";
     };
 
-    // Combinar ambas notificaciones
+    // Solo mensajes broadcast
     const allNotifications = useMemo(
         () =>
-            [
-                ...unreadKitchenNotifications.map((n: any) => ({
-                    ...n,
-                    type: "kitchen",
-                })),
-                ...broadcastMessages.map((m: any) => ({
+            broadcastMessages
+                .map((m: any) => ({
                     ...m,
                     type: "broadcast",
-                })),
-            ].sort((a: any, b: any) => {
-                // Ordenar por fecha, más recientes primero
-                const dateA = new Date(a.createdAt || 0).getTime();
-                const dateB = new Date(b.createdAt || 0).getTime();
-                return dateB - dateA;
-            }),
-        [unreadKitchenNotifications, broadcastMessages],
+                }))
+                .sort((a: any, b: any) => {
+                    // Ordenar por fecha, más recientes primero
+                    const dateA = new Date(a.createdAt || 0).getTime();
+                    const dateB = new Date(b.createdAt || 0).getTime();
+                    return dateB - dateA;
+                }),
+        [broadcastMessages],
     );
 
     const visibleNotifications = allNotifications.filter(
@@ -444,7 +414,7 @@ const LayoutDashboardContent: React.FC = () => {
     const hasShownNotificationsRef = useRef(false);
     // Abrir al cargar o cuando cambian los pendientes (nuevo aviso o cierre con ×); no forzar reapertura si solo repitió el mismo set tras un refetch
     useEffect(() => {
-        if (notificationsLoading || broadcastMessagesLoading) {
+        if (broadcastMessagesLoading) {
             return;
         }
         // Solo abrir notificaciones una vez cuando hay nuevos elementos
@@ -455,11 +425,7 @@ const LayoutDashboardContent: React.FC = () => {
             setShowNotifications(false);
             hasShownNotificationsRef.current = false;
         }
-    }, [
-        visibleNotificationIdsKey,
-        notificationsLoading,
-        broadcastMessagesLoading,
-    ]);
+    }, [visibleNotificationIdsKey, broadcastMessagesLoading]);
     useEffect(() => {
         if (!showNotifications && !showUserPopover) {
             return;
@@ -639,19 +605,18 @@ const LayoutDashboardContent: React.FC = () => {
     );
 
     const headerTitle =
-     
-              currentView === "floors"
-              ? "Mesas"
-              : currentView === "messages"
-                ? "Mensajes"
-                : currentView === "employees"
-                  ? "Empleados"
-                  : currentView === "permissions"
-                    ? "Permisos"
-                    : currentView === "products"
-                      ? "Productos"
-                      : currentView === "promotions"
-                        ? "Promociones"
+        currentView === "floors"
+            ? "Mesas"
+            : currentView === "messages"
+              ? "Mensajes"
+              : currentView === "employees"
+                ? "Empleados"
+                : currentView === "permissions"
+                  ? "Permisos"
+                  : currentView === "products"
+                    ? "Productos"
+                    : currentView === "promotions"
+                      ? "Promociones"
                       : currentView === "cashs"
                         ? "Gestión de Cajas"
                         : currentView === "inventory"
@@ -670,17 +635,17 @@ const LayoutDashboardContent: React.FC = () => {
 
     const headerSubtitle =
         currentView === "floors"
-              ? "Gestiona la ocupación y las órdenes de tus mesas."
-              : currentView === "messages"
-                ? "Envía mensajes a cocina, mozos u otros usuarios."
-                : currentView === "employees"
-                  ? "Administra los empleados de tu empresa."
-                  : currentView === "permissions"
-                    ? "Asigna permisos personalizados por usuario (solo administrador)."
-                    : currentView === "products"
-                      ? "Administra los productos de tu menú."
-                      : currentView === "promotions"
-                        ? "Crea y edita combos, descuentos, NxM y regalos."
+            ? "Gestiona la ocupación y las órdenes de tus mesas."
+            : currentView === "messages"
+              ? "Envía mensajes a cocina, mozos u otros usuarios."
+              : currentView === "employees"
+                ? "Administra los empleados de tu empresa."
+                : currentView === "permissions"
+                  ? "Asigna permisos personalizados por usuario (solo administrador)."
+                  : currentView === "products"
+                    ? "Administra los productos de tu menú."
+                    : currentView === "promotions"
+                      ? "Crea y edita combos, descuentos, NxM y regalos."
                       : currentView === "cashs"
                         ? "Gestiona las cajas registradoras, cierres y resúmenes de pagos."
                         : currentView === "inventory"
@@ -1251,21 +1216,21 @@ const LayoutDashboardContent: React.FC = () => {
                                             }
                                         />
                                     )}
-                                    <div className={`${isMobile ? "fixed inset-x-4 top-[80px]" : "absolute right-0 top-[110%] w-[400px]"} z-[1200] max-h-[calc(100vh-120px)] sm:max-h-[500px] overflow-y-auto rounded-3xl border border-slate-200 bg-white/95 p-5 shadow-2xl shadow-slate-900/20 backdrop-blur-md scrollbar-thin scrollbar-thumb-slate-200 dark:border-slate-800 dark:bg-slate-950/95 dark:scrollbar-thumb-slate-800`}>
+                                    <div
+                                        className={`${isMobile ? "fixed inset-x-4 top-[80px]" : "absolute right-0 top-[110%] w-[400px]"} z-[1200] max-h-[calc(100vh-120px)] sm:max-h-[500px] overflow-y-auto rounded-3xl border border-slate-200 bg-white/95 p-5 shadow-2xl shadow-slate-900/20 backdrop-blur-md scrollbar-thin scrollbar-thumb-slate-200 dark:border-slate-800 dark:bg-slate-950/95 dark:scrollbar-thumb-slate-800`}
+                                    >
                                         <div className="mb-4 flex items-center justify-between">
                                             <div>
                                                 <h3 className="m-0 text-sm font-bold tracking-tight text-slate-900 dark:text-white">
                                                     Notificaciones
                                                 </h3>
                                                 <p className="m-0 mt-1 text-xs font-medium uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                                                    Mensajes y notificaciones de
-                                                    cocina
+                                                    Mensajes
                                                 </p>
                                             </div>
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    refetchKitchenNotifications();
                                                     refetchBroadcastMessages();
                                                 }}
                                                 className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-50 text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-800 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100"
@@ -1274,8 +1239,7 @@ const LayoutDashboardContent: React.FC = () => {
                                                 ⟳
                                             </button>
                                         </div>
-                                        {notificationsLoading ||
-                                        broadcastMessagesLoading ? (
+                                        {broadcastMessagesLoading ? (
                                             <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                                                 Cargando notificaciones...
                                             </div>
@@ -1289,27 +1253,6 @@ const LayoutDashboardContent: React.FC = () => {
                                             <div className="space-y-4">
                                                 {visibleNotifications.map(
                                                     (notification: any) => {
-                                                        const isBroadcast =
-                                                            notification.type ===
-                                                            "broadcast";
-                                                        const chefName =
-                                                            notification
-                                                                ?.preparedBy
-                                                                ?.fullName ||
-                                                            "Cocina";
-                                                        const tableName =
-                                                            notification
-                                                                ?.operation
-                                                                ?.table?.name ||
-                                                            "Sin mesa";
-                                                        const productName =
-                                                            notification
-                                                                ?.operationDetail
-                                                                ?.productName;
-                                                        const quantity =
-                                                            notification
-                                                                ?.operationDetail
-                                                                ?.quantity;
                                                         const senderName =
                                                             notification?.sender
                                                                 ?.fullName ||
@@ -1337,51 +1280,27 @@ const LayoutDashboardContent: React.FC = () => {
                                                                 key={
                                                                     notification.id
                                                                 }
-                                                                className={`group relative overflow-hidden rounded-2xl border border-slate-200 p-5 text-sm transition-all hover:shadow-md ${
-                                                                    isBroadcast
-                                                                        ? "bg-blue-50/50 dark:bg-blue-900/10"
-                                                                        : "bg-rose-50/50 dark:bg-rose-900/10"
-                                                                } dark:border-slate-800`}
+                                                                className="group relative overflow-hidden rounded-2xl border border-slate-200 p-5 text-sm transition-all hover:shadow-md bg-blue-50/50 dark:bg-blue-900/10 dark:border-slate-800"
                                                             >
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => {
-                                                                        if (
-                                                                            isBroadcast
-                                                                        ) {
-                                                                            handleMarkMessageRead(
-                                                                                notification.id,
-                                                                            );
-                                                                        }
+                                                                        handleMarkMessageRead(
+                                                                            notification.id,
+                                                                        );
                                                                         handleDismissNotification(
                                                                             notification.id,
                                                                         );
                                                                     }}
                                                                     className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-xl bg-white/50 text-slate-400 opacity-0 transition-all duration-200 hover:bg-rose-100 hover:text-rose-600 group-hover:opacity-100 dark:bg-slate-800/50 dark:hover:bg-rose-900/30"
-                                                                    aria-label={
-                                                                        isBroadcast
-                                                                            ? "Marcar como leído y ocultar"
-                                                                            : "Ocultar notificación"
-                                                                    }
-                                                                    title={
-                                                                        isBroadcast
-                                                                            ? "Marcar como leído y ocultar"
-                                                                            : "Ocultar notificación"
-                                                                    }
+                                                                    aria-label="Marcar como leído y ocultar"
+                                                                    title="Marcar como leído y ocultar"
                                                                 >
                                                                     ×
                                                                 </button>
                                                                 <div className="flex items-start gap-3">
-                                                                    <div
-                                                                        className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg ${
-                                                                            isBroadcast
-                                                                                ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
-                                                                                : "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400"
-                                                                        }`}
-                                                                    >
-                                                                        {isBroadcast
-                                                                            ? "💬"
-                                                                            : "🍽️"}
+                                                                    <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                                                                        💬
                                                                     </div>
                                                                     <div className="min-w-0 flex-1 pr-4">
                                                                         <p className="m-0 text-sm font-bold leading-tight text-slate-900 dark:text-white">
@@ -1390,51 +1309,20 @@ const LayoutDashboardContent: React.FC = () => {
                                                                             }
                                                                         </p>
                                                                         <div className="mt-3 flex flex-col gap-2 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                                                                            {isBroadcast ? (
-                                                                                <>
-                                                                                    <span>
-                                                                                        👤
-                                                                                        De:{" "}
-                                                                                        {
-                                                                                            senderName
-                                                                                        }
-                                                                                    </span>
-                                                                                    <span>
-                                                                                        📢
-                                                                                        Para:{" "}
-                                                                                        {
-                                                                                            recipientsLabel
-                                                                                        }
-                                                                                    </span>
-                                                                                </>
-                                                                            ) : (
-                                                                                <>
-                                                                                    <span>
-                                                                                        👨‍🍳{" "}
-                                                                                        {
-                                                                                            chefName
-                                                                                        }
-                                                                                    </span>
-                                                                                    <span>
-                                                                                        🪑
-                                                                                        Mesa{" "}
-                                                                                        {
-                                                                                            tableName
-                                                                                        }
-                                                                                    </span>
-                                                                                    {productName && (
-                                                                                        <span>
-                                                                                            🧾{" "}
-                                                                                            {quantity
-                                                                                                ? `${quantity}× `
-                                                                                                : ""}
-                                                                                            {
-                                                                                                productName
-                                                                                            }
-                                                                                        </span>
-                                                                                    )}
-                                                                                </>
-                                                                            )}
+                                                                            <span>
+                                                                                👤
+                                                                                De:{" "}
+                                                                                {
+                                                                                    senderName
+                                                                                }
+                                                                            </span>
+                                                                            <span>
+                                                                                📢
+                                                                                Para:{" "}
+                                                                                {
+                                                                                    recipientsLabel
+                                                                                }
+                                                                            </span>
                                                                             <span className="mt-1 text-slate-400 dark:text-slate-500">
                                                                                 {formatRelativeTime(
                                                                                     notification?.createdAt,
