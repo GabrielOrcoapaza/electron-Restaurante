@@ -21,6 +21,7 @@ import {
     type RestrictedModalPayload,
 } from "../../components/RestrictedTableAccessModal";
 import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
+import { unitValueFromInclusivePrice } from "../../utils/taxAmounts";
 import {
     CREATE_OPERATION,
     ADD_ITEMS_TO_OPERATION,
@@ -1552,12 +1553,9 @@ const Order: React.FC<OrderProps> = ({
                     const quantity = Math.max(1, Number(item.quantity) || 1);
                     const unitValue =
                         igvRate > 0
-                            ? parseFloat(
-                                  (
-                                      Math.round(
-                                          (unitPrice / (1 + igvRate)) * 100,
-                                      ) / 100
-                                  ).toFixed(2),
+                            ? unitValueFromInclusivePrice(
+                                  unitPrice,
+                                  igvPercentageValue,
                               )
                             : unitPrice;
                     const notes =
@@ -1663,11 +1661,9 @@ const Order: React.FC<OrderProps> = ({
                     (Math.round(rawPrice * 100) / 100).toFixed(2),
                 );
 
-                const igvRateNew = igvPercentageFromBranch / 100;
-                const unitValue = parseFloat(
-                    (
-                        Math.round((unitPrice / (1 + igvRateNew)) * 100) / 100
-                    ).toFixed(2),
+                const unitValue = unitValueFromInclusivePrice(
+                    unitPrice,
+                    igvPercentageFromBranch,
                 );
 
                 const rawQuantity =

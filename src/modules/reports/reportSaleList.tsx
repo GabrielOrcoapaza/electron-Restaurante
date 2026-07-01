@@ -31,6 +31,7 @@ import {
     getIntegratedPrinterCashUiEnabled,
     getLocalTicketPrinterStorage,
 } from "../../utils/localPrinterPreference";
+import { issuedItemLineTotal } from "../../utils/taxAmounts";
 
 interface IssuedDocument {
     id: string;
@@ -1207,7 +1208,9 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                                                     </td>
                                                                     <td className="px-4 py-3 text-right font-black text-slate-700 dark:text-slate-200">
                                                                         {currencyFormatter.format(
-                                                                            item.total,
+                                                                            issuedItemLineTotal(
+                                                                                item,
+                                                                            ),
                                                                         )}
                                                                     </td>
                                                                 </tr>

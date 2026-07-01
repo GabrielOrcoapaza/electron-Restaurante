@@ -1081,38 +1081,49 @@ const Login: React.FC = () => {
         /* RESPONSIVIDAD: 4K, Desktop, Tablets y Teléfonos */
         @media (max-width: 1024px) {
           .fullscreen-glass-card { width: 100vw; height: 100vh; border-radius: 0; border: none; }
-          .card-header { padding: 1.5rem; gap: 1rem; flex-direction: column; align-items: stretch; }
-          .header-top-row { flex-wrap: wrap; gap: 1rem; }
-          .search-container { max-width: 100%; }
-          .card-body { padding: 1.5rem; gap: 1.5rem; }
-          .left-column { padding-right: 1.5rem; }
+          .card-header { padding: 1.25rem 1.5rem; gap: 1rem; flex-direction: column; align-items: stretch; }
+          .header-top-row { flex-wrap: wrap; gap: 0.75rem; }
+          .header-info { flex: 1; min-width: 0; }
+          .search-container { max-width: 100%; min-width: 0; flex: 1; }
+          .header-actions { flex-wrap: wrap; gap: 0.75rem; }
+          .card-body {
+            padding: 1rem 1.5rem 1.5rem;
+            gap: 1rem;
+            flex-direction: column;
+            overflow-y: auto;
+            min-height: 0;
+            scrollbar-width: auto;
+          }
+          .card-body::-webkit-scrollbar { width: 22px; }
+          .card-body::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+          .card-body::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; border: 3px solid #f1f5f9; }
+          .card-body::-webkit-scrollbar-thumb:hover { background: #64748b; }
+          .left-column {
+            border-right: none;
+            padding-right: 0;
+            flex: none;
+            min-height: 0;
+          }
+          .left-column .employees-scroll-area {
+            max-height: min(42vh, 360px);
+          }
+          .right-column {
+            max-width: 100%;
+            flex: none;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+          }
+          .employees-grid {
+            grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+          }
+          .password-area { padding: 1.5rem; }
           .fullscreen-glass-card.keyboard-active { padding-bottom: 0; }
         }
 
         @media (max-width: 768px) {
-          .card-body {
-            flex-direction: column;
-            overflow-y: auto;
-            padding-top: 1rem;
-            scrollbar-width: auto;
-          }
-          .card-body::-webkit-scrollbar {
-            width: 22px;
-          }
-          .card-body::-webkit-scrollbar-track {
-            background: #f1f5f9;
-            border-radius: 10px;
-          }
-          .card-body::-webkit-scrollbar-thumb {
-            background: #94a3b8;
-            border-radius: 10px;
-            border: 3px solid #f1f5f9;
-          }
-          .card-body::-webkit-scrollbar-thumb:hover {
-            background: #64748b;
-          }
-          .left-column { border-right: none; padding-right: 0; flex: none; }
-          .right-column { padding-top: 1.5rem; border-top: 1px solid var(--border-color); margin-top: 1.5rem; max-width: 100%; }
+          .card-body { padding-top: 1rem; }
+          .left-column .employees-scroll-area { max-height: min(38vh, 320px); }
+          .right-column { padding-top: 1.5rem; margin-top: 0.5rem; }
           .action-text { display: none; } /* Ocultar texto en botones de retroceso para ganar espacio */
           .btn-float-virtual-keyboard {
             left: max(0.65rem, calc(0.65rem + env(safe-area-inset-left, 0px)));

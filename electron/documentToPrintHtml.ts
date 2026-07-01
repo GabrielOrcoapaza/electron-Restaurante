@@ -29,8 +29,121 @@ function renderFlatObject(obj: Record<string, unknown>, skip: Set<string>): stri
     return parts.join("");
 }
 
+function looksLikeCashClosurePayload(doc: Record<string, unknown>): boolean {
+    const t = String(doc.type ?? "").toUpperCase();
+    if (t === "CASH_CLOSURE") return true;
+    const closure = doc.closure ?? doc.cierre;
+    const methods = doc.payment_methods ?? doc.paymentMethods;
+    return closure != null && methods != null;
+}
+
+type HtmlPaymentMethodRow = { code: string; data: Record<string, unknown> };
+
+function normalizePaymentMethodsForHtml(doc: Record<string, unknown>): HtmlPaymentMethodRow[] {
+    const raw = doc.payment_methods ?? doc.paymentMethods;
+    if (!raw) return [];
+    if (Array.isArray(raw)) {
+        const rows: HtmlPaymentMethodRow[] = [];
+        for (const entry of raw) {
+            if (Array.isArray(entry) && entry.length >= 2) {
+                rows.push({
+                    code: String(entry[0] ?? ""),
+                    data: (entry[1] ?? {}) as Record<string, unknown>,
+                });
+            } else if (entry && typeof entry === "object") {
+                const o = entry as Record<string, unknown>;
+                rows.push({
+                    code: String(o.code ?? o.method ?? o.id ?? ""),
+                    data: o,
+                });
+            }
+        }
+        return rows;
+    }
+    if (typeof raw === "object") {
+        return Object.entries(raw as Record<string, unknown>).map(([code, data]) => ({
+            code,
+            data: (data && typeof data === "object" ? data : {}) as Record<string, unknown>,
+        }));
+    }
+    return [];
+}
+
+/** Layout de cierre de caja (print_cash_closure del cliente Raspberry). */
+function renderCashClosureStyle(doc: Record<string, unknown>): string {
+    const parts: string[] = [];
+    const logoHtml = logoImgHtml(doc);
+    if (logoHtml) parts.push(logoHtml);
+
+    const branch = (doc.branch ?? {}) as Record<string, unknown>;
+    if (branch.company) parts.push(`<div class="t-center t-branch t-bold">${n(branch.company)}</div>`);
+    if (branch.name) parts.push(`<div class="t-center t-meta">${n(branch.name)}</div>`);
+    if (branch.ruc) parts.push(`<div class="t-center t-meta">RUC: ${n(branch.ruc)}</div>`);
+
+    parts.push(`<div class="t-sep">================================================</div>`);
+    parts.push(`<div class="t-title">CIERRE DE CAJA</div>`);
+
+    const closure = (doc.closure ?? doc.cierre ?? {}) as Record<string, unknown>;
+    const closureNum = closure.number ?? closure.closure_number ?? closure.closureNumber ?? "—";
+    parts.push(`<div class="t-center t-docline t-bold">CIERRE #${n(String(closureNum))}</div>`);
+    parts.push(`<div class="t-sep">================================================</div>`);
+
+    const user = (doc.user ?? doc.usuario ?? {}) as Record<string, unknown>;
+    parts.push(`<div class="t-bodyline t-bold">Cajero: ${n(String(user.name ?? user.full_name ?? user.fullName ?? ""))}</div>`);
+    parts.push(`<div class="t-bodyline">Rol: ${n(String(user.role ?? ""))}</div>`);
+
+    const cashRegister = (doc.cash_register ?? doc.cashRegister ?? {}) as Record<string, unknown>;
+    parts.push(`<div class="t-bodyline">Caja: ${n(String(cashRegister.name ?? ""))}</div>`);
+    parts.push(`<div class="t-sep2">------------------------------------------------</div>`);
+
+    const closedAt = closure.closed_at ?? closure.closedAt;
+    if (closedAt) parts.push(`<div class="t-bodyline">Fecha: ${n(String(closedAt))}</div>`);
+
+    parts.push(`<div class="t-sep">================================================</div>`);
+    parts.push(`<div class="t-center t-bold">DETALLE POR METODO</div>`);
+    parts.push(`<div class="t-sep2">------------------------------------------------</div>`);
+
+    for (const { code, data: methodData } of normalizePaymentMethodsForHtml(doc)) {
+        const methodName = String(methodData.name ?? code);
+        const income = Number(methodData.income ?? 0);
+        const expense = Number(methodData.expense ?? 0);
+        const net = Number(methodData.net ?? income - expense);
+
+        parts.push(`<div class="t-center t-title t-pad">&gt;&gt;&gt; ${n(methodName)} &lt;&lt;&lt;</div>`);
+        parts.push(`<div class="t-bodyline t-bold">INGRESOS: S/ ${num2(income)}</div>`);
+        parts.push(`<div class="t-bodyline t-bold">EGRESOS: S/ ${num2(expense)}</div>`);
+        parts.push(`<div class="t-bodyline t-bold">NETO: S/ ${num2(net)}</div>`);
+        parts.push(`<div class="t-sep2">------------------------------------------------</div>`);
+    }
+
+    const totals = (doc.totals ?? {}) as Record<string, unknown>;
+    const totalIncome = Number(totals.total_income ?? totals.totalIncome ?? 0);
+    const totalExpense = Number(totals.total_expense ?? totals.totalExpense ?? 0);
+    const netTotal = Number(totals.net_total ?? totals.netTotal ?? totalIncome - totalExpense);
+
+    parts.push(`<div class="t-sep">================================================</div>`);
+    parts.push(`<div class="t-totrow t-bold"><span>TOTAL INGRESOS</span><span class="n">S/ ${num2(totalIncome)}</span></div>`);
+    parts.push(`<div class="t-totrow t-bold"><span>TOTAL EGRESOS</span><span class="n">S/ ${num2(totalExpense)}</span></div>`);
+    parts.push(`<div class="t-grand"><span>TOTAL NETO: S/ ${num2(netTotal)}</span></div>`);
+    parts.push(`<div class="t-sep">================================================</div>`);
+
+    const now = new Date();
+    const foot = now.toLocaleString("es-PE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+    });
+    parts.push(`<div class="t-center t-footer">Impreso: ${n(foot)}</div>`);
+
+    return parts.join("");
+}
+
 /** Mismo criterio de datos que el cliente Raspberry (print_document): ticket en columna única. */
 function looksLikeThermalDocumentPayload(doc: Record<string, unknown>): boolean {
+    if (looksLikeCashClosurePayload(doc)) return false;
     const branch = doc.branch;
     const document = doc.document;
     const amounts = doc.amounts;
@@ -413,6 +526,12 @@ export async function documentDataJsonToHtml(jsonString: string): Promise<string
         return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Documento</title></head><body><pre>${escapeHtml(
             jsonString.slice(0, 4000)
         )}</pre></body></html>`;
+    }
+
+    if (looksLikeCashClosurePayload(doc)) {
+        const body = renderCashClosureStyle(doc);
+        const css = thermalDocumentCss;
+        return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Cierre de caja</title><style>${css}</style></head><body class="ticket">${body}</body></html>`;
     }
 
     if (looksLikeThermalDocumentPayload(doc)) {

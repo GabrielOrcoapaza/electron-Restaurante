@@ -18,6 +18,8 @@ const CMD = {
     ALIGN_RIGHT:  Buffer.from([ESC, 0x61, 0x02]),
     MODE_NORMAL:  Buffer.from([ESC, 0x21, 0x00]),
     MODE_BOLD:    Buffer.from([ESC, 0x21, 0x08]),
+    MODE_2H:      Buffer.from([ESC, 0x21, 0x10]),
+    MODE_B2H:     Buffer.from([ESC, 0x21, 0x18]),
     MODE_2H2W:    Buffer.from([ESC, 0x21, 0x30]),
     MODE_B2H2W:   Buffer.from([ESC, 0x21, 0x38]),
     FEED5:        Buffer.from([ESC, 0x64, 0x05]),
@@ -206,6 +208,141 @@ function qrToEscPos(qrData: string, paperWidthMm: number): Buffer {
     ]);
 }
 
+function isCashClosurePayload(doc: Record<string, unknown>): boolean {
+    const t = String(doc.type ?? "").toUpperCase();
+    if (t === "CASH_CLOSURE") return true;
+    const closure = doc.closure ?? doc.cierre;
+    const methods = doc.payment_methods ?? doc.paymentMethods;
+    return closure != null && methods != null;
+}
+
+type PaymentMethodRow = { code: string; data: Record<string, unknown> };
+
+function normalizePaymentMethods(doc: Record<string, unknown>): PaymentMethodRow[] {
+    const raw = doc.payment_methods ?? doc.paymentMethods;
+    if (!raw) return [];
+
+    if (Array.isArray(raw)) {
+        const rows: PaymentMethodRow[] = [];
+        for (const entry of raw) {
+            if (Array.isArray(entry) && entry.length >= 2) {
+                rows.push({
+                    code: String(entry[0] ?? ""),
+                    data: (entry[1] ?? {}) as Record<string, unknown>,
+                });
+            } else if (entry && typeof entry === "object") {
+                const o = entry as Record<string, unknown>;
+                rows.push({
+                    code: String(o.code ?? o.method ?? o.id ?? ""),
+                    data: o,
+                });
+            }
+        }
+        return rows;
+    }
+
+    if (typeof raw === "object") {
+        return Object.entries(raw as Record<string, unknown>).map(([code, data]) => ({
+            code,
+            data: (data && typeof data === "object" ? data : {}) as Record<string, unknown>,
+        }));
+    }
+
+    return [];
+}
+
+/** Cierre de caja — mismo layout que print_cash_closure() del cliente Raspberry Pi. */
+async function buildCashClosureEscPos(
+    doc: Record<string, unknown>,
+    paperWidthMm: number,
+): Promise<Buffer> {
+    const e = new EscPos();
+    e.cmd(CMD.INIT).cmd(CMD.MODE_NORMAL);
+
+    if (typeof doc.logo_base64 === "string" && doc.logo_base64) {
+        e.raw(await logoToEscPos(doc.logo_base64, paperWidthMm));
+    }
+
+    const branch = (doc.branch ?? {}) as Record<string, unknown>;
+    const company = cleanText(String(branch.company ?? ""));
+    const branchName = cleanText(String(branch.name ?? ""));
+    if (company) e.cmd(CMD.MODE_BOLD).cmd(CMD.ALIGN_CENTER).text(company).cmd(CMD.MODE_NORMAL);
+    if (branchName) e.cmd(CMD.ALIGN_CENTER).text(branchName);
+    if (branch.ruc) e.cmd(CMD.ALIGN_CENTER).text(`RUC: ${cleanText(String(branch.ruc))}`);
+
+    e.separator("=");
+
+    e.cmd(CMD.MODE_B2H).cmd(CMD.ALIGN_CENTER).text("CIERRE DE CAJA").cmd(CMD.MODE_NORMAL);
+
+    const closure = (doc.closure ?? doc.cierre ?? {}) as Record<string, unknown>;
+    const closureNum = closure.number ?? closure.closure_number ?? closure.closureNumber ?? 0;
+    e.cmd(CMD.MODE_BOLD).cmd(CMD.ALIGN_CENTER).text(`CIERRE #${closureNum}`).cmd(CMD.MODE_NORMAL);
+
+    e.separator("=");
+
+    const user = (doc.user ?? doc.usuario ?? {}) as Record<string, unknown>;
+    e.cmd(CMD.ALIGN_LEFT).cmd(CMD.MODE_BOLD).text(`Cajero: ${cleanText(String(user.name ?? user.full_name ?? user.fullName ?? ""))}`).cmd(CMD.MODE_NORMAL);
+    e.cmd(CMD.ALIGN_LEFT).text(`Rol   : ${cleanText(String(user.role ?? ""))}`);
+
+    const cashRegister = (doc.cash_register ?? doc.cashRegister ?? {}) as Record<string, unknown>;
+    e.cmd(CMD.ALIGN_LEFT).text(`Caja  : ${cleanText(String(cashRegister.name ?? ""))}`);
+
+    e.separator2("-");
+
+    const closedAt = cleanText(String(closure.closed_at ?? closure.closedAt ?? ""));
+    if (closedAt) e.cmd(CMD.ALIGN_LEFT).text(`Fecha: ${closedAt}`);
+
+    e.separator("=");
+
+    e.cmd(CMD.MODE_BOLD).cmd(CMD.ALIGN_CENTER).text("DETALLE POR METODO").cmd(CMD.MODE_NORMAL);
+    e.separator2("-");
+
+    for (const { code, data: methodData } of normalizePaymentMethods(doc)) {
+        const methodName = cleanText(String(methodData.name ?? code));
+        const income = Number(methodData.income ?? 0);
+        const expense = Number(methodData.expense ?? 0);
+        const net = Number(methodData.net ?? income - expense);
+
+        e.raw(Buffer.from([LF]));
+        e.cmd(CMD.MODE_B2H).cmd(CMD.ALIGN_CENTER).text(`>>> ${methodName} <<<`).cmd(CMD.MODE_NORMAL);
+        e.cmd(CMD.MODE_B2H).cmd(CMD.ALIGN_LEFT).text(`INGRESOS: S/ ${income.toFixed(2).padStart(12)}`).cmd(CMD.MODE_NORMAL);
+        e.cmd(CMD.MODE_B2H).cmd(CMD.ALIGN_LEFT).text(`EGRESOS : S/ ${expense.toFixed(2).padStart(12)}`).cmd(CMD.MODE_NORMAL);
+        e.cmd(CMD.MODE_B2H).cmd(CMD.ALIGN_LEFT).text(`NETO    : S/ ${net.toFixed(2).padStart(12)}`).cmd(CMD.MODE_NORMAL);
+        e.raw(Buffer.from([LF]));
+        e.separator2("-");
+    }
+
+    const totals = (doc.totals ?? {}) as Record<string, unknown>;
+    const totalIncome = Number(totals.total_income ?? totals.totalIncome ?? 0);
+    const totalExpense = Number(totals.total_expense ?? totals.totalExpense ?? 0);
+    const netTotal = Number(totals.net_total ?? totals.netTotal ?? totalIncome - totalExpense);
+
+    e.separator("=");
+    e.cmd(CMD.MODE_BOLD).cmd(CMD.ALIGN_LEFT).text(`TOTAL INGRESOS: S/ ${totalIncome.toFixed(2).padStart(10)}`).cmd(CMD.MODE_NORMAL);
+    e.cmd(CMD.MODE_BOLD).cmd(CMD.ALIGN_LEFT).text(`TOTAL EGRESOS : S/ ${totalExpense.toFixed(2).padStart(10)}`).cmd(CMD.MODE_NORMAL);
+
+    e.raw(Buffer.from([LF]));
+    e.cmd(CMD.MODE_B2H).cmd(CMD.ALIGN_CENTER).text("TOTAL NETO:").cmd(CMD.MODE_NORMAL);
+    e.cmd(CMD.MODE_B2H).cmd(CMD.ALIGN_CENTER).text(`S/ ${netTotal.toFixed(2)}`).cmd(CMD.MODE_NORMAL);
+
+    e.separator("=");
+
+    const now = new Date();
+    const dateStr = now.toLocaleString("es-PE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+    });
+    e.cmd(CMD.ALIGN_CENTER).text(`Impreso: ${dateStr}`);
+
+    e.cmd(CMD.FEED5).cmd(CMD.CUT_PARTIAL);
+
+    return e.toBuffer();
+}
+
 export async function documentJsonToEscPos(jsonString: string, paperWidthMm = 80): Promise<Buffer> {
     let doc: Record<string, unknown>;
     try {
@@ -214,6 +351,11 @@ export async function documentJsonToEscPos(jsonString: string, paperWidthMm = 80
         const e = new EscPos();
         e.cmd(CMD.INIT).text("ERROR: JSON invalido").cmd(CMD.FEED5).cmd(CMD.CUT_PARTIAL);
         return e.toBuffer();
+    }
+
+    if (isCashClosurePayload(doc)) {
+        console.log("[ESC/POS] Tipo CASH_CLOSURE → formato cierre de caja");
+        return buildCashClosureEscPos(doc, paperWidthMm);
     }
 
     const e = new EscPos();

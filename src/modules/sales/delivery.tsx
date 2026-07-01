@@ -49,9 +49,10 @@ import { ComboSelectorModal } from "../../components/ComboSelectorModal";
 import type { DocumentPreviewAction } from "../../utils/issuedDocumentPrintWithPreview";
 import { DocumentPrintPreviewModal } from "../../components/DocumentPrintPreviewModal";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
-
-const roundMoney2 = (n: number): number =>
-    Math.round((Number(n) || 0) * 100) / 100;
+import {
+    roundMoney2,
+    unitValueFromInclusivePrice,
+} from "../../utils/taxAmounts";
 
 type CartItem = {
     id: string;
@@ -903,17 +904,14 @@ const Delivery: React.FC = () => {
         setIsSaving(true);
 
         try {
-            const igvRate = igvPercentageFromBranch / 100;
-
             const items = itemsSource.map((item) => {
                 const unitPrice = parseFloat(
                     (Math.round(item.price * 100) / 100).toFixed(2),
                 );
                 const quantity = Math.max(1, Number(item.quantity) || 1);
-                const unitValue = parseFloat(
-                    (
-                        Math.round((unitPrice / (1 + igvRate)) * 100) / 100
-                    ).toFixed(2),
+                const unitValue = unitValueFromInclusivePrice(
+                    unitPrice,
+                    igvPercentageFromBranch,
                 );
                 const notes =
                     typeof item.notes === "string" ? item.notes.trim() : "";

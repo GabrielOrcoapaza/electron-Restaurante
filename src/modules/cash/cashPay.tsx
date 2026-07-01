@@ -43,6 +43,7 @@ import {
     formatInstantISO,
 } from "../../utils/localDateTime";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
+import { unitValueFromInclusivePrice } from "../../utils/taxAmounts";
 import {
     promotionBadgeLabel,
     findBadgePromotion,
@@ -1414,11 +1415,15 @@ const CashPay: React.FC<CashPayProps> = ({
                 ([realId, group]) => {
                     const firstDetail = group.details[0];
 
+                    const unitPrice = Number(firstDetail.unitPrice) || 0;
                     return {
                         operationDetailId: realId, // ✅ USAR ID REAL, NO EL ID DIVIDIDO
                         quantity: group.totalQuantity,
-                        unitValue: Number(firstDetail.unitPrice) || 0,
-                        unitPrice: Number(firstDetail.unitPrice) || 0,
+                        unitValue: unitValueFromInclusivePrice(
+                            unitPrice,
+                            igvPercentage,
+                        ),
+                        unitPrice,
                         discount: group.totalLineDiscount || 0,
                         notes: firstDetail.notes || "",
                     };
@@ -2555,32 +2560,46 @@ const CashPay: React.FC<CashPayProps> = ({
                         className="rounded-lg border border-sky-200 bg-sky-50 text-sky-700 transition-colors hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/45"
                         style={{
                             padding: isNarrow
-                                ? "0.6rem 0.4rem"
-                                : "0.4rem 0.8rem",
-                            fontSize: isNarrow ? "0.7rem" : "0.75rem",
+                                ? "0.5rem 0.35rem"
+                                : "0.45rem 0.6rem",
+                            fontSize: isNarrow ? "0.65rem" : "0.7rem",
                             borderRadius: "6px",
                             cursor: "pointer",
                             width: isNarrow ? "auto" : "150px",
                             fontWeight: 600,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            lineHeight: 1.15,
+                            textAlign: "center",
                         }}
                     >
-                        Mesa
+                        <span>Cambiar</span>
+                        <span>Mesa</span>
                     </button>
                     <button
                         onClick={() => setShowTransferPlatesModal(true)}
                         className="rounded-lg border border-slate-300 bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         style={{
                             padding: isNarrow
-                                ? "0.6rem 0.4rem"
-                                : "0.4rem 0.8rem",
-                            fontSize: isNarrow ? "0.7rem" : "0.75rem",
+                                ? "0.5rem 0.35rem"
+                                : "0.45rem 0.6rem",
+                            fontSize: isNarrow ? "0.65rem" : "0.7rem",
                             borderRadius: "6px",
                             cursor: "pointer",
                             width: isNarrow ? "auto" : "150px",
                             fontWeight: 600,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            lineHeight: 1.15,
+                            textAlign: "center",
                         }}
                     >
-                        Traspaso
+                        <span>Pasar</span>
+                        <span>Platos</span>
                     </button>
                     <button
                         onClick={() => setShowChangeUserModal(true)}

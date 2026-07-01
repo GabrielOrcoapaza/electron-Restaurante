@@ -1,7 +1,16 @@
 import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
-import { app, BrowserWindow, session, dialog, ipcMain, shell } from "electron";
+import {
+    app,
+    BrowserWindow,
+    session,
+    dialog,
+    ipcMain,
+    shell,
+    screen,
+} from "electron";
+import type { Rectangle } from "electron";
 import type { WebContentsPrintOptions } from "electron";
 import { autoUpdater } from "electron-updater";
 import log from "electron-log";
@@ -89,8 +98,54 @@ log.transports.console.level = "debug";
 
 const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
 
+/** Tras abrir: maximizar y ocultar botón maximizar (POS/kiosco, opción 2). */
+const LOCK_MAXIMIZE_BUTTON = true;
+
+/** Mínimos absolutos para pantallas pequeñas (ej. 1024×768). Nunca superan el workArea. */
+const MAIN_WINDOW_ABS_MIN_WIDTH = 800;
+const MAIN_WINDOW_ABS_MIN_HEIGHT = 600;
+
 /** Ventana principal: para IPC que necesita webContents (p. ej. listar impresoras del SO). */
 let mainWindowRef: BrowserWindow | null = null;
+
+function getPrimaryWorkArea(): Rectangle {
+    return screen.getPrimaryDisplay().workArea;
+}
+
+/** minWidth/minHeight acotados al monitor (evita ventana más ancha que la pantalla). */
+function getMainWindowMinimumSize(workArea: Rectangle): {
+    minWidth: number;
+    minHeight: number;
+} {
+    return {
+        minWidth: Math.min(workArea.width, MAIN_WINDOW_ABS_MIN_WIDTH),
+        minHeight: Math.min(workArea.height, MAIN_WINDOW_ABS_MIN_HEIGHT),
+    };
+}
+
+/**
+ * Maximiza con el SO y luego bloquea el botón maximizar (sigue en pantalla completa).
+ */
+function maximizeAndLock(mainWindow: BrowserWindow): void {
+    if (LOCK_MAXIMIZE_BUTTON) {
+        mainWindow.setMaximizable(true);
+        mainWindow.maximize();
+        mainWindow.setMaximizable(false);
+    } else {
+        mainWindow.maximize();
+    }
+}
+
+function showMainWindowWhenReady(mainWindow: BrowserWindow): void {
+    maximizeAndLock(mainWindow);
+    mainWindow.show();
+}
+
+function onDisplayMetricsChanged(): void {
+    const mainWindow = mainWindowRef;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    maximizeAndLock(mainWindow);
+}
 
 /**
  * Instancia única: evita dos procesos Electron (dos ventanas sueltas) si el usuario
@@ -159,14 +214,16 @@ app.on("ready", () => {
 });
 
 function createWindow() {
+    const workArea = getPrimaryWorkArea();
+    const { minWidth, minHeight } = getMainWindowMinimumSize(workArea);
+
     const mainWindow = new BrowserWindow({
-        width: 1000,
-        height: 700,
-        minWidth: 1200,
-        minHeight: 800,
-        maximizable:false,
+        width: Math.min(workArea.width, 1280),
+        height: Math.min(workArea.height, 800),
+        minWidth,
+        minHeight,
+        maximizable: false,
         title: "SumApp",
-        show: false, // No mostrar hasta que esté listo
         icon: path.join(__dirname, "../public/SumApp.ico"),
         webPreferences: {
             contextIsolation: false,
@@ -205,10 +262,16 @@ function createWindow() {
         }
     });
 
-    // Maximizar la ventana cuando esté lista
     mainWindow.once("ready-to-show", () => {
-        mainWindow.maximize();
-        mainWindow.show();
+        showMainWindowWhenReady(mainWindow);
+    });
+
+    screen.removeListener("display-metrics-changed", onDisplayMetricsChanged);
+    screen.on("display-metrics-changed", onDisplayMetricsChanged);
+
+    mainWindow.on("closed", () => {
+        mainWindowRef = null;
+        screen.removeListener("display-metrics-changed", onDisplayMetricsChanged);
     });
 
     if (isDev) {

@@ -7,6 +7,10 @@ import { amountToWordsPe } from "./amountToWordsPe";
 import { getFullImageUrl, isLikelyImagePath } from "./getFullImageUrl";
 import type { CompanyData } from "../context/AuthContext";
 import type { IssuedDocumentReportSource } from "./buildIssuedDocumentReportJson";
+import {
+    issuedItemLineTotal,
+    unitValueFromInclusivePrice,
+} from "./taxAmounts";
 
 const round2 = (n: number): number =>
     Math.round((Number(n) || 0) * 100) / 100;
@@ -171,11 +175,12 @@ export async function buildOfficialSunatA4Html(
     const itemRows = doc.items
         .map((item) => {
             const qty = round2(item.quantity);
-            const unitValue = round2(
-                item.unitValue ?? item.unitPrice / (1 + igvPercent / 100),
-            );
             const unitPrice = round2(item.unitPrice);
-            const importe = round2(item.total);
+            const unitValue = round2(
+                item.unitValue ??
+                    unitValueFromInclusivePrice(unitPrice, igvPercent),
+            );
+            const importe = issuedItemLineTotal(item);
             const code = item.operationDetail?.product?.code ?? "";
             const name = item.operationDetail?.product?.name ?? "";
             return `<tr>

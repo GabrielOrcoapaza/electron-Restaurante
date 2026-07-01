@@ -5,6 +5,7 @@
 
 import { isLikelyImagePath } from "./getFullImageUrl";
 import type { CompanyData } from "../context/AuthContext";
+import { issuedItemLineTotal } from "./taxAmounts";
 
 export type IssuedDocumentReportSource = {
     serial: string;
@@ -171,7 +172,7 @@ export function buildIssuedDocumentReportJson(
             product_name: item.operationDetail?.product?.name ?? "",
             quantity: item.quantity,
             unit_price: item.unitPrice,
-            total: item.total,
+            total: issuedItemLineTotal(item),
             notes: item.notes ?? item.operationDetail?.notes ?? "",
         })),
         amounts: {
