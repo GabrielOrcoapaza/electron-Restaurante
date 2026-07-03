@@ -139,7 +139,7 @@ const Cashs: React.FC = () => {
         string | null
     >(null);
     const [showMovements, setShowMovements] = useState(true);
-    const [showHistory, setShowHistory] = useState(true);
+    const [showHistory, setShowHistory] = useState(false);
     const [pendingConfirm, setPendingConfirm] =
         useState<PendingConfirmAction | null>(null);
     const [confirmLoading, setConfirmLoading] = useState(false);

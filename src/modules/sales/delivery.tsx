@@ -49,6 +49,8 @@ import { ComboSelectorModal } from "../../components/ComboSelectorModal";
 import type { DocumentPreviewAction } from "../../utils/issuedDocumentPrintWithPreview";
 import { DocumentPrintPreviewModal } from "../../components/DocumentPrintPreviewModal";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
+import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
+import { getLocalTicketPrinterStorage } from "../../utils/localPrinterPreference";
 import {
     roundMoney2,
     unitValueFromInclusivePrice,
@@ -79,7 +81,7 @@ type Person = {
 };
 
 const Delivery: React.FC = () => {
-    const { companyData, user, deviceId, getDeviceId, getMacAddress } =
+    const { companyData, user, getDeviceId, getMacAddress } =
         useAuth();
     const { showToast } = useToast();
     const { breakpoint } = useResponsive();
@@ -942,18 +944,11 @@ const Delivery: React.FC = () => {
             const now = new Date();
             const emissionDate = formatLocalDateYYYYMMDD(now);
             const emissionTime = formatLocalTimeHHMMSS(now);
-            // Obtener deviceId o MAC address
-            let resolvedDeviceId: string;
-            if (deviceId) {
-                resolvedDeviceId = deviceId;
-            } else {
-                try {
-                    resolvedDeviceId = await getMacAddress();
-                } catch (error) {
-                    console.error("Error al obtener MAC address:", error);
-                    resolvedDeviceId = getDeviceId();
-                }
-            }
+            const resolvedDeviceId = await resolveClientDeviceIdForPrint({
+                getMacAddress,
+                getDeviceId,
+                logPrefix: "[Delivery/venta]",
+            });
 
             // Asegurar que los montos no tengan demasiados decimales (que podrían exceder la longitud de texto en el backend)
             const cleanCartTotal = parseFloat(cartTotal.toFixed(2));
@@ -1105,12 +1100,14 @@ const Delivery: React.FC = () => {
                             operationId:
                                 carryOutResult?.operation?.id ?? null,
                             deviceId: resolvedDeviceId ?? null,
+                            localPrinterName:
+                                getLocalTicketPrinterStorage().trim() || null,
                         },
                     );
 
                     if (printLocallyFlag && !localPrintOk) {
                         showToast(
-                            "La venta se registró, pero no se pudo imprimir en la impresora local.",
+                            "La venta se registró, pero no se pudo imprimir en la impresora local. Revise la impresora USB en Configuración o el nombre en impresoras locales.",
                             "warning",
                         );
                     }
