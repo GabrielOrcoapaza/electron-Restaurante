@@ -14,6 +14,7 @@ import {
     buildIssuedDocumentReportJson,
     issuedDocumentPdfFilename,
 } from "../../utils/buildIssuedDocumentReportJson";
+import { buildSunatQrData } from "../../utils/buildSunatQrData";
 import { downloadIssuedDocumentPdf } from "../../utils/downloadIssuedDocumentPdf";
 import {
     buildIssuedDocumentSunatUrls,
@@ -186,7 +187,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     const [localDocuments, setLocalDocuments] =
         useState<IssuedDocument[]>(documents);
     const [printMessage, setPrintMessage] = useState<{
-        type: "success" | "error";
+        type: "success" | "error" | "warning";
         text: string;
     } | null>(null);
     const [printingDocId, setPrintingDocId] = useState<string | null>(null);
@@ -244,11 +245,41 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
         Boolean(getLocalTicketPrinterStorage().trim()) ||
         isElectron;
 
-    const resolveReprintPrintPayload = (doc: IssuedDocument) => {
+    const resolveReprintDocumentJson = (
+        doc: IssuedDocument,
+        backendRaw?: string | null,
+    ): string => {
+        const backend = String(backendRaw ?? "").trim();
+        if (backend) {
+            try {
+                const parsed = JSON.parse(backend) as Record<string, unknown>;
+                const hasQr = Boolean(
+                    String(parsed.qr_data ?? parsed.qrData ?? "").trim(),
+                );
+                if (hasQr) return backend;
+
+                const localQr = buildSunatQrData(doc, companyData);
+                if (localQr) {
+                    parsed.qr_data = localQr;
+                    return JSON.stringify(parsed);
+                }
+                return backend;
+            } catch {
+                return backend;
+            }
+        }
+        return buildIssuedDocumentReportJson(doc, companyData);
+    };
+
+    const resolveReprintPrintPayload = (
+        doc: IssuedDocument,
+        backendDocumentData?: string | null,
+    ) => {
         if (!preferLocalUsbPrint()) return null;
+        const documentData = resolveReprintDocumentJson(doc, backendDocumentData);
         return {
             printLocally: true,
-            documentData: buildIssuedDocumentReportJson(doc, companyData),
+            documentData,
         };
     };
 
@@ -672,8 +703,36 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                 return;
             }
 
-            const localPrintPayload = resolveReprintPrintPayload(doc);
+            const backendDocData =
+                (result?.documentData as string | null | undefined) ??
+                (result?.document_data as string | null | undefined) ??
+                null;
+
+            const localPrintPayload = resolveReprintPrintPayload(
+                doc,
+                backendDocData,
+            );
             if (localPrintPayload) {
+                let parsedQr = false;
+                try {
+                    const p = JSON.parse(localPrintPayload.documentData) as Record<
+                        string,
+                        unknown
+                    >;
+                    parsedQr = Boolean(
+                        String(p.qr_data ?? p.qrData ?? "").trim(),
+                    );
+                } catch {
+                    parsedQr = false;
+                }
+
+                console.log("[Reprint reporte ventas]", {
+                    issuedDocumentId: doc.id,
+                    hashCode: doc.hashCode ?? null,
+                    qrEnJson: parsedQr,
+                    origenDocumentData: backendDocData ? "backend" : "local",
+                });
+
                 const localPrintOk = await invokeLocalIssuedDocumentPrint(
                     localPrintPayload,
                     {
@@ -690,6 +749,18 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                         type: "error",
                         text:
                             "El documento se registró para reimpresión, pero no se pudo enviar a la impresora USB/local. Revise la impresora en Configuración → Impresoras locales.",
+                    });
+                    return;
+                }
+
+                if (
+                    isElectronicBillingDocumentCode(doc.document.code) &&
+                    !parsedQr
+                ) {
+                    setPrintMessage({
+                        type: "warning",
+                        text:
+                            "Documento reimpreso, pero sin código QR: el comprobante no tiene hash SUNAT (hashCode). Debe estar emitido/aceptado por SUNAT.",
                     });
                     return;
                 }
@@ -779,7 +850,9 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                         printMessage?.type === "success" ||
                         reopenMessage?.type === "success"
                             ? "bg-emerald-50 border-emerald-100 text-emerald-600 dark:bg-emerald-900/20 dark:border-emerald-900/30"
-                            : "bg-rose-50 border-rose-100 text-rose-600 dark:bg-rose-900/20 dark:border-rose-900/30"
+                            : printMessage?.type === "warning"
+                              ? "bg-amber-50 border-amber-100 text-amber-700 dark:bg-amber-900/20 dark:border-amber-900/30"
+                              : "bg-rose-50 border-rose-100 text-rose-600 dark:bg-rose-900/20 dark:border-rose-900/30"
                     }`}
                 >
                     {printMessage?.text || reopenMessage?.text}

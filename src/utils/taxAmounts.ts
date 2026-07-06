@@ -18,15 +18,22 @@ export function unitValueFromInclusivePrice(
 }
 
 /**
- * Total de línea a mostrar (precio de venta × cantidad − descuento).
- * Evita discrepancias por redondeo del valor unitario sin IGV en el backend.
+ * Total de línea a mostrar.
+ * Prioriza total/subtotal del backend (cuadra con el documento); evita usar unitPrice
+ * cuando viene recalculado con IGV 18% (p. ej. 1.068 en lugar de 1.00).
  */
 export function issuedItemLineTotal(item: {
     quantity?: number | string | null;
     unitPrice?: number | string | null;
     discount?: number | string | null;
     total?: number | string | null;
+    subtotal?: number | string | null;
 }): number {
+    const backendTotal = Number(item.total ?? item.subtotal);
+    if (Number.isFinite(backendTotal) && backendTotal >= 0) {
+        return roundMoney2(backendTotal);
+    }
+
     const qty = Number(item.quantity);
     const unitPrice = Number(item.unitPrice);
     const discount = Number(item.discount) || 0;
@@ -38,5 +45,25 @@ export function issuedItemLineTotal(item: {
     ) {
         return roundMoney2(qty * unitPrice - discount);
     }
-    return roundMoney2(Number(item.total) || 0);
+    return 0;
+}
+
+/**
+ * Precio unitario de venta (IGV incluido) para mostrar en comprobantes.
+ * Deriva del total de línea del backend, no de unitPrice almacenado erróneamente.
+ */
+export function issuedItemDisplayUnitPrice(item: {
+    quantity?: number | string | null;
+    unitPrice?: number | string | null;
+    discount?: number | string | null;
+    total?: number | string | null;
+    subtotal?: number | string | null;
+}): number {
+    const qty = Number(item.quantity);
+    if (!Number.isFinite(qty) || qty <= 0) {
+        return roundMoney2(Number(item.unitPrice) || 0);
+    }
+    const lineTotal = issuedItemLineTotal(item);
+    const discount = Number(item.discount) || 0;
+    return roundMoney2((lineTotal + discount) / qty);
 }

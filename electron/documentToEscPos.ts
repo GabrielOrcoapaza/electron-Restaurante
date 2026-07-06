@@ -109,6 +109,39 @@ class EscPos {
     toBuffer(): Buffer { return Buffer.concat(this.chunks); }
 }
 
+async function resolveLogoBase64(doc: Record<string, unknown>): Promise<string | null> {
+    const embedded =
+        typeof doc.logo_base64 === "string" ? doc.logo_base64.trim() : "";
+    if (embedded) {
+        return embedded.replace(/^data:image\/\w+;base64,/, "");
+    }
+
+    const url = typeof doc.logo_url === "string" ? doc.logo_url.trim() : "";
+    if (!url) return null;
+
+    try {
+        const { net } = require("electron") as typeof import("electron");
+        const response = await net.fetch(url);
+        if (!response.ok) return null;
+        const buf = Buffer.from(await response.arrayBuffer());
+        if (buf.length === 0) return null;
+        return buf.toString("base64");
+    } catch (error) {
+        console.error("[ESC/POS] Error descargando logo_url:", error);
+        return null;
+    }
+}
+
+function resolveQrData(doc: Record<string, unknown>): string {
+    const raw =
+        doc.qr_data ??
+        doc.qrData ??
+        doc.hash_code ??
+        doc.hashCode ??
+        "";
+    return String(raw).trim();
+}
+
 async function logoToEscPos(logo_base64: string, paperWidthMm: number): Promise<Buffer> {
     try {
         const sharp = require('sharp');
@@ -361,13 +394,16 @@ export async function documentJsonToEscPos(jsonString: string, paperWidthMm = 80
     const e = new EscPos();
     e.cmd(CMD.INIT).cmd(CMD.MODE_NORMAL);
 
-    console.log("[ESC/POS] Logo presente:", !!doc.logo_base64);
-    console.log("[ESC/POS] QR data presente:", !!doc.qr_data);
+    const logoBase64 = await resolveLogoBase64(doc);
+    const qrData = resolveQrData(doc);
+
+    console.log("[ESC/POS] Logo presente:", !!logoBase64);
+    console.log("[ESC/POS] QR data presente:", !!qrData);
     console.log("[ESC/POS] Paper width:", paperWidthMm);
 
     // LOGO
-    if (typeof doc.logo_base64 === "string" && doc.logo_base64) {
-        e.raw(await logoToEscPos(doc.logo_base64, paperWidthMm));
+    if (logoBase64) {
+        e.raw(await logoToEscPos(logoBase64, paperWidthMm));
     }
 
     // EMPRESA
@@ -459,7 +495,7 @@ export async function documentJsonToEscPos(jsonString: string, paperWidthMm = 80
      .raw(Buffer.from([LF]));
 
     // QR
-    if (doc.qr_data) e.raw(qrToEscPos(String(doc.qr_data), paperWidthMm));
+    if (qrData) e.raw(qrToEscPos(qrData, paperWidthMm));
 
     // PIE
     e.raw(Buffer.from([LF]));

@@ -227,7 +227,7 @@ const ReportSale: React.FC = () => {
                             type="date"
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                            className="report-date-field w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
                         />
                     </div>
 
@@ -239,7 +239,7 @@ const ReportSale: React.FC = () => {
                             type="date"
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                            className="report-date-field w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
                         />
                     </div>
 

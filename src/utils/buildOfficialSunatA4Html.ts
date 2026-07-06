@@ -8,6 +8,7 @@ import { getFullImageUrl, isLikelyImagePath } from "./getFullImageUrl";
 import type { CompanyData } from "../context/AuthContext";
 import type { IssuedDocumentReportSource } from "./buildIssuedDocumentReportJson";
 import {
+    issuedItemDisplayUnitPrice,
     issuedItemLineTotal,
     unitValueFromInclusivePrice,
 } from "./taxAmounts";
@@ -175,12 +176,23 @@ export async function buildOfficialSunatA4Html(
     const itemRows = doc.items
         .map((item) => {
             const qty = round2(item.quantity);
-            const unitPrice = round2(item.unitPrice);
+            let importe = issuedItemLineTotal(item);
+            let displayUnitPrice = issuedItemDisplayUnitPrice(item);
+
+            // Un solo ítem: cuadrar con total del documento si la línea viene mal del backend
+            if (
+                doc.items.length === 1 &&
+                qty > 0 &&
+                Math.abs(importe - round2(doc.totalAmount)) > 0.009
+            ) {
+                importe = round2(doc.totalAmount);
+                displayUnitPrice = round2(importe / qty);
+            }
+
             const unitValue = round2(
                 item.unitValue ??
-                    unitValueFromInclusivePrice(unitPrice, igvPercent),
+                    unitValueFromInclusivePrice(displayUnitPrice, igvPercent),
             );
-            const importe = issuedItemLineTotal(item);
             const code = item.operationDetail?.product?.code ?? "";
             const name = item.operationDetail?.product?.name ?? "";
             return `<tr>
@@ -189,7 +201,7 @@ export async function buildOfficialSunatA4Html(
         <td class="c">${esc(code)}</td>
         <td class="desc">${esc(name)}</td>
         <td class="n">${fmtMoney(unitValue)}</td>
-        <td class="n">${fmtMoney(unitPrice)}</td>
+        <td class="n">${fmtMoney(displayUnitPrice)}</td>
         <td class="n">${fmtMoney(importe)}</td>
       </tr>`;
         })

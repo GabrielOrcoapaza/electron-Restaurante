@@ -291,7 +291,7 @@ const ReportCancel: React.FC = () => {
                             type="date"
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                            className="report-date-field w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
                         />
                     </div>
 
@@ -301,7 +301,7 @@ const ReportCancel: React.FC = () => {
                             type="date"
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                            className="report-date-field w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
                         />
                     </div>
 
@@ -310,7 +310,7 @@ const ReportCancel: React.FC = () => {
                         <select
                             value={type}
                             onChange={(e) => setType(e.target.value)}
-                            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200 cursor-pointer"
+                            className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-bold text-slate-900 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                         >
                             <option value="BOTH">Todas las anulaciones</option>
                             <option value="OPERATIONS">Solo Operaciones (Órdenes)</option>

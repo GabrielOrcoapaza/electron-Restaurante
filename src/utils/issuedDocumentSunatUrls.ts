@@ -286,7 +286,7 @@ export function buildIssuedDocumentSunatUrls(
 
 /**
  * Descarga el PDF oficial desde tuf4ctur4 (print_invoice/{sunatOperationId}/).
- * Formato = plantilla CPE del RUC en tuf4ct. Sin réplica HTML local.
+ * Formato = plantilla CPE del RUC en tuf4ct.
  */
 export async function downloadOfficialIssuedDocumentPdf(
 	doc: IssuedDocumentSunatSource & IssuedDocumentReportSource,

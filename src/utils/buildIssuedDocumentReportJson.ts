@@ -3,9 +3,10 @@
  * Mismo estilo simple que el ticket impreso (FACTURA, N°, cliente, estado, pago).
  */
 
-import { isLikelyImagePath } from "./getFullImageUrl";
+import { getFullImageUrl, isLikelyImagePath } from "./getFullImageUrl";
 import type { CompanyData } from "../context/AuthContext";
-import { issuedItemLineTotal } from "./taxAmounts";
+import { issuedItemDisplayUnitPrice, issuedItemLineTotal } from "./taxAmounts";
+import { buildSunatQrData } from "./buildSunatQrData";
 
 export type IssuedDocumentReportSource = {
     serial: string;
@@ -36,6 +37,7 @@ export type IssuedDocumentReportSource = {
         quantity: number;
         unitValue?: number;
         unitPrice: number;
+        subtotal?: number;
         total: number;
         notes?: string;
         operationDetail?: {
@@ -168,13 +170,27 @@ export function buildIssuedDocumentReportJson(
             time: doc.emissionTime,
             datetime: formatEmissionDateTime(doc.emissionDate, doc.emissionTime),
         },
-        items: doc.items.map((item) => ({
-            product_name: item.operationDetail?.product?.name ?? "",
-            quantity: item.quantity,
-            unit_price: item.unitPrice,
-            total: issuedItemLineTotal(item),
-            notes: item.notes ?? item.operationDetail?.notes ?? "",
-        })),
+        items: doc.items.map((item, _idx, allItems) => {
+            let total = issuedItemLineTotal(item);
+            let unit_price = issuedItemDisplayUnitPrice(item);
+            if (
+                allItems.length === 1 &&
+                Math.abs(total - roundMoney2(doc.totalAmount)) > 0.009
+            ) {
+                total = roundMoney2(doc.totalAmount);
+                const qty = Number(item.quantity);
+                if (Number.isFinite(qty) && qty > 0) {
+                    unit_price = roundMoney2(total / qty);
+                }
+            }
+            return {
+                product_name: item.operationDetail?.product?.name ?? "",
+                quantity: item.quantity,
+                unit_price,
+                total,
+                notes: item.notes ?? item.operationDetail?.notes ?? "",
+            };
+        }),
         amounts: {
             total_taxable: subtotal,
             subtotal,
@@ -203,10 +219,21 @@ export function buildIssuedDocumentReportJson(
     const rawLogo =
         companyData?.branch?.logo?.trim() ||
         companyData?.company?.logo?.trim() ||
+        companyData?.branchLogo?.trim() ||
+        companyData?.companyLogo?.trim() ||
         null;
-    if (rawLogo && !isLikelyImagePath(rawLogo)) {
-        const logo = stripLogoBase64(rawLogo);
-        if (logo) payload.logo_base64 = logo;
+    if (rawLogo) {
+        if (isLikelyImagePath(rawLogo)) {
+            payload.logo_url = getFullImageUrl(rawLogo);
+        } else {
+            const logo = stripLogoBase64(rawLogo);
+            if (logo) payload.logo_base64 = logo;
+        }
+    }
+
+    const qrData = buildSunatQrData(doc, companyData);
+    if (qrData) {
+        payload.qr_data = qrData;
     }
 
     if (doc.person?.name || doc.person?.documentNumber) {

@@ -1624,6 +1624,8 @@ export const REPRINT_DOCUMENT = gql`
         ) {
             success
             message
+            printLocally
+            documentData
         }
     }
 `;
