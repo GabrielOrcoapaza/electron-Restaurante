@@ -2,10 +2,14 @@
  * Vista previa / descarga PDF del comprobante (document_data).
  */
 
-import { ipcMain, app } from "electron";
+import { ipcMain, shell } from "electron";
 import * as fs from "fs";
 import * as path from "path";
 import log from "electron-log";
+import {
+    formatSavedInDownloadsMessage,
+    resolveUniqueDownloadFilePath,
+} from "./downloadPaths";
 import {
     documentJsonToPdfBuffer,
 } from "./ticketHtmlWindow";
@@ -22,17 +26,7 @@ function sanitizePdfFilename(filename: string): string {
 }
 
 function resolveDownloadPath(filename: string): string {
-    const safeName = sanitizePdfFilename(filename);
-    const downloadsDir = app.getPath("downloads");
-    let filePath = path.join(downloadsDir, safeName);
-    if (!fs.existsSync(filePath)) return filePath;
-
-    const parsed = path.parse(safeName);
-    const stamp = Date.now();
-    return path.join(
-        downloadsDir,
-        `${parsed.name}_${stamp}${parsed.ext || ".pdf"}`,
-    );
+    return resolveUniqueDownloadFilePath(filename, sanitizePdfFilename);
 }
 
 async function saveDocumentPdfToDownloads(
@@ -52,6 +46,12 @@ async function saveDocumentPdfToDownloads(
     const filePath = resolveDownloadPath(filename);
     fs.writeFileSync(filePath, buffer);
     log.info(`[preview] PDF guardado en ${filePath} (${buffer.length} bytes)`);
+    try {
+        shell.showItemInFolder(filePath);
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        log.warn("[preview] No se pudo abrir Descargas en el explorador:", msg);
+    }
 
     return { ok: true, path: filePath };
 }
@@ -120,7 +120,9 @@ export function registerDocumentPreviewHandler(): void {
                 return {
                     ok: true,
                     path: result.path,
-                    message: `PDF guardado en Descargas: ${path.basename(result.path || "")}`,
+                    message: result.path
+                        ? formatSavedInDownloadsMessage(result.path)
+                        : "PDF guardado en Descargas.",
                 };
             } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : String(e);

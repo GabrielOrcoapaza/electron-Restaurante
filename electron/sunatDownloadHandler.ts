@@ -7,10 +7,14 @@
  * fallbackHtml solo se usa si no hay URL o la descarga remota falló por completo.
  */
 
-import { app, ipcMain, net, shell } from "electron";
+import { ipcMain, net, shell } from "electron";
 import * as fs from "fs";
 import * as path from "path";
 import log from "electron-log";
+import {
+    formatSavedInDownloadsMessage,
+    resolveUniqueDownloadFilePath,
+} from "./downloadPaths";
 import { htmlToA4PdfBuffer } from "./officialA4Pdf";
 
 function sanitizeFilename(filename: string): string {
@@ -25,31 +29,20 @@ function sanitizePdfFilename(filename: string): string {
 }
 
 function resolveDownloadPath(filename: string): string {
-    const safeName = sanitizeFilename(filename);
-    const downloadsDir = app.getPath("downloads");
-    let filePath = path.join(downloadsDir, safeName);
-    if (!fs.existsSync(filePath)) return filePath;
-
-    const parsed = path.parse(safeName);
-    const stamp = Date.now();
-    return path.join(
-        downloadsDir,
-        `${parsed.name}_${stamp}${parsed.ext || ""}`,
-    );
+    return resolveUniqueDownloadFilePath(filename, sanitizeFilename);
 }
 
 function resolvePdfDownloadPath(filename: string): string {
-    const safeName = sanitizePdfFilename(filename);
-    const downloadsDir = app.getPath("downloads");
-    let filePath = path.join(downloadsDir, safeName);
-    if (!fs.existsSync(filePath)) return filePath;
+    return resolveUniqueDownloadFilePath(filename, sanitizePdfFilename);
+}
 
-    const parsed = path.parse(safeName);
-    const stamp = Date.now();
-    return path.join(
-        downloadsDir,
-        `${parsed.name}_${stamp}${parsed.ext || ".pdf"}`,
-    );
+function revealDownloadInExplorer(filePath: string): void {
+    try {
+        shell.showItemInFolder(filePath);
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        log.warn("[sunat] No se pudo abrir Descargas en el explorador:", msg);
+    }
 }
 
 function isPdfBuffer(buffer: Buffer): boolean {
@@ -212,11 +205,12 @@ export function registerSunatDownloadHandler(): void {
                 log.info(
                     `[sunat] PDF guardado en ${filePath} (${pdfBuffer.length} bytes)`,
                 );
+                revealDownloadInExplorer(filePath);
 
                 return {
                     ok: true,
                     path: filePath,
-                    message: `PDF guardado en Descargas: ${path.basename(filePath)}`,
+                    message: formatSavedInDownloadsMessage(filePath),
                 };
             } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : String(e);
@@ -251,10 +245,12 @@ export function registerSunatDownloadHandler(): void {
                 log.info(
                     `[sunat] Guardado en ${filePath} (${fetched.buffer.length} bytes)`,
                 );
+                revealDownloadInExplorer(filePath);
+
                 return {
                     ok: true,
                     path: filePath,
-                    message: `Archivo guardado en Descargas: ${path.basename(filePath)}`,
+                    message: formatSavedInDownloadsMessage(filePath),
                 };
             } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : String(e);

@@ -764,7 +764,7 @@ const Cashs: React.FC = () => {
                         </div>
 
                         {/* Preview Section */}
-                        <div className="overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+                        <div className="overflow-visible rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
                             <div className="border-b border-slate-50 p-8 dark:border-slate-800/50">
                                 <div className="flex items-center justify-between">
                                     <div className="flex flex-col gap-1">
@@ -1089,44 +1089,41 @@ const Cashs: React.FC = () => {
                                             </div>
 
                                             {showMovements && (
-                                                <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
-                                                    <div className="overflow-x-auto">
-                                                        <table className="w-full text-left text-xs">
+                                                <div className="rounded-3xl border border-slate-200 bg-white shadow-md dark:border-slate-600 dark:bg-slate-900">
+                                                    <div className="overflow-x-auto overscroll-x-contain [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
+                                                        <table className="w-full min-w-[1080px] text-left text-xs">
                                                             <thead>
-                                                                <tr className="border-b border-slate-50 bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:border-slate-800 dark:bg-slate-800/30">
-                                                                    <th className="px-6 py-4">
-                                                                        Fecha /
-                                                                        Hora
+                                                                <tr className="border-b-2 border-slate-200 bg-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
+                                                                    <th className="min-w-[150px] whitespace-nowrap px-4 py-3">
+                                                                        Fecha / Hora
                                                                     </th>
-                                                                    <th className="px-6 py-4 text-center">
+                                                                    <th className="min-w-[90px] whitespace-nowrap px-4 py-3 text-center">
                                                                         Tipo
                                                                     </th>
-                                                                    <th className="px-6 py-4">
+                                                                    <th className="min-w-[110px] whitespace-nowrap px-4 py-3">
                                                                         Método
-                                                                        de pago
                                                                     </th>
-                                                                    <th className="px-6 py-4">
+                                                                    <th className="min-w-[90px] whitespace-nowrap px-4 py-3">
                                                                         Monto
                                                                     </th>
-                                                                    <th className="px-6 py-4 text-center">
+                                                                    <th className="min-w-[100px] whitespace-nowrap px-4 py-3 text-center">
                                                                         Documento
                                                                     </th>
-                                                                    <th className="px-6 py-4">
+                                                                    <th className="min-w-[120px] whitespace-nowrap px-4 py-3">
                                                                         Usuario
                                                                     </th>
-                                                                    <th className="px-6 py-4">
-                                                                        Referencia
-                                                                        / Notas
+                                                                    <th className="min-w-[120px] whitespace-nowrap px-4 py-3">
+                                                                        Notas
                                                                     </th>
-                                                                    <th className="px-6 py-4 text-center">
+                                                                    <th className="sticky right-[4.75rem] z-20 min-w-[4.75rem] whitespace-nowrap bg-slate-100 px-3 py-3 text-center shadow-[-8px_0_12px_-8px_rgba(0,0,0,0.25)] dark:bg-slate-800">
                                                                         Imprimir
                                                                     </th>
-                                                                    <th className="px-6 py-4 text-center">
+                                                                    <th className="sticky right-0 z-20 min-w-[4.75rem] whitespace-nowrap bg-slate-100 px-3 py-3 text-center dark:bg-slate-800">
                                                                         Anular
                                                                     </th>
                                                                 </tr>
                                                             </thead>
-                                                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                                            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                                                                 {movements.length ===
                                                                 0 ? (
                                                                     <tr>
@@ -1144,36 +1141,52 @@ const Cashs: React.FC = () => {
                                                                     </tr>
                                                                 ) : (
                                                                     movements.map(
-                                                                        (m) => {
+                                                                        (m, rowIndex) => {
                                                                             const isCancelled =
                                                                                 isPaymentCancelled(
                                                                                     m.status,
                                                                                 );
+                                                                            const stickyRowBg =
+                                                                                isCancelled
+                                                                                    ? "bg-red-50 dark:bg-red-950/40"
+                                                                                    : rowIndex % 2 === 0
+                                                                                      ? "bg-white dark:bg-slate-900"
+                                                                                      : "bg-slate-50/60 dark:bg-slate-800/50";
 
                                                                             return (
                                                                             <tr
                                                                                 key={
                                                                                     m.id
                                                                                 }
-                                                                                className={`transition-colors ${
+                                                                                className={`border-b transition-colors ${
                                                                                     isCancelled
-                                                                                        ? "bg-slate-50/80 opacity-75 dark:bg-slate-800/40"
-                                                                                        : "hover:bg-slate-50/50 dark:hover:bg-slate-800/30"
+                                                                                        ? "border-l-4 border-l-red-500 bg-red-50 hover:bg-red-100/70 dark:border-l-red-400 dark:border-red-900/40 dark:bg-red-950/40 dark:hover:bg-red-950/55"
+                                                                                        : rowIndex % 2 === 0
+                                                                                          ? "border-slate-100 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800/80"
+                                                                                          : "border-slate-100 bg-slate-50/60 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:bg-slate-800/80"
                                                                                 }`}
                                                                             >
-                                                                                <td className="px-6 py-4 font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                                                                <td
+                                                                                    className={`min-w-[150px] whitespace-nowrap px-4 py-3 font-semibold ${
+                                                                                        isCancelled
+                                                                                            ? "text-slate-700 dark:text-slate-200"
+                                                                                            : "text-slate-600 dark:text-slate-300"
+                                                                                    }`}
+                                                                                >
                                                                                     {formatLocalDateYYYYMMDD(
                                                                                         m.paymentDate,
                                                                                     )}
                                                                                 </td>
-                                                                                <td className="px-6 py-4 text-center">
+                                                                                <td className="min-w-[90px] px-4 py-3 text-center">
                                                                                     <div className="flex flex-col items-center gap-1">
                                                                                         <span
-                                                                                            className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wider ${
-                                                                                                m.transactionType ===
-                                                                                                "INCOME"
-                                                                                                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
-                                                                                                    : "bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400"
+                                                                                            className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ${
+                                                                                                isCancelled
+                                                                                                    ? "bg-red-600 text-white ring-red-500 dark:bg-red-600 dark:text-white dark:ring-red-500"
+                                                                                                    : m.transactionType ===
+                                                                                                        "INCOME"
+                                                                                                      ? "bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-300 dark:ring-emerald-800"
+                                                                                                      : "bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-900/50 dark:text-rose-300 dark:ring-rose-800"
                                                                                             }`}
                                                                                         >
                                                                                             {m.transactionType ===
@@ -1182,15 +1195,15 @@ const Cashs: React.FC = () => {
                                                                                                 : "Egreso"}
                                                                                         </span>
                                                                                         {isCancelled && (
-                                                                                            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+                                                                                            <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white ring-1 ring-red-500 dark:bg-red-600 dark:ring-red-500">
                                                                                                 Anulado
                                                                                             </span>
                                                                                         )}
                                                                                     </div>
                                                                                 </td>
-                                                                                <td className="px-6 py-4">
+                                                                                <td className="min-w-[110px] px-4 py-3">
                                                                                     {isCancelled ? (
-                                                                                        <span className="text-[11px] font-bold text-slate-400">
+                                                                                        <span className="text-[11px] font-bold text-slate-600 line-through decoration-red-400 dark:text-slate-300 dark:decoration-red-400">
                                                                                             {PAYMENT_METHOD_LABELS[
                                                                                                 m.paymentMethod
                                                                                             ] ??
@@ -1211,7 +1224,7 @@ const Cashs: React.FC = () => {
                                                                                                         .value,
                                                                                                 )
                                                                                             }
-                                                                                            className="rounded-lg border border-slate-200 bg-transparent px-2 py-1 text-[11px] font-bold text-slate-600 transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:text-slate-300"
+                                                                                            className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                                                                         >
                                                                                             <option value="CASH">
                                                                                                 Efectivo
@@ -1231,12 +1244,24 @@ const Cashs: React.FC = () => {
                                                                                         </select>
                                                                                     )}
                                                                                 </td>
-                                                                                <td className={`px-6 py-4 font-black ${isCancelled ? "text-slate-400 line-through" : "text-slate-700 dark:text-slate-200"}`}>
+                                                                                <td
+                                                                                    className={`min-w-[90px] whitespace-nowrap px-4 py-3 text-sm font-black ${
+                                                                                        isCancelled
+                                                                                            ? "text-red-700 line-through decoration-red-400 dark:text-red-200 dark:decoration-red-400"
+                                                                                            : "text-slate-800 dark:text-slate-100"
+                                                                                    }`}
+                                                                                >
                                                                                     {currencyFormatter.format(
                                                                                         m.paidAmount,
                                                                                     )}
                                                                                 </td>
-                                                                                <td className="px-6 py-4 text-center font-bold text-slate-400">
+                                                                                <td
+                                                                                    className={`min-w-[100px] whitespace-nowrap px-4 py-3 text-center text-sm font-bold ${
+                                                                                        isCancelled
+                                                                                            ? "text-red-700 line-through decoration-red-400 dark:text-red-200 dark:decoration-red-400"
+                                                                                            : "text-slate-700 dark:text-slate-200"
+                                                                                    }`}
+                                                                                >
                                                                                     {m.issuedDocument
                                                                                         ? `${m.issuedDocument.serial}-${m.issuedDocument.number}`
                                                                                         : m
@@ -1245,16 +1270,30 @@ const Cashs: React.FC = () => {
                                                                                           ? `Orden #${m.operation.order}`
                                                                                           : "—"}
                                                                                 </td>
-                                                                                <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
+                                                                                <td
+                                                                                    className={`max-w-[140px] truncate px-4 py-3 font-semibold ${
+                                                                                        isCancelled
+                                                                                            ? "text-slate-700 dark:text-slate-200"
+                                                                                            : "text-slate-600 dark:text-slate-300"
+                                                                                    }`}
+                                                                                    title={
+                                                                                        m.user
+                                                                                            ?.fullName
+                                                                                    }
+                                                                                >
                                                                                     {
                                                                                         m
                                                                                             .user
                                                                                             ?.fullName
                                                                                     }
                                                                                 </td>
-                                                                                <td className="px-6 py-4">
+                                                                                <td className="min-w-[120px] max-w-[160px] px-4 py-3">
                                                                                     <p
-                                                                                        className="max-w-[200px] truncate text-slate-500 dark:text-slate-400"
+                                                                                        className={`truncate font-medium ${
+                                                                                            isCancelled
+                                                                                                ? "text-slate-600 line-through decoration-red-400 dark:text-slate-300 dark:decoration-red-400"
+                                                                                                : "text-slate-600 dark:text-slate-300"
+                                                                                        }`}
                                                                                         title={
                                                                                             m.notes
                                                                                         }
@@ -1263,7 +1302,9 @@ const Cashs: React.FC = () => {
                                                                                             "—"}
                                                                                     </p>
                                                                                 </td>
-                                                                                <td className="px-6 py-4 text-center">
+                                                                                <td
+                                                                                    className={`sticky right-[4.75rem] z-10 min-w-[4.75rem] px-3 py-3 text-center shadow-[-8px_0_12px_-8px_rgba(0,0,0,0.25)] ${stickyRowBg}`}
+                                                                                >
                                                                                     <button
                                                                                         onClick={() =>
                                                                                             handlePrintPayment(
@@ -1271,7 +1312,7 @@ const Cashs: React.FC = () => {
                                                                                             )
                                                                                         }
                                                                                         title="Imprimir comprobante"
-                                                                                        className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 transition-all hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 mx-auto"
+                                                                                        className="mx-auto flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200 transition-all hover:bg-indigo-200 dark:bg-indigo-900/60 dark:text-indigo-200 dark:ring-indigo-800 dark:hover:bg-indigo-900/80"
                                                                                     >
                                                                                         <svg
                                                                                             xmlns="http://www.w3.org/2000/svg"
@@ -1287,10 +1328,12 @@ const Cashs: React.FC = () => {
                                                                                         </svg>
                                                                                     </button>
                                                                                 </td>
-                                                                                <td className="px-6 py-4 text-center">
+                                                                                <td
+                                                                                    className={`sticky right-0 z-10 min-w-[4.75rem] px-3 py-3 text-center ${stickyRowBg}`}
+                                                                                >
                                                                                     {isCancelled ? (
                                                                                         <span
-                                                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-300 dark:bg-slate-800 dark:text-slate-600 mx-auto"
+                                                                                            className="mx-auto inline-flex h-8 w-8 items-center justify-center rounded-xl bg-red-600 text-white ring-1 ring-red-500 dark:bg-red-600 dark:ring-red-500"
                                                                                             title="Movimiento anulado"
                                                                                         >
                                                                                             <svg
@@ -1318,7 +1361,7 @@ const Cashs: React.FC = () => {
                                                                                                 )
                                                                                             }
                                                                                             title="Anular movimiento"
-                                                                                            className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 text-rose-600 transition-all hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400 dark:hover:bg-rose-900/40 mx-auto"
+                                                                                            className="mx-auto flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500 text-white ring-1 ring-rose-400 transition-all hover:bg-rose-600 dark:bg-rose-600 dark:ring-rose-500 dark:hover:bg-rose-500"
                                                                                         >
                                                                                             <svg
                                                                                                 xmlns="http://www.w3.org/2000/svg"

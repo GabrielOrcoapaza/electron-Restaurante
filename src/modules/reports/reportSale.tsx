@@ -390,7 +390,7 @@ const ReportSale: React.FC = () => {
             )}
 
             {/* Documents List Section */}
-            <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+            <div className="flex flex-col overflow-visible rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
                 <div className="flex items-center justify-between border-b border-slate-50 p-6 dark:border-slate-800/50">
                     <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
                         Documentos Emitidos

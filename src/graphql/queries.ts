@@ -749,6 +749,34 @@ export const GET_BRANCH_FULL = gql`
     }
 `;
 
+export const GET_BRANCH_BY_ID = gql`
+    query GetBranchById($id: ID!) {
+        branchById(id: $id) {
+            id
+            serial
+            name
+            address
+            phone
+            logo
+            latitude
+            longitude
+            igvPercentage
+            pdfSize
+            pdfColor
+            isActive
+            isPayment
+            isBilling
+            isDelivery
+            isMultiWaiterEnabled
+            isCommandItemMode
+            isKitchenPrint
+            isKitchenDisplay
+            requireWaiterPassword
+            printCancellations
+        }
+    }
+`;
+
 // Query para obtener usuarios/empleados por sucursal
 // includeInactive: solo aplica con rol ADMIN en backend; si no, se devuelven solo activos
 export const GET_USERS_BY_BRANCH = gql`
@@ -1248,6 +1276,7 @@ export const GET_SALES_REPORT = gql`
                     order
                     status
                     operationType
+                    serviceType
                     user {
                         id
                         fullName
@@ -1285,6 +1314,10 @@ export const GET_SALES_REPORT = gql`
                     paidAmount
                     paymentDate
                     status
+                    isActive
+                    cashClosure {
+                        id
+                    }
                     user {
                         id
                         fullName
@@ -1298,6 +1331,9 @@ export const GET_SALES_REPORT = gql`
                     id
                     name
                     igvPercentage
+                    company {
+                        ruc
+                    }
                 }
             }
             summary {

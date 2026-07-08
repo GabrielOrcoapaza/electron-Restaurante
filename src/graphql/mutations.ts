@@ -1580,6 +1580,79 @@ export const CANCEL_ISSUED_DOCUMENT = gql`
     }
 `;
 
+/** Convierte un documento activo a otro tipo (anula el original y emite el nuevo). */
+export const CONVERT_DOCUMENT = gql`
+    mutation ConvertDocument(
+        $issuedDocumentId: ID!
+        $newDocumentId: ID!
+        $serial: String!
+        $personId: ID
+        $userId: ID!
+        $emissionDate: Date!
+        $emissionTime: Time!
+    ) {
+        convertDocument(
+            issuedDocumentId: $issuedDocumentId
+            newDocumentId: $newDocumentId
+            serial: $serial
+            personId: $personId
+            userId: $userId
+            emissionDate: $emissionDate
+            emissionTime: $emissionTime
+        ) {
+            success
+            message
+            issuedDocument {
+                id
+                serial
+                number
+                billingStatus
+                totalAmount
+            }
+        }
+    }
+`;
+
+/** Reactiva mesa: anula comprobante y pagos, operación a PROCESSING, mesa OCCUPIED. Solo RESTAURANT. */
+export const REACTIVATE_TABLE = gql`
+    mutation ReactivateTable($issuedDocumentId: ID!, $userId: ID!) {
+        reactivateTable(issuedDocumentId: $issuedDocumentId, userId: $userId) {
+            success
+            message
+            operation {
+                id
+                status
+                order
+            }
+            table {
+                id
+                name
+                status
+            }
+        }
+    }
+`;
+
+/** Anulación completa: cancela documento, pagos, operación, ítems y restaura stock. */
+export const FULL_ANNULMENT = gql`
+    mutation FullAnnulment(
+        $issuedDocumentId: ID!
+        $userId: ID!
+        $cancellationReason: String!
+        $cancellationDescription: String
+    ) {
+        fullAnnulment(
+            issuedDocumentId: $issuedDocumentId
+            userId: $userId
+            cancellationReason: $cancellationReason
+            cancellationDescription: $cancellationDescription
+        ) {
+            success
+            message
+        }
+    }
+`;
+
 /** Tras anular comprobante fiscal: revierte pagos en caja (sin cierre), orden a PROCESSING, mesa si aplica. Requiere permiso orders.edit en backend. */
 export const REOPEN_ORDER_FROM_ANNULLED_DOCUMENT = gql`
     mutation ReopenOrderFromAnnulledDocument(
@@ -2335,6 +2408,82 @@ export const MARK_GROUP_PREPARED = gql`
         ) {
             success
             message
+        }
+    }
+`;
+
+export const UPDATE_BRANCH = gql`
+    mutation UpdateBranch(
+        $id: ID!
+        $name: String
+        $password: String
+        $address: String
+        $phone: String
+        $latitude: Float
+        $longitude: Float
+        $igvPercentage: Float
+        $pdfSize: String
+        $pdfColor: String
+        $isPayment: Boolean
+        $isBilling: Boolean
+        $isDelivery: Boolean
+        $isActive: Boolean
+        $logoBase64: String
+        $isKitchenPrint: Boolean
+        $isKitchenDisplay: Boolean
+        $printCancellations: Boolean
+        $isCommandItemMode: Boolean
+        $requireWaiterPassword: Boolean
+        $isMultiWaiterEnabled: Boolean
+    ) {
+        updateBranch(
+            id: $id
+            name: $name
+            password: $password
+            address: $address
+            phone: $phone
+            latitude: $latitude
+            longitude: $longitude
+            igvPercentage: $igvPercentage
+            pdfSize: $pdfSize
+            pdfColor: $pdfColor
+            isPayment: $isPayment
+            isBilling: $isBilling
+            isDelivery: $isDelivery
+            isActive: $isActive
+            logoBase64: $logoBase64
+            isKitchenPrint: $isKitchenPrint
+            isKitchenDisplay: $isKitchenDisplay
+            printCancellations: $printCancellations
+            isCommandItemMode: $isCommandItemMode
+            requireWaiterPassword: $requireWaiterPassword
+            isMultiWaiterEnabled: $isMultiWaiterEnabled
+        ) {
+            success
+            message
+            branch {
+                id
+                serial
+                name
+                address
+                phone
+                logo
+                latitude
+                longitude
+                igvPercentage
+                pdfSize
+                pdfColor
+                isActive
+                isPayment
+                isBilling
+                isDelivery
+                isMultiWaiterEnabled
+                isCommandItemMode
+                isKitchenPrint
+                isKitchenDisplay
+                requireWaiterPassword
+                printCancellations
+            }
         }
     }
 `;

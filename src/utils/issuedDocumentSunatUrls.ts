@@ -164,17 +164,70 @@ export function officialDocumentUnavailableMessage(
 	return "No se pudo generar la URL del comprobante oficial.";
 }
 
-/** CDR / XML firmado: solo comprobantes electrónicos SUNAT (01 factura, 03 boleta). */
+function readStoredSunatPaths(
+	doc: IssuedDocumentSunatSource,
+): { cdrUrl: string | null; signedUrl: string | null } {
+	const docRaw = doc as IssuedDocumentSunatSource & Record<string, unknown>;
+	return {
+		cdrUrl: resolveStoredSunatUrl(
+			readStoredPath(docRaw, "cdrPath", "cdr_path"),
+		),
+		signedUrl: resolveStoredSunatUrl(
+			readStoredPath(docRaw, "signedXmlPath", "signed_xml_path"),
+		),
+	};
+}
+
+/** Extrae RUC de rutas tuf4ctur4 guardadas (cdr_path / signed_xml_path). */
+export function extractRucFromSunatStoredPaths(
+	doc: IssuedDocumentSunatSource,
+): string | null {
+	const { cdrUrl, signedUrl } = readStoredSunatPaths(doc);
+	const paths = [cdrUrl, signedUrl, doc.xmlPath].filter(Boolean) as string[];
+
+	for (const path of paths) {
+		const fromPrefix = path.match(/R-(\d{11})-/i);
+		if (fromPrefix?.[1]) return fromPrefix[1];
+
+		const fromFolder = path.match(/\/(\d{11})\//);
+		if (fromFolder?.[1]) return fromFolder[1];
+	}
+
+	return null;
+}
+
+/** RUC para armar URLs tuf4ctur4: sesión → rutas del documento. */
+export function resolveCompanyRucForSunat(
+	companyRuc: string | null | undefined,
+	doc?: IssuedDocumentSunatSource | null,
+): string | null {
+	const fromSession = normalizeRuc(companyRuc);
+	if (fromSession.length === 11) return fromSession;
+	if (doc) {
+		const fromDoc = extractRucFromSunatStoredPaths(doc);
+		if (fromDoc) return fromDoc;
+	}
+	return null;
+}
+
+export function hasStoredSunatXmlPaths(doc: IssuedDocumentSunatSource): boolean {
+	const { cdrUrl, signedUrl } = readStoredSunatPaths(doc);
+	return Boolean(cdrUrl || signedUrl);
+}
+
+/** CDR / XML firmado: boleta/factura (01/03) con serie+número y RUC o rutas en BD. */
 export function canDownloadSunatXmlFiles(
 	doc: IssuedDocumentSunatSource,
 	companyRuc: string | null | undefined,
 ): boolean {
-	const ruc = normalizeRuc(companyRuc);
-	if (ruc.length !== 11) return false;
 	if (!isElectronicBillingDocumentCode(doc.document.code)) return false;
 	if (!String(doc.serial || "").trim()) return false;
 	if (doc.number == null || String(doc.number).trim() === "") return false;
-	return true;
+
+	if (hasStoredSunatXmlPaths(doc)) return true;
+
+	const ruc = resolveCompanyRucForSunat(companyRuc, doc);
+	return Boolean(ruc && ruc.length === 11);
 }
 
 /** @deprecated Use canDownloadSunatXmlFiles */
@@ -228,36 +281,55 @@ function uniqueUrls(urls: Array<string | null | undefined>): string[] {
 	return out;
 }
 
+function fileBaseNameFromSunatUrl(url: string | null | undefined): string | null {
+	const p = String(url || "").trim();
+	if (!p) return null;
+	const file = p.split("/").pop() ?? "";
+	if (!file) return null;
+	if (file.toUpperCase().startsWith("R-") && file.toLowerCase().endsWith(".xml")) {
+		return file.slice(2, -4);
+	}
+	if (file.toLowerCase().endsWith(".xml")) {
+		return file.slice(0, -4);
+	}
+	return null;
+}
+
 export function buildIssuedDocumentSunatUrls(
 	doc: IssuedDocumentSunatSource,
 	companyRuc: string | null | undefined,
 ): IssuedDocumentSunatUrls | null {
 	if (!canDownloadSunatXmlFiles(doc, companyRuc)) return null;
 
-	const ruc = normalizeRuc(companyRuc);
+	const ruc = resolveCompanyRucForSunat(companyRuc, doc) ?? "";
 	const docCode = normalizeDocCode(doc.document.code);
 	const serial = normalizeSunatSerial(doc.serial);
-	const docRaw = doc as IssuedDocumentSunatSource & Record<string, unknown>;
 	const printInvoiceOperationId = resolvePrintInvoiceId(doc);
 	const printInvoiceUrl = printInvoiceOperationId
 		? buildPrintInvoiceUrl(doc)
 		: null;
 	const issuedDocumentLocalId = resolveIssuedDocumentLocalId(doc) ?? "";
-	const cdrFromDb = resolveStoredSunatUrl(
-		readStoredPath(docRaw, "cdrPath", "cdr_path"),
-	);
-	const signedFromDb = resolveStoredSunatUrl(
-		readStoredPath(docRaw, "signedXmlPath", "signed_xml_path"),
-	);
+	const { cdrUrl: cdrFromDb, signedUrl: signedFromDb } =
+		readStoredSunatPaths(doc);
 
-	const fallbackVariants = buildFallbackXmlUrls(
-		ruc,
-		docCode,
-		serial,
-		doc.number,
-	);
-	const primary = fallbackVariants[0];
-	if (!primary) return null;
+	const fallbackVariants =
+		ruc.length === 11
+			? buildFallbackXmlUrls(ruc, docCode, serial, doc.number)
+			: [];
+
+	const fileBaseName =
+		fallbackVariants[0]?.fileBaseName ??
+		fileBaseNameFromSunatUrl(signedFromDb) ??
+		fileBaseNameFromSunatUrl(cdrFromDb) ??
+		(ruc.length === 11
+			? `${ruc}-${docCode}-${serial}-${normalizeSunatNumber(doc.number)}`
+			: `${serial}-${normalizeSunatNumber(doc.number)}`);
+
+	const primary = fallbackVariants[0] ?? {
+		fileBaseName,
+		cdrXmlUrl: cdrFromDb ?? "",
+		signedXmlUrl: signedFromDb ?? "",
+	};
 
 	const cdrDownloadCandidates = uniqueUrls([
 		cdrFromDb,
@@ -268,14 +340,18 @@ export function buildIssuedDocumentSunatUrls(
 		...fallbackVariants.map((v) => v.signedXmlUrl),
 	]);
 
+	if (cdrDownloadCandidates.length === 0 && signedXmlDownloadCandidates.length === 0) {
+		return null;
+	}
+
 	return {
 		printInvoiceUrl: printInvoiceUrl ?? "",
 		printInvoiceOperationId: printInvoiceOperationId ?? "",
 		issuedDocumentLocalId,
 		cdrXmlUrl: cdrDownloadCandidates[0] ?? primary.cdrXmlUrl,
 		signedXmlUrl: signedXmlDownloadCandidates[0] ?? primary.signedXmlUrl,
-		cdrFilename: `R-${primary.fileBaseName}.xml`,
-		signedXmlFilename: `${primary.fileBaseName}.xml`,
+		cdrFilename: `cdr-${primary.fileBaseName}.xml`,
+		signedXmlFilename: `xml-${primary.fileBaseName}.xml`,
 		pdfFilename: `${primary.fileBaseName}.pdf`,
 		fileBaseName: primary.fileBaseName,
 		companyRuc: ruc,

@@ -1,326 +1,325 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
-import { GET_DOCUMENTS, GET_SERIALS_BY_DOCUMENT, GET_PERSONS_BY_BRANCH, GET_REISSUEABLE_ITEMS, SEARCH_PERSON_BY_DOCUMENT } from '../../graphql/queries';
-import { CREATE_ISSUED_DOCUMENT_FROM_ANNULLED, CREATE_PERSON } from '../../graphql/mutations';
-import { useAuth } from '../../hooks/useAuth';
-import { useToast } from '../../context/ToastContext';
-import CreateClient from '../user/createClient';
-import EditClient from '../user/editClient';
-import { formatLocalDateYYYYMMDD, formatLocalTimeHHMMSS } from '../../utils/localDateTime';
+import React, { useState, useEffect, useMemo } from "react";
+import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
+import {
+    GET_DOCUMENTS,
+    GET_SERIALS_BY_DOCUMENT,
+    GET_PERSONS_BY_BRANCH,
+    SEARCH_PERSON_BY_DOCUMENT,
+} from "../../graphql/queries";
+import { CONVERT_DOCUMENT, CREATE_PERSON } from "../../graphql/mutations";
+import { useAuth } from "../../hooks/useAuth";
+import { useToast } from "../../context/ToastContext";
+import CreateClient from "../user/createClient";
+import EditClient from "../user/editClient";
+import {
+    formatLocalDateYYYYMMDD,
+    formatLocalTimeHHMMSS,
+} from "../../utils/localDateTime";
+
+interface SelectedClient {
+    id: string;
+    name: string;
+    documentType?: string;
+    documentNumber?: string;
+}
+
+interface SourceDocument {
+    id: string;
+    serial: string;
+    number: string | number;
+    document: {
+        id: string;
+        code: string;
+        description: string;
+    };
+    person?: {
+        id: string;
+        name: string;
+        documentNumber: string;
+        documentType: string;
+    } | null;
+    totalAmount?: number;
+    branch?: {
+        igvPercentage?: number;
+    };
+}
 
 interface ConvertDocumentModalProps {
     isOpen: boolean;
     onClose: () => void;
-    annulledDocument: any;
+    sourceDocument: SourceDocument;
     onSuccess: () => void;
 }
 
 const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
     isOpen,
     onClose,
-    annulledDocument,
-    onSuccess
+    sourceDocument,
+    onSuccess,
 }) => {
-    const { companyData, user, deviceId, getMacAddress } = useAuth();
+    const { companyData, user } = useAuth();
     const branchId = companyData?.branch?.id;
-    /** IGV de la sede del documento anulado; si no viene en el reporte, sede de sesi?n (misma sucursal). */
-    const igvPercentForSale = Number(
-        annulledDocument?.branch?.igvPercentage ??
-            companyData?.branch?.igvPercentage,
-    ) || 10.5;
+    const { showToast } = useToast();
 
-    const [targetDocumentId, setTargetDocumentId] = useState('');
-    const [targetSerial, setTargetSerial] = useState('');
-    const [selectedClientId, setSelectedClientId] = useState('');
-    const [clientSearchTerm, setClientSearchTerm] = useState('');
+    const [targetDocumentId, setTargetDocumentId] = useState("");
+    const [targetSerial, setTargetSerial] = useState("");
+    const [selectedClient, setSelectedClient] = useState<SelectedClient | null>(
+        null,
+    );
+    const [clientSearchTerm, setClientSearchTerm] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
     const [showCreateClientModal, setShowCreateClientModal] = useState(false);
     const [showEditClientModal, setShowEditClientModal] = useState(false);
-    const { showToast } = useToast();
 
-    // Queries
     const { data: documentsData } = useQuery(GET_DOCUMENTS, {
         variables: { branchId: branchId! },
         skip: !branchId,
-        fetchPolicy: 'network-only'
+        fetchPolicy: "network-only",
     });
 
     const { data: serialsData } = useQuery(GET_SERIALS_BY_DOCUMENT, {
         variables: { documentId: targetDocumentId },
         skip: !targetDocumentId,
-        fetchPolicy: 'network-only'
+        fetchPolicy: "network-only",
     });
 
-    const { data: clientsData, loading: clientsLoading, refetch: refetchClients } = useQuery(GET_PERSONS_BY_BRANCH, {
-        variables: { branchId: branchId! },
-        skip: !branchId,
-        fetchPolicy: 'network-only'
-    });
+    const { data: clientsData, loading: clientsLoading, refetch: refetchClients } =
+        useQuery(GET_PERSONS_BY_BRANCH, {
+            variables: { branchId: branchId! },
+            skip: !branchId,
+            fetchPolicy: "network-only",
+        });
 
-    const [searchPersonByDocument, { loading: sunatSearchLoading }] = useLazyQuery(SEARCH_PERSON_BY_DOCUMENT, {
-        fetchPolicy: 'network-only'
-    });
+    const [searchPersonByDocument, { loading: sunatSearchLoading }] =
+        useLazyQuery(SEARCH_PERSON_BY_DOCUMENT, {
+            fetchPolicy: "network-only",
+        });
 
     const [createPersonMutation] = useMutation(CREATE_PERSON);
+    const [convertDocument, { loading: converting }] =
+        useMutation(CONVERT_DOCUMENT);
 
     useEffect(() => {
         if (!isOpen) return;
         setTargetDocumentId("");
         setTargetSerial("");
-        setSelectedClientId("");
-        setClientSearchTerm("");
+        if (sourceDocument.person?.id) {
+            setSelectedClient({
+                id: sourceDocument.person.id,
+                name: sourceDocument.person.name || "",
+                documentType: sourceDocument.person.documentType,
+                documentNumber: sourceDocument.person.documentNumber,
+            });
+            setClientSearchTerm(sourceDocument.person.name || "");
+        } else {
+            setSelectedClient(null);
+            setClientSearchTerm("");
+        }
         setError(null);
         setSuccessMsg(null);
-        setSelectedItems({});
-    }, [isOpen, annulledDocument?.id]);
+    }, [isOpen, sourceDocument?.id, sourceDocument.person]);
 
-    const { data: itemsData, loading: itemsLoading } = useQuery(GET_REISSUEABLE_ITEMS, {
-        variables: { annulledDocumentId: annulledDocument?.id },
-        skip: !annulledDocument?.id,
-        fetchPolicy: 'network-only'
-    });
-
-    const [createDocument, { loading: creating }] = useMutation(CREATE_ISSUED_DOCUMENT_FROM_ANNULLED);
-
-    // Effect to select default serial
     useEffect(() => {
         if (serialsData?.serialsByDocument?.length > 0) {
             setTargetSerial(serialsData.serialsByDocument[0].serial);
         } else {
-            setTargetSerial('');
+            setTargetSerial("");
         }
     }, [serialsData]);
 
-    // State for selected items to convert (checkboxes)
-    const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
-
-    // Initialize selected items when data loads - select ALL by default
-    useEffect(() => {
-        if (itemsData?.reissueableItems) {
-            const initial: Record<string, number> = {};
-            itemsData.reissueableItems.forEach((item: any) => {
-                if (item.remainingQuantity > 0) {
-                    initial[item.operationDetailId] = item.remainingQuantity;
-                }
-            });
-            setSelectedItems(initial);
-        }
-    }, [itemsData]);
-
-    const handleItemToggle = (operationDetailId: string, maxQty: number) => {
-        setSelectedItems(prev => {
-            const next = { ...prev };
-            if (next[operationDetailId]) {
-                delete next[operationDetailId];
-            } else {
-                next[operationDetailId] = maxQty;
-            }
-            return next;
-        });
-    };
-
-    // Filtered lists
     const targetDocuments = useMemo(() => {
-        return (documentsData?.documentsByBranch || []).filter((doc: any) =>
-            ['01', '03'].includes(doc.code) && doc.isActive
+        return (documentsData?.documentsByBranch || []).filter(
+            (doc: { id: string; isActive: boolean }) =>
+                doc.isActive && doc.id !== sourceDocument.document.id,
         );
-    }, [documentsData]);
+    }, [documentsData, sourceDocument.document.id]);
 
-    const isFactura = targetDocumentId && targetDocuments.find((d: any) => d.id === targetDocumentId)?.code === '01';
+    const selectedTargetDoc = targetDocuments.find(
+        (d: { id: string }) => d.id === targetDocumentId,
+    );
+    const isFactura = selectedTargetDoc?.code === "01";
 
     const handleSearchSunat = async () => {
-        const term = (clientSearchTerm || '').trim().replace(/\s/g, '');
+        const term = (clientSearchTerm || "").trim().replace(/\s/g, "");
         if (!/^\d+$/.test(term) || !companyData?.branch?.id) return;
         const isRuc = term.length === 11;
         const isDni = term.length === 8;
         if (isFactura && !isRuc) return;
         if (!isRuc && !isDni) return;
-        const documentType = isRuc ? 'RUC' : 'DNI';
+        const documentType = isRuc ? "RUC" : "DNI";
         try {
             const { data } = await searchPersonByDocument({
-                variables: { documentType, documentNumber: term, branchId: companyData.branch.id }
+                variables: {
+                    documentType,
+                    documentNumber: term,
+                    branchId: companyData.branch.id,
+                },
             });
             const result = data?.searchPersonByDocument;
             if (!result?.person) {
-                showToast('No se encontr? el documento en SUNAT ni en el sistema.', 'error');
+                showToast(
+                    "No se encontr? el documento en SUNAT ni en el sistema.",
+                    "error",
+                );
                 return;
             }
             const person = result.person;
+            const applySelectedClient = (client: SelectedClient) => {
+                setSelectedClient(client);
+                setClientSearchTerm(client.name || "");
+            };
+
             if (person.id && result.foundLocally) {
-                setSelectedClientId(person.id);
-                setClientSearchTerm(person.name || '');
+                applySelectedClient({
+                    id: person.id,
+                    name: person.name || "",
+                    documentType: person.documentType || documentType,
+                    documentNumber: person.documentNumber || term,
+                });
                 const { data: refetched } = await refetchClients();
-                const updated = (refetched?.personsByBranch || []).find((p: any) => p.id === person.id);
-                if (updated?.name) setClientSearchTerm(updated.name);
+                const updated = (refetched?.personsByBranch || []).find(
+                    (p: { id: string }) => p.id === person.id,
+                );
+                if (updated?.name) {
+                    applySelectedClient({
+                        id: person.id,
+                        name: updated.name,
+                        documentType:
+                            updated.documentType ||
+                            person.documentType ||
+                            documentType,
+                        documentNumber:
+                            updated.documentNumber ||
+                            person.documentNumber ||
+                            term,
+                    });
+                }
                 return;
             }
-            // Encontrado en SUNAT (o datos para crear): crear cliente y seleccionar
             const { data: createData } = await createPersonMutation({
                 variables: {
                     branchId: companyData.branch.id,
                     documentType: person.documentType || documentType,
                     documentNumber: person.documentNumber || term,
-                    name: person.name || (documentType === 'RUC' ? 'Empresa' : 'Cliente'),
+                    name:
+                        person.name ||
+                        (documentType === "RUC" ? "Empresa" : "Cliente"),
                     address: person.address || undefined,
                     phone: person.phone || undefined,
                     email: person.email || undefined,
                     isCustomer: true,
-                    isSupplier: false
-                }
+                    isSupplier: false,
+                },
             });
-            if (createData?.createPerson?.success && createData?.createPerson?.person) {
+            if (
+                createData?.createPerson?.success &&
+                createData?.createPerson?.person
+            ) {
                 const newPerson = createData.createPerson.person;
-                setSelectedClientId(newPerson.id);
-                setClientSearchTerm(newPerson.name || '');
+                applySelectedClient({
+                    id: newPerson.id,
+                    name: newPerson.name || "",
+                    documentType: newPerson.documentType || documentType,
+                    documentNumber: newPerson.documentNumber || term,
+                });
+                await refetchClients();
             } else {
-                showToast(createData?.createPerson?.message || 'Error al registrar el cliente.', 'error');
+                showToast(
+                    createData?.createPerson?.message ||
+                        "Error al registrar el cliente.",
+                    "error",
+                );
             }
-        } catch (err: any) {
-            showToast(err?.message || 'Error al buscar en SUNAT.', 'error');
+        } catch (err: unknown) {
+            const msg =
+                err instanceof Error ? err.message : "Error al buscar en SUNAT.";
+            showToast(msg, "error");
         }
     };
 
     const filteredClients = useMemo(() => {
-        const clients = (clientsData?.personsByBranch || []).filter((person: any) => !person.isSupplier && person.isActive !== false);
+        const clients = (clientsData?.personsByBranch || []).filter(
+            (person: {
+                isSupplier?: boolean;
+                isActive?: boolean;
+            }) => !person.isSupplier && person.isActive !== false,
+        );
         if (!clientSearchTerm) return clients.slice(0, 50);
         const lower = clientSearchTerm.toLowerCase();
-        return clients.filter((c: any) => {
-            if (isFactura && (c.documentType || '').toUpperCase() !== 'RUC') return false;
-            return (c.name || '').toLowerCase().includes(lower) ||
-                (c.documentNumber || '').includes(lower);
-        }).slice(0, 50);
+        return clients
+            .filter((c: { documentType?: string; name?: string; documentNumber?: string }) => {
+                if (
+                    isFactura &&
+                    (c.documentType || "").toUpperCase() !== "RUC"
+                )
+                    return false;
+                return (
+                    (c.name || "").toLowerCase().includes(lower) ||
+                    (c.documentNumber || "").includes(lower)
+                );
+            })
+            .slice(0, 50);
     }, [clientsData, clientSearchTerm, isFactura]);
 
-    const reissueableItems = itemsData?.reissueableItems || [];
-    const convertibleItems = useMemo(
-        () =>
-            reissueableItems.filter(
-                (item: any) => Number(item.remainingQuantity) > 0,
-            ),
-        [reissueableItems],
-    );
-    const noItemsToConvert = !itemsLoading && convertibleItems.length === 0;
-
-    // Totals Calculation based on SELECTED items
-    const totals = useMemo(() => {
-        let totalAmount = 0;
-        let totalTaxable = 0;
-        let igvAmount = 0;
-        let totalDiscount = 0;
-
-        reissueableItems.forEach((item: any) => {
-            const selectedQty = selectedItems[item.operationDetailId] || 0;
-            if (selectedQty > 0) {
-                totalAmount += selectedQty * item.unitPrice;
-                totalTaxable += selectedQty * item.unitValue;
-                igvAmount += selectedQty * (item.unitPrice - item.unitValue);
-                totalDiscount += selectedQty * (item.discount || 0);
-            }
-        });
-
-        return {
-            totalAmount: Number(totalAmount.toFixed(2)),
-            totalTaxable: Number(totalTaxable.toFixed(2)),
-            igvAmount: Number(igvAmount.toFixed(2)),
-            totalDiscount: Number(totalDiscount.toFixed(2)),
-            totalUnaffected: 0,
-            totalExempt: 0,
-            totalFree: 0,
-        };
-    }, [reissueableItems, selectedItems]);
-
-    const handleCreate = async () => {
+    const handleConvert = async () => {
         setError(null);
         setSuccessMsg(null);
 
-        const doc = targetDocuments.find((d: any) => d.id === targetDocumentId);
-        if (!doc) {
-            setError('Seleccione un tipo de documento');
-            return;
-        }
-        if (!targetSerial) {
-            setError('Seleccione una serie');
+        if (!targetDocumentId || !targetSerial) {
+            setError("Seleccione tipo de documento y serie");
             return;
         }
 
-        if (doc.code === '01') {
-            if (!selectedClientId) {
-                setError('Debe seleccionar un cliente para Factura');
+        if (isFactura) {
+            if (!selectedClient?.id) {
+                setError("Debe seleccionar un cliente con RUC para Factura");
                 return;
             }
-            const client = (clientsData?.personsByBranch || []).find((c: any) => c.id === selectedClientId);
-            if (client?.documentType !== 'RUC') {
-                setError('El cliente para Factura debe tener RUC');
+            if ((selectedClient.documentType || "").toUpperCase() !== "RUC") {
+                setError("El cliente para Factura debe tener RUC");
                 return;
             }
         }
 
-        const hasSelection = Object.keys(selectedItems).length > 0;
-        if (!hasSelection) {
-            setError('Debe seleccionar al menos un producto para convertir');
+        if (!user?.id || !branchId) {
+            setError("No se encontr? el usuario o la sucursal activa");
             return;
         }
 
         try {
-            const formattedItems = reissueableItems.map((item: any) => {
-                const qty = selectedItems[item.operationDetailId] || 0;
-                if (qty <= 0) return null;
-
-                return {
-                    operationDetailId: item.operationDetailId,
-                    quantity: qty,
-                    unitValue: item.unitValue,
-                    unitPrice: item.unitPrice,
-                    discount: item.discount,
-                    notes: ''
-                };
-            }).filter(Boolean);
-
-            const mac = await getMacAddress();
-            const resolvedDeviceId = mac || deviceId;
-
-            const response = await createDocument({
+            const result = await convertDocument({
                 variables: {
-                    parentIssuedDocumentId: annulledDocument.id,
-                    branchId: branchId,
-                    documentId: targetDocumentId,
+                    issuedDocumentId: sourceDocument.id,
+                    newDocumentId: targetDocumentId,
                     serial: targetSerial,
-                    personId: selectedClientId || null,
-                    userId: user?.id,
+                    personId: selectedClient?.id || null,
+                    userId: user.id,
                     emissionDate: formatLocalDateYYYYMMDD(),
                     emissionTime: formatLocalTimeHHMMSS(),
-                    currency: 'PEN',
-                    exchangeRate: 1.0,
-                    itemsTotalDiscount: totals.totalDiscount,
-                    globalDiscount: 0,
-                    globalDiscountPercent: 0,
-                    totalDiscount: totals.totalDiscount,
-                    igvPercent: igvPercentForSale,
-                    igvAmount: totals.igvAmount,
-                    totalTaxable: totals.totalTaxable,
-                    totalUnaffected: totals.totalUnaffected,
-                    totalExempt: totals.totalExempt,
-                    totalFree: totals.totalFree,
-                    totalAmount: totals.totalAmount,
-                    items: formattedItems,
-                    deviceId: resolvedDeviceId,
-                    printerId: null,
-                    notes: `Conversi?n desde ${annulledDocument.serial}-${annulledDocument.number}`
-                }
+                },
             });
 
-            if (response.data?.createIssuedDocumentFromAnnulled?.success) {
-                setSuccessMsg(response.data.createIssuedDocumentFromAnnulled.message);
-                setTimeout(() => {
-                    onSuccess();
-                    onClose();
-                }, 2000);
-            } else {
-                setError(response.data?.createIssuedDocumentFromAnnulled?.message || 'Error al crear documento');
+            const payload = result.data?.convertDocument;
+            if (!payload?.success) {
+                throw new Error(
+                    payload?.message || "No se pudo convertir el documento.",
+                );
             }
-        } catch (err: any) {
-            setError(err.message || 'Error desconocido');
+
+            setSuccessMsg(
+                payload.message || "Documento convertido correctamente",
+            );
+            setTimeout(() => {
+                onSuccess();
+                onClose();
+            }, 2000);
+        } catch (err: unknown) {
+            const msg =
+                err instanceof Error
+                    ? err.message
+                    : "Error al convertir documento";
+            setError(msg);
         }
     };
 
@@ -329,16 +328,31 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <div className="w-full max-w-2xl overflow-hidden rounded-[32px] bg-white shadow-2xl dark:bg-slate-900 max-h-[90vh] flex flex-col">
-                {/* Header */}
-                <div className="bg-indigo-600 p-8 text-white flex-shrink-0">
+                <div className="bg-emerald-600 p-8 text-white flex-shrink-0">
                     <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-10 w-10"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                            />
                         </svg>
                     </div>
                     <h3 className="text-2xl font-black">Convertir Documento</h3>
                     <p className="mt-1 text-sm font-bold opacity-80">
-                        Origen: {annulledDocument?.document?.description} {annulledDocument?.serial}-{annulledDocument?.number}
+                        Se convertir? el comprobante actual al tipo seleccionado
+                        en un solo paso. Los pagos se mantienen vinculados.
+                    </p>
+                    <p className="mt-2 text-xs font-bold opacity-70">
+                        Origen: {sourceDocument.document.description}{" "}
+                        {sourceDocument.serial}-{sourceDocument.number}
                     </p>
                 </div>
 
@@ -354,285 +368,372 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                         </div>
                     )}
 
-                    {noItemsToConvert && (
-                        <div
-                            className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/40 dark:bg-amber-950/30"
-                            role="status"
-                        >
-                            <p className="text-sm font-black text-amber-900 dark:text-amber-200">
-                                No quedan platos por convertir
-                            </p>
-                            <p className="mt-2 text-sm font-bold leading-relaxed text-amber-800/90 dark:text-amber-100/80">
-                                Esta orden ya fue convertida por completo a otro
-                                documento. No hay cantidades pendientes en el
-                                comprobante anulado{" "}
-                                <span className="whitespace-nowrap">
-                                    {annulledDocument?.serial}-
-                                    {annulledDocument?.number}
-                                </span>
-                                . Cierre este cuadro e intente con otro documento
-                                si corresponde.
+                    {targetDocuments.length === 0 ? (
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/40 dark:bg-amber-950/30">
+                            <p className="text-sm font-bold text-amber-800 dark:text-amber-200">
+                                No hay otro tipo de documento disponible para
+                                convertir.
                             </p>
                         </div>
-                    )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        <div className="flex flex-col gap-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tipo de Documento</label>
-                            <select
-                                value={targetDocumentId}
-                                onChange={e => setTargetDocumentId(e.target.value)}
-                                className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-200"
-                            >
-                                <option value="">Seleccione...</option>
-                                {targetDocuments.map((doc: any) => (
-                                    <option key={doc.id} value={doc.id}>{doc.description} ({doc.code})</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Serie Disponible</label>
-                            <select
-                                value={targetSerial}
-                                onChange={e => setTargetSerial(e.target.value)}
-                                disabled={!targetDocumentId}
-                                className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-200 disabled:opacity-50"
-                            >
-                                {serialsData?.serialsByDocument?.map((s: any) => (
-                                    <option key={s.id} value={s.serial}>{s.serial}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Client Selection */}
-                    <div className="flex flex-col gap-3 mb-8">
-                        <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                Cliente {isFactura && '(Requerido RUC)'}
-                            </label>
-                            <div className="flex gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCreateClientModal(true)}
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all dark:bg-emerald-900/20"
-                                >
-                                    + Nuevo
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowEditClientModal(true)}
-                                    disabled={!selectedClientId}
-                                    className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all dark:bg-indigo-900/20 disabled:opacity-30 disabled:hover:bg-indigo-50 disabled:hover:text-indigo-600"
-                                >
-                                    Editar
-                                </button>
+                    ) : (
+                        <>
+                            <div className="mb-6 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+                                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                            Actual
+                                        </span>
+                                        <p className="text-sm font-black text-slate-700 dark:text-slate-200">
+                                            {sourceDocument.document.description}
+                                        </p>
+                                        <p className="text-xs font-bold text-slate-400">
+                                            {sourceDocument.serial}-
+                                            {sourceDocument.number}
+                                        </p>
+                                    </div>
+                                    <span className="text-emerald-500 font-black">
+                                        ?
+                                    </span>
+                                    <div className="text-right">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">
+                                            Nuevo
+                                        </span>
+                                        <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                                            {selectedTargetDoc?.description ||
+                                                "Sin seleccionar"}
+                                        </p>
+                                        {targetSerial && (
+                                            <p className="text-xs font-bold text-emerald-500/70">
+                                                {targetSerial}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="relative">
-                            <div className="flex overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-800/50">
-                                <input
-                                    type="text"
-                                    placeholder={isFactura ? "Buscar por RUC o Raz?n Social..." : "Buscar por DNI, RUC o Nombre..."}
-                                    value={clientSearchTerm}
-                                    onChange={e => {
-                                        setClientSearchTerm(e.target.value);
-                                        setSelectedClientId('');
-                                    }}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            handleSearchSunat();
+                            <div className="flex flex-col gap-3 mb-6">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    Tipo destino
+                                </label>
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    {targetDocuments.map(
+                                        (doc: {
+                                            id: string;
+                                            description: string;
+                                            code: string;
+                                        }) => {
+                                            const selected =
+                                                targetDocumentId === doc.id;
+                                            return (
+                                                <button
+                                                    key={doc.id}
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setTargetDocumentId(
+                                                            doc.id,
+                                                        )
+                                                    }
+                                                    className={`rounded-2xl border p-4 text-left transition-all ${
+                                                        selected
+                                                            ? "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20"
+                                                            : "border-slate-100 bg-white hover:border-emerald-200 dark:border-slate-800 dark:bg-slate-900"
+                                                    }`}
+                                                >
+                                                    <span className="text-sm font-black text-slate-700 dark:text-slate-200">
+                                                        {doc.description}
+                                                    </span>
+                                                    <span className="mt-1 block text-[10px] font-bold text-slate-400">
+                                                        C?digo {doc.code}
+                                                    </span>
+                                                </button>
+                                            );
+                                        },
+                                    )}
+                                </div>
+                            </div>
+
+                            {targetDocumentId && (
+                                <div className="flex flex-col gap-2 mb-6">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        Serie
+                                    </label>
+                                    <select
+                                        value={targetSerial}
+                                        onChange={(e) =>
+                                            setTargetSerial(e.target.value)
                                         }
-                                    }}
-                                    className="flex-1 bg-transparent py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={handleSearchSunat}
-                                    disabled={clientsLoading || sunatSearchLoading}
-                                    className="flex items-center justify-center px-4 bg-indigo-600 text-white hover:bg-indigo-700 transition-all disabled:opacity-50"
-                                >
-                                    {sunatSearchLoading ? (
-                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                        </svg>
-                                    )}
-                                </button>
-                            </div>
-
-                            {/* Dropdown Results */}
-                            {clientSearchTerm && !selectedClientId && (filteredClients.length > 0 || !isFactura) && (
-                                <div className="absolute top-full left-0 right-0 z-50 mt-2 max-h-60 overflow-y-auto rounded-2xl border border-slate-100 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900 custom-scrollbar">
-                                    {!isFactura && (
-                                        <div
-                                            onClick={() => { setSelectedClientId(''); setClientSearchTerm(''); }}
-                                            className="flex cursor-pointer items-center rounded-xl p-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all border-b border-slate-50 dark:border-slate-800 mb-1"
-                                        >
-                                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800 mr-3">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                                </svg>
-                                            </div>
-                                            <span className="text-sm font-bold text-slate-500">Consumidor final</span>
-                                        </div>
-                                    )}
-                                    {filteredClients.map((client: any) => (
-                                        <div
-                                            key={client.id}
-                                            onClick={() => { setSelectedClientId(client.id); setClientSearchTerm(client.name); }}
-                                            className="flex cursor-pointer items-center rounded-xl p-3 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all"
-                                        >
-                                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 mr-3">
-                                                <span className="text-[10px] font-black">{client.documentType}</span>
-                                            </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{client.name}</span>
-                                                <span className="text-[10px] font-bold text-slate-400">{client.documentNumber}</span>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-200"
+                                    >
+                                        {(serialsData?.serialsByDocument || []).map(
+                                            (s: { id: string; serial: string }) => (
+                                                <option
+                                                    key={s.id}
+                                                    value={s.serial}
+                                                >
+                                                    {s.serial}
+                                                </option>
+                                            ),
+                                        )}
+                                    </select>
                                 </div>
                             )}
-                        </div>
-                    </div>
 
-                    {/* Products Selection */}
-                    <div className="flex flex-col gap-4 mb-8">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Seleccionar Productos</label>
-                        {itemsLoading ? (
-                            <div className="flex items-center justify-center py-10">
-                                <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
-                            </div>
-                        ) : noItemsToConvert ? (
-                            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 py-10 text-center dark:border-slate-700 dark:bg-slate-800/30">
-                                <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
-                                    Lista de productos vac?a: no hay l?neas con
-                                    cantidad disponible para emitir un nuevo
-                                    documento.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 gap-3">
-                                {convertibleItems.map((item: any) => {
-                                    const isSelected = !!selectedItems[item.operationDetailId];
-                                    return (
-                                        <div
-                                            key={item.operationDetailId}
-                                            onClick={() => handleItemToggle(item.operationDetailId, item.remainingQuantity)}
-                                            className={`flex cursor-pointer items-center justify-between rounded-2xl border p-4 transition-all ${
-                                                isSelected 
-                                                ? 'border-indigo-200 bg-indigo-50/30 dark:border-indigo-900/30 dark:bg-indigo-900/10' 
-                                                : 'border-slate-100 bg-white hover:border-indigo-100 dark:border-slate-800 dark:bg-slate-900'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className={`flex h-6 w-6 items-center justify-center rounded-lg border-2 transition-all ${
-                                                    isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-200'
-                                                }`}>
-                                                    {isSelected && <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <span className={`text-sm font-bold ${isSelected ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}>
-                                                        {item.productName}
-                                                    </span>
-                                                    <span className="text-[10px] font-black text-slate-400">CANT: {item.remainingQuantity} ÿÿÿ P.U: S/ {item.unitPrice.toFixed(2)}</span>
-                                                </div>
-                                            </div>
-                                            <span className={`text-sm font-black ${isSelected ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-300'}`}>
-                                                S/ {(item.remainingQuantity * item.unitPrice).toFixed(2)}
-                                            </span>
+                            {(isFactura || selectedTargetDoc?.code === "03") && (
+                                <div className="flex flex-col gap-3 mb-6">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            Cliente{" "}
+                                            {isFactura && "(Requerido RUC)"}
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setShowCreateClientModal(true)
+                                                }
+                                                className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all dark:bg-emerald-900/20"
+                                            >
+                                                + Nuevo
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setShowEditClientModal(true)
+                                                }
+                                                disabled={!selectedClient?.id}
+                                                className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all dark:bg-indigo-900/20 disabled:opacity-30"
+                                            >
+                                                Editar
+                                            </button>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Footer Summary & Actions */}
-                    <div className="mt-4 flex flex-col gap-6 rounded-[24px] bg-slate-50 p-6 dark:bg-slate-800/50">
-                        <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 dark:border-slate-700">
-                            <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    IGV (sede)
-                                </span>
-                                <span className="text-sm font-black text-slate-600 dark:text-slate-300">
-                                    {igvPercentForSale}%
-                                </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    Total Nuevo Documento
-                                </span>
-                                <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
-                                    S/ {totals.totalAmount.toFixed(2)}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={onClose}
-                                disabled={creating}
-                                className="flex-1 h-14 rounded-2xl bg-white border border-slate-100 text-xs font-black uppercase tracking-widest text-slate-500 transition-all hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400"
-                            >
-                                Regresar
-                            </button>
-                            <button
-                                onClick={handleCreate}
-                                disabled={
-                                    creating ||
-                                    itemsLoading ||
-                                    noItemsToConvert
-                                }
-                                className="flex-[2] h-14 rounded-2xl bg-indigo-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-200 transition-all hover:bg-indigo-700 disabled:opacity-50 dark:shadow-none"
-                            >
-                                {creating ? (
-                                    <div className="flex items-center justify-center gap-2">
-                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                        <span>Procesando...</span>
                                     </div>
-                                ) : (
-                                    'Confirmar Conversi?n'
-                                )}
-                            </button>
-                        </div>
+
+                                    <div className="relative">
+                                        <div className="flex overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-800/50">
+                                            <input
+                                                type="text"
+                                                placeholder={
+                                                    isFactura
+                                                        ? "Buscar por RUC o Raz?n Social..."
+                                                        : "Buscar por DNI, RUC o Nombre..."
+                                                }
+                                                value={clientSearchTerm}
+                                                onChange={(e) => {
+                                                    setClientSearchTerm(
+                                                        e.target.value,
+                                                    );
+                                                    setSelectedClient(null);
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter") {
+                                                        e.preventDefault();
+                                                        handleSearchSunat();
+                                                    }
+                                                }}
+                                                className="flex-1 bg-transparent py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleSearchSunat}
+                                                disabled={
+                                                    clientsLoading ||
+                                                    sunatSearchLoading
+                                                }
+                                                className="flex items-center justify-center px-4 bg-indigo-600 text-white hover:bg-indigo-700 transition-all disabled:opacity-50"
+                                            >
+                                                {sunatSearchLoading ? (
+                                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                                ) : (
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        className="h-5 w-5"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth={2}
+                                                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                                        />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                        </div>
+
+                                        {clientSearchTerm &&
+                                            !selectedClient?.id &&
+                                            filteredClients.length > 0 && (
+                                                <div className="absolute top-full left-0 right-0 z-50 mt-2 max-h-60 overflow-y-auto rounded-2xl border border-slate-100 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900 custom-scrollbar">
+                                                    {!isFactura && (
+                                                        <div
+                                                            onClick={() => {
+                                                                setSelectedClient(
+                                                                    null,
+                                                                );
+                                                                setClientSearchTerm(
+                                                                    "",
+                                                                );
+                                                            }}
+                                                            className="flex cursor-pointer items-center rounded-xl p-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all border-b border-slate-50 dark:border-slate-800 mb-1"
+                                                        >
+                                                            <span className="text-sm font-bold text-slate-500">
+                                                                Consumidor final
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {filteredClients.map(
+                                                        (client: {
+                                                            id: string;
+                                                            name: string;
+                                                            documentType: string;
+                                                            documentNumber: string;
+                                                        }) => (
+                                                            <div
+                                                                key={client.id}
+                                                                onClick={() => {
+                                                                    setSelectedClient(
+                                                                        {
+                                                                            id: client.id,
+                                                                            name: client.name,
+                                                                            documentType:
+                                                                                client.documentType,
+                                                                            documentNumber:
+                                                                                client.documentNumber,
+                                                                        },
+                                                                    );
+                                                                    setClientSearchTerm(
+                                                                        client.name,
+                                                                    );
+                                                                }}
+                                                                className="flex cursor-pointer items-center rounded-xl p-3 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all"
+                                                            >
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                                                                        {
+                                                                            client.name
+                                                                        }
+                                                                    </span>
+                                                                    <span className="text-[10px] font-bold text-slate-400">
+                                                                        {
+                                                                            client.documentNumber
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        ),
+                                                    )}
+                                                </div>
+                                            )}
+                                    </div>
+
+                                    {selectedClient?.id && (
+                                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                            Cliente seleccionado:{" "}
+                                            {selectedClient.name}
+                                            {selectedClient.documentNumber
+                                                ? ` (${selectedClient.documentNumber})`
+                                                : ""}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    <div className="mt-4 flex gap-3">
+                        <button
+                            onClick={onClose}
+                            disabled={converting}
+                            className="flex-1 h-14 rounded-2xl bg-white border border-slate-100 text-xs font-black uppercase tracking-widest text-slate-500 transition-all hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400"
+                        >
+                            Regresar
+                        </button>
+                        <button
+                            onClick={handleConvert}
+                            disabled={
+                                converting ||
+                                targetDocuments.length === 0 ||
+                                !targetDocumentId ||
+                                !targetSerial
+                            }
+                            className="flex-[2] h-14 rounded-2xl bg-emerald-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-200 transition-all hover:bg-emerald-700 disabled:opacity-50 dark:shadow-none"
+                        >
+                            {converting ? "Procesando..." : "Confirmar Conversi?n"}
+                        </button>
                     </div>
                 </div>
             </div>
 
-            {/* Modals for Create/Edit Client */}
             {showCreateClientModal && (
                 <CreateClient
                     onSuccess={async (clientId) => {
-                        setSelectedClientId(clientId);
                         setShowCreateClientModal(false);
                         const result = await refetchClients();
                         const persons = result.data?.personsByBranch || [];
-                        const newClient = persons.find((p: any) => p.id === clientId);
-                        if (newClient?.name) setClientSearchTerm(newClient.name);
+                        const newClient = persons.find(
+                            (p: {
+                                id: string;
+                                name?: string;
+                                documentType?: string;
+                                documentNumber?: string;
+                            }) => p.id === clientId,
+                        );
+                        if (newClient) {
+                            setSelectedClient({
+                                id: newClient.id,
+                                name: newClient.name || "",
+                                documentType: newClient.documentType,
+                                documentNumber: newClient.documentNumber,
+                            });
+                            if (newClient.name)
+                                setClientSearchTerm(newClient.name);
+                        }
                     }}
                     onClose={() => setShowCreateClientModal(false)}
                 />
             )}
 
-            {showEditClientModal && selectedClientId && (() => {
-                const selectedClient = (clientsData?.personsByBranch || []).find((c: any) => c.id === selectedClientId);
-                return selectedClient ? (
-                    <EditClient
-                        client={selectedClient}
-                        onSuccess={() => {
-                            refetchClients();
-                            setShowEditClientModal(false);
-                        }}
-                        onClose={() => setShowEditClientModal(false)}
-                    />
-                ) : null;
-            })()}
+            {showEditClientModal &&
+                selectedClient?.id &&
+                (() => {
+                    const selectedClientRow = (
+                        clientsData?.personsByBranch || []
+                    ).find(
+                        (c: { id: string }) => c.id === selectedClient.id,
+                    );
+                    return selectedClientRow ? (
+                        <EditClient
+                            client={selectedClientRow}
+                            onSuccess={async () => {
+                                const result = await refetchClients();
+                                const updated = (
+                                    result.data?.personsByBranch || []
+                                ).find(
+                                    (c: {
+                                        id: string;
+                                        name?: string;
+                                        documentType?: string;
+                                        documentNumber?: string;
+                                    }) => c.id === selectedClient.id,
+                                );
+                                if (updated) {
+                                    setSelectedClient({
+                                        id: updated.id,
+                                        name: updated.name || "",
+                                        documentType: updated.documentType,
+                                        documentNumber: updated.documentNumber,
+                                    });
+                                    if (updated.name)
+                                        setClientSearchTerm(updated.name);
+                                }
+                                setShowEditClientModal(false);
+                            }}
+                            onClose={() => setShowEditClientModal(false)}
+                        />
+                    ) : null;
+                })()}
         </div>
     );
 };

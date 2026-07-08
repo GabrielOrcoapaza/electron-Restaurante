@@ -83,6 +83,7 @@ export interface CompanyData {
         isKitchenPrint?: boolean;
         isKitchenDisplay?: boolean;
         requireWaiterPassword?: boolean;
+        printCancellations?: boolean;
         users?: Array<{
             id: string;
             firstName: string;
