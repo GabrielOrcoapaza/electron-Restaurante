@@ -5,9 +5,10 @@
     "main": "dist-electron/main.js",
     "scripts": {
         "dev": "vite",
-        "build": "tsc -b && vite build && tsc -p tsconfig.electron.json",
-        "build-electron": "tsc -p tsconfig.electron.json",
-        "electron": "tsc -p tsconfig.electron.json && electron dist-electron/main.js",
+        "copy-icon": "node -e \"require('fs').copyFileSync('public/SumApp.ico','dist-electron/SumApp.ico')\"",
+        "build": "tsc -b && vite build && tsc -p tsconfig.electron.json && npm run copy-icon",
+        "build-electron": "tsc -p tsconfig.electron.json && npm run copy-icon",
+        "electron": "tsc -p tsconfig.electron.json && npm run copy-icon && electron dist-electron/main.js",
         "lint": "eslint .",
         "preview": "vite preview",
         "dev:all": "concurrently \"npm run dev\" \"npm run electron\"",
@@ -32,6 +33,12 @@
             "dist/**/*",
             "dist-electron/**/*",
             "package.json"
+        ],
+        "extraResources": [
+            {
+                "from": "public/SumApp.ico",
+                "to": "SumApp.ico"
+            }
         ],
         "win": {
             "target": [

@@ -4,12 +4,14 @@ import * as os from "os";
 import {
     app,
     BrowserWindow,
+    nativeImage,
     session,
     dialog,
     ipcMain,
     shell,
     screen,
 } from "electron";
+import type { NativeImage } from "electron";
 import type { Rectangle } from "electron";
 import type { WebContentsPrintOptions } from "electron";
 import { autoUpdater } from "electron-updater";
@@ -97,6 +99,30 @@ log.transports.file.level = "debug";
 log.transports.console.level = "debug";
 
 const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
+
+function resolveAppIcon(): NativeImage | undefined {
+    const candidates = [
+        path.join(__dirname, "SumApp.ico"),
+        path.join(__dirname, "../public/SumApp.ico"),
+        path.join(process.resourcesPath, "SumApp.ico"),
+    ];
+
+    for (const iconPath of candidates) {
+        if (!fs.existsSync(iconPath)) continue;
+        const image = nativeImage.createFromPath(iconPath);
+        if (!image.isEmpty()) {
+            log.info("[main] Icono de aplicación:", iconPath);
+            return image;
+        }
+    }
+
+    log.warn("[main] No se encontró SumApp.ico en:", candidates.join(", "));
+    return undefined;
+}
+
+if (process.platform === "win32") {
+    app.setAppUserModelId("com.mirestaurante.restaurante");
+}
 
 /** Tras abrir: maximizar y ocultar botón maximizar (POS/kiosco, opción 2). */
 const LOCK_MAXIMIZE_BUTTON = true;
@@ -217,6 +243,8 @@ function createWindow() {
     const workArea = getPrimaryWorkArea();
     const { minWidth, minHeight } = getMainWindowMinimumSize(workArea);
 
+    const appIcon = resolveAppIcon();
+
     const mainWindow = new BrowserWindow({
         width: Math.min(workArea.width, 1280),
         height: Math.min(workArea.height, 800),
@@ -224,7 +252,7 @@ function createWindow() {
         minHeight,
         maximizable: false,
         title: "SumApp",
-        icon: path.join(__dirname, "../public/SumApp.ico"),
+        ...(appIcon ? { icon: appIcon } : {}),
         webPreferences: {
             contextIsolation: false,
             nodeIntegration: true,

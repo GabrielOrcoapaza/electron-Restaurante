@@ -233,7 +233,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
                 if (permission === "granted") {
                     const notification = new Notification(title, {
                         body,
-                        icon: "/public/SumApp.ico",
+                        icon: "/SumApp.ico",
                     });
 
                     // Cerrar la notificación al hacer clic
