@@ -19,6 +19,12 @@
     "build": {
         "appId": "com.mirestaurante.restaurante",
         "productName": "SumApp",
+
+        "asarUnpack": [
+            "**/node_modules/sharp/**/*",
+            "**/node_modules/@img/**/*"
+        ],
+
         "directories": {
             "output": "release"
         },

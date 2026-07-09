@@ -123,6 +123,14 @@ const isPaymentCancelled = (status?: string | null): boolean => {
     );
 };
 
+const isSaleMovement = (movement: PaymentMovement): boolean =>
+    Boolean(movement.operation?.id || movement.issuedDocument?.id);
+
+const toPaymentAmount = (value: unknown): number => {
+    const amount = Number(value);
+    return Number.isFinite(amount) ? amount : 0;
+};
+
 const Cashs: React.FC = () => {
     const { companyData, user, getMacAddress } = useAuth();
     const { showToast } = useToast();
@@ -181,6 +189,7 @@ const Cashs: React.FC = () => {
     // Pagos pendientes: al abrir preview (total ventas sin manual) y para la tabla de movimientos
     const {
         data: movementsData,
+        loading: loadingMovements,
         refetch: refetchMovements,
     } = useQuery(GET_PAYMENTS_PENDING_CLOSURE, {
         variables: {
@@ -214,6 +223,34 @@ const Cashs: React.FC = () => {
         );
         return [...apiMovements, ...preservedCancelled];
     }, [apiMovements, locallyCancelledMovements]);
+
+    const movementTotals = useMemo(() => {
+        let salesIncome = 0;
+        let manualIncome = 0;
+        let totalExpense = 0;
+
+        for (const movement of movements) {
+            if (isPaymentCancelled(movement.status)) continue;
+
+            const amount = toPaymentAmount(movement.paidAmount);
+            if (movement.transactionType === "INCOME") {
+                if (isSaleMovement(movement)) {
+                    salesIncome += amount;
+                } else {
+                    manualIncome += amount;
+                }
+            } else if (movement.transactionType === "EXPENSE") {
+                totalExpense += amount;
+            }
+        }
+
+        return {
+            salesIncome,
+            manualIncome,
+            totalExpense,
+            netTotal: salesIncome + manualIncome - totalExpense,
+        };
+    }, [movements]);
 
     const cashRegisters: CashRegister[] =
         registersData?.cashRegistersByBranch || [];
@@ -813,9 +850,9 @@ const Cashs: React.FC = () => {
                                             vista previa del cierre
                                         </p>
                                     </div>
-                                ) : loadingPreview ? (
-                                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-                                        {Array(3)
+                                ) : loadingPreview || loadingMovements ? (
+                                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                                        {Array(4)
                                             .fill(0)
                                             .map((_, i) => (
                                                 <div
@@ -826,10 +863,42 @@ const Cashs: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="flex flex-col gap-8">
-                                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-                                            {/* Income */}
+                                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                                            {/* Ingresos por ventas */}
                                             <div className="flex flex-col gap-3 rounded-3xl bg-emerald-50/50 p-6 dark:bg-emerald-900/10">
                                                 <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-slate-800">
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            className="h-4 w-4"
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                strokeWidth={
+                                                                    2.5
+                                                                }
+                                                                d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                                                            />
+                                                        </svg>
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">
+                                                        Ingresos Ventas
+                                                    </span>
+                                                </div>
+                                                <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400">
+                                                    {currencyFormatter.format(
+                                                        movementTotals.salesIncome,
+                                                    )}
+                                                </span>
+                                            </div>
+
+                                            {/* Ingresos por movimientos manuales */}
+                                            <div className="flex flex-col gap-3 rounded-3xl bg-teal-50/50 p-6 dark:bg-teal-900/10">
+                                                <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400">
                                                     <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-slate-800">
                                                         <svg
                                                             xmlns="http://www.w3.org/2000/svg"
@@ -849,13 +918,12 @@ const Cashs: React.FC = () => {
                                                         </svg>
                                                     </div>
                                                     <span className="text-[10px] font-black uppercase tracking-widest">
-                                                        Ingresos
+                                                        Ingresos Movimientos
                                                     </span>
                                                 </div>
-                                                <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400">
+                                                <span className="text-2xl font-black text-teal-700 dark:text-teal-400">
                                                     {currencyFormatter.format(
-                                                        preview?.totalIncome ||
-                                                            0,
+                                                        movementTotals.manualIncome,
                                                     )}
                                                 </span>
                                             </div>
@@ -887,8 +955,7 @@ const Cashs: React.FC = () => {
                                                 </div>
                                                 <span className="text-2xl font-black text-rose-700 dark:text-rose-400">
                                                     {currencyFormatter.format(
-                                                        preview?.totalExpense ||
-                                                            0,
+                                                        movementTotals.totalExpense,
                                                     )}
                                                 </span>
                                             </div>
@@ -920,7 +987,7 @@ const Cashs: React.FC = () => {
                                                 </div>
                                                 <span className="text-2xl font-black text-indigo-700 dark:text-indigo-400">
                                                     {currencyFormatter.format(
-                                                        preview?.netTotal || 0,
+                                                        movementTotals.netTotal,
                                                     )}
                                                 </span>
                                             </div>
@@ -1252,7 +1319,9 @@ const Cashs: React.FC = () => {
                                                                                     }`}
                                                                                 >
                                                                                     {currencyFormatter.format(
-                                                                                        m.paidAmount,
+                                                                                        toPaymentAmount(
+                                                                                            m.paidAmount,
+                                                                                        ),
                                                                                     )}
                                                                                 </td>
                                                                                 <td

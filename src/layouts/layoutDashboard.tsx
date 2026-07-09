@@ -60,6 +60,64 @@ const formatRelativeTime = (dateString?: string | null) => {
     return `Hace ${diffDays} d`;
 };
 
+type KitchenNotificationItem = {
+    id: string;
+    message: string;
+    createdAt: string;
+    isPending?: boolean;
+};
+
+const KitchenIcon = ({ className = "h-6 w-6" }: { className?: string }) => {
+    const gradientId = React.useId().replace(/:/g, "");
+
+    return (
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            className={`drop-shadow-sm ${className}`}
+            aria-hidden="true"
+        >
+            <defs>
+                <linearGradient
+                    id={`${gradientId}-top`}
+                    x1="12"
+                    y1="2"
+                    x2="12"
+                    y2="13"
+                    gradientUnits="userSpaceOnUse"
+                >
+                    <stop offset="0%" stopColor="#FFF7ED" />
+                    <stop offset="100%" stopColor="#FDBA74" />
+                </linearGradient>
+                <linearGradient
+                    id={`${gradientId}-body`}
+                    x1="12"
+                    y1="12"
+                    x2="12"
+                    y2="22"
+                    gradientUnits="userSpaceOnUse"
+                >
+                    <stop offset="0%" stopColor="#FB923C" />
+                    <stop offset="100%" stopColor="#EA580C" />
+                </linearGradient>
+            </defs>
+            <path
+                fill={`url(#${gradientId}-top)`}
+                d="M12 3.25c-4.1 0-7.25 2.55-7.5 6.05-.05.75.15 1.45.55 2.05.45.7 1.15 1.15 1.95 1.15h10c.8 0 1.5-.45 1.95-1.15.4-.6.6-1.3.55-2.05C19.25 5.8 16.1 3.25 12 3.25z"
+            />
+            <path
+                fill="#C2410C"
+                opacity="0.25"
+                d="M5.25 12.25h13.5v1.1H5.25z"
+            />
+            <path
+                fill={`url(#${gradientId}-body)`}
+                d="M6.25 13.1h11.5v4.65c0 1.55-1.25 2.8-2.8 2.8h-5.9c-1.55 0-2.8-1.25-2.8-2.8V13.1z"
+            />
+        </svg>
+    );
+};
+
 // Componente interno que usa el WebSocket
 const LayoutDashboardContent: React.FC = () => {
     const navigate = useNavigate();
@@ -223,12 +281,20 @@ const LayoutDashboardContent: React.FC = () => {
     const lastCashTableIdRef = useRef<string | null>(null);
     const [floorsTablesRefreshNonce, setFloorsTablesRefreshNonce] = useState(0);
     const [showNotifications, setShowNotifications] = useState(false);
+    const [showKitchenNotifications, setShowKitchenNotifications] =
+        useState(false);
     const [showUserPopover, setShowUserPopover] = useState(false);
     const notificationsRef = useRef<HTMLDivElement | null>(null);
+    const kitchenNotificationsRef = useRef<HTMLDivElement | null>(null);
     const userPopoverRef = useRef<HTMLDivElement | null>(null);
     const [hiddenNotificationIds, setHiddenNotificationIds] = useState<
         string[]
     >([]);
+    const [kitchenNotifications, setKitchenNotifications] = useState<
+        KitchenNotificationItem[]
+    >([]);
+    const [hiddenKitchenNotificationIds, setHiddenKitchenNotificationIds] =
+        useState<string[]>([]);
 
     const {
         data: broadcastMessagesData,
@@ -314,6 +380,17 @@ const LayoutDashboardContent: React.FC = () => {
                 }
 
                 showToast(message, toastType, true);
+
+                const notificationId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+                setKitchenNotifications((prev) => [
+                    {
+                        id: notificationId,
+                        message,
+                        createdAt: new Date().toISOString(),
+                        isPending: Boolean(notification.is_pending),
+                    },
+                    ...prev,
+                ].slice(0, 50));
             },
         );
 
@@ -386,6 +463,11 @@ const LayoutDashboardContent: React.FC = () => {
     );
     const unreadCount = visibleNotifications.length;
 
+    const visibleKitchenNotifications = kitchenNotifications.filter(
+        (notification) => !hiddenKitchenNotificationIds.includes(notification.id),
+    );
+    const unreadKitchenCount = visibleKitchenNotifications.length;
+
     /** Clave estable del conjunto de pendientes (evita reabrir el panel en cada refetch si el usuario ya lo cerró). */
     const visibleNotificationIdsKey = useMemo(
         () =>
@@ -430,7 +512,7 @@ const LayoutDashboardContent: React.FC = () => {
         }
     }, [visibleNotificationIdsKey, broadcastMessagesLoading]);
     useEffect(() => {
-        if (!showNotifications && !showUserPopover) {
+        if (!showNotifications && !showKitchenNotifications && !showUserPopover) {
             return;
         }
         const handleClickOutside = (event: MouseEvent) => {
@@ -439,6 +521,12 @@ const LayoutDashboardContent: React.FC = () => {
                 !notificationsRef.current.contains(event.target as Node)
             ) {
                 setShowNotifications(false);
+            }
+            if (
+                kitchenNotificationsRef.current &&
+                !kitchenNotificationsRef.current.contains(event.target as Node)
+            ) {
+                setShowKitchenNotifications(false);
             }
             if (
                 userPopoverRef.current &&
@@ -451,10 +539,16 @@ const LayoutDashboardContent: React.FC = () => {
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [showNotifications, showUserPopover]);
+    }, [showNotifications, showKitchenNotifications, showUserPopover]);
 
     const handleDismissNotification = (notificationId: string) => {
         setHiddenNotificationIds((prev) =>
+            prev.includes(notificationId) ? prev : [...prev, notificationId],
+        );
+    };
+
+    const handleDismissKitchenNotification = (notificationId: string) => {
+        setHiddenKitchenNotificationIds((prev) =>
             prev.includes(notificationId) ? prev : [...prev, notificationId],
         );
     };
@@ -1210,10 +1304,11 @@ const LayoutDashboardContent: React.FC = () => {
                         >
                             <button
                                 type="button"
-                                aria-label="Notificaciones de cocina"
-                                onClick={() =>
-                                    setShowNotifications((prev) => !prev)
-                                }
+                                aria-label="Notificaciones de mensajes"
+                                onClick={() => {
+                                    setShowKitchenNotifications(false);
+                                    setShowNotifications((prev) => !prev);
+                                }}
                                 className={`group relative flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-[1.15rem] text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100 ${
                                     showNotifications
                                         ? "bg-slate-100 dark:bg-slate-700"
@@ -1355,6 +1450,138 @@ const LayoutDashboardContent: React.FC = () => {
                                                             </div>
                                                         );
                                                     },
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <div
+                            ref={kitchenNotificationsRef}
+                            className="relative shrink-0"
+                        >
+                            <button
+                                type="button"
+                                aria-label="Notificaciones de cocina"
+                                title="Notificaciones de cocina"
+                                onClick={() => {
+                                    setShowNotifications(false);
+                                    setShowKitchenNotifications((prev) => !prev);
+                                }}
+                                className={`group relative flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-[1.15rem] transition-all duration-200 hover:bg-orange-50 dark:bg-slate-800 dark:hover:bg-orange-900/20 ${
+                                    showKitchenNotifications
+                                        ? "bg-orange-50 dark:bg-orange-900/20"
+                                        : ""
+                                }`}
+                            >
+                                <span className="inline-flex items-center justify-center text-[1.15rem] leading-none">
+                                    <KitchenIcon className="h-[1.2em] w-[1.2em]" />
+                                </span>
+                                {unreadKitchenCount > 0 && (
+                                    <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[0.65rem] font-bold text-white shadow-sm shadow-orange-500/20">
+                                        {unreadKitchenCount > 9
+                                            ? "9+"
+                                            : unreadKitchenCount}
+                                    </span>
+                                )}
+                            </button>
+                            {showKitchenNotifications && (
+                                <>
+                                    {isMobile && (
+                                        <div
+                                            className="fixed inset-0 z-[1199] bg-slate-950/30 backdrop-blur-sm"
+                                            onClick={() =>
+                                                setShowKitchenNotifications(
+                                                    false,
+                                                )
+                                            }
+                                        />
+                                    )}
+                                    <div
+                                        className={`${isMobile ? "fixed inset-x-4 top-[80px]" : "absolute right-0 top-[110%] w-[400px]"} z-[1200] max-h-[calc(100vh-120px)] sm:max-h-[500px] overflow-y-auto rounded-3xl border border-slate-200 bg-white/95 p-5 shadow-2xl shadow-slate-900/20 backdrop-blur-md scrollbar-thin scrollbar-thumb-slate-200 dark:border-slate-800 dark:bg-slate-950/95 dark:scrollbar-thumb-slate-800`}
+                                    >
+                                        <div className="mb-4 flex items-center justify-between">
+                                            <div>
+                                                <h3 className="m-0 text-sm font-bold tracking-tight text-slate-900 dark:text-white">
+                                                    Cocina
+                                                </h3>
+                                                <p className="m-0 mt-1 text-xs font-medium uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                                                    Pedidos y avisos
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setKitchenNotifications([]);
+                                                    setHiddenKitchenNotificationIds(
+                                                        [],
+                                                    );
+                                                }}
+                                                className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-50 text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-800 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                                                title="Limpiar todo"
+                                            >
+                                                ⟳
+                                            </button>
+                                        </div>
+                                        {visibleKitchenNotifications.length ===
+                                        0 ? (
+                                            <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                                                No hay avisos de cocina por
+                                                ahora.
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                {visibleKitchenNotifications.map(
+                                                    (notification) => (
+                                                        <div
+                                                            key={
+                                                                notification.id
+                                                            }
+                                                            className={`group relative overflow-hidden rounded-2xl border p-5 text-sm transition-all hover:shadow-md dark:border-slate-800 ${
+                                                                notification.isPending
+                                                                    ? "border-orange-200 bg-orange-50/50 dark:bg-orange-900/10"
+                                                                    : "border-emerald-200 bg-emerald-50/50 dark:bg-emerald-900/10"
+                                                            }`}
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    handleDismissKitchenNotification(
+                                                                        notification.id,
+                                                                    )
+                                                                }
+                                                                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-xl bg-white/50 text-slate-400 opacity-0 transition-all duration-200 hover:bg-rose-100 hover:text-rose-600 group-hover:opacity-100 dark:bg-slate-800/50 dark:hover:bg-rose-900/30"
+                                                                aria-label="Ocultar aviso de cocina"
+                                                                title="Ocultar"
+                                                            >
+                                                                ×
+                                                            </button>
+                                                            <div className="flex items-start gap-3">
+                                                                <div
+                                                                    className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                                                                        notification.isPending
+                                                                            ? "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400"
+                                                                            : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                                                    }`}
+                                                                >
+                                                                    <KitchenIcon className="h-6 w-6" />
+                                                                </div>
+                                                                <div className="min-w-0 flex-1 pr-4">
+                                                                    <p className="m-0 text-sm font-bold leading-tight text-slate-900 dark:text-white">
+                                                                        {
+                                                                            notification.message
+                                                                        }
+                                                                    </p>
+                                                                    <span className="mt-3 block text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                                                                        {formatRelativeTime(
+                                                                            notification.createdAt,
+                                                                        )}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ),
                                                 )}
                                             </div>
                                         )}
