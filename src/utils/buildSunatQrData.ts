@@ -33,7 +33,6 @@ function receptorDocType(
 }
 
 function receptorDocNumber(
-	documentType?: string | null,
 	documentNumber?: string | null,
 ): string {
 	const num = String(documentNumber ?? "").trim();
@@ -80,7 +79,6 @@ export function buildSunatQrData(
 	);
 	const nroReceptor = receptorDocNumber(
 		doc.person?.documentType,
-		doc.person?.documentNumber,
 	);
 
 	return `${ruc}|${docCode}|${serial}|${number}|${igv}|${total}|${emissionDate}|${tipoReceptor}|${nroReceptor}|${hashRaw}|`;
