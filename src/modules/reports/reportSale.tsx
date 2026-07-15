@@ -3,6 +3,7 @@ import { useQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { GET_SALES_REPORT, GET_DOCUMENTS } from "../../graphql/queries";
 import ReportSaleList from "./reportSaleList";
+import ReportSaleCharts from "./reportSaleCharts";
 import { formatLocalDateYYYYMMDD } from "../../utils/localDateTime";
 
 interface SalesReportSummary {
@@ -129,6 +130,7 @@ const ReportSale: React.FC = () => {
         formatLocalDateYYYYMMDD(),
     );
     const [selectedDocumentId, setSelectedDocumentId] = useState<string>("");
+    const [viewMode, setViewMode] = useState<"list" | "charts">("list");
 
     const { data: documentsData } = useQuery(GET_DOCUMENTS, {
         variables: { branchId: branchId! },
@@ -193,11 +195,36 @@ const ReportSale: React.FC = () => {
                         </p>
                     </div>
                 </div>
-                <button
-                    onClick={() => refetch()}
-                    disabled={loading}
-                    className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="flex rounded-2xl border border-slate-100 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode("list")}
+                            className={`rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                                viewMode === "list"
+                                    ? "bg-indigo-600 text-white shadow-sm"
+                                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                            }`}
+                        >
+                            Lista
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode("charts")}
+                            className={`rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                                viewMode === "charts"
+                                    ? "bg-indigo-600 text-white shadow-sm"
+                                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                            }`}
+                        >
+                            Gráficos
+                        </button>
+                    </div>
+                    <button
+                        onClick={() => refetch()}
+                        disabled={loading}
+                        className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -213,7 +240,8 @@ const ReportSale: React.FC = () => {
                         />
                     </svg>
                     {loading ? "Actualizando" : "Refrescar"}
-                </button>
+                    </button>
+                </div>
             </div>
 
             {/* Unified Filter Toolbar */}
@@ -389,7 +417,38 @@ const ReportSale: React.FC = () => {
                 </div>
             )}
 
-            {/* Documents List Section */}
+            {/* Charts or Documents List */}
+            {viewMode === "charts" ? (
+                <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+                    <div className="flex items-center justify-between border-b border-slate-50 p-6 dark:border-slate-800/50">
+                        <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                            Análisis Visual de Ventas
+                        </h2>
+                        <span className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800">
+                            {salesDocuments.length} documentos analizados
+                        </span>
+                    </div>
+                    <div className="p-4 sm:p-6">
+                        {loading ? (
+                            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                                {Array(4)
+                                    .fill(0)
+                                    .map((_, i) => (
+                                        <div
+                                            key={i}
+                                            className="h-64 animate-pulse rounded-[32px] bg-slate-50 dark:bg-slate-800/50"
+                                        />
+                                    ))}
+                            </div>
+                        ) : (
+                            <ReportSaleCharts
+                                documents={salesDocuments}
+                                summary={summary}
+                            />
+                        )}
+                    </div>
+                </div>
+            ) : (
             <div className="flex flex-col overflow-visible rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
                 <div className="flex items-center justify-between border-b border-slate-50 p-6 dark:border-slate-800/50">
                     <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
@@ -425,6 +484,7 @@ const ReportSale: React.FC = () => {
                     )}
                 </div>
             </div>
+            )}
 
             {error && (
                 <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600 dark:border-rose-900/30 dark:bg-rose-900/10">

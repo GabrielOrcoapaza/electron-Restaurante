@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useApolloClient } from "@apollo/client";
 import {
-    CANCEL_ISSUED_DOCUMENT,
     REPRINT_DOCUMENT,
     REACTIVATE_TABLE,
     FULL_ANNULMENT,
@@ -187,16 +186,6 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     const [expandedDocument, setExpandedDocument] = useState<string | null>(
         null,
     );
-    const [showCancelModal, setShowCancelModal] = useState(false);
-    const [selectedDocument, setSelectedDocument] =
-        useState<IssuedDocument | null>(null);
-    const [cancellationReason, setCancellationReason] = useState<string>("");
-    const [cancellationDescription, setCancellationDescription] =
-        useState<string>("");
-    const [cancelMessage, setCancelMessage] = useState<{
-        type: "success" | "error";
-        text: string;
-    } | null>(null);
     const [localDocuments, setLocalDocuments] =
         useState<IssuedDocument[]>(documents);
     const [printMessage, setPrintMessage] = useState<{
@@ -316,49 +305,6 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
             documentData,
         };
     };
-
-    const [cancelDocument, { loading: canceling }] = useMutation(
-        CANCEL_ISSUED_DOCUMENT,
-        {
-            onCompleted: (data) => {
-                if (data.cancelIssuedDocument.success) {
-                    if (selectedDocument) {
-                        setLocalDocuments((prevDocs) =>
-                            prevDocs.map((doc) =>
-                                doc.id === selectedDocument.id
-                                    ? {
-                                          ...doc,
-                                          billingStatus:
-                                              data.cancelIssuedDocument
-                                                  .issuedDocument.billingStatus,
-                                      }
-                                    : doc,
-                            ),
-                        );
-                    }
-                    setCancelMessage({
-                        type: "success",
-                        text: data.cancelIssuedDocument.message,
-                    });
-                    setTimeout(() => {
-                        setShowCancelModal(false);
-                        setCancellationReason("");
-                        setCancellationDescription("");
-                        setSelectedDocument(null);
-                        setCancelMessage(null);
-                        if (onRefetch) onRefetch();
-                    }, 2000);
-                } else {
-                    setCancelMessage({
-                        type: "error",
-                        text: data.cancelIssuedDocument.message,
-                    });
-                }
-            },
-            onError: (error) =>
-                setCancelMessage({ type: "error", text: error.message }),
-        },
-    );
 
     const getPaymentMethodInfo = (method: string) => {
         const methods: Record<
@@ -508,9 +454,6 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
         return isRestaurant && hasTable && noPaymentClosed;
     };
 
-    const canAnnulDocument = (status: string): boolean =>
-        ["ACCEPTED", "SENT", "ACCEPTED_WITH_OBSERVATIONS"].includes(status);
-
     const handleReactivateTable = async () => {
         if (!documentToReactivate || !user?.id) return;
         setReactivatingDocId(documentToReactivate.id);
@@ -549,31 +492,18 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
         }
     };
 
-    const handleCancelDocument = () => {
-        if (!selectedDocument || !cancellationReason || !user?.id) {
-            setCancelMessage({
-                type: "error",
-                text: "Por favor completa todos los campos requeridos",
-            });
-            return;
-        }
-
-        setCancelMessage(null);
-        cancelDocument({
-            variables: {
-                issuedDocumentId: selectedDocument.id,
-                userId: user.id,
-                cancellationReason: cancellationReason,
-                cancellationDescription: cancellationDescription || null,
-            },
-        });
-    };
-
     const handleFullAnnulment = async () => {
         if (!documentForFullAnnul || !fullAnnulReason || !user?.id || !branchId) {
             setFullAnnulMessage({
                 type: "error",
                 text: "Seleccione un motivo de anulación",
+            });
+            return;
+        }
+        if (!fullAnnulDescription.trim()) {
+            setFullAnnulMessage({
+                type: "error",
+                text: "Indica el motivo por el que está anulando",
             });
             return;
         }
@@ -587,7 +517,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                     issuedDocumentId: documentForFullAnnul.id,
                     userId: user.id,
                     cancellationReason: fullAnnulReason,
-                    cancellationDescription: fullAnnulDescription || null,
+                    cancellationDescription: fullAnnulDescription.trim(),
                 },
             });
             const payload = result.data?.fullAnnulment;
@@ -1379,28 +1309,6 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                                         </button>
                                                     )}
 
-                                                    {canAnnulDocument(
-                                                        doc.billingStatus,
-                                                    ) &&
-                                                        isElectronicBillingDocumentCode(
-                                                            doc.document.code,
-                                                        ) && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedDocument(
-                                                                    doc,
-                                                                );
-                                                                setShowCancelModal(
-                                                                    true,
-                                                                );
-                                                            }}
-                                                            className="h-10 px-4 rounded-xl bg-rose-50 text-rose-600 text-xs font-black uppercase tracking-widest transition-all hover:bg-rose-600 hover:text-white dark:bg-rose-900/20"
-                                                        >
-                                                            Anular Doc.
-                                                        </button>
-                                                    )}
-
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -1606,119 +1514,6 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                 })}
             </div>
 
-            {/* Cancel Modal */}
-            {showCancelModal && selectedDocument && (
-                <div
-                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
-                    onClick={() => setShowCancelModal(false)}
-                >
-                    <div
-                        className="w-full max-w-lg overflow-hidden rounded-[32px] bg-white shadow-2xl dark:bg-slate-900"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="bg-rose-500 p-8 text-white">
-                            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 mb-4">
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-10 w-10"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                                    />
-                                </svg>
-                            </div>
-                            <h3 className="text-2xl font-black">
-                                Anular Documento
-                            </h3>
-                            <p className="mt-1 text-sm font-bold opacity-80">
-                                {selectedDocument.document.description}{" "}
-                                {selectedDocument.serial}-
-                                {selectedDocument.number}
-                            </p>
-                        </div>
-
-                        <div className="p-8">
-                            {cancelMessage && (
-                                <div
-                                    className={`mb-6 p-4 rounded-2xl border text-sm font-bold ${cancelMessage.type === "success" ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-rose-50 text-rose-600 border-rose-100"}`}
-                                >
-                                    {cancelMessage.text}
-                                </div>
-                            )}
-
-                            <div className="flex flex-col gap-6">
-                                <div className="flex flex-col gap-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                        Motivo de Cancelación
-                                    </label>
-                                    <select
-                                        value={cancellationReason}
-                                        onChange={(e) =>
-                                            setCancellationReason(
-                                                e.target.value,
-                                            )
-                                        }
-                                        className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-200"
-                                    >
-                                        <option value="">
-                                            Seleccionar motivo...
-                                        </option>
-                                        {cancellationReasonsList.map((r) => (
-                                            <option key={r.code} value={r.code}>
-                                                {r.code} - {r.description}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="flex flex-col gap-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                        Descripción (Opcional)
-                                    </label>
-                                    <textarea
-                                        value={cancellationDescription}
-                                        onChange={(e) =>
-                                            setCancellationDescription(
-                                                e.target.value,
-                                            )
-                                        }
-                                        rows={3}
-                                        placeholder="Detalles adicionales..."
-                                        className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-200"
-                                    />
-                                </div>
-
-                                <div className="flex gap-3 pt-2">
-                                    <button
-                                        onClick={() =>
-                                            setShowCancelModal(false)
-                                        }
-                                        className="flex-1 h-12 rounded-2xl bg-slate-100 text-xs font-black uppercase tracking-widest text-slate-500 transition-all hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
-                                    >
-                                        Regresar
-                                    </button>
-                                    <button
-                                        onClick={handleCancelDocument}
-                                        disabled={
-                                            canceling || !cancellationReason
-                                        }
-                                        className="flex-1 h-12 rounded-2xl bg-rose-500 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-rose-200 transition-all hover:bg-rose-600 disabled:opacity-50 dark:shadow-none"
-                                    >
-                                        {canceling ? "..." : "Anular Documento"}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* Full Annulment Modal */}
             {showFullAnnulModal && documentForFullAnnul && (
                 <div
@@ -1847,7 +1642,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
 
                                 <div className="flex flex-col gap-2">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                        Descripción (Opcional)
+                                        Descripción del motivo *
                                     </label>
                                     <textarea
                                         value={fullAnnulDescription}
@@ -1857,7 +1652,8 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                             )
                                         }
                                         rows={3}
-                                        placeholder="Detalles adicionales..."
+                                        required
+                                        placeholder="Describe el motivo de la anulación (obligatorio)..."
                                         className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 py-3.5 px-4 text-sm font-bold text-slate-700 outline-none dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-200"
                                     />
                                 </div>
@@ -1875,7 +1671,9 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                     <button
                                         onClick={handleFullAnnulment}
                                         disabled={
-                                            fullAnnulling || !fullAnnulReason
+                                            fullAnnulling ||
+                                            !fullAnnulReason ||
+                                            !fullAnnulDescription.trim()
                                         }
                                         className="flex-1 h-12 rounded-2xl bg-red-700 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-red-200 transition-all hover:bg-red-800 disabled:opacity-50 dark:shadow-none"
                                     >

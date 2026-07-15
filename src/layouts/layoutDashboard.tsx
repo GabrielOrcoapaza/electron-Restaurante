@@ -12,6 +12,16 @@ import { useSwitchBranch } from "../hooks/useSwitchBranch";
 import { useUserPermissions } from "../hooks/useUserPermissions";
 import { WebSocketProvider, useWebSocket } from "../context/WebSocketContext";
 import { useToast } from "../context/ToastContext";
+import {
+    extractKitchenNotificationEntries,
+    isKitchenNotificationAlreadySeen,
+    loadKitchenNotificationSeenKeys,
+    mapKitchenNotificationItem,
+    markKitchenNotificationSeen,
+    resolveKitchenNotificationScope,
+    resolveReadyEventQuantity,
+    type KitchenNotificationItem,
+} from "../utils/kitchenNotificationDedup";
 import Floor from "../modules/sales/floor";
 import CashPay from "../modules/cash/cashPay";
 import Cashs from "../modules/cash/cashs";
@@ -58,13 +68,6 @@ const formatRelativeTime = (dateString?: string | null) => {
     if (diffHours < 24) return `Hace ${diffHours} h`;
     const diffDays = Math.floor(diffHours / 24);
     return `Hace ${diffDays} d`;
-};
-
-type KitchenNotificationItem = {
-    id: string;
-    message: string;
-    createdAt: string;
-    isPending?: boolean;
 };
 
 const KitchenIcon = ({ className = "h-6 w-6" }: { className?: string }) => {
@@ -295,6 +298,7 @@ const LayoutDashboardContent: React.FC = () => {
     >([]);
     const [hiddenKitchenNotificationIds, setHiddenKitchenNotificationIds] =
         useState<string[]>([]);
+    const seenKitchenNotificationKeysRef = useRef<Set<string>>(new Set());
 
     const {
         data: broadcastMessagesData,
@@ -310,6 +314,18 @@ const LayoutDashboardContent: React.FC = () => {
     const [releaseTableSessionLockMutation] = useMutation(
         RELEASE_TABLE_SESSION_LOCK,
     );
+
+    useEffect(() => {
+        const branchId =
+            companyData?.branch?.id ??
+            resolveKitchenNotificationScope().branchId;
+        const userId = user?.id ?? resolveKitchenNotificationScope().userId;
+        if (!branchId || !userId) return;
+
+        seenKitchenNotificationKeysRef.current = new Set(
+            loadKitchenNotificationSeenKeys(String(branchId), String(userId)),
+        );
+    }, [companyData?.branch?.id, user?.id]);
 
     useEffect(() => {
         let cancelled = false;
@@ -354,43 +370,66 @@ const LayoutDashboardContent: React.FC = () => {
         const unsubscribeKitchenNotification = subscribe(
             "kitchen_notification",
             (notification: any) => {
-                console.log(
-                    "🍳 Notificación de cocina recibida por WebSocket:",
-                    notification,
+                const scopeFromStorage = resolveKitchenNotificationScope();
+                const branchId = String(
+                    companyData?.branch?.id ?? scopeFromStorage.branchId ?? "",
                 );
-
-                let message = "";
-                let toastType: "success" | "info" = "info";
-
-                if (notification.is_pending) {
-                    message = `Nuevo pedido: ${notification.product_name} para ${notification.table_name}`;
-                    toastType = "info";
-                } else if (notification.product_name.startsWith("Orden #")) {
-                    // Full order completion
-                    message = `${notification.product_name} lista para ${notification.table_name}, preparada por ${notification.prepared_by}`;
-                    toastType = "info";
-                } else {
-                    // Single item completion
-                    const quantityText =
-                        notification.quantity > 1
-                            ? `${notification.quantity}x `
-                            : "";
-                    message = `${quantityText}${notification.product_name} listo para ${notification.table_name} (Orden #${notification.operation_number})`;
-                    toastType = "success";
+                const userId = String(user?.id ?? scopeFromStorage.userId ?? "");
+                if (!branchId || !userId) {
+                    return;
                 }
 
-                showToast(message, toastType, true);
+                const entries = extractKitchenNotificationEntries(notification);
+                const newItems: KitchenNotificationItem[] = [];
 
-                const notificationId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-                setKitchenNotifications((prev) => [
-                    {
-                        id: notificationId,
-                        message,
-                        createdAt: new Date().toISOString(),
-                        isPending: Boolean(notification.is_pending),
-                    },
-                    ...prev,
-                ].slice(0, 50));
+                for (const entry of entries) {
+                    if (
+                        isKitchenNotificationAlreadySeen(
+                            branchId,
+                            userId,
+                            entry,
+                        )
+                    ) {
+                        console.log(
+                            "🍳 Notificación de cocina ya vista, ignorada:",
+                            entry,
+                        );
+                        continue;
+                    }
+
+                    const item = mapKitchenNotificationItem(entry, branchId);
+                    if (!item) continue;
+
+                    console.log(
+                        "🍳 Notificación de cocina recibida por WebSocket:",
+                        entry,
+                        "mensaje:",
+                        item.message,
+                        "cantidad en este aviso:",
+                        resolveReadyEventQuantity(entry, branchId),
+                    );
+
+                    markKitchenNotificationSeen(branchId, userId, entry);
+                    loadKitchenNotificationSeenKeys(branchId, userId).forEach(
+                        (key) => seenKitchenNotificationKeysRef.current.add(key),
+                    );
+
+                    const toastType = item.isPending ? "info" : "success";
+                    showToast(item.message, toastType, false, 10000);
+                    newItems.push(item);
+                }
+
+                if (newItems.length === 0) return;
+
+                setKitchenNotifications((prev) => {
+                    const merged = [...prev];
+                    for (const item of newItems) {
+                        if (!merged.some((entry) => entry.id === item.id)) {
+                            merged.unshift(item);
+                        }
+                    }
+                    return merged.slice(0, 50);
+                });
             },
         );
 
@@ -398,7 +437,7 @@ const LayoutDashboardContent: React.FC = () => {
             unsubscribeBroadcast();
             unsubscribeKitchenNotification();
         };
-    }, [subscribe, refetchBroadcastMessages, user?.id, showToast]);
+    }, [subscribe, refetchBroadcastMessages, user?.id, companyData?.branch?.id, showToast]);
 
     // Función para verificar si el usuario debe ver un mensaje broadcast según su rol
     const shouldUserSeeMessage = (

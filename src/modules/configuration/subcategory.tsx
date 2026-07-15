@@ -40,7 +40,7 @@ const Subcategory: React.FC = () => {
   const [editFormData, setEditFormData] = useState({ name: '', description: '', icon: 'category', color: '#3b82f6', order: 0, isActive: true });
 
   const { data, refetch } = useQuery(GET_CATEGORIES_BY_BRANCH, {
-    variables: { branchId: branchId! },
+    variables: { branchId: branchId!, includeInactive: true },
     skip: !branchId,
     fetchPolicy: 'network-only',
   });

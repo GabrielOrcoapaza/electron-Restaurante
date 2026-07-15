@@ -70,4 +70,13 @@ desktop.ini
 
 # Archivos de cobertura (tests)
 coverage/
-.nyc_output/
+.nyc_output/ 
+
+# Archivos de implementacion 
+PROMOCIONES_ELECTRON.md 
+kamapp-implementacion-plan.md 
+PROMOCIONES_ELECTRON.md  
+temp_client.txt 
+temp_client2.txt 
+temp_payment_logic.txt 
+temp_useeffect.txt 

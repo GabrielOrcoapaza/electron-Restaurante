@@ -2429,6 +2429,38 @@ const CashPay: React.FC<CashPayProps> = ({
             : contextUsers
         : contextUsers;
 
+    const activeChangeTableFloors = useMemo(
+        () =>
+            (floorsData?.floorsByBranch ?? []).filter(
+                (f: { isActive?: boolean }) => f.isActive !== false,
+            ),
+        [floorsData?.floorsByBranch],
+    );
+
+    const activeChangeTableTables = useMemo(
+        () =>
+            (tablesData?.tablesByFloor ?? []).filter(
+                (t: { isActive?: boolean }) => t.isActive !== false,
+            ),
+        [tablesData?.tablesByFloor],
+    );
+
+    const activeTransferFloors = useMemo(
+        () =>
+            (transferFloorsData?.floorsByBranch ?? []).filter(
+                (f: { isActive?: boolean }) => f.isActive !== false,
+            ),
+        [transferFloorsData?.floorsByBranch],
+    );
+
+    const activeTransferTables = useMemo(
+        () =>
+            (transferTablesData?.tablesByFloor ?? []).filter(
+                (t: { isActive?: boolean }) => t.isActive !== false,
+            ),
+        [transferTablesData?.tablesByFloor],
+    );
+
     const resolvedFloorName = useMemo(() => {
         if (!table) return null;
         if (table.floorName) return table.floorName;
@@ -3730,7 +3762,7 @@ const CashPay: React.FC<CashPayProps> = ({
                             className={cashModalSelectClass}
                         >
                             <option value="">Piso...</option>
-                            {floorsData?.floorsByBranch.map((f: any) => (
+                            {activeChangeTableFloors.map((f: any) => (
                                 <option key={f.id} value={f.id}>
                                     {f.name}
                                 </option>
@@ -3742,7 +3774,7 @@ const CashPay: React.FC<CashPayProps> = ({
                             className={`${cashModalSelectClass} mb-4`}
                         >
                             <option value="">Mesa...</option>
-                            {tablesData?.tablesByFloor.map((t: any) => (
+                            {activeChangeTableTables.map((t: any) => (
                                 <option key={t.id} value={t.id}>
                                     {t.name}
                                 </option>
@@ -3780,13 +3812,11 @@ const CashPay: React.FC<CashPayProps> = ({
                             className={cashModalSelectClass}
                         >
                             <option value="">Piso...</option>
-                            {transferFloorsData?.floorsByBranch.map(
-                                (f: any) => (
-                                    <option key={f.id} value={f.id}>
-                                        {f.name}
-                                    </option>
-                                ),
-                            )}
+                            {activeTransferFloors.map((f: any) => (
+                                <option key={f.id} value={f.id}>
+                                    {f.name}
+                                </option>
+                            ))}
                         </select>
                         <select
                             value={selectedTransferTableId}
@@ -3796,7 +3826,7 @@ const CashPay: React.FC<CashPayProps> = ({
                             className={`${cashModalSelectClass} mb-4`}
                         >
                             <option value="">Mesa destino...</option>
-                            {transferTablesData?.tablesByFloor.map((t: any) => (
+                            {activeTransferTables.map((t: any) => (
                                 <option key={t.id} value={t.id}>
                                     {t.name}
                                 </option>

@@ -8,17 +8,28 @@ interface Toast {
     message: string;
     type: ToastType;
     persistent?: boolean;
+    durationMs?: number;
 }
 
 interface ToastContextType {
-    showToast: (message: string, type: ToastType, persistent?: boolean) => void;
+    showToast: (
+        message: string,
+        type: ToastType,
+        persistent?: boolean,
+        durationMs?: number,
+    ) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 // Fallback no-op cuando se usa fuera del provider (evita crash en transiciones/navegación)
 const noopToast = (() => {
-    const fn = (_message: string, _type: ToastType, _persistent?: boolean) => {};
+    const fn = (
+        _message: string,
+        _type: ToastType,
+        _persistent?: boolean,
+        _durationMs?: number,
+    ) => {};
     return { showToast: fn };
 })();
 
@@ -30,21 +41,31 @@ export const useToast = () => {
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [toasts, setToasts] = useState<Toast[]>([]);
 
-    const showToast = useCallback((message: string, type: ToastType, persistent = false) => {
-        const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        setToasts((prev) => [...prev, { id, message, type, persistent }]);
-
-        // Auto dismiss only if not persistent
-        if (!persistent) {
-            setTimeout(() => {
-                removeToast(id);
-            }, 3000);
-        }
-    }, []);
-
     const removeToast = useCallback((id: string) => {
         setToasts((prev) => prev.filter((toast) => toast.id !== id));
     }, []);
+
+    const showToast = useCallback(
+        (
+            message: string,
+            type: ToastType,
+            persistent = false,
+            durationMs = 3000,
+        ) => {
+            const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            setToasts((prev) => [
+                ...prev,
+                { id, message, type, persistent, durationMs },
+            ]);
+
+            if (!persistent) {
+                setTimeout(() => {
+                    removeToast(id);
+                }, durationMs);
+            }
+        },
+        [removeToast],
+    );
 
     return (
         <ToastContext.Provider value={{ showToast }}>
