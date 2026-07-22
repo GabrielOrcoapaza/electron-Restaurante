@@ -18,24 +18,17 @@ type EditClientProps = {
     onClose: () => void;
 };
 
+const inputClass =
+    'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40';
+
+const labelClass =
+    'mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300';
+
 const EditClient: React.FC<EditClientProps> = ({ client, onSuccess, onClose }) => {
     const { companyData } = useAuth();
     const { breakpoint } = useResponsive();
 
-    // Adaptar según tamaño de pantalla
     const isSmall = breakpoint === 'sm';
-    const isMedium = breakpoint === 'md';
-    const isSmallDesktop = breakpoint === 'lg';
-    const isMediumDesktop = breakpoint === 'xl';
-
-    const modalPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '1.75rem' : '2rem';
-    const modalMaxWidth = isSmall ? '95%' : isMedium ? '450px' : isSmallDesktop ? '500px' : isMediumDesktop ? '550px' : '600px';
-    const titleFontSize = isSmall ? '1.25rem' : isMedium ? '1.375rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-    const labelFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-    const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-    const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : isMediumDesktop ? '0.625rem 0.875rem' : '0.75rem';
-    const buttonPadding = isSmall ? '0.5625rem 1rem' : isMedium ? '0.625rem 1.25rem' : isSmallDesktop ? '0.625rem 1.25rem' : isMediumDesktop ? '0.75rem 1.5rem' : '0.75rem 1.5rem';
-    const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
 
     const [formData, setFormData] = useState({
         name: client.name || '',
@@ -110,19 +103,7 @@ const EditClient: React.FC<EditClientProps> = ({ client, onSuccess, onClose }) =
 
     return (
         <div
-            style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1000,
-                padding: '1rem'
-            }}
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4"
             onClick={(e) => {
                 if (e.target === e.currentTarget) {
                     onClose();
@@ -130,36 +111,17 @@ const EditClient: React.FC<EditClientProps> = ({ client, onSuccess, onClose }) =
             }}
         >
             <div
-                style={{
-                    backgroundColor: 'white',
-                    borderRadius: '12px',
-                    padding: modalPadding,
-                    maxWidth: modalMaxWidth,
-                    width: '100%',
-                    maxHeight: '90vh',
-                    overflow: 'auto',
-                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-                }}
+                className="w-full max-w-[600px] max-h-[90vh] overflow-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:p-8"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem' }}>
-                    <h2 style={{ margin: 0, fontSize: titleFontSize, fontWeight: 700, color: '#1e293b' }}>
+                <div className="mb-6 flex items-center justify-between gap-4">
+                    <h2 className="m-0 text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">
                         ✏️ Editar Cliente
                     </h2>
                     <button
+                        type="button"
                         onClick={onClose}
-                        style={{
-                            background: 'none',
-                            border: 'none',
-                            fontSize: '1.5rem',
-                            cursor: 'pointer',
-                            color: '#64748b',
-                            padding: '0.25rem 0.5rem',
-                            borderRadius: '4px',
-                            transition: 'background 0.2s'
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        className="rounded-md px-2 py-1 text-2xl leading-none text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     >
                         ×
                     </button>
@@ -167,47 +129,25 @@ const EditClient: React.FC<EditClientProps> = ({ client, onSuccess, onClose }) =
 
                 {message && (
                     <div
-                        style={{
-                            padding: '0.75rem',
-                            borderRadius: '8px',
-                            marginBottom: '1rem',
-                            backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-                            color: message.type === 'success' ? '#166534' : '#991b1b',
-                            border: `1px solid ${message.type === 'success' ? '#86efac' : '#fecaca'}`,
-                            fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem'
-                        }}
+                        className={`mb-4 rounded-lg border px-3 py-2 text-sm ${
+                            message.type === 'success'
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                : 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
+                        }`}
                     >
                         {message.text}
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit}>
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label
-                            style={{
-                                display: 'block',
-                                fontSize: labelFontSize,
-                                fontWeight: 600,
-                                color: '#374151',
-                                marginBottom: '0.5rem'
-                            }}
-                        >
-                            Tipo de Documento *
-                        </label>
+                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                    <div>
+                        <label className={labelClass}>Tipo de Documento *</label>
                         <select
                             name="documentType"
                             value={formData.documentType}
                             onChange={handleChange}
                             required
-                            style={{
-                                width: '100%',
-                                padding: inputPadding,
-                                borderRadius: '8px',
-                                border: '1px solid #d1d5db',
-                                fontSize: inputFontSize,
-                                backgroundColor: 'white',
-                                boxSizing: 'border-box'
-                            }}
+                            className={inputClass}
                         >
                             <option value="DNI">DNI</option>
                             <option value="RUC">RUC</option>
@@ -216,188 +156,78 @@ const EditClient: React.FC<EditClientProps> = ({ client, onSuccess, onClose }) =
                         </select>
                     </div>
 
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label
-                            style={{
-                                display: 'block',
-                                fontSize: labelFontSize,
-                                fontWeight: 600,
-                                color: '#374151',
-                                marginBottom: '0.5rem'
-                            }}
-                        >
-                            Número de Documento *
-                        </label>
+                    <div>
+                        <label className={labelClass}>Número de Documento *</label>
                         <input
                             type="text"
                             name="documentNumber"
                             value={formData.documentNumber}
                             onChange={handleChange}
                             required
-                            style={{
-                                width: '100%',
-                                padding: inputPadding,
-                                borderRadius: '8px',
-                                border: '1px solid #d1d5db',
-                                fontSize: inputFontSize,
-                                boxSizing: 'border-box'
-                            }}
+                            className={inputClass}
                         />
                     </div>
 
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label
-                            style={{
-                                display: 'block',
-                                fontSize: labelFontSize,
-                                fontWeight: 600,
-                                color: '#374151',
-                                marginBottom: '0.5rem'
-                            }}
-                        >
-                            Nombre Completo *
-                        </label>
+                    <div>
+                        <label className={labelClass}>Nombre Completo *</label>
                         <input
                             type="text"
                             name="name"
                             value={formData.name}
                             onChange={handleChange}
                             required
-                            style={{
-                                width: '100%',
-                                padding: inputPadding,
-                                borderRadius: '8px',
-                                border: '1px solid #d1d5db',
-                                fontSize: inputFontSize,
-                                boxSizing: 'border-box'
-                            }}
+                            className={inputClass}
                         />
                     </div>
 
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label
-                            style={{
-                                display: 'block',
-                                fontSize: labelFontSize,
-                                fontWeight: 600,
-                                color: '#374151',
-                                marginBottom: '0.5rem'
-                            }}
-                        >
-                            Email
-                        </label>
+                    <div>
+                        <label className={labelClass}>Email</label>
                         <input
                             type="email"
                             name="email"
                             value={formData.email}
                             onChange={handleChange}
-                            style={{
-                                width: '100%',
-                                padding: inputPadding,
-                                borderRadius: '8px',
-                                border: '1px solid #d1d5db',
-                                fontSize: inputFontSize,
-                                boxSizing: 'border-box'
-                            }}
+                            className={inputClass}
                         />
                     </div>
 
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label
-                            style={{
-                                display: 'block',
-                                fontSize: labelFontSize,
-                                fontWeight: 600,
-                                color: '#374151',
-                                marginBottom: '0.5rem'
-                            }}
-                        >
-                            Teléfono
-                        </label>
+                    <div>
+                        <label className={labelClass}>Teléfono</label>
                         <input
                             type="tel"
                             name="phone"
                             value={formData.phone}
                             onChange={handleChange}
-                            style={{
-                                width: '100%',
-                                padding: inputPadding,
-                                borderRadius: '8px',
-                                border: '1px solid #d1d5db',
-                                fontSize: inputFontSize,
-                                boxSizing: 'border-box'
-                            }}
+                            className={inputClass}
                         />
                     </div>
 
-                    <div style={{ marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem' }}>
-                        <label
-                            style={{
-                                display: 'block',
-                                fontSize: labelFontSize,
-                                fontWeight: 600,
-                                color: '#374151',
-                                marginBottom: '0.5rem'
-                            }}
-                        >
-                            Dirección
-                        </label>
+                    <div>
+                        <label className={labelClass}>Dirección</label>
                         <input
                             type="text"
                             name="address"
                             value={formData.address}
                             onChange={handleChange}
-                            style={{
-                                width: '100%',
-                                padding: inputPadding,
-                                borderRadius: '8px',
-                                border: '1px solid #d1d5db',
-                                fontSize: inputFontSize,
-                                boxSizing: 'border-box'
-                            }}
+                            className={inputClass}
                         />
                     </div>
 
-                    <div style={{
-                        display: 'flex',
-                        flexDirection: isSmall ? 'column' : 'row',
-                        gap: '1rem',
-                        justifyContent: 'flex-end'
-                    }}>
+                    <div
+                        className={`mt-2 flex gap-3 ${isSmall ? 'flex-col' : 'flex-row justify-end'}`}
+                    >
                         <button
                             type="button"
                             onClick={onClose}
                             disabled={loading}
-                            style={{
-                                padding: buttonPadding,
-                                borderRadius: '8px',
-                                border: '1px solid #d1d5db',
-                                backgroundColor: 'white',
-                                color: '#374151',
-                                fontSize: buttonFontSize,
-                                fontWeight: 600,
-                                cursor: loading ? 'not-allowed' : 'pointer',
-                                opacity: loading ? 0.6 : 1,
-                                width: isSmall ? '100%' : 'auto'
-                            }}
+                            className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
                             Cancelar
                         </button>
                         <button
                             type="submit"
                             disabled={loading}
-                            style={{
-                                padding: buttonPadding,
-                                borderRadius: '8px',
-                                border: 'none',
-                                backgroundColor: loading ? '#9ca3af' : '#667eea',
-                                color: 'white',
-                                fontSize: buttonFontSize,
-                                fontWeight: 600,
-                                cursor: loading ? 'not-allowed' : 'pointer',
-                                transition: 'background 0.2s',
-                                width: isSmall ? '100%' : 'auto'
-                            }}
+                            className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-indigo-500 dark:hover:bg-indigo-600 dark:disabled:bg-slate-600"
                         >
                             {loading ? 'Actualizando...' : 'Actualizar Cliente'}
                         </button>

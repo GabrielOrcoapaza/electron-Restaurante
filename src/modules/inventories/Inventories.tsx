@@ -317,13 +317,22 @@ const Inventories: React.FC = () => {
                         <select
                             value={selectedCategory}
                             onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200 cursor-pointer"
+                            className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-bold text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
                         >
-                            <option value="">Todas las categorías</option>
+                            <option
+                                value=""
+                                className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                            >
+                                Todas las categorías
+                            </option>
                             {categories
                                 .filter((c) => c.isActive)
                                 .map((cat) => (
-                                    <option key={cat.id} value={cat.id}>
+                                    <option
+                                        key={cat.id}
+                                        value={cat.id}
+                                        className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                                    >
                                         {cat.name}
                                     </option>
                                 ))}

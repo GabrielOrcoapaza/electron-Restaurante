@@ -7,16 +7,8 @@ import { useToast } from "../../context/ToastContext";
 
 type BranchFormState = {
     name: string;
-    password: string;
     address: string;
     phone: string;
-    latitude: string;
-    longitude: string;
-    igvPercentage: string;
-    pdfSize: string;
-    pdfColor: string;
-    isPayment: boolean;
-    isBilling: boolean;
     isDelivery: boolean;
     isActive: boolean;
     isKitchenPrint: boolean;
@@ -29,16 +21,8 @@ type BranchFormState = {
 
 const emptyForm = (): BranchFormState => ({
     name: "",
-    password: "",
     address: "",
     phone: "",
-    latitude: "",
-    longitude: "",
-    igvPercentage: "18",
-    pdfSize: "",
-    pdfColor: "",
-    isPayment: true,
-    isBilling: false,
     isDelivery: false,
     isActive: true,
     isKitchenPrint: false,
@@ -52,21 +36,8 @@ const emptyForm = (): BranchFormState => ({
 function branchToForm(branch: Record<string, unknown>): BranchFormState {
     return {
         name: String(branch.name ?? ""),
-        password: "",
         address: String(branch.address ?? ""),
         phone: String(branch.phone ?? ""),
-        latitude:
-            branch.latitude != null ? String(branch.latitude) : "",
-        longitude:
-            branch.longitude != null ? String(branch.longitude) : "",
-        igvPercentage:
-            branch.igvPercentage != null
-                ? String(branch.igvPercentage)
-                : "18",
-        pdfSize: String(branch.pdfSize ?? ""),
-        pdfColor: String(branch.pdfColor ?? ""),
-        isPayment: Boolean(branch.isPayment ?? true),
-        isBilling: Boolean(branch.isBilling ?? false),
         isDelivery: Boolean(branch.isDelivery ?? false),
         isActive: Boolean(branch.isActive ?? true),
         isKitchenPrint: Boolean(branch.isKitchenPrint ?? false),
@@ -162,7 +133,6 @@ const BranchSettings: React.FC = () => {
                         ...result.branch,
                     });
                 }
-                setForm((prev) => ({ ...prev, password: "" }));
                 setLogoBase64(null);
                 refetch();
             } else {
@@ -207,10 +177,6 @@ const BranchSettings: React.FC = () => {
             name: form.name.trim() || undefined,
             address: form.address.trim() || undefined,
             phone: form.phone.trim() || undefined,
-            pdfSize: form.pdfSize.trim() || undefined,
-            pdfColor: form.pdfColor.trim() || undefined,
-            isPayment: form.isPayment,
-            isBilling: form.isBilling,
             isDelivery: form.isDelivery,
             isActive: form.isActive,
             isKitchenPrint: form.isKitchenPrint,
@@ -221,18 +187,6 @@ const BranchSettings: React.FC = () => {
             isMultiWaiterEnabled: form.isMultiWaiterEnabled,
         };
 
-        if (form.password.trim()) {
-            variables.password = form.password;
-        }
-        if (form.latitude.trim()) {
-            variables.latitude = parseFloat(form.latitude);
-        }
-        if (form.longitude.trim()) {
-            variables.longitude = parseFloat(form.longitude);
-        }
-        if (form.igvPercentage.trim()) {
-            variables.igvPercentage = parseFloat(form.igvPercentage);
-        }
         if (logoBase64) {
             variables.logoBase64 = logoBase64;
         }
@@ -308,19 +262,6 @@ const BranchSettings: React.FC = () => {
                             />
                         </div>
                         <div>
-                            <label className={labelClass}>
-                                Contraseña de sucursal
-                            </label>
-                            <input
-                                name="password"
-                                type="password"
-                                value={form.password}
-                                onChange={handleChange}
-                                placeholder="Dejar vacío para no cambiar"
-                                className={inputClass}
-                            />
-                        </div>
-                        <div>
                             <label className={labelClass}>Dirección</label>
                             <input
                                 name="address"
@@ -338,28 +279,6 @@ const BranchSettings: React.FC = () => {
                                 className={inputClass}
                             />
                         </div>
-                        <div>
-                            <label className={labelClass}>Latitud</label>
-                            <input
-                                name="latitude"
-                                type="number"
-                                step="any"
-                                value={form.latitude}
-                                onChange={handleChange}
-                                className={inputClass}
-                            />
-                        </div>
-                        <div>
-                            <label className={labelClass}>Longitud</label>
-                            <input
-                                name="longitude"
-                                type="number"
-                                step="any"
-                                value={form.longitude}
-                                onChange={handleChange}
-                                className={inputClass}
-                            />
-                        </div>
                         <div className="md:col-span-2">
                             <label className={labelClass}>Logo</label>
                             <input
@@ -369,58 +288,6 @@ const BranchSettings: React.FC = () => {
                                 className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-slate-300 dark:file:bg-indigo-900/30 dark:file:text-indigo-300"
                             />
                         </div>
-                    </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-                    <h3 className="mb-5 text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
-                        Facturación y comprobantes
-                    </h3>
-                    <div className="grid gap-5 md:grid-cols-3">
-                        <div>
-                            <label className={labelClass}>% IGV</label>
-                            <input
-                                name="igvPercentage"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={form.igvPercentage}
-                                onChange={handleChange}
-                                className={inputClass}
-                            />
-                        </div>
-                        <div>
-                            <label className={labelClass}>Tamaño PDF</label>
-                            <input
-                                name="pdfSize"
-                                value={form.pdfSize}
-                                onChange={handleChange}
-                                placeholder="Ej: A4, 80mm"
-                                className={inputClass}
-                            />
-                        </div>
-                        <div>
-                            <label className={labelClass}>Color PDF</label>
-                            <input
-                                name="pdfColor"
-                                value={form.pdfColor}
-                                onChange={handleChange}
-                                placeholder="Ej: #000000"
-                                className={inputClass}
-                            />
-                        </div>
-                    </div>
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                        <ToggleField
-                            label="Pagos habilitados"
-                            checked={form.isPayment}
-                            onChange={(v) => handleToggle("isPayment", v)}
-                        />
-                        <ToggleField
-                            label="Facturación electrónica"
-                            checked={form.isBilling}
-                            onChange={(v) => handleToggle("isBilling", v)}
-                        />
                     </div>
                 </div>
 

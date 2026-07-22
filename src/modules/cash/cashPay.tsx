@@ -205,6 +205,15 @@ const CashPay: React.FC<CashPayProps> = ({
     const [selectedCashRegisterId, setSelectedCashRegisterId] =
         useState<string>("");
     const [selectedClientId, setSelectedClientId] = useState<string>("");
+    const [selectedClientSnapshot, setSelectedClientSnapshot] = useState<{
+        id: string;
+        name: string;
+        documentType: string;
+        documentNumber: string;
+        email?: string;
+        phone?: string;
+        address?: string;
+    } | null>(null);
     const [showCreateClientModal, setShowCreateClientModal] = useState(false);
     const [showEditClientModal, setShowEditClientModal] = useState(false);
     const [clientSearchTerm, setClientSearchTerm] = useState("");
@@ -497,9 +506,39 @@ const CashPay: React.FC<CashPayProps> = ({
         (person: any) => !person.isSupplier && person.isActive !== false,
     );
 
-    const selectedClient = allClients.find(
-        (c: any) => c.id === selectedClientId,
-    );
+    const selectedClient =
+        allClients.find((c: any) => c.id === selectedClientId) ??
+        (selectedClientSnapshot?.id === selectedClientId
+            ? selectedClientSnapshot
+            : undefined);
+
+    const selectClient = (client: {
+        id: string;
+        name?: string | null;
+        documentType?: string | null;
+        documentNumber?: string | null;
+        email?: string | null;
+        phone?: string | null;
+        address?: string | null;
+    }) => {
+        setSelectedClientId(client.id);
+        setClientSearchTerm(client.name || "");
+        setSelectedClientSnapshot({
+            id: client.id,
+            name: client.name || "",
+            documentType: client.documentType || "DNI",
+            documentNumber: client.documentNumber || "",
+            email: client.email || undefined,
+            phone: client.phone || undefined,
+            address: client.address || undefined,
+        });
+    };
+
+    const clearClientSelection = () => {
+        setSelectedClientId("");
+        setClientSearchTerm("");
+        setSelectedClientSnapshot(null);
+    };
 
     /** Orden: nota / otros, boleta (03), factura (01) — coincide con el flujo típico de caja. */
     const payDocumentsOrdered = useMemo(() => {
@@ -806,8 +845,15 @@ const CashPay: React.FC<CashPayProps> = ({
             }
             const person = result.person;
             if (person.id && result.foundLocally) {
-                setSelectedClientId(person.id);
-                setClientSearchTerm(person.name || "");
+                selectClient({
+                    id: person.id,
+                    name: person.name,
+                    documentType: person.documentType || documentType,
+                    documentNumber: person.documentNumber || term,
+                    email: person.email,
+                    phone: person.phone,
+                    address: person.address,
+                });
                 return;
             }
             const { data: createData } = await createPersonMutation({
@@ -823,8 +869,7 @@ const CashPay: React.FC<CashPayProps> = ({
             if (createData?.createPerson?.success) {
                 setEnableBranchClientsQuery(true);
                 const newPerson = createData.createPerson.person;
-                setSelectedClientId(newPerson.id);
-                setClientSearchTerm(newPerson.name || "");
+                selectClient(newPerson);
                 queueMicrotask(() => {
                     void refetchClients();
                 });
@@ -2730,6 +2775,7 @@ const CashPay: React.FC<CashPayProps> = ({
                             onChange={(e) => {
                                 setClientSearchTerm(e.target.value);
                                 setSelectedClientId("");
+                                setSelectedClientSnapshot(null);
                             }}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter") {
@@ -2818,10 +2864,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                 }}
                             >
                                 <div
-                                    onClick={() => {
-                                        setSelectedClientId("");
-                                        setClientSearchTerm("");
-                                    }}
+                                    onClick={clearClientSelection}
                                     className="cursor-pointer border-b border-slate-100 px-2 py-2 text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
                                     style={{
                                         fontSize: "0.75rem",
@@ -2833,10 +2876,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                     <div
                                         key={client.id}
                                         onClick={() => {
-                                            setSelectedClientId(client.id);
-                                            setClientSearchTerm(
-                                                client.name || "",
-                                            );
+                                            selectClient(client);
                                         }}
                                         className="cursor-pointer border-b border-slate-100 px-2 py-2 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
                                         style={{}}
@@ -4033,10 +4073,22 @@ const CashPay: React.FC<CashPayProps> = ({
                     onClose={() => setShowCreateClientModal(false)}
                 />
             )}
-            {showEditClientModal && (
+            {showEditClientModal && selectedClient && (
                 <EditClient
                     client={selectedClient}
-                    onSuccess={() => setShowEditClientModal(false)}
+                    onSuccess={async () => {
+                        setEnableBranchClientsQuery(true);
+                        const result = await refetchClients();
+                        const updated = (
+                            result.data?.personsByBranch || []
+                        ).find(
+                            (c: { id: string }) => c.id === selectedClient.id,
+                        );
+                        if (updated) {
+                            selectClient(updated);
+                        }
+                        setShowEditClientModal(false);
+                    }}
                     onClose={() => setShowEditClientModal(false)}
                 />
             )}
