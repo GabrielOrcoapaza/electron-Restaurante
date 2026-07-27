@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@apollo/client';
 import { GET_RECIPES_BY_PRODUCT } from '../../graphql/queries';
 import { ADD_RECIPE, REMOVE_RECIPE } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
+import { useUserPermissions } from '../../hooks/useUserPermissions';
 import { useToast } from '../../context/ToastContext';
 import ProductSearchInput from '../../components/ProductSearchInput';
 import {
@@ -37,7 +38,9 @@ interface RecipeModalProps {
 
 const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, productType, onClose }) => {
   const isDish = productType === 'DISH';
-  const { companyData } = useAuth();
+  const { companyData, user } = useAuth();
+  const { hasPermission } = useUserPermissions();
+  const canManageRecipes = hasPermission('recipes.manage');
   const { showToast } = useToast();
   const branchId = companyData?.branch?.id;
   
@@ -113,19 +116,38 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
       return;
     }
 
+    if (!canManageRecipes) {
+      setMessage({ type: 'error', text: 'No tiene permiso para gestionar recetas' });
+      return;
+    }
+
+    if (!user?.id) {
+      setMessage({ type: 'error', text: 'No se encontró el usuario activo' });
+      return;
+    }
+
     addRecipe({
       variables: {
         productId,
         ingredientId: formData.ingredientId,
         quantity: quantity,
         unitMeasure: normalizeProductUnitMeasure(formData.unitMeasure),
-        notes: formData.notes || null
+        notes: formData.notes || null,
+        userId: user.id,
       }
     });
   };
 
   const handleRemoveIngredient = (recipeId: string) => {
-    removeRecipe({ variables: { recipeId } });
+    if (!canManageRecipes) {
+      showToast('No tiene permiso para gestionar recetas', 'error');
+      return;
+    }
+    if (!user?.id) {
+      showToast('No se encontró el usuario activo', 'error');
+      return;
+    }
+    removeRecipe({ variables: { recipeId, userId: user.id } });
   };
 
   return (
@@ -191,8 +213,19 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
             </div>
           )}
 
+          {!canManageRecipes && (
+            <div className="mb-6 flex items-start gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm dark:border-amber-900/30 dark:bg-amber-950/20">
+              <div className="flex flex-col gap-1">
+                <p className="font-black text-amber-900 dark:text-amber-300 uppercase tracking-wider text-[11px]">Solo lectura</p>
+                <p className="text-amber-700 dark:text-amber-400/80">
+                  Puede consultar la receta, pero no tiene permiso para agregar ni quitar ingredientes.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Botón para agregar ingrediente */}
-          {isDish && !showAddForm && (
+          {isDish && canManageRecipes && !showAddForm && (
             <div className="mb-6 flex justify-end">
               <button
                 onClick={() => setShowAddForm(true)}
@@ -207,7 +240,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
           )}
 
           {/* Formulario para agregar ingrediente */}
-          {isDish && showAddForm && (
+          {isDish && canManageRecipes && showAddForm && (
             <div className="mb-8 rounded-3xl border border-slate-200 bg-slate-50/50 p-6 animate-in fade-in slide-in-from-top-4 duration-300 dark:border-slate-800 dark:bg-slate-800/30">
               <h3 className="mb-6 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
                 Nuevo Ingrediente en Receta
@@ -362,7 +395,9 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
                       <th className="px-6 py-4">Ingrediente</th>
                       <th className="px-6 py-4 text-center">Cantidad</th>
                       <th className="px-6 py-4">Notas</th>
-                      <th className="px-6 py-4 text-right">Acciones</th>
+                      {canManageRecipes && (
+                        <th className="px-6 py-4 text-right">Acciones</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
@@ -388,17 +423,19 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
                             {recipe.notes || '—'}
                           </p>
                         </td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => handleRemoveIngredient(recipe.id)}
-                            disabled={removingRecipe}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-500 transition-all hover:bg-rose-100 hover:text-rose-600 disabled:opacity-50 dark:bg-rose-900/20 dark:text-rose-400 dark:hover:bg-rose-900/40"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </td>
+                        {canManageRecipes && (
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              onClick={() => handleRemoveIngredient(recipe.id)}
+                              disabled={removingRecipe}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-500 transition-all hover:bg-rose-100 hover:text-rose-600 disabled:opacity-50 dark:bg-rose-900/20 dark:text-rose-400 dark:hover:bg-rose-900/40"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

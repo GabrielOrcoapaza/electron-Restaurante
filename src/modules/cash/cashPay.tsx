@@ -118,6 +118,8 @@ const PAYMENT_METHODS: { value: string; label: string }[] = [
     { value: "PLIN", label: "Plin" },
     { value: "CARD", label: "Tarjeta" },
     { value: "TRANSFER", label: "Transferencia Bancaria" },
+    { value: "RAPPI", label: "Rappi" },
+    { value: "PEDIDO_YA", label: "Pedido Ya" },
     { value: "OTROS", label: "Otros" },
 ];
 

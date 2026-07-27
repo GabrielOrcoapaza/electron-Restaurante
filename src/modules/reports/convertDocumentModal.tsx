@@ -102,7 +102,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
 
     useEffect(() => {
         if (!isOpen) return;
-        setTargetDocumentId("");
+        setTargetDocumentId(sourceDocument.document.id);
         setTargetSerial("");
         if (sourceDocument.person?.id) {
             setSelectedClient({
@@ -130,10 +130,12 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
 
     const targetDocuments = useMemo(() => {
         return (documentsData?.documentsByBranch || []).filter(
-            (doc: { id: string; isActive: boolean }) =>
-                doc.isActive && doc.id !== sourceDocument.document.id,
+            (doc: { id: string; isActive: boolean }) => doc.isActive,
         );
-    }, [documentsData, sourceDocument.document.id]);
+    }, [documentsData]);
+
+    const isSameTypeConversion =
+        targetDocumentId === sourceDocument.document.id;
 
     const selectedTargetDoc = targetDocuments.find(
         (d: { id: string }) => d.id === targetDocumentId,
@@ -282,6 +284,18 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
             }
         }
 
+        if (
+            isSameTypeConversion &&
+            selectedTargetDoc?.code === "03" &&
+            !sourceDocument.person?.id &&
+            !selectedClient?.id
+        ) {
+            setError(
+                "Seleccione un cliente para re-emitir la boleta con nombre",
+            );
+            return;
+        }
+
         if (!user?.id || !branchId) {
             setError("No se encontr? el usuario o la sucursal activa");
             return;
@@ -347,8 +361,9 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                     </div>
                     <h3 className="text-2xl font-black">Convertir Documento</h3>
                     <p className="mt-1 text-sm font-bold opacity-80">
-                        Se convertir? el comprobante actual al tipo seleccionado
-                        en un solo paso. Los pagos se mantienen vinculados.
+                        Convierte el comprobante al tipo seleccionado (incluso
+                        el mismo tipo para re-emitir con otro cliente). Los
+                        pagos se mantienen vinculados.
                     </p>
                     <p className="mt-2 text-xs font-bold opacity-70">
                         Origen: {sourceDocument.document.description}{" "}
@@ -371,8 +386,8 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                     {targetDocuments.length === 0 ? (
                         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/40 dark:bg-amber-950/30">
                             <p className="text-sm font-bold text-amber-800 dark:text-amber-200">
-                                No hay otro tipo de documento disponible para
-                                convertir.
+                                No hay tipos de documento activos disponibles
+                                para convertir.
                             </p>
                         </div>
                     ) : (
@@ -411,6 +426,16 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                                 </div>
                             </div>
 
+                            {isSameTypeConversion && (
+                                <div className="mb-6 rounded-2xl border border-sky-100 bg-sky-50 p-4 dark:border-sky-900/40 dark:bg-sky-950/30">
+                                    <p className="text-sm font-bold text-sky-800 dark:text-sky-200">
+                                        Re-emisión del mismo tipo: el comprobante
+                                        actual se anulará y se emitirá uno nuevo
+                                        con el cliente seleccionado.
+                                    </p>
+                                </div>
+                            )}
+
                             <div className="flex flex-col gap-3 mb-6">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                                     Tipo destino
@@ -424,6 +449,9 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                                         }) => {
                                             const selected =
                                                 targetDocumentId === doc.id;
+                                            const isSameAsSource =
+                                                doc.id ===
+                                                sourceDocument.document.id;
                                             return (
                                                 <button
                                                     key={doc.id}
@@ -443,7 +471,10 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                                                         {doc.description}
                                                     </span>
                                                     <span className="mt-1 block text-[10px] font-bold text-slate-400">
-                                                        C?digo {doc.code}
+                                                        Código {doc.code}
+                                                        {isSameAsSource
+                                                            ? " · mismo tipo"
+                                                            : ""}
                                                     </span>
                                                 </button>
                                             );

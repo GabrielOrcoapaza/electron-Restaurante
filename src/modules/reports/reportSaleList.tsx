@@ -439,10 +439,8 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     const branchDocuments: Array<{ id: string; code: string; isActive: boolean }> =
         documentsConfigData?.documentsByBranch || [];
 
-    const canConvertDocument = (doc: IssuedDocument): boolean =>
-        branchDocuments.some(
-            (d) => d.isActive && d.id !== doc.document.id,
-        );
+    const canConvertDocument = (_doc: IssuedDocument): boolean =>
+        branchDocuments.some((d) => d.isActive);
 
     const canReactivateTable = (doc: IssuedDocument): boolean => {
         const isRestaurant =

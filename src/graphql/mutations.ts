@@ -1171,6 +1171,7 @@ export const ADD_RECIPE = gql`
         $quantity: Float!
         $unitMeasure: String!
         $notes: String
+        $userId: ID!
     ) {
         addRecipe(
             productId: $productId
@@ -1178,6 +1179,7 @@ export const ADD_RECIPE = gql`
             quantity: $quantity
             unitMeasure: $unitMeasure
             notes: $notes
+            userId: $userId
         ) {
             success
             message
@@ -1204,8 +1206,8 @@ export const ADD_RECIPE = gql`
 
 // Mutación para eliminar ingrediente de una receta
 export const REMOVE_RECIPE = gql`
-    mutation RemoveRecipe($recipeId: ID!) {
-        removeRecipe(recipeId: $recipeId) {
+    mutation RemoveRecipe($recipeId: ID!, $userId: ID!) {
+        removeRecipe(recipeId: $recipeId, userId: $userId) {
             success
             message
         }
@@ -1580,7 +1582,7 @@ export const CANCEL_ISSUED_DOCUMENT = gql`
     }
 `;
 
-/** Convierte un documento activo a otro tipo (anula el original y emite el nuevo). */
+/** Convierte un documento activo a otro tipo o al mismo tipo (re-emisión con otro cliente). */
 export const CONVERT_DOCUMENT = gql`
     mutation ConvertDocument(
         $issuedDocumentId: ID!
@@ -1823,12 +1825,26 @@ export const REPRINT_CLOSURE = gql`
     }
 `;
 
+// Imprime egresos de un cierre en impresora de red (Raspberry), deviceId = MAC de la PC
+export const PRINT_CLOSURE_EXPENSES = gql`
+    mutation PrintClosureExpenses($closureId: ID!, $deviceId: String!) {
+        printClosureExpenses(closureId: $closureId, deviceId: $deviceId) {
+            success
+            message
+            printLocally
+            documentData
+        }
+    }
+`;
+
 // Mutación para imprimir movimiento de caja (ingreso/egreso)
 export const PRINT_PAYMENT = gql`
     mutation PrintPayment($paymentId: ID!, $deviceId: String!) {
         printPayment(paymentId: $paymentId, deviceId: $deviceId) {
             success
             message
+            printLocally
+            documentData
         }
     }
 `;

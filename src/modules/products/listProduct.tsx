@@ -5,6 +5,7 @@ import {
     GET_PRODUCTS,
 } from "../../graphql/queries";
 import { useAuth } from "../../hooks/useAuth";
+import { useUserPermissions } from "../../hooks/useUserPermissions";
 import { useResponsive } from "../../hooks/useResponsive";
 import RecipeModal from "./recipe";
 import { productListStockDisplay } from "../../utils/productStockDisplay";
@@ -73,6 +74,9 @@ const ListProduct: React.FC<ListProductProps> = ({
     refreshKey = 0,
 }) => {
     const { companyData } = useAuth();
+    const { hasPermission } = useUserPermissions();
+    const canViewRecipes =
+        hasPermission("recipes.manage") || hasPermission("products.view");
     const { breakpoint } = useResponsive();
     const branchId = companyData?.branch?.id;
 
@@ -656,6 +660,7 @@ const ListProduct: React.FC<ListProductProps> = ({
                                         >
                                             ✏️ Editar
                                         </button>
+                                        {canViewRecipes && (
                                         <button
                                             onClick={() =>
                                                 setSelectedProductForRecipe({
@@ -673,6 +678,7 @@ const ListProduct: React.FC<ListProductProps> = ({
                                         >
                                             🍳 Receta
                                         </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1109,6 +1115,7 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                 >
                                                     ✏️ Editar
                                                 </button>
+                                                {canViewRecipes && (
                                                 <button
                                                     onClick={() =>
                                                         setSelectedProductForRecipe(
@@ -1144,6 +1151,7 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                 >
                                                     🍳 Receta
                                                 </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

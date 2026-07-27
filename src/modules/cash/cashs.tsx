@@ -110,6 +110,9 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
     PLIN: "Plin",
     CARD: "Tarjeta",
     TRANSFER: "Transferencia",
+    RAPPI: "Rappi",
+    PEDIDO_YA: "Pedido Ya",
+    OTROS: "Otros",
 };
 
 const isPaymentCancelled = (status?: string | null): boolean => {
@@ -1053,6 +1056,22 @@ const Cashs: React.FC = () => {
                                                             darkBorder:
                                                                 "border-purple-800/30",
                                                         },
+                                                        RAPPI: {
+                                                            color: "text-orange-600",
+                                                            bg: "bg-orange-50/50",
+                                                            border: "border-orange-100",
+                                                            darkBg: "bg-orange-900/10",
+                                                            darkBorder:
+                                                                "border-orange-800/30",
+                                                        },
+                                                        PEDIDO_YA: {
+                                                            color: "text-red-600",
+                                                            bg: "bg-red-50/50",
+                                                            border: "border-red-100",
+                                                            darkBg: "bg-red-900/10",
+                                                            darkBorder:
+                                                                "border-red-800/30",
+                                                        },
                                                     };
                                                     const style = config[
                                                         p.methodCode
@@ -1307,6 +1326,15 @@ const Cashs: React.FC = () => {
                                                                                             </option>
                                                                                             <option value="TRANSFER">
                                                                                                 Transferencia
+                                                                                            </option>
+                                                                                            <option value="RAPPI">
+                                                                                                Rappi
+                                                                                            </option>
+                                                                                            <option value="PEDIDO_YA">
+                                                                                                Pedido Ya
+                                                                                            </option>
+                                                                                            <option value="OTROS">
+                                                                                                Otros
                                                                                             </option>
                                                                                         </select>
                                                                                     )}

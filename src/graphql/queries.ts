@@ -1034,6 +1034,54 @@ export const GET_PAYMENTS_BY_CLOSURE = gql`
     }
 `;
 
+// Query para obtener pagos por rango de fechas (ingresos y egresos)
+export const GET_PAYMENTS_BY_DATE_RANGE = gql`
+    query GetPaymentsByDateRange(
+        $branchId: ID!
+        $startDate: DateTime!
+        $endDate: DateTime!
+    ) {
+        paymentsByDateRange(
+            branchId: $branchId
+            startDate: $startDate
+            endDate: $endDate
+        ) {
+            id
+            paymentDate
+            paidAmount
+            totalAmount
+            transactionType
+            paymentMethod
+            status
+            isActive
+            notes
+            referenceNumber
+            user {
+                id
+                fullName
+            }
+            operation {
+                id
+                order
+                operationType
+            }
+            issuedDocument {
+                id
+                serial
+                number
+            }
+            cashRegister {
+                id
+                name
+            }
+            cashClosure {
+                id
+                closureNumber
+            }
+        }
+    }
+`;
+
 // Query para obtener recetas de un producto
 export const GET_RECIPES_BY_PRODUCT = gql`
     query GetRecipesByProduct($productId: ID!) {

@@ -5,7 +5,7 @@
 export const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     'ADMIN': [
         'users.manage', 'orders.create', 'orders.edit', 'point_of_sale', 'sales.pay', 'sales.close',
-        'products.view', 'products.edit_prices',
+        'products.view', 'products.edit_prices', 'recipes.manage',
         'reports.sales', 'reports.cancellations', 'reports.sold_products', 'reports.user_sales',
         'config.manage', 'kitchen.view', 'purchases.manage', 'kardex.view', 'messages.view', 'branch.view',
         'cash.void', 'cash.register_movements', 'cash.change_payment_method'
