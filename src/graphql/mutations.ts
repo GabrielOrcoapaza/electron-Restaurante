@@ -131,7 +131,25 @@ export const USER_LOGIN = gql`
             userPhotoBase64
             branch {
                 id
+                serial
                 name
+                address
+                phone
+                latitude
+                longitude
+                igvPercentage
+                pdfSize
+                pdfColor
+                isActive
+                isPayment
+                isBilling
+                isDelivery
+                isMultiWaiterEnabled
+                isCommandItemMode
+                isKitchenPrint
+                isKitchenDisplay
+                printCancellations
+                requireWaiterPassword
             }
             deviceRegistered
         }
@@ -158,6 +176,7 @@ export const WEB_LOGIN = gql`
             branch {
                 id
                 name
+                igvPercentage
             }
             company {
                 id

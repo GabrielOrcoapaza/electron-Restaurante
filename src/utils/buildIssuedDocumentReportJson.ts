@@ -5,6 +5,7 @@
 
 import { getFullImageUrl, isLikelyImagePath } from "./getFullImageUrl";
 import type { CompanyData } from "../context/AuthContext";
+import { getBranchIgvPercentage } from "./getBranchIgvPercentage";
 import { issuedItemDisplayUnitPrice, issuedItemLineTotal } from "./taxAmounts";
 import { buildSunatQrData } from "./buildSunatQrData";
 
@@ -140,8 +141,8 @@ export function buildIssuedDocumentReportJson(
     companyData?: CompanyData | null,
 ): string {
     const igvPercent =
-        Number(doc.branch?.igvPercentage ?? companyData?.branch?.igvPercentage) ||
-        10.5;
+        Number(doc.branch?.igvPercentage) ||
+        getBranchIgvPercentage(companyData);
     const subtotal = roundMoney2(doc.totalAmount - doc.igvAmount);
     const companyName =
         companyData?.company?.denomination ||

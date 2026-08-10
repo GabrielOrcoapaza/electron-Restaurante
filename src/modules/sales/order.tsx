@@ -6,7 +6,7 @@ import React, {
     useCallback,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
+import { useQuery, useMutation, useLazyQuery, useApolloClient } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useUserPermissions } from "../../hooks/useUserPermissions";
@@ -21,6 +21,8 @@ import {
     type RestrictedModalPayload,
 } from "../../components/RestrictedTableAccessModal";
 import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
+import { prefetchOperationForCash } from "../../utils/prefetchOperationForCash";
+import { getBranchIgvPercentage } from "../../utils/getBranchIgvPercentage";
 import { unitValueFromInclusivePrice } from "../../utils/taxAmounts";
 import {
     CREATE_OPERATION,
@@ -274,6 +276,7 @@ const Order: React.FC<OrderProps> = ({
     const { sendMessage, disconnect } = useWebSocket();
     const { showToast } = useToast();
     const navigate = useNavigate();
+    const apolloClient = useApolloClient();
     /** Claim fallido en servidor → mismo modal que en el plano (sin toast rojo). */
     const [claimSessionDenied, setClaimSessionDenied] = useState(false);
     const isExistingOrder =
@@ -288,9 +291,7 @@ const Order: React.FC<OrderProps> = ({
         userRoleUpper === "CASHIER" ||
         userRoleUpper === "CAJA";
 
-    // IGV de la sucursal (float). Por defecto 10.5% para sedes.
-    const igvPercentageFromBranch =
-        Number(companyData?.branch?.igvPercentage) || 10.5;
+    const igvPercentageFromBranch = getBranchIgvPercentage(companyData);
 
     // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil en grid)
     const isXs = breakpoint === "xs";
@@ -1539,10 +1540,7 @@ const Order: React.FC<OrderProps> = ({
                     return;
                 }
 
-                const igvPercentageValue =
-                    typeof existingOperation?.igvPercentage === "number"
-                        ? existingOperation.igvPercentage
-                        : igvPercentageFromBranch;
+                const igvPercentageValue = igvPercentageFromBranch;
                 const igvRate =
                     igvPercentageValue > 0 ? igvPercentageValue / 100 : 0;
 
@@ -1809,7 +1807,10 @@ const Order: React.FC<OrderProps> = ({
                     "total",
                 ];
                 if (numericRequiredFields.includes(key)) {
-                    const defaultValue = key === "igvPercentage" ? 10.5 : 0;
+                    const defaultValue =
+                        key === "igvPercentage"
+                            ? getBranchIgvPercentage(companyData)
+                            : 0;
                     const numValue =
                         value === null || value === undefined || isNaN(value)
                             ? defaultValue
@@ -2167,6 +2168,7 @@ const Order: React.FC<OrderProps> = ({
             return;
         }
         if (!onOpenCash) return;
+        prefetchOperationForCash(apolloClient, operationId);
         const coercedId =
             typeof operationId === "string" ? Number(operationId) : operationId;
         onOpenCash({

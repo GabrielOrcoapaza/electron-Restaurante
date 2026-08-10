@@ -10,6 +10,7 @@ import { useUserPermissions } from "../../hooks/useUserPermissions";
 import { useWebSocket } from "../../context/WebSocketContext";
 import { useToast } from "../../context/ToastContext";
 import { useResponsive } from "../../hooks/useResponsive";
+import { getBranchIgvPercentage } from "../../utils/getBranchIgvPercentage";
 import type { Table } from "../../types/table";
 import {
     CREATE_ISSUED_DOCUMENT,
@@ -316,28 +317,33 @@ const CashPay: React.FC<CashPayProps> = ({
 
     const operationIdFromTable = normalizeGraphQLId(table?.currentOperationId);
 
-    const { data: dataOperation, refetch } = useQuery(
-        GET_OPERATION_BY_ID_FOR_CASH,
-        {
-            variables: {
-                operationId: operationIdFromTable as string,
-            },
-            skip: !operationIdFromTable,
-            fetchPolicy: "cache-and-network",
+    const {
+        data: dataOperation,
+        loading: operationLoading,
+        refetch,
+    } = useQuery(GET_OPERATION_BY_ID_FOR_CASH, {
+        variables: {
+            operationId: operationIdFromTable as string,
         },
-    );
+        skip: !operationIdFromTable,
+        fetchPolicy: "cache-and-network",
+    });
+
+    const operation = dataOperation?.operationById;
+    /** Como en SumApp: documentos, cajas y promos solo después de tener la operación. */
+    const operationReady = Boolean(operation?.id);
 
     const branchId = normalizeGraphQLId(companyData?.branch?.id);
 
     const { data: documentsData } = useQuery(GET_DOCUMENTS, {
         variables: { branchId: branchId as string },
-        skip: !branchId,
+        skip: !branchId || !operationReady,
         fetchPolicy: "cache-and-network",
     });
 
     const { data: cashRegistersData } = useQuery(GET_CASH_REGISTERS, {
         variables: { branchId: branchId as string },
-        skip: !branchId,
+        skip: !branchId || !operationReady,
         fetchPolicy: "cache-and-network",
     });
 
@@ -396,7 +402,7 @@ const CashPay: React.FC<CashPayProps> = ({
     const [changeOperationUserMutation] = useMutation(CHANGE_OPERATION_USER);
     const { data: promotionsData } = useQuery(GET_ACTIVE_PROMOTIONS, {
         variables: { branchId: branchId as string },
-        skip: !branchId,
+        skip: !branchId || !operationReady,
         fetchPolicy: "cache-and-network",
     });
     const [transferItemsMutation] = useMutation(TRANSFER_ITEMS);
@@ -476,7 +482,8 @@ const CashPay: React.FC<CashPayProps> = ({
         }, 300);
     };
 
-    const operation = dataOperation?.operationById;
+    const isOperationLoading =
+        Boolean(operationIdFromTable) && !operation && operationLoading;
 
     useEffect(() => {
         const unsubscribeOperationCancelled = subscribe(
@@ -568,7 +575,7 @@ const CashPay: React.FC<CashPayProps> = ({
 
     const cashRegisters = cashRegistersData?.cashRegistersByBranch || [];
 
-    const igvPercentage = Number(companyData?.branch?.igvPercentage) || 10.5;
+    const igvPercentage = getBranchIgvPercentage(companyData);
 
     const getFacturedItemsFromStorage = (
         operationId: string,
@@ -3049,7 +3056,15 @@ const CashPay: React.FC<CashPayProps> = ({
                         </label>
                     </div>
                     <div style={{ flex: 1, overflowY: "auto" }}>
-                        {detailsToUse.map((d: any) => {
+                        {isOperationLoading ? (
+                            <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-500 dark:text-slate-400">
+                                <div className="h-10 w-10 animate-spin rounded-full border-2 border-indigo-500/30 border-t-indigo-500" />
+                                <span className="text-sm font-medium">
+                                    Cargando orden…
+                                </span>
+                            </div>
+                        ) : (
+                        detailsToUse.map((d: any) => {
                             const lineDiscount = getDetailLineDiscount(d);
                             const promotionName = getDetailPromotionName(d);
                             const lineGross =
@@ -3335,7 +3350,8 @@ const CashPay: React.FC<CashPayProps> = ({
                                     )}
                                 </div>
                             );
-                        })}
+                        })
+                        )}
                     </div>
                     <div
                         className="border-t border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"

@@ -5,7 +5,7 @@ import React, {
     useRef,
     useCallback,
 } from "react";
-import { useQuery } from "@apollo/client";
+import { useQuery, useApolloClient } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useUserPermissions } from "../../hooks/useUserPermissions";
@@ -23,6 +23,7 @@ import {
     GET_FLOORS_BY_BRANCH,
     GET_TABLES_BY_FLOOR,
 } from "../../graphql/queries";
+import { prefetchOperationForCash } from "../../utils/prefetchOperationForCash";
 import Order, { type OrderSuccessPayload } from "./order";
 import { logTableSessionLock } from "../../utils/tableSessionLockLog";
 import { useTableSessionLock } from "../../hooks/useTableSessionLock";
@@ -166,6 +167,7 @@ const Floor: React.FC<FloorProps> = ({
     const { hasPermission } = useUserPermissions();
     const { showToast } = useToast();
     const { breakpoint } = useResponsive();
+    const apolloClient = useApolloClient();
 
     // Adaptar según tamaño de pantalla
     const isXs = breakpoint === "xs";
@@ -898,6 +900,10 @@ const Floor: React.FC<FloorProps> = ({
                                         );
                                         return;
                                     }
+                                    prefetchOperationForCash(
+                                        apolloClient,
+                                        tableForCash.currentOperationId,
+                                    );
                                     setShowStatusModal(false);
                                     setShowOrder(false);
                                     onOpenCash?.(tableForCash);

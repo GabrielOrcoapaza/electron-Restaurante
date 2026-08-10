@@ -99,7 +99,7 @@ const LoginWeb: React.FC = () => {
                     },
                 });
 
-                loginUser(token, refreshToken, user);
+                loginUser(token, refreshToken, user, undefined, branch ?? undefined);
 
                 // Guardar o limpiar credenciales según el checkbox de "Recuérdame"
                 if (rememberMe) {

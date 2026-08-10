@@ -166,6 +166,7 @@ const Login: React.FC = () => {
                     data.userLogin.refreshToken,
                     data.userLogin.user,
                     data.userLogin.userPhotoBase64,
+                    data.userLogin.branch ?? undefined,
                 );
                 showToast(
                     `¡Bienvenido, ${loggedUser.firstName || "usuario"}!`,

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useToast } from "../../context/ToastContext";
+import { getBranchIgvPercentage } from "../../utils/getBranchIgvPercentage";
 import { CREATE_SALE_CARRY_OUT } from "../../graphql/mutations";
 import {
     GET_CATEGORIES_BY_BRANCH_LIGHT,
@@ -93,8 +94,7 @@ const Delivery: React.FC = () => {
     const gridMinCol = isSmall ? "110px" : isMedium ? "125px" : "140px";
 
     // IGV de la sucursal
-    const igvPercentageFromBranch =
-        Number(companyData?.branch?.igvPercentage) || 10.5;
+    const igvPercentageFromBranch = getBranchIgvPercentage(companyData);
 
     // Estados
     const [selectedCategory, setSelectedCategory] = useState<string | null>(

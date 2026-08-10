@@ -10,6 +10,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useUserPermissions } from "../../hooks/useUserPermissions";
 import ConvertDocumentModal from "./convertDocumentModal";
 import { parseLocalEmissionDateTime } from "../../utils/localDateTime";
+import { getBranchIgvPercentage } from "../../utils/getBranchIgvPercentage";
 import { isElectronRenderer } from "../../utils/electronPrint";
 import {
     buildIssuedDocumentReportJson,
@@ -178,8 +179,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
         useAuth();
     const branchId = companyData?.branch?.id;
     const apolloClient = useApolloClient();
-    const igvPercentageForLabel =
-        Number(companyData?.branch?.igvPercentage) || 10.5;
+    const igvPercentageForLabel = getBranchIgvPercentage(companyData);
     const { hasPermission } = useUserPermissions();
     const isElectron = isElectronRenderer();
 
@@ -1483,7 +1483,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                                             doc.branch
                                                                 ?.igvPercentage ??
                                                                 igvPercentageForLabel,
-                                                        ) || 10.5}
+                                                        )}
                                                         %)
                                                     </span>
                                                     <span className="font-black text-slate-600 dark:text-slate-300">

@@ -1,6 +1,10 @@
 import React, { createContext, useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import type { Table } from "../types/table";
+import {
+    mergeBranchIntoCompanyData,
+    type BranchSessionPatch,
+} from "../utils/getBranchIgvPercentage";
 
 // Tipos para los datos de autenticación
 
@@ -141,6 +145,7 @@ export interface AuthContextType {
         refreshToken: string,
         userData: UserData,
         userPhoto?: string,
+        branchFromLogin?: BranchSessionPatch | null,
     ) => void;
     logout: () => void;
     clearCompanyData: () => void; // Limpiar solo los datos de la compañía
@@ -326,6 +331,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         refreshToken: string,
         userData: UserData,
         userPhoto?: string,
+        branchFromLogin?: BranchSessionPatch | null,
     ) => {
         console.log("👤 Guardando datos de usuario:", userData);
 
@@ -336,6 +342,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (userPhoto) {
             localStorage.setItem("userPhoto", userPhoto);
+        }
+
+        if (branchFromLogin) {
+            setCompanyData((prev) => {
+                if (!prev) return prev;
+                const updated = mergeBranchIntoCompanyData(
+                    prev,
+                    branchFromLogin,
+                );
+                localStorage.setItem("companyData", JSON.stringify(updated));
+                console.log(
+                    "🏢 IGV actualizado tras login de usuario:",
+                    updated.branch.igvPercentage,
+                );
+                return updated;
+            });
         }
 
         // Actualizar estado
