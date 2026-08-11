@@ -129,6 +129,7 @@ export interface KitchenContextType {
     ) => Promise<{ success: boolean; message: string }>;
     logout: () => void;
     markItemPrepared: (detailId: string) => Promise<void>;
+    markComboComponentPrepared: (comboComponentId: string) => Promise<void>;
     markPartialPrepared: (detailId: string, quantity: number) => Promise<void>;
     markOrderPrepared: (operationId: string) => Promise<void>;
     markGroupPrepared: (detailIds: string[]) => Promise<void>;
@@ -414,6 +415,28 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
         [effectiveUserId, markItemPreparedMutation, refreshItems],
     );
 
+    const markComboComponentPrepared = useCallback(
+        async (comboComponentId: string): Promise<void> => {
+            if (!effectiveUserId) return;
+
+            try {
+                await markItemPreparedMutation({
+                    variables: {
+                        detailId: `combo_${comboComponentId}`,
+                        userId: effectiveUserId,
+                    },
+                });
+                await refreshItems();
+            } catch (err) {
+                console.error(
+                    "Error al marcar componente de combo como preparado:",
+                    err,
+                );
+            }
+        },
+        [effectiveUserId, markItemPreparedMutation, refreshItems],
+    );
+
     const markPartialPrepared = useCallback(
         async (detailId: string, quantity: number): Promise<void> => {
             if (!effectiveUserId) return;
@@ -484,6 +507,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // Tipos de eventos que necesitan refrescar items de cocina
         const relevantEvents = ["kitchen_item_update", "kitchen_items_batch"];
+        // const relevantEvents = ["kitchen_item_update", "kitchen_items_batch", "operation_cancelled", "operation_status_update"];
+        // const relevantEvents = ['*']
 
         const unsubscribers = relevantEvents.map((eventType) =>
             subscribe(eventType, () => refreshItems()),
@@ -596,6 +621,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
             login,
             logout,
             markItemPrepared,
+            markComboComponentPrepared,
             markPartialPrepared,
             markOrderPrepared,
             markGroupPrepared,
@@ -618,6 +644,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({
             login,
             logout,
             markItemPrepared,
+            markComboComponentPrepared,
             markPartialPrepared,
             markOrderPrepared,
             markGroupPrepared,

@@ -32,6 +32,7 @@ const KitchenScreen: React.FC = () => {
         setActiveView,
         logout,
         markItemPrepared,
+        markComboComponentPrepared,
         markPartialPrepared,
         markOrderPrepared,
         markGroupPrepared,
@@ -418,6 +419,33 @@ const KitchenScreen: React.FC = () => {
         }
     };
 
+    const handleMarkComboComponentPrepared = (
+        _itemId: string,
+        comboComponentId: string,
+        productName: string,
+    ) => {
+        setConfirmDialog({
+            isOpen: true,
+            title: "¿Marcar componente de combo como listo?",
+            message: `Confirmar que el componente "${productName}" está listo.`,
+            onConfirm: async () => {
+                try {
+                    await markComboComponentPrepared(comboComponentId);
+                    showToast(
+                        "Componente de combo marcado como listo",
+                        "success",
+                    );
+                } catch (err) {
+                    showToast(
+                        "Error al marcar componente de combo como listo",
+                        "error",
+                    );
+                }
+                setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+            },
+        });
+    };
+
     const triggerMarkOrderPrepared = (orderId: string, orderNumber: number) => {
         setConfirmDialog({
             isOpen: true,
@@ -735,6 +763,27 @@ const KitchenScreen: React.FC = () => {
                 </div>
             )}
 
+            {/* Warning: Sucursal sin is_kitchen_display */}
+            {kitchenBranch && kitchenBranch.isKitchenDisplay === false && (
+                <div className="bg-amber-500/10 border border-amber-500/30 px-6 py-3 text-amber-400">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xl">⚠️</span>
+                        <div>
+                            <p className="font-semibold">
+                                Sucursal sin "is_kitchen_display" activado
+                            </p>
+                            <p className="text-sm text-amber-300/80">
+                                Los platos no se actualizarán en tiempo real
+                                (WebSocket). Solo verás los items pendientes al
+                                hacer login o al refrescar. Contacta con un
+                                administrador para activar is_kitchen_display
+                                en esta sucursal.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Main Grid Content */}
             <main className="flex-1 p-6 overflow-y-auto">
                 {isLoading ? (
@@ -929,25 +978,49 @@ const KitchenScreen: React.FC = () => {
                                                             </p>
                                                             {item.comboComponents.map(
                                                                 (comp) => (
-                                                                    <p
+                                                                    <div
                                                                         key={
                                                                             comp.id
                                                                         }
-                                                                        className="text-xs text-[#A8B8D8] flex items-center gap-2"
+                                                                        onClick={(
+                                                                            e,
+                                                                        ) => {
+                                                                            e.stopPropagation();
+                                                                            !comp.isPrepared &&
+                                                                                !comp.isCanceled &&
+                                                                                handleMarkComboComponentPrepared(
+                                                                                    item.id,
+                                                                                    comp.id,
+                                                                                    comp.productName,
+                                                                                );
+                                                                        }}
+                                                                        className={`p-3 rounded-lg border transition-all cursor-pointer ${
+                                                                            comp.isPrepared
+                                                                                ? "bg-gradient-to-r from-emerald-900/20 to-emerald-950/10 border-emerald-500/30 opacity-70"
+                                                                                : comp.isCanceled
+                                                                                  ? "bg-gradient-to-r from-rose-900/10 to-rose-950/5 border-rose-500/20 opacity-50 line-through"
+                                                                                  : "bg-gradient-to-r from-[#1A2E45]/50 to-[#1A2E45]/30 border-[#2A3F5F]/50 hover:from-[#1A2E45] hover:to-[#1E3A5F] hover:border-emerald-500/40"
+                                                                        }`}
                                                                     >
-                                                                        <span className="text-[#4CAF50]">
-                                                                            •
-                                                                        </span>
-                                                                        <span className="font-bold">
-                                                                            {
-                                                                                comp.quantity
-                                                                            }
-                                                                            x
-                                                                        </span>
-                                                                        {
-                                                                            comp.productName
-                                                                        }
-                                                                    </p>
+                                                                        <div className="flex justify-between items-start gap-2">
+                                                                            <p
+                                                                                className={`font-bold text-sm flex-1 ${
+                                                                                    comp.isPrepared
+                                                                                        ? "text-emerald-300"
+                                                                                        : "text-white"
+                                                                                }`}
+                                                                            >
+                                                                                {
+                                                                                    comp.productName
+                                                                                }
+                                                                            </p>
+                                                                            <span className="text-xs text-white font-bold px-2 py-0.5 bg-gradient-to-r from-[#2A3F5F] to-[#334969] rounded">
+                                                                                {
+                                                                                    comp.quantity
+                                                                                }
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
                                                                 ),
                                                             )}
                                                         </div>
@@ -1010,19 +1083,50 @@ const KitchenScreen: React.FC = () => {
 
                                         {item.comboComponents &&
                                             item.comboComponents.length > 0 && (
-                                                <div className="mt-3 pl-3 border-l-2 border-[#2A3F5F] space-y-1">
+                                                <div className="mt-3 pl-3 border-l-2 border-[#2A3F5F] space-y-2">
                                                     {item.comboComponents.map(
                                                         (comp) => (
-                                                            <p
+                                                            <div
                                                                 key={comp.id}
-                                                                className="text-xs text-[#8A9BBE]"
+                                                                onClick={(
+                                                                    e,
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    !comp.isPrepared &&
+                                                                        !comp.isCanceled &&
+                                                                        handleMarkComboComponentPrepared(
+                                                                            item.id,
+                                                                            comp.id,
+                                                                            comp.productName,
+                                                                        );
+                                                                }}
+                                                                className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                                                                    comp.isPrepared
+                                                                        ? "bg-gradient-to-r from-emerald-900/20 to-emerald-950/10 border-emerald-500/30 opacity-70"
+                                                                        : comp.isCanceled
+                                                                          ? "bg-gradient-to-r from-rose-900/10 to-rose-950/5 border-rose-500/20 opacity-50 line-through"
+                                                                          : "bg-gradient-to-r from-[#1A2E45]/50 to-[#1A2E45]/30 border-[#2A3F5F]/50 hover:from-[#1A2E45] hover:to-[#1E3A5F] hover:border-emerald-500/40"
+                                                                }`}
                                                             >
-                                                                •{" "}
-                                                                {comp.quantity}x{" "}
-                                                                {
-                                                                    comp.productName
-                                                                }
-                                                            </p>
+                                                                <div className="flex justify-between items-start gap-2">
+                                                                    <p
+                                                                        className={`font-bold text-xs flex-1 ${
+                                                                            comp.isPrepared
+                                                                                ? "text-emerald-300"
+                                                                                : "text-white"
+                                                                        }`}
+                                                                    >
+                                                                        {
+                                                                            comp.productName
+                                                                        }
+                                                                    </p>
+                                                                    <span className="text-xs text-white font-bold px-2 py-0.5 bg-gradient-to-r from-[#2A3F5F] to-[#334969] rounded">
+                                                                        {
+                                                                            comp.quantity
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                            </div>
                                                         ),
                                                     )}
                                                 </div>
@@ -1107,7 +1211,7 @@ const KitchenScreen: React.FC = () => {
                                                         : "bg-[#1A2E45]/40 border-[#2A3F5F]/40 hover:from-[#1A2E45] hover:to-[#1E3A5F] hover:border-emerald-500/50 hover:shadow-md"
                                                 }`}
                                             >
-                                                <div>
+                                                <div className="flex-1">
                                                     <span className="font-semibold text-emerald-400">
                                                         {
                                                             detail.preparedQuantity
@@ -1123,6 +1227,67 @@ const KitchenScreen: React.FC = () => {
                                                             📝 {detail.notes}
                                                         </p>
                                                     )}
+                                                    {/* Combo components for this detail */}
+                                                    {detail.item
+                                                        .comboComponents &&
+                                                        detail.item
+                                                            .comboComponents
+                                                            .length > 0 && (
+                                                            <div className="mt-2 pl-2 border-l-2 border-[#2A3F5F] space-y-1">
+                                                                {detail.item.comboComponents.map(
+                                                                    (comp) => (
+                                                                        <div
+                                                                            key={
+                                                                                comp.id
+                                                                            }
+                                                                            onClick={(
+                                                                                e,
+                                                                            ) => {
+                                                                                e.stopPropagation();
+                                                                                if (
+                                                                                    !comp.isPrepared &&
+                                                                                    !comp.isCanceled
+                                                                                ) {
+                                                                                    handleMarkComboComponentPrepared(
+                                                                                        detail
+                                                                                            .item
+                                                                                            .id,
+                                                                                        comp.id,
+                                                                                        comp.productName,
+                                                                                    );
+                                                                                }
+                                                                            }}
+                                                                            className={`p-1.5 rounded border transition-all cursor-pointer ${
+                                                                                comp.isPrepared
+                                                                                    ? "bg-gradient-to-r from-emerald-900/20 to-emerald-950/10 border-emerald-500/30 opacity-70"
+                                                                                    : comp.isCanceled
+                                                                                      ? "bg-gradient-to-r from-rose-900/10 to-rose-950/5 border-rose-500/20 opacity-50 line-through"
+                                                                                      : "bg-gradient-to-r from-[#1A2E45]/40 to-[#1A2E45]/20 border-[#2A3F5F]/40 hover:from-[#1A2E45] hover:to-[#1E3A5F] hover:border-emerald-500/40"
+                                                                            }`}
+                                                                        >
+                                                                            <div className="flex justify-between items-start gap-1">
+                                                                                <p
+                                                                                    className={`font-bold text-[10px] flex-1 ${
+                                                                                        comp.isPrepared
+                                                                                            ? "text-emerald-300"
+                                                                                            : "text-white"
+                                                                                    }`}
+                                                                                >
+                                                                                    {
+                                                                                        comp.productName
+                                                                                    }
+                                                                                </p>
+                                                                                <span className="text-[10px] text-white font-bold px-1.5 py-0.5 bg-gradient-to-r from-[#2A3F5F] to-[#334969] rounded">
+                                                                                    {
+                                                                                        comp.quantity
+                                                                                    }
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    ),
+                                                                )}
+                                                            </div>
+                                                        )}
                                                 </div>
                                                 <span className="text-[#8A9BBE]">
                                                     Ord #{detail.orderNumber}
