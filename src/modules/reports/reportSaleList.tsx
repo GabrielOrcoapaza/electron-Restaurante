@@ -263,10 +263,28 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     const [reprintDocument, { loading: reprinting }] =
         useMutation(REPRINT_DOCUMENT);
 
+    /**
+     * Impresión USB/integrada en esta PC. No incluir isElectron: en escritorio con
+     * térmica por red + A4 por USB, forzar local mandaba el ticket a la A4.
+     */
     const preferLocalUsbPrint = () =>
         getIntegratedPrinterCashUiEnabled() ||
-        Boolean(getLocalTicketPrinterStorage().trim()) ||
-        isElectron;
+        Boolean(getLocalTicketPrinterStorage().trim());
+
+    const backendWantsLocalPrint = (
+        result: Record<string, unknown> | null | undefined,
+    ): boolean | null => {
+        if (result?.printLocally === true || result?.print_locally === true) {
+            return true;
+        }
+        if (
+            result?.printLocally === false ||
+            result?.print_locally === false
+        ) {
+            return false;
+        }
+        return null;
+    };
 
     const resolveReprintDocumentJson = (
         doc: IssuedDocument,
@@ -297,8 +315,13 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     const resolveReprintPrintPayload = (
         doc: IssuedDocument,
         backendDocumentData?: string | null,
+        backendResult?: Record<string, unknown> | null,
     ) => {
-        if (!preferLocalUsbPrint()) return null;
+        const localFlag = backendWantsLocalPrint(backendResult);
+        const printLocally =
+            localFlag === true ||
+            (localFlag === null && preferLocalUsbPrint());
+        if (!printLocally) return null;
         const documentData = resolveReprintDocumentJson(doc, backendDocumentData);
         return {
             printLocally: true,
@@ -791,6 +814,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
             const localPrintPayload = resolveReprintPrintPayload(
                 doc,
                 backendDocData,
+                result,
             );
             if (localPrintPayload) {
                 let parsedQr = false;
