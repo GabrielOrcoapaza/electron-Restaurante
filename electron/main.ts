@@ -124,8 +124,8 @@ if (process.platform === "win32") {
     app.setAppUserModelId("com.mirestaurante.restaurante");
 }
 
-/** Tras abrir: maximizar y ocultar botón maximizar (POS/kiosco, opción 2). */
-const LOCK_MAXIMIZE_BUTTON = true;
+/** Tras abrir: maximizar al inicio; el botón maximizar permanece habilitado. */
+const LOCK_MAXIMIZE_BUTTON = false;
 
 /** Mínimos absolutos para pantallas pequeñas (ej. 1024×768). Nunca superan el workArea. */
 const MAIN_WINDOW_ABS_MIN_WIDTH = 800;
@@ -250,7 +250,7 @@ function createWindow() {
         height: Math.min(workArea.height, 800),
         minWidth,
         minHeight,
-        maximizable: false,
+        maximizable: true,
         title: "SumApp",
         ...(appIcon ? { icon: appIcon } : {}),
         webPreferences: {
