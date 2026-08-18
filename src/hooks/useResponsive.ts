@@ -10,19 +10,28 @@ interface UseResponsiveReturn {
   isDesktop: boolean;
   isXs: boolean;
   breakpoint: Breakpoint;
+  /** Pantalla POS táctil 4:3 típica (ej. NCR 15" 1024×768). */
+  isPosTouchScreen: boolean;
+  /** Una sola columna: ancho estrecho o POS 4:3 con poco alto. */
+  isStackedLayout: boolean;
+  /** UI compacta (espaciados/fuentes de tablet): incluye POS 4:3 en 1024 px de ancho. */
+  isCompactUi: boolean;
 }
 
 /**
  * Hook para detectar el tamaño de pantalla y proporcionar breakpoints responsive
  * Soporta tablets pequeñas, medianas y pantallas de PC (excluye móviles/xs)
  * 
- * Breakpoints:
+ * Breakpoints (por ancho):
  * - xs: < 640px (móviles - bloqueado)
  * - sm: 640px - 767px (tablets pequeñas)
  * - md: 768px - 1023px (tablets medianas)
- * - lg: 1024px - 1279px (desktop pequeño/monitores pequeños)
- * - xl: 1280px - 1535px (desktop medio/monitores estándar)
- * - 2xl: >= 1536px (desktop grande/monitores grandes y ultra wide)
+ * - lg: 1024px - 1279px (desktop pequeño / POS 1024×768)
+ * - xl: 1280px - 1535px (desktop medio)
+ * - 2xl: >= 1536px (desktop grande)
+ *
+ * Pantallas POS 4:3 (ej. NCR 15" 1024×768): isPosTouchScreen activa layout
+ * apilado (1 columna) y UI compacta aunque el ancho caiga en lg.
  */
 export const useResponsive = (): UseResponsiveReturn => {
   const [dimensions, setDimensions] = useState({
@@ -65,6 +74,20 @@ export const useResponsive = (): UseResponsiveReturn => {
   const isTablet = dimensions.width >= 768 && dimensions.width < 1024;
   const isDesktop = dimensions.width >= 1024;
 
+  const aspectRatio = dimensions.height > 0
+    ? dimensions.width / dimensions.height
+    : 16 / 9;
+
+  /** NCR y similares: ~1024×768, proporción 4:3, poco alto útil. */
+  const isPosTouchScreen =
+    dimensions.width >= 1000 &&
+    dimensions.width <= 1400 &&
+    dimensions.height <= 820 &&
+    aspectRatio <= 1.45;
+
+  const isStackedLayout = dimensions.width < 1024 || isPosTouchScreen;
+  const isCompactUi = dimensions.width < 1024 || isPosTouchScreen;
+
   return {
     width: dimensions.width,
     height: dimensions.height,
@@ -73,5 +96,8 @@ export const useResponsive = (): UseResponsiveReturn => {
     isDesktop,
     isXs,
     breakpoint,
+    isPosTouchScreen,
+    isStackedLayout,
+    isCompactUi,
   };
 };

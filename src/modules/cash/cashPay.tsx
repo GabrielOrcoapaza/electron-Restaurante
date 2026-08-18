@@ -149,7 +149,7 @@ const CashPay: React.FC<CashPayProps> = ({
     const { sendMessage, subscribe } = useWebSocket();
     const apolloClient = useApolloClient();
     const { showToast } = useToast();
-    const { breakpoint } = useResponsive();
+    const { breakpoint, isStackedLayout } = useResponsive();
 
     useTableSessionLock({
         tableId: table?.id,
@@ -162,9 +162,7 @@ const CashPay: React.FC<CashPayProps> = ({
     });
 
     const isXs = breakpoint === "xs";
-    const isSmall = breakpoint === "sm";
-    const isMedium = breakpoint === "md";
-    const isNarrow = isXs || isSmall || isMedium;
+    const isNarrow = isStackedLayout;
     const isElectron = isElectronRenderer();
 
     const cashModalOverlayClass =

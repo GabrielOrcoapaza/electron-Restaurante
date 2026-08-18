@@ -85,13 +85,14 @@ const Delivery: React.FC = () => {
     const { companyData, user, getDeviceId, getMacAddress } =
         useAuth();
     const { showToast } = useToast();
-    const { breakpoint } = useResponsive();
+    const { breakpoint, isPosTouchScreen } = useResponsive();
 
     // Responsive: sm 640-767, md 768-1023, lg 1024-1279, xl 1280-1535, 2xl >=1536
     const isSmall = breakpoint === "sm";
     const isMedium = breakpoint === "md";
+    const isCompactPos = isMedium || isPosTouchScreen;
     // Valores adaptativos
-    const gridMinCol = isSmall ? "110px" : isMedium ? "125px" : "140px";
+    const gridMinCol = isSmall ? "110px" : isCompactPos ? "125px" : "140px";
 
     // IGV de la sucursal
     const igvPercentageFromBranch = getBranchIgvPercentage(companyData);
@@ -1771,12 +1772,12 @@ const Delivery: React.FC = () => {
                                                 borderStyle: "solid",
                                                 borderRadius: isSmall
                                                     ? "6px"
-                                                    : isMedium
+                                                    : isCompactPos
                                                       ? "8px"
                                                       : "10px",
                                                 padding: isSmall
                                                     ? "0.2rem"
-                                                    : isMedium
+                                                    : isCompactPos
                                                       ? "0.3rem"
                                                       : "0.35rem",
                                             }}
@@ -1787,7 +1788,7 @@ const Delivery: React.FC = () => {
                                                     alignItems: "center",
                                                     gap: isSmall
                                                         ? "0.2rem"
-                                                        : isMedium
+                                                        : isCompactPos
                                                           ? "0.3rem"
                                                           : "0.35rem",
                                                     justifyContent:
@@ -1804,7 +1805,7 @@ const Delivery: React.FC = () => {
                                                         alignItems: "center",
                                                         gap: isSmall
                                                             ? "0.1rem"
-                                                            : isMedium
+                                                            : isCompactPos
                                                               ? "0.15rem"
                                                               : "0.2rem",
                                                         flexShrink: 0,
@@ -1823,12 +1824,12 @@ const Delivery: React.FC = () => {
                                                         style={{
                                                             width: isSmall
                                                                 ? "20px"
-                                                                : isMedium
+                                                                : isCompactPos
                                                                   ? "24px"
                                                                   : "28px",
                                                             height: isSmall
                                                                 ? "20px"
-                                                                : isMedium
+                                                                : isCompactPos
                                                                   ? "24px"
                                                                   : "28px",
                                                             borderRadius:
@@ -1840,7 +1841,7 @@ const Delivery: React.FC = () => {
                                                                 : "not-allowed",
                                                             fontSize: isSmall
                                                                 ? "0.75rem"
-                                                                : isMedium
+                                                                : isCompactPos
                                                                   ? "0.85rem"
                                                                   : "0.95rem",
                                                             display: "flex",
@@ -1872,7 +1873,7 @@ const Delivery: React.FC = () => {
                                                         style={{
                                                             width: isSmall
                                                                 ? "28px"
-                                                                : isMedium
+                                                                : isCompactPos
                                                                   ? "32px"
                                                                   : "38px",
                                                             textAlign: "center",
@@ -1882,13 +1883,13 @@ const Delivery: React.FC = () => {
                                                                     : "6px",
                                                             padding: isSmall
                                                                 ? "0.1rem"
-                                                                : isMedium
+                                                                : isCompactPos
                                                                   ? "0.15rem"
                                                                   : "0.2rem",
                                                             fontWeight: 700,
                                                             fontSize: isSmall
                                                                 ? "0.65rem"
-                                                                : isMedium
+                                                                : isCompactPos
                                                                   ? "0.75rem"
                                                                   : "0.85rem",
                                                             flexShrink: 0,
@@ -1907,12 +1908,12 @@ const Delivery: React.FC = () => {
                                                         style={{
                                                             width: isSmall
                                                                 ? "16px"
-                                                                : isMedium
+                                                                : isCompactPos
                                                                   ? "18px"
                                                                   : "25px",
                                                             height: isSmall
                                                                 ? "16px"
-                                                                : isMedium
+                                                                : isCompactPos
                                                                   ? "18px"
                                                                   : "25px",
                                                             borderRadius:
@@ -1924,7 +1925,7 @@ const Delivery: React.FC = () => {
                                                                 : "not-allowed",
                                                             fontSize: isSmall
                                                                 ? "0.7rem"
-                                                                : isMedium
+                                                                : isCompactPos
                                                                   ? "0.75rem"
                                                                   : "0.8rem",
                                                             display: "flex",
@@ -1955,7 +1956,7 @@ const Delivery: React.FC = () => {
                                                             fontWeight: 700,
                                                             fontSize: isSmall
                                                                 ? "0.7rem"
-                                                                : isMedium
+                                                                : isCompactPos
                                                                   ? "0.75rem"
                                                                   : "0.8125rem",
                                                             overflow: "hidden",
@@ -2038,13 +2039,13 @@ const Delivery: React.FC = () => {
                                                         alignItems: "center",
                                                         gap: isSmall
                                                             ? "0.2rem"
-                                                            : isMedium
+                                                            : isCompactPos
                                                               ? "0.3rem"
                                                               : "0.35rem",
                                                         flexShrink: 0,
                                                         minWidth: isSmall
                                                             ? "55px"
-                                                            : isMedium
+                                                            : isCompactPos
                                                               ? "65px"
                                                               : "75px",
                                                         marginLeft: "auto",
@@ -2056,7 +2057,7 @@ const Delivery: React.FC = () => {
                                                             fontWeight: 700,
                                                             fontSize: isSmall
                                                                 ? "0.7rem"
-                                                                : isMedium
+                                                                : isCompactPos
                                                                   ? "0.75rem"
                                                                   : "0.8125rem",
                                                             textAlign: "right",
@@ -2083,13 +2084,13 @@ const Delivery: React.FC = () => {
                                                     style={{
                                                         padding: isSmall
                                                             ? "0.1rem 0.35rem"
-                                                            : isMedium
+                                                            : isCompactPos
                                                               ? "0.15rem 0.4rem"
                                                               : "0.15rem 0.45rem",
                                                         borderRadius: 999,
                                                         fontSize: isSmall
                                                             ? "0.7rem"
-                                                            : isMedium
+                                                            : isCompactPos
                                                               ? "0.85rem"
                                                               : "1.1rem",
                                                         fontWeight: 600,
@@ -2158,7 +2159,7 @@ const Delivery: React.FC = () => {
                                                             : "not-allowed",
                                                         fontSize: isSmall
                                                             ? "0.85rem"
-                                                            : isMedium
+                                                            : isCompactPos
                                                               ? "0.95rem"
                                                               : "1.15rem",
                                                         padding: "0.15rem",

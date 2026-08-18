@@ -129,7 +129,7 @@ const LayoutDashboardContent: React.FC = () => {
     const [macAddress, setMacAddress] = useState<string>("");
     const { disconnect, subscribe } = useWebSocket();
     const { switchToBranch, loading: switchingBranch } = useSwitchBranch();
-    const { breakpoint, isMobile } = useResponsive();
+    const { breakpoint, isMobile, isPosTouchScreen } = useResponsive();
     const { showToast } = useToast();
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -153,6 +153,7 @@ const LayoutDashboardContent: React.FC = () => {
     const isSmall = breakpoint === "sm"; // 640px - 767px
     const isMedium = breakpoint === "md"; // 768px - 1023px
     const isSmallDesktop = breakpoint === "lg"; // 1024px - 1279px
+    const isCompactPos = isPosTouchScreen;
 
     const isOverlay = ["xs", "sm", "md", "lg", "xl"].includes(breakpoint);
 
@@ -1154,16 +1155,21 @@ const LayoutDashboardContent: React.FC = () => {
             >
                 {/* Header Principal: título | sucursal centrada | empleado + notificaciones */}
                 <header
-                    className="flex items-center justify-between border-b border-slate-100 bg-white px-8 py-6 dark:border-slate-800 dark:bg-slate-950"
+                    className="flex items-center justify-between border-b border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-950"
                     style={{
-                        gap: isMobile ? "0.75rem" : "1.5rem",
+                        gap: isMobile ? "0.75rem" : isCompactPos ? "0.5rem" : "1.5rem",
+                        padding: isCompactPos
+                            ? "0.625rem 1rem"
+                            : isMobile
+                              ? "1rem 1.25rem"
+                              : "1.5rem 2rem",
                     }}
                 >
                     {/* Sección Izquierda: Toggle + Título */}
                     <div className="flex min-w-0 items-center gap-4 flex-1">
                         <button
                             onClick={toggleSidebar}
-                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-xl text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                            className={`flex shrink-0 items-center justify-center rounded-xl bg-slate-50 text-xl text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100 ${isCompactPos ? "h-11 w-11" : "h-12 w-12"}`}
                         >
                             {sidebarOpen ? "⇤" : "☰"}
                         </button>

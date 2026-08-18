@@ -166,7 +166,7 @@ const Floor: React.FC<FloorProps> = ({
     const { companyData, user } = useAuth();
     const { hasPermission } = useUserPermissions();
     const { showToast } = useToast();
-    const { breakpoint } = useResponsive();
+    const { breakpoint, isPosTouchScreen } = useResponsive();
     const apolloClient = useApolloClient();
 
     // Adaptar según tamaño de pantalla
@@ -174,12 +174,14 @@ const Floor: React.FC<FloorProps> = ({
     const isSmall = breakpoint === "sm";
     const isMedium = breakpoint === "md";
     const isSmallDesktop = breakpoint === "lg";
+    /** POS 4:3 (1024×768): grillas más compactas aunque el ancho sea lg. */
+    const isCompactPos = isMedium || isPosTouchScreen;
 
     const tablesGridColumns = isXs
         ? "repeat(2, 1fr)"
         : isSmall
           ? "repeat(3, 1fr)"
-          : isMedium
+          : isCompactPos
             ? "repeat(5, 1fr)"
             : isSmallDesktop
               ? "repeat(7, 1fr)"
@@ -189,7 +191,7 @@ const Floor: React.FC<FloorProps> = ({
         ? "repeat(2, 1fr)"
         : isSmall
           ? "repeat(4, 1fr)"
-          : isMedium
+          : isCompactPos
             ? "repeat(6, 1fr)"
             : "repeat(10, 1fr)";
 

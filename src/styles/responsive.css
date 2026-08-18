@@ -55,7 +55,20 @@ html {
   }
 }
 
-/* Pantallas 4K y ultra wide */
+/* Pantallas POS táctiles 4:3 (ej. NCR 15" 1024×768) */
+@media (min-width: 1000px) and (max-width: 1400px) and (max-height: 820px) {
+  html {
+    font-size: clamp(12px, 1vw + 9px, 14px);
+  }
+  :root {
+    --scale-factor: min(1, max(0.85, 100vw / 1200));
+    --keyboard-height: min(32vh, 200px);
+    --keyboard-padding-bottom: min(32vh, 210px);
+    --modal-max-width: min(92vw, 26rem);
+    --modal-max-width-lg: min(95vw, 30rem);
+  }
+}
+
 @media (min-width: 1921px) {
   html {
     font-size: clamp(16px, 0.5vw + 12px, 20px);
