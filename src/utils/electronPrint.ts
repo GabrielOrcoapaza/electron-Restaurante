@@ -13,6 +13,7 @@ export const OPEN_EXTERNAL_URL_CHANNEL = "open-external-url" as const;
 export const DOWNLOAD_OFFICIAL_DOCUMENT_PDF_CHANNEL =
 	"download-official-document-pdf" as const;
 export const DOWNLOAD_REMOTE_FILE_CHANNEL = "download-remote-file" as const;
+export const DOWNLOAD_EXCEL_FILE_CHANNEL = "download-excel-file" as const;
 
 export type PrintJsonDocumentResult = { ok: boolean; message?: string };
 export type PrintJsonDocumentDialogResult = {
@@ -46,6 +47,11 @@ export type DownloadOfficialDocumentPdfResult = {
 	message?: string;
 };
 export type DownloadRemoteFileResult = {
+	ok: boolean;
+	path?: string;
+	message?: string;
+};
+export type DownloadExcelFileResult = {
 	ok: boolean;
 	path?: string;
 	message?: string;
@@ -204,4 +210,19 @@ export async function invokeElectronDownloadRemoteFile(
 		url,
 		filename,
 	}) as Promise<DownloadRemoteFileResult>;
+}
+
+/** Guarda un Excel en la carpeta Descargas / Downloads del usuario. */
+export async function invokeElectronDownloadExcelFile(
+	base64: string,
+	filename: string,
+): Promise<DownloadExcelFileResult> {
+	const ipc = getElectronIpcRenderer();
+	if (!ipc) {
+		return { ok: false, message: "No es entorno Electron." };
+	}
+	return ipc.invoke(DOWNLOAD_EXCEL_FILE_CHANNEL, {
+		base64,
+		filename,
+	}) as Promise<DownloadExcelFileResult>;
 }

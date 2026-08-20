@@ -5,6 +5,12 @@ import { GET_USER_SALES_REPORT, SEARCH_USERS } from '../../graphql/queries';
 import ReportEmployeeList from './reportEmployeeList';
 import ReportEmployeeDishesList from './reportEmployeeDishesList';
 import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
+import ReportExportExcelButton from '../../components/ReportExportExcelButton';
+import { useToast } from '../../context/ToastContext';
+import {
+  downloadEmployeeDishesReport,
+  downloadEmployeeOrdersReport,
+} from './reportExcelExports';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -140,6 +146,7 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 
 const ReportEmployee: React.FC = () => {
   const { companyData } = useAuth();
+  const { showToast } = useToast();
   const branchId = companyData?.branch?.id;
 
   const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
@@ -224,6 +231,37 @@ const ReportEmployee: React.FC = () => {
     refetch();
   };
 
+  const handleExportExcel = async () => {
+    if (!userId) {
+      showToast('Selecciona un empleado para exportar el reporte.', 'warning');
+      return;
+    }
+
+    const employeeName = selectedUserLabel || 'empleado';
+    const range = { startDate, endDate };
+
+    try {
+      if (viewMode === 'orders') {
+        if (!operations.length) {
+          showToast('No hay operaciones para exportar en este periodo.', 'warning');
+          return;
+        }
+        const result = await downloadEmployeeOrdersReport(operations, employeeName, range);
+        showToast(result.message || 'Reporte descargado en Excel.', 'success');
+      } else {
+        if (!dishLines.length) {
+          showToast('No hay platos para exportar en este periodo.', 'warning');
+          return;
+        }
+        const result = await downloadEmployeeDishesReport(dishLines, employeeName, range);
+        showToast(result.message || 'Reporte descargado en Excel.', 'success');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo exportar el reporte.';
+      showToast(message, 'error');
+    }
+  };
+
   if (!branchId) {
     return (
         <div className="flex min-h-[400px] items-center justify-center rounded-[32px] bg-white p-8 shadow-sm dark:bg-slate-900">
@@ -253,16 +291,26 @@ const ReportEmployee: React.FC = () => {
                     </p>
                 </div>
             </div>
-            <button
-                onClick={() => refetch()}
-                disabled={loading}
-                className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                {loading ? "Actualizando" : "Refrescar"}
-            </button>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <ReportExportExcelButton
+                    onClick={handleExportExcel}
+                    disabled={
+                        loading ||
+                        !userId ||
+                        (viewMode === 'orders' ? operations.length === 0 : dishLines.length === 0)
+                    }
+                />
+                <button
+                    onClick={() => refetch()}
+                    disabled={loading}
+                    className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {loading ? "Actualizando" : "Refrescar"}
+                </button>
+            </div>
         </div>
 
         {/* Unified Filter Toolbar */}

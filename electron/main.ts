@@ -22,6 +22,7 @@ import { net } from "electron";
 import { registerPrintHandler } from "./printHandler";
 import { registerDocumentPreviewHandler } from "./documentPreviewHandler";
 import { registerSunatDownloadHandler } from "./sunatDownloadHandler";
+import { registerExcelDownloadHandler } from "./excelDownloadHandler";
 
 type AppRuntimeConfig = {
     graphqlUrl?: string;
@@ -627,6 +628,7 @@ function registerIpcHandlers(): void {
     registerPrintHandler();
     registerDocumentPreviewHandler();
     registerSunatDownloadHandler();
+    registerExcelDownloadHandler();
 
     ipcMain.removeHandler("check-for-updates");
     ipcMain.handle("check-for-updates", async () => {
@@ -656,7 +658,7 @@ function registerIpcHandlers(): void {
     });
 
     log.info(
-        "[main] Handlers IPC registrados: get-system-printers, print-json-document, print-json-document-dialog, document-json-to-pdf, document-json-to-html, download-document-pdf, open-external-url, download-official-document-pdf, download-remote-file, check-for-updates",
+        "[main] Handlers IPC registrados: get-system-printers, print-json-document, print-json-document-dialog, document-json-to-pdf, document-json-to-html, download-document-pdf, open-external-url, download-official-document-pdf, download-remote-file, download-excel-file, check-for-updates",
     );
 }
 if (isDev) {

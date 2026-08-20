@@ -5,6 +5,9 @@ import { GET_SALES_REPORT, GET_DOCUMENTS } from "../../graphql/queries";
 import ReportSaleList from "./reportSaleList";
 import ReportSaleCharts from "./reportSaleCharts";
 import { formatLocalDateYYYYMMDD } from "../../utils/localDateTime";
+import ReportExportExcelButton from "../../components/ReportExportExcelButton";
+import { useToast } from "../../context/ToastContext";
+import { downloadSalesReport } from "./reportExcelExports";
 
 interface SalesReportSummary {
     totalDocuments: number;
@@ -121,6 +124,7 @@ const currencyFormatter = new Intl.NumberFormat("es-PE", {
 
 const ReportSale: React.FC = () => {
     const { companyData } = useAuth();
+    const { showToast } = useToast();
     const branchId = companyData?.branch?.id;
 
     const [startDate, setStartDate] = useState<string>(() =>
@@ -154,6 +158,27 @@ const ReportSale: React.FC = () => {
     const reportData: SalesReportData | null = data?.salesReport || null;
     const summary: SalesReportSummary | null = reportData?.summary || null;
     const salesDocuments: IssuedDocument[] = reportData?.documents || [];
+
+    const handleExportExcel = async () => {
+        if (!salesDocuments.length) {
+            showToast("No hay documentos para exportar en este periodo.", "warning");
+            return;
+        }
+
+        try {
+            const result = await downloadSalesReport(salesDocuments, summary, {
+                startDate,
+                endDate,
+            });
+            showToast(result.message || "Reporte descargado en Excel.", "success");
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "No se pudo exportar el reporte.";
+            showToast(message, "error");
+        }
+    };
 
     if (!branchId) {
         return (
@@ -220,6 +245,10 @@ const ReportSale: React.FC = () => {
                             Gráficos
                         </button>
                     </div>
+                    <ReportExportExcelButton
+                        onClick={handleExportExcel}
+                        disabled={loading || salesDocuments.length === 0}
+                    />
                     <button
                         onClick={() => refetch()}
                         disabled={loading}

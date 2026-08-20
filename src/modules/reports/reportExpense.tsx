@@ -12,6 +12,9 @@ import {
 } from "../../utils/localDateTime";
 import { getPaymentMethodLabel } from "../../utils/paymentMethodLabels";
 import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
+import ReportExportExcelButton from "../../components/ReportExportExcelButton";
+import { useToast } from "../../context/ToastContext";
+import { downloadExpenseReport } from "./reportExcelExports";
 
 export interface ExpensePayment {
     id: string;
@@ -118,6 +121,7 @@ const buildSummary = (payments: ExpensePayment[]): ExpenseReportSummary => {
 
 const ReportExpense: React.FC = () => {
     const { companyData, getMacAddress, getDeviceId } = useAuth();
+    const { showToast } = useToast();
     const branchId = companyData?.branch?.id;
 
     const [printClosureExpensesMutation] = useMutation(PRINT_CLOSURE_EXPENSES);
@@ -176,6 +180,27 @@ const ReportExpense: React.FC = () => {
         () => buildSummary(expensePayments),
         [expensePayments],
     );
+
+    const handleExportExcel = async () => {
+        if (!expensePayments.length) {
+            showToast("No hay egresos para exportar en este periodo.", "warning");
+            return;
+        }
+
+        try {
+            const result = await downloadExpenseReport(expensePayments, summary, {
+                startDate,
+                endDate,
+            });
+            showToast(result.message || "Reporte descargado en Excel.", "success");
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "No se pudo exportar el reporte.";
+            showToast(message, "error");
+        }
+    };
 
     const handlePrintReport = async () => {
         if (expensePayments.length === 0) {
@@ -352,6 +377,10 @@ const ReportExpense: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <ReportExportExcelButton
+                        onClick={handleExportExcel}
+                        disabled={loading || expensePayments.length === 0}
+                    />
                     <button
                         type="button"
                         onClick={() => refetch()}
