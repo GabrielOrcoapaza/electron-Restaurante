@@ -1,5 +1,7 @@
 import React from 'react';
 import { useResponsive } from '../../hooks/useResponsive';
+import CreateClient from '../user/createClient';
+import EditClient from '../user/editClient';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -46,6 +48,16 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 const roundMoney2 = (n: number): number =>
     Math.round((Number(n) || 0) * 100) / 100;
 
+export type EditClientForModal = {
+    id: string;
+    name: string;
+    documentType: string;
+    documentNumber: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+};
+
 export type PayDeliveryModalProps = {
     isOpen: boolean;
     onClose: () => void;
@@ -60,6 +72,15 @@ export type PayDeliveryModalProps = {
     sunatSearchLoading: boolean;
     isSaving: boolean;
     onSearchSunat: () => void;
+    onOpenCreateClient: () => void;
+    onOpenEditClient: () => void;
+    showCreateClientModal: boolean;
+    onCloseCreateClientModal: () => void;
+    onCreateClientSuccess: (clientId: string) => void;
+    showEditClientModal: boolean;
+    editClientForModal: EditClientForModal | null;
+    onCloseEditClientModal: () => void;
+    onEditClientSuccess: () => void;
     showToast: (msg: string, type: ToastType) => void;
     documents: any[];
     selectedDocument: string;
@@ -99,6 +120,15 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
     sunatSearchLoading,
     isSaving,
     onSearchSunat,
+    onOpenCreateClient,
+    onOpenEditClient,
+    showCreateClientModal,
+    onCloseCreateClientModal,
+    onCreateClientSuccess,
+    showEditClientModal,
+    editClientForModal,
+    onCloseEditClientModal,
+    onEditClientSuccess,
     showToast,
     documents,
     selectedDocument,
@@ -142,12 +172,13 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
     };
 
     return (
+        <>
         <div
             className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all animate-in fade-in duration-200"
             onClick={onClose}
         >
             <div
-                className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl transition-colors duration-200 dark:border-slate-800 dark:bg-slate-950"
+                className="relative flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl transition-colors duration-200 dark:border-slate-800 dark:bg-slate-950"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
@@ -173,42 +204,62 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
                                 Cliente (opcional)
                             </label>
                             <div className="relative">
-                                <div className="flex items-stretch gap-2 overflow-hidden rounded-xl border border-slate-200 bg-white transition-all focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900">
-                                    <input
-                                        type="text"
-                                        value={personSearchTerm}
-                                        onChange={(e) => {
-                                            setPersonSearchTerm(e.target.value);
-                                            setSelectedPerson(null);
-                                        }}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                handleSearchSunatClick();
-                                            }
-                                        }}
-                                        placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'}
-                                        disabled={clientsLoading || isSaving}
-                                        className="w-full bg-transparent px-4 py-2.5 text-sm text-slate-900 outline-none dark:text-slate-100 disabled:cursor-not-allowed"
-                                    />
+                                <div className="flex items-stretch gap-2">
+                                    <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white transition-all focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900">
+                                        <input
+                                            type="text"
+                                            value={personSearchTerm}
+                                            onChange={(e) => {
+                                                setPersonSearchTerm(e.target.value);
+                                                setSelectedPerson(null);
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    handleSearchSunatClick();
+                                                }
+                                            }}
+                                            placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'}
+                                            disabled={clientsLoading || isSaving}
+                                            className="w-full bg-transparent px-4 py-2.5 text-sm text-slate-900 outline-none dark:text-slate-100 disabled:cursor-not-allowed"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleSearchSunatClick}
+                                            disabled={clientsLoading || sunatSearchLoading || isSaving}
+                                            title="Buscar en SUNAT"
+                                            className={`flex shrink-0 items-center justify-center px-4 transition-all ${
+                                                sunatSearchLoading || isSaving
+                                                    ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
+                                                    : 'bg-teal-600 text-white hover:bg-teal-700 active:scale-95'
+                                            }`}
+                                        >
+                                            {sunatSearchLoading ? (
+                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                            ) : (
+                                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                                </svg>
+                                            )}
+                                        </button>
+                                    </div>
                                     <button
                                         type="button"
-                                        onClick={handleSearchSunatClick}
-                                        disabled={clientsLoading || sunatSearchLoading || isSaving}
-                                        title="Buscar en SUNAT"
-                                        className={`flex items-center justify-center px-4 transition-all ${
-                                            sunatSearchLoading || isSaving
-                                                ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
-                                                : 'bg-teal-600 text-white hover:bg-teal-700 active:scale-95'
-                                        }`}
+                                        onClick={onOpenEditClient}
+                                        disabled={!selectedPerson?.id || isSaving}
+                                        title="Editar cliente"
+                                        className="flex shrink-0 items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2.5 text-base text-indigo-700 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/45"
                                     >
-                                        {sunatSearchLoading ? (
-                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                                        ) : (
-                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                            </svg>
-                                        )}
+                                        ✏️
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={onOpenCreateClient}
+                                        disabled={isSaving}
+                                        title="Nuevo cliente"
+                                        className="flex shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-base text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/45"
+                                    >
+                                        ➕
                                     </button>
                                 </div>
 
@@ -450,6 +501,26 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
                 </div>
             </div>
         </div>
+
+        {showCreateClientModal && (
+            <div className="fixed inset-0 z-[1100]">
+                <CreateClient
+                    onSuccess={onCreateClientSuccess}
+                    onClose={onCloseCreateClientModal}
+                />
+            </div>
+        )}
+
+        {showEditClientModal && editClientForModal && (
+            <div className="fixed inset-0 z-[1100]">
+                <EditClient
+                    client={editClientForModal}
+                    onSuccess={onEditClientSuccess}
+                    onClose={onCloseEditClientModal}
+                />
+            </div>
+        )}
+        </>
     );
 };
 

@@ -21,7 +21,10 @@ import {
 } from "../../graphql/queries";
 import { CREATE_PERSON } from "../../graphql/mutations";
 import ModalObservation from "./modalObservation";
-import PayDeliveryModal, { type DeliveryPaymentLine } from "./payDelivery";
+import PayDeliveryModal, {
+    type DeliveryPaymentLine,
+    type EditClientForModal,
+} from "./payDelivery";
 import CategoryIcon from "../../components/CategoryIcon";
 import {
     formatLocalDateYYYYMMDD,
@@ -134,6 +137,10 @@ const Delivery: React.FC = () => {
     const [discountPercent, setDiscountPercent] = useState<number>(0);
     // Modal de información de pago (se abre al hacer click en Procesar Venta)
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [showCreateClientModal, setShowCreateClientModal] = useState(false);
+    const [showEditClientModal, setShowEditClientModal] = useState(false);
+    const [editClientForModal, setEditClientForModal] =
+        useState<EditClientForModal | null>(null);
     const [deliveryDocPreview, setDeliveryDocPreview] = useState<{
         title: string;
     } | null>(null);
@@ -281,6 +288,15 @@ const Delivery: React.FC = () => {
         skip: !companyData?.branch.id,
         fetchPolicy: "network-only",
     });
+
+    const allClients = useMemo(
+        () =>
+            (clientsData?.personsByBranch || []).filter(
+                (person: any) =>
+                    !person.isSupplier && person.isActive !== false,
+            ),
+        [clientsData],
+    );
 
     // Búsqueda por documento en SUNAT / local
     const [searchPersonByDocument, { loading: sunatSearchLoading }] =
@@ -1163,6 +1179,23 @@ const Delivery: React.FC = () => {
         }
     }, [selectedDocument, documents, selectedPerson]);
 
+    const selectPersonFromClient = (client: {
+        id: string;
+        name?: string | null;
+        documentType?: string | null;
+        documentNumber?: string | null;
+        address?: string | null;
+        phone?: string | null;
+    }) => {
+        setSelectedPerson({
+            id: client.id,
+            name: client.name || "",
+            documentType: client.documentType || "",
+            documentNumber: client.documentNumber || "",
+        });
+        setPersonSearchTerm(client.name || "");
+    };
+
     // Buscar cliente por documento en SUNAT o local (como en cashPay)
     const handleSearchSunat = async () => {
         const term = (personSearchTerm || "").trim().replace(/\s/g, "");
@@ -1190,22 +1223,20 @@ const Delivery: React.FC = () => {
             }
             const person = result.person;
             if (person.id && result.foundLocally) {
-                setSelectedPerson({
+                selectPersonFromClient({
                     id: person.id,
                     name: person.name || "",
                     documentType: person.documentType || documentType,
                     documentNumber: person.documentNumber || term,
+                    address: person.address,
+                    phone: person.phone,
                 });
-                setPersonSearchTerm(person.name || "");
                 const { data: refetched } = await refetchClients();
                 const updated = (refetched?.personsByBranch || []).find(
                     (p: any) => p.id === person.id,
                 );
-                if (updated?.name) {
-                    setPersonSearchTerm(updated.name);
-                    setSelectedPerson((prev) =>
-                        prev ? { ...prev, name: updated.name } : null,
-                    );
+                if (updated) {
+                    selectPersonFromClient(updated);
                 }
                 return;
             }
@@ -1230,13 +1261,14 @@ const Delivery: React.FC = () => {
                 createData?.createPerson?.person
             ) {
                 const newPerson = createData.createPerson.person;
-                setSelectedPerson({
+                selectPersonFromClient({
                     id: newPerson.id,
                     name: newPerson.name || "",
                     documentType: newPerson.documentType || documentType,
                     documentNumber: newPerson.documentNumber || term,
+                    address: newPerson.address || person.address,
+                    phone: newPerson.phone || person.phone,
                 });
-                setPersonSearchTerm(newPerson.name || "");
             } else {
                 showToast(
                     createData?.createPerson?.message ||
@@ -1247,6 +1279,63 @@ const Delivery: React.FC = () => {
         } catch (err: any) {
             showToast(err?.message || "Error al buscar en SUNAT.", "error");
         }
+    };
+
+    const handleOpenEditClient = async () => {
+        if (!selectedPerson?.id) return;
+        let row = allClients.find(
+            (c: any) => c.id === selectedPerson.id,
+        ) as EditClientForModal | undefined;
+        if (!row) {
+            const result = await refetchClients();
+            row = (result.data?.personsByBranch || []).find(
+                (c: any) => c.id === selectedPerson.id,
+            ) as EditClientForModal | undefined;
+        }
+        if (!row) {
+            showToast(
+                "No se pudo cargar el cliente para editar.",
+                "warning",
+            );
+            return;
+        }
+        setEditClientForModal({
+            id: row.id,
+            name: row.name || "",
+            documentType: row.documentType || "",
+            documentNumber: row.documentNumber || "",
+            email: row.email || undefined,
+            phone: row.phone || undefined,
+            address: row.address || undefined,
+        });
+        setShowEditClientModal(true);
+    };
+
+    const handleCreateClientSuccess = async (clientId: string) => {
+        setShowCreateClientModal(false);
+        const result = await refetchClients();
+        const newClient = (result.data?.personsByBranch || []).find(
+            (p: any) => p.id === clientId,
+        );
+        if (newClient) {
+            selectPersonFromClient(newClient);
+        }
+    };
+
+    const handleEditClientSuccess = async () => {
+        if (!editClientForModal?.id) {
+            setShowEditClientModal(false);
+            return;
+        }
+        const result = await refetchClients();
+        const updated = (result.data?.personsByBranch || []).find(
+            (c: any) => c.id === editClientForModal.id,
+        );
+        if (updated) {
+            selectPersonFromClient(updated);
+        }
+        setShowEditClientModal(false);
+        setEditClientForModal(null);
     };
 
     // Obtener seriales del documento seleccionado
@@ -1959,32 +2048,25 @@ const Delivery: React.FC = () => {
                                                                 : isCompactPos
                                                                   ? "0.75rem"
                                                                   : "0.8125rem",
-                                                            overflow: "hidden",
-                                                            whiteSpace:
-                                                                "normal",
-                                                            wordBreak:
-                                                                "break-word",
+                                                            overflowWrap:
+                                                                "anywhere",
                                                             lineHeight: "1.2",
-                                                            display: "flex",
-                                                            alignItems:
-                                                                "center",
-                                                            gap: "4px",
                                                         }}
                                                     >
                                                         {item.name}
-                                                        {item.product &&
-                                                            productStockLabel(
-                                                                item.product,
-                                                            ) && (
-                                                                <span className="shrink-0 text-[0.65rem] font-semibold text-slate-500 dark:text-slate-400">
-                                                                    (
-                                                                    {productStockLabel(
-                                                                        item.product,
-                                                                    )}
-                                                                    )
-                                                                </span>
-                                                            )}
                                                     </div>
+                                                    {item.product &&
+                                                        productStockLabel(
+                                                            item.product,
+                                                        ) && (
+                                                            <div className="text-[0.65rem] font-semibold text-slate-500 dark:text-slate-400">
+                                                                (
+                                                                {productStockLabel(
+                                                                    item.product,
+                                                                )}
+                                                                )
+                                                            </div>
+                                                        )}
                                                     {/* Descuento en el carrito */}
                                                     {(item.discount ?? 0) >
                                                         0 && (
@@ -2330,6 +2412,20 @@ const Delivery: React.FC = () => {
                     sunatSearchLoading={sunatSearchLoading}
                     isSaving={isSaving}
                     onSearchSunat={handleSearchSunat}
+                    onOpenCreateClient={() => setShowCreateClientModal(true)}
+                    onOpenEditClient={handleOpenEditClient}
+                    showCreateClientModal={showCreateClientModal}
+                    onCloseCreateClientModal={() =>
+                        setShowCreateClientModal(false)
+                    }
+                    onCreateClientSuccess={handleCreateClientSuccess}
+                    showEditClientModal={showEditClientModal}
+                    editClientForModal={editClientForModal}
+                    onCloseEditClientModal={() => {
+                        setShowEditClientModal(false);
+                        setEditClientForModal(null);
+                    }}
+                    onEditClientSuccess={handleEditClientSuccess}
                     showToast={showToast}
                     documents={documents}
                     selectedDocument={selectedDocument}
