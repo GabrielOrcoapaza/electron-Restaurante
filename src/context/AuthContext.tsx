@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { Table } from "../types/table";
 import {
     mergeBranchIntoCompanyData,
+    normalizeTaxAffectationType,
     type BranchSessionPatch,
 } from "../utils/getBranchIgvPercentage";
 
@@ -321,9 +322,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Login de empresa (primer paso)
     const loginCompany = (data: CompanyData) => {
-        console.log("💼 Guardando datos de empresa:", data);
-        localStorage.setItem("companyData", JSON.stringify(data));
-        setCompanyData(data);
+        // taxAffectationType llega del servidor como enum GraphQL ("A_10"/"A_20"/"A_30"),
+        // normalizar a código SUNAT ("10"/"20"/"30") antes de guardarlo.
+        const normalized: CompanyData = {
+            ...data,
+            branch: {
+                ...data.branch,
+                taxAffectationType: normalizeTaxAffectationType(
+                    data.branch?.taxAffectationType,
+                ),
+            },
+            availableBranches: data.availableBranches?.map((b: any) => ({
+                ...b,
+                taxAffectationType: normalizeTaxAffectationType(
+                    b?.taxAffectationType,
+                ),
+            })),
+        };
+        console.log("💼 Guardando datos de empresa:", normalized);
+        localStorage.setItem("companyData", JSON.stringify(normalized));
+        setCompanyData(normalized);
     };
 
     // Login de usuario (segundo paso)
@@ -388,6 +406,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             ...companyData,
             branch: {
                 ...newBranch,
+                taxAffectationType: normalizeTaxAffectationType(
+                    newBranch.taxAffectationType,
+                ),
                 tables: allTables,
             },
         };

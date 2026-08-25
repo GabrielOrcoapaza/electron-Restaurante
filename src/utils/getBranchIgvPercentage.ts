@@ -7,12 +7,24 @@ const TAX_AFFECTATION_GRAVADO = "10";
 
 export type BranchSessionPatch = Partial<CompanyData["branch"]>;
 
+/**
+ * El campo taxAffectationType es un enum GraphQL (UsersBranchTaxAffectationTypeChoices):
+ * el servidor lo serializa como el NOMBRE del enum ("A_10"/"A_20"/"A_30"), no el código
+ * SUNAT ("10"/"20"/"30"). Hay que despojar el prefijo "A_" antes de comparar o guardar.
+ */
+export function normalizeTaxAffectationType(
+    raw: string | null | undefined,
+): string {
+    if (!raw) return TAX_AFFECTATION_GRAVADO;
+    return raw.startsWith("A_") ? raw.slice(2) : raw;
+}
+
 /** true si la sucursal está Gravada (IGV normal). Exonerada/Inafecta => sin IGV. */
 export function isBranchGravado(
     branch: CompanyData["branch"] | null | undefined,
 ): boolean {
     // Sin dato (sucursales antiguas / respuesta parcial): asumir Gravado, igual que el default del backend.
-    return (branch?.taxAffectationType ?? TAX_AFFECTATION_GRAVADO) === TAX_AFFECTATION_GRAVADO;
+    return normalizeTaxAffectationType(branch?.taxAffectationType) === TAX_AFFECTATION_GRAVADO;
 }
 
 /** Fusiona datos de sucursal del login de usuario (como SumApp PreferencesManager). */
@@ -31,6 +43,13 @@ export function mergeBranchIntoCompanyData(
             ...branchPatch,
             ...(Number.isFinite(igv) && igv > 0
                 ? { igvPercentage: igv }
+                : {}),
+            ...(branchPatch.taxAffectationType !== undefined
+                ? {
+                      taxAffectationType: normalizeTaxAffectationType(
+                          branchPatch.taxAffectationType,
+                      ),
+                  }
                 : {}),
         },
     };
@@ -82,7 +101,7 @@ export function getBranchTaxAffectationType(
     companyData: CompanyData | null | undefined,
 ): string {
     if (companyData?.branch?.taxAffectationType) {
-        return companyData.branch.taxAffectationType;
+        return normalizeTaxAffectationType(companyData.branch.taxAffectationType);
     }
 
     try {
@@ -90,7 +109,7 @@ export function getBranchTaxAffectationType(
         if (raw) {
             const parsed = JSON.parse(raw) as CompanyData;
             if (parsed?.branch?.taxAffectationType) {
-                return parsed.branch.taxAffectationType;
+                return normalizeTaxAffectationType(parsed.branch.taxAffectationType);
             }
         }
     } catch {

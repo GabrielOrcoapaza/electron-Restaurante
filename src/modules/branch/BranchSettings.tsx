@@ -4,6 +4,7 @@ import { GET_BRANCH_BY_ID } from "../../graphql/queries";
 import { UPDATE_BRANCH } from "../../graphql/mutations";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../context/ToastContext";
+import { normalizeTaxAffectationType } from "../../utils/getBranchIgvPercentage";
 
 type BranchFormState = {
     name: string;
@@ -59,7 +60,9 @@ function branchToForm(branch: Record<string, unknown>): BranchFormState {
         isMultiWaiterEnabled: Boolean(
             branch.isMultiWaiterEnabled ?? false,
         ),
-        taxAffectationType: String(branch.taxAffectationType ?? "10"),
+        taxAffectationType: normalizeTaxAffectationType(
+            branch.taxAffectationType as string | null | undefined,
+        ),
     };
 }
 
