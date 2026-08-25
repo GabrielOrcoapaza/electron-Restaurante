@@ -684,6 +684,7 @@ export const GET_BRANCH_FULL = gql`
             latitude
             longitude
             igvPercentage
+            taxAffectationType
             pdfSize
             pdfColor
             isActive
@@ -761,6 +762,7 @@ export const GET_BRANCH_BY_ID = gql`
             latitude
             longitude
             igvPercentage
+            taxAffectationType
             pdfSize
             pdfColor
             isActive

@@ -10,7 +10,10 @@ import { useUserPermissions } from "../../hooks/useUserPermissions";
 import { useWebSocket } from "../../context/WebSocketContext";
 import { useToast } from "../../context/ToastContext";
 import { useResponsive } from "../../hooks/useResponsive";
-import { getBranchIgvPercentage } from "../../utils/getBranchIgvPercentage";
+import {
+    getBranchIgvPercentage,
+    getBranchTaxAffectationType,
+} from "../../utils/getBranchIgvPercentage";
 import type { Table } from "../../types/table";
 import {
     CREATE_ISSUED_DOCUMENT,
@@ -574,6 +577,7 @@ const CashPay: React.FC<CashPayProps> = ({
     const cashRegisters = cashRegistersData?.cashRegistersByBranch || [];
 
     const igvPercentage = getBranchIgvPercentage(companyData);
+    const branchTaxAffectationType = getBranchTaxAffectationType(companyData);
 
     const getFacturedItemsFromStorage = (
         operationId: string,
@@ -1680,9 +1684,13 @@ const CashPay: React.FC<CashPayProps> = ({
                 globalDiscountOnTotal: paymentGlobalDiscount,
                 igvPercent: igvPercentage,
                 igvAmount: paymentIgvAmount,
-                totalTaxable: paymentSubtotal,
-                totalUnaffected: 0.0,
-                totalExempt: 0.0,
+                // Catálogo SUNAT 07: el neto va al casillero según el tipo de afectación de la sucursal
+                totalTaxable:
+                    branchTaxAffectationType === "10" ? paymentSubtotal : 0.0,
+                totalUnaffected:
+                    branchTaxAffectationType === "30" ? paymentSubtotal : 0.0,
+                totalExempt:
+                    branchTaxAffectationType === "20" ? paymentSubtotal : 0.0,
                 totalFree: 0.0,
                 totalAmount: paymentTotal,
                 items: sanitizedItems.map((item) => ({

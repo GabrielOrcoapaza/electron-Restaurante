@@ -3,7 +3,10 @@ import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useToast } from "../../context/ToastContext";
-import { getBranchIgvPercentage } from "../../utils/getBranchIgvPercentage";
+import {
+    getBranchIgvPercentage,
+    getBranchTaxAffectationType,
+} from "../../utils/getBranchIgvPercentage";
 import { CREATE_SALE_CARRY_OUT } from "../../graphql/mutations";
 import {
     GET_CATEGORIES_BY_BRANCH_LIGHT,
@@ -99,6 +102,7 @@ const Delivery: React.FC = () => {
 
     // IGV de la sucursal
     const igvPercentageFromBranch = getBranchIgvPercentage(companyData);
+    const branchTaxAffectationType = getBranchTaxAffectationType(companyData);
 
     // Estados
     const [selectedCategory, setSelectedCategory] = useState<string | null>(
@@ -1064,9 +1068,13 @@ const Delivery: React.FC = () => {
                 globalDiscountOnTotal: cleanTotalDiscount,
                 igvPercent: parseFloat(igvPercentageFromBranch.toFixed(2)),
                 igvAmount: cleanIgvAmount,
-                totalTaxable: cleanSubtotal,
-                totalUnaffected: 0,
-                totalExempt: 0,
+                // Catálogo SUNAT 07: el neto va al casillero según el tipo de afectación de la sucursal
+                totalTaxable:
+                    branchTaxAffectationType === "10" ? cleanSubtotal : 0,
+                totalUnaffected:
+                    branchTaxAffectationType === "30" ? cleanSubtotal : 0,
+                totalExempt:
+                    branchTaxAffectationType === "20" ? cleanSubtotal : 0,
                 totalFree: 0,
                 totalAmount: cleanCartTotal,
                 items,

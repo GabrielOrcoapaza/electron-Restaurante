@@ -76,6 +76,7 @@ export interface CompanyData {
         latitude?: number;
         longitude?: number;
         igvPercentage?: number;
+        taxAffectationType?: string; // Catálogo SUNAT 07: "10" Gravado, "20" Exonerado, "30" Inafecto
         pdfSize?: string;
         pdfColor?: string;
         isActive: boolean;

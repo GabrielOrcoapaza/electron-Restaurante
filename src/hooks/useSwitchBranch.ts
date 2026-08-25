@@ -94,6 +94,8 @@ export const useSwitchBranch = () => {
           name: avail.name,
           address: avail.address,
           igvPercentage: avail.igvPercentage ?? companyData.branch.igvPercentage,
+          taxAffectationType:
+            avail.taxAffectationType ?? companyData.branch.taxAffectationType,
           isPayment: avail.isPayment ?? true,
           isBilling: avail.isBilling ?? false,
           isDelivery: avail.isDelivery ?? false,

@@ -27,6 +27,7 @@ export const COMPANY_LOGIN = gql`
                 latitude
                 longitude
                 igvPercentage
+                taxAffectationType
                 pdfSize
                 pdfColor
                 isActive
@@ -95,6 +96,7 @@ export const COMPANY_LOGIN = gql`
                 name
                 address
                 igvPercentage
+                taxAffectationType
                 isPayment
                 isBilling
                 isDelivery
@@ -138,6 +140,7 @@ export const USER_LOGIN = gql`
                 latitude
                 longitude
                 igvPercentage
+                taxAffectationType
                 pdfSize
                 pdfColor
                 isActive
@@ -177,6 +180,7 @@ export const WEB_LOGIN = gql`
                 id
                 name
                 igvPercentage
+                taxAffectationType
             }
             company {
                 id
@@ -2457,6 +2461,7 @@ export const UPDATE_BRANCH = gql`
         $latitude: Float
         $longitude: Float
         $igvPercentage: Float
+        $taxAffectationType: String
         $pdfSize: String
         $pdfColor: String
         $isPayment: Boolean
@@ -2480,6 +2485,7 @@ export const UPDATE_BRANCH = gql`
             latitude: $latitude
             longitude: $longitude
             igvPercentage: $igvPercentage
+            taxAffectationType: $taxAffectationType
             pdfSize: $pdfSize
             pdfColor: $pdfColor
             isPayment: $isPayment
@@ -2506,6 +2512,7 @@ export const UPDATE_BRANCH = gql`
                 latitude
                 longitude
                 igvPercentage
+                taxAffectationType
                 pdfSize
                 pdfColor
                 isActive

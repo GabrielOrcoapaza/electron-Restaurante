@@ -17,7 +17,15 @@ type BranchFormState = {
     isCommandItemMode: boolean;
     requireWaiterPassword: boolean;
     isMultiWaiterEnabled: boolean;
+    taxAffectationType: string;
 };
+
+// Catálogo SUNAT 07 (Tipo de Afectación del IGV) — solo los códigos de operación onerosa
+const TAX_AFFECTATION_OPTIONS = [
+    { value: "10", label: "Gravado" },
+    { value: "20", label: "Exonerado" },
+    { value: "30", label: "Inafecto" },
+];
 
 const emptyForm = (): BranchFormState => ({
     name: "",
@@ -31,6 +39,7 @@ const emptyForm = (): BranchFormState => ({
     isCommandItemMode: false,
     requireWaiterPassword: false,
     isMultiWaiterEnabled: false,
+    taxAffectationType: "10",
 });
 
 function branchToForm(branch: Record<string, unknown>): BranchFormState {
@@ -50,6 +59,7 @@ function branchToForm(branch: Record<string, unknown>): BranchFormState {
         isMultiWaiterEnabled: Boolean(
             branch.isMultiWaiterEnabled ?? false,
         ),
+        taxAffectationType: String(branch.taxAffectationType ?? "10"),
     };
 }
 
@@ -185,6 +195,7 @@ const BranchSettings: React.FC = () => {
             isCommandItemMode: form.isCommandItemMode,
             requireWaiterPassword: form.requireWaiterPassword,
             isMultiWaiterEnabled: form.isMultiWaiterEnabled,
+            taxAffectationType: form.taxAffectationType,
         };
 
         if (logoBase64) {
@@ -288,6 +299,33 @@ const BranchSettings: React.FC = () => {
                                 className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-slate-300 dark:file:bg-indigo-900/30 dark:file:text-indigo-300"
                             />
                         </div>
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                    <h3 className="mb-5 text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                        Facturación
+                    </h3>
+                    <div>
+                        <label className={labelClass}>
+                            Tipo de afectación del IGV
+                        </label>
+                        <select
+                            name="taxAffectationType"
+                            value={form.taxAffectationType}
+                            onChange={handleChange}
+                            className={inputClass}
+                        >
+                            {TAX_AFFECTATION_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                </option>
+                            ))}
+                        </select>
+                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                            Exonerado/Inafecto: las ventas de esta sede no
+                            llevan IGV (ej. sedes bajo Ley de Amazonía).
+                        </p>
                     </div>
                 </div>
 
