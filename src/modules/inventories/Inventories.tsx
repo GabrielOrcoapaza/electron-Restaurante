@@ -7,6 +7,7 @@ import {
 } from "../../graphql/queries";
 import { useAuth } from "../../hooks/useAuth";
 import { normalizeProductUnitMeasure } from "../../constants/productUnitMeasures";
+import ImportStockModal from "./ImportStockModal";
 
 interface Product {
     id: string;
@@ -23,6 +24,7 @@ interface Product {
     isActive: boolean;
     productType: string;
     subcategoryId?: string;
+    managesStock?: boolean | null;
 }
 
 interface Subcategory {
@@ -64,11 +66,13 @@ const getSafeNumber = (value: any, defaultValue: number = 0): number => {
 const PAGE_SIZE = 10;
 
 const Inventories: React.FC = () => {
-    const { companyData } = useAuth();
+    const { companyData, user } = useAuth();
     const branchId = companyData?.branch?.id;
+    const isAdmin = (user?.role || "").toUpperCase() === "ADMIN";
     const [selectedCategory, setSelectedCategory] = useState<string>("");
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [currentPage, setCurrentPage] = useState<number>(1);
+    const [showImportModal, setShowImportModal] = useState(false);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -253,6 +257,29 @@ const Inventories: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
+                    {isAdmin && (
+                        <button
+                            onClick={() => setShowImportModal(true)}
+                            className="flex h-11 items-center gap-2 rounded-2xl bg-indigo-600 px-4 text-xs font-black uppercase tracking-wider text-white shadow-sm transition-all hover:bg-indigo-700"
+                            title="Importar stock desde Excel"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"
+                                />
+                            </svg>
+                            Importar Excel
+                        </button>
+                    )}
                     <button
                         onClick={() => refetchStocks()}
                         className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-indigo-600 dark:bg-slate-900 dark:text-slate-500 dark:hover:bg-slate-800"
@@ -275,6 +302,16 @@ const Inventories: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            {showImportModal && branchId && (
+                <ImportStockModal
+                    branchId={branchId}
+                    branchName={companyData?.branch?.name || ""}
+                    products={allProducts}
+                    onClose={() => setShowImportModal(false)}
+                    onImported={() => refetchStocks()}
+                />
+            )}
 
             {/* Filters Section */}
             <div className="rounded-[28px] border border-slate-100 bg-white p-2 shadow-sm dark:border-slate-800/50 dark:bg-slate-900">

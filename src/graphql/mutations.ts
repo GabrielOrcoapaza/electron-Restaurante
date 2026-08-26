@@ -2529,3 +2529,23 @@ export const UPDATE_BRANCH = gql`
         }
     }
 `;
+
+// Importación masiva de stock desde Excel (solo ADMIN). Cada fila trae la cantidad FINAL
+// contada; el backend registra una salida del stock anterior + entrada del nuevo conteo.
+export const BULK_IMPORT_STOCK = gql`
+    mutation BulkImportStock($branchId: ID!, $rows: [StockImportRowInput]!, $reason: String) {
+        bulkImportStock(branchId: $branchId, rows: $rows, reason: $reason) {
+            success
+            message
+            updatedCount
+            results {
+                row
+                productCode
+                success
+                message
+                oldQuantity
+                newQuantity
+            }
+        }
+    }
+`;
