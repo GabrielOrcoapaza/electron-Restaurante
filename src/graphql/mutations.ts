@@ -2545,6 +2545,8 @@ export const BULK_IMPORT_STOCK = gql`
                 message
                 oldQuantity
                 newQuantity
+                oldSalePrice
+                newSalePrice
             }
         }
     }

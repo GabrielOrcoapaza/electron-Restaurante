@@ -284,9 +284,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         typeof window !== "undefined" &&
         Boolean((window as any).process?.versions?.electron);
 
+    /** Adaptadores virtuales/no físicos que Windows expone junto a la MAC real (Hyper-V, WSL, VPN, etc.). */
+    const VIRTUAL_ADAPTER_PATTERN =
+        /virtual|vethernet|hyper-v|wsl|vmware|virtualbox|loopback|npcap|tap-|tun|bluetooth|docker|wan miniport|teredo/i;
+
     /**
      * Identificador del **equipo cliente** (PC con SumApp) para backend / impresión:
-     * - Electron: MAC de una interfaz de red de esta PC.
+     * - Electron: MAC de una interfaz de red de esta PC, priorizando el adaptador físico
+     *   (Ethernet/Wi-Fi) sobre adaptadores virtuales (vEthernet de Hyper-V/WSL, VPN, etc.).
      * - Navegador u otro: `device_id` persistente en localStorage de **este** equipo (no es MAC).
      */
     const getMacAddress = async (): Promise<string> => {
@@ -299,18 +304,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 const os = (window as any).require("os");
                 const networkInterfaces = os.networkInterfaces() as Record<
                     string,
-                    Array<{ mac?: string }> | undefined
+                    Array<{ mac?: string; internal?: boolean }> | undefined
                 >;
 
+                const candidates: { name: string; mac: string }[] = [];
                 for (const interfaceName of Object.keys(networkInterfaces)) {
                     const list = networkInterfaces[interfaceName];
                     if (!list) continue;
-                    for (const iface of list) {
-                        if (iface.mac && iface.mac !== "00:00:00:00:00:00") {
-                            return iface.mac.toUpperCase();
-                        }
+                    const iface = list.find(
+                        (i) => i.mac && i.mac !== "00:00:00:00:00:00" && !i.internal,
+                    );
+                    if (iface?.mac) {
+                        candidates.push({ name: interfaceName, mac: iface.mac.toUpperCase() });
                     }
                 }
+
+                // 1) Adaptador físico típico (Ethernet/Wi-Fi) que no sea virtual.
+                const physical = candidates.find(
+                    (c) =>
+                        /^(ethernet|wi-?fi|wlan)/i.test(c.name) &&
+                        !VIRTUAL_ADAPTER_PATTERN.test(c.name),
+                );
+                if (physical) return physical.mac;
+
+                // 2) Cualquier interfaz que no parezca virtual.
+                const nonVirtual = candidates.find(
+                    (c) => !VIRTUAL_ADAPTER_PATTERN.test(c.name),
+                );
+                if (nonVirtual) return nonVirtual.mac;
+
+                // 3) Último recurso: la primera MAC válida, aunque sea de un adaptador virtual.
+                if (candidates.length > 0) return candidates[0].mac;
             }
 
             return getDeviceId();
