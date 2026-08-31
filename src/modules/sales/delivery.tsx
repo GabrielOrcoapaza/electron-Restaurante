@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
+import { useUserPermissions } from "../../hooks/useUserPermissions";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useToast } from "../../context/ToastContext";
 import {
@@ -84,6 +85,7 @@ type CartItem = {
     promotionName?: string | null;
     isCombo?: boolean;
     comboComponents?: any[];
+    manualPriceEdited?: boolean;
 };
 
 // Tipo para cliente
@@ -98,9 +100,9 @@ const Delivery: React.FC = () => {
     const { companyData, user, getDeviceId, getMacAddress } =
         useAuth();
     const { showToast } = useToast();
+    const { hasPermission } = useUserPermissions();
     const { breakpoint, isPosTouchScreen } = useResponsive();
-    // Por ahora habilitado; luego: hasPermission('products.edit_prices')
-    const canEditPrice = true;
+    const canEditPrice = hasPermission("products.edit_prices_delivery");
 
     // Responsive: sm 640-767, md 768-1023, lg 1024-1279, xl 1280-1535, 2xl >=1536
     const isSmall = breakpoint === "sm";
@@ -763,6 +765,7 @@ const Delivery: React.FC = () => {
                 total: roundMoney2(price * validQuantity),
                 discount: 0,
                 promotionName: null,
+                manualPriceEdited: true,
             };
         });
         setCartItems(
@@ -1037,6 +1040,7 @@ const Delivery: React.FC = () => {
                     unitValue,
                     unitPrice,
                     notes,
+                    isManualPrice: Boolean(item.manualPriceEdited),
                     promoInfo:
                         item.promotionName || (item.discount ?? 0) > 0
                             ? JSON.stringify({
