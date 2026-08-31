@@ -99,6 +99,8 @@ const Delivery: React.FC = () => {
         useAuth();
     const { showToast } = useToast();
     const { breakpoint, isPosTouchScreen } = useResponsive();
+    // Por ahora habilitado; luego: hasPermission('products.edit_prices')
+    const canEditPrice = true;
 
     // Responsive: sm 640-767, md 768-1023, lg 1024-1279, xl 1280-1535, 2xl >=1536
     const isSmall = breakpoint === "sm";
@@ -744,6 +746,30 @@ const Delivery: React.FC = () => {
             return item;
         });
         setCartItems(updatedItems);
+    };
+
+    const handleUpdatePrice = (itemId: string, newPrice: number) => {
+        if (!canEditPrice) {
+            showToast("No tienes permiso para editar precios.", "warning");
+            return;
+        }
+        const price = Math.max(0, roundMoney2(Number(newPrice) || 0));
+        const updatedItems = cartItems.map((item) => {
+            if (item.id !== itemId) return item;
+            const validQuantity = Number(item.quantity) || 1;
+            return {
+                ...item,
+                price,
+                total: roundMoney2(price * validQuantity),
+                discount: 0,
+                promotionName: null,
+            };
+        });
+        setCartItems(
+            activePromotions.length > 0
+                ? recalculatePromotions(updatedItems, activePromotions)
+                : updatedItems,
+        );
     };
 
     // Función para eliminar ítem
@@ -2077,7 +2103,7 @@ const Delivery: React.FC = () => {
                                             <div
                                                 style={{
                                                     display: "flex",
-                                                    alignItems: "center",
+                                                    alignItems: "flex-start",
                                                     gap: isSmall
                                                         ? "0.2rem"
                                                         : isCompactPos
@@ -2087,7 +2113,6 @@ const Delivery: React.FC = () => {
                                                         "flex-start",
                                                     flexWrap: "nowrap",
                                                     width: "100%",
-                                                    overflow: "hidden",
                                                 }}
                                             >
                                                 {/* Controles de cantidad */}
@@ -2233,30 +2258,57 @@ const Delivery: React.FC = () => {
                                                     </button>
                                                 </div>
 
-                                                {/* Nombre del producto */}
+                                                {/* Nombre del producto + precio */}
                                                 <div
+                                                    className="min-w-0 flex-1"
                                                     style={{
-                                                        flex: "1",
-                                                        minWidth: 0,
                                                         paddingLeft: "4px",
                                                         paddingRight: "4px",
                                                     }}
                                                 >
-                                                    <div
-                                                        className="text-slate-800 dark:text-slate-100"
-                                                        style={{
-                                                            fontWeight: 700,
-                                                            fontSize: isSmall
-                                                                ? "0.7rem"
-                                                                : isCompactPos
-                                                                  ? "0.75rem"
-                                                                  : "0.8125rem",
-                                                            overflowWrap:
-                                                                "anywhere",
-                                                            lineHeight: "1.2",
-                                                        }}
-                                                    >
-                                                        {item.name}
+                                                    <div className="flex min-w-0 items-center gap-1.5">
+                                                        <div
+                                                            className="min-w-0 flex-1 truncate text-slate-800 dark:text-slate-100"
+                                                            style={{
+                                                                fontWeight: 700,
+                                                                fontSize: isSmall
+                                                                    ? "0.7rem"
+                                                                    : isCompactPos
+                                                                      ? "0.75rem"
+                                                                      : "0.8125rem",
+                                                                lineHeight: "1.2",
+                                                            }}
+                                                            title={item.name}
+                                                        >
+                                                            {item.name}
+                                                        </div>
+                                                        {canEditPrice && (
+                                                            <div className="inline-flex shrink-0 items-center overflow-hidden rounded-md border border-indigo-200 bg-white dark:border-indigo-700 dark:bg-slate-900">
+                                                                <span className="border-r border-indigo-100 px-1 py-0.5 text-[9px] font-bold leading-none text-slate-400 dark:border-indigo-800">
+                                                                    S/
+                                                                </span>
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    min={0}
+                                                                    value={
+                                                                        item.price === 0
+                                                                            ? ""
+                                                                            : item.price
+                                                                    }
+                                                                    onChange={(e) =>
+                                                                        handleUpdatePrice(
+                                                                            item.id,
+                                                                            parseFloat(
+                                                                                e.target
+                                                                                    .value,
+                                                                            ) || 0,
+                                                                        )
+                                                                    }
+                                                                    className="w-11 border-none bg-transparent py-0.5 pl-1 pr-1 text-right text-[10px] font-bold text-slate-900 outline-none dark:text-slate-100"
+                                                                />
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     {item.product &&
                                                         productStockLabel(
@@ -2317,40 +2369,19 @@ const Delivery: React.FC = () => {
                                                         )}
                                                 </div>
 
-                                                {/* Precio total */}
+                                                {/* Total línea */}
                                                 <div
+                                                    className="shrink-0 self-start font-black text-indigo-600 dark:text-indigo-400"
                                                     style={{
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        gap: isSmall
-                                                            ? "0.2rem"
+                                                        fontSize: isSmall
+                                                            ? "0.7rem"
                                                             : isCompactPos
-                                                              ? "0.3rem"
-                                                              : "0.35rem",
-                                                        flexShrink: 0,
-                                                        minWidth: isSmall
-                                                            ? "55px"
-                                                            : isCompactPos
-                                                              ? "65px"
-                                                              : "75px",
-                                                        marginLeft: "auto",
+                                                              ? "0.75rem"
+                                                              : "0.8125rem",
+                                                        paddingTop: "1px",
                                                     }}
                                                 >
-                                                    <div
-                                                        className="text-slate-800 dark:text-slate-100"
-                                                        style={{
-                                                            fontWeight: 700,
-                                                            fontSize: isSmall
-                                                                ? "0.7rem"
-                                                                : isCompactPos
-                                                                  ? "0.75rem"
-                                                                  : "0.8125rem",
-                                                            textAlign: "right",
-                                                        }}
-                                                    >
-                                                        S/{" "}
-                                                        {item.total.toFixed(2)}
-                                                    </div>
+                                                    S/ {item.total.toFixed(2)}
                                                 </div>
 
                                                 {/* Icono observaciones */}
@@ -2651,6 +2682,15 @@ const Delivery: React.FC = () => {
                     totalPaymentsAmount={totalPaymentsAmount}
                     changeDue={changeDue}
                     onConfirm={handleProcessSale}
+                    cartItems={cartItems.map((item) => ({
+                        id: item.id,
+                        name: item.name,
+                        price: item.price,
+                        quantity: item.quantity,
+                        total: item.total,
+                    }))}
+                    canEditPrice={canEditPrice}
+                    onUpdateItemPrice={handleUpdatePrice}
                 />
             )}
 

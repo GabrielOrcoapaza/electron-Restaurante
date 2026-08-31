@@ -21,6 +21,14 @@ export type DeliveryPaymentLine = {
     referenceNumber: string;
 };
 
+export type PayDeliveryCartItem = {
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    total: number;
+};
+
 /** Coincide con métodos del backend / cashPay. */
 export const SALE_PAYMENT_METHODS: { value: string; label: string }[] = [
     { value: 'CASH', label: 'Efectivo' },
@@ -107,6 +115,9 @@ export type PayDeliveryModalProps = {
     totalPaymentsAmount: number;
     changeDue: number;
     onConfirm: () => void;
+    cartItems?: PayDeliveryCartItem[];
+    canEditPrice?: boolean;
+    onUpdateItemPrice?: (itemId: string, price: number) => void;
 };
 
 const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
@@ -154,6 +165,9 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
     totalPaymentsAmount,
     changeDue,
     onConfirm,
+    cartItems = [],
+    canEditPrice = false,
+    onUpdateItemPrice,
 }) => {
     const { breakpoint } = useResponsive();
     const isMedium = breakpoint === 'md';
@@ -469,6 +483,58 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
                                 )}
                             </div>
                         </div>
+
+                        {cartItems.length > 0 && (
+                            <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    Detalle del pedido
+                                </span>
+                                <div className="flex flex-col gap-2">
+                                    {cartItems.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950"
+                                        >
+                                            <div className="min-w-0 flex-1">
+                                                <div className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                    {item.name}
+                                                </div>
+                                                <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                                                    Cant: {item.quantity}
+                                                </div>
+                                            </div>
+                                            {canEditPrice && onUpdateItemPrice ? (
+                                                <div className="relative w-24 shrink-0">
+                                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">
+                                                        S/
+                                                    </span>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min={0}
+                                                        value={item.price === 0 ? '' : item.price}
+                                                        onChange={(e) =>
+                                                            onUpdateItemPrice(
+                                                                item.id,
+                                                                Number(e.target.value),
+                                                            )}
+                                                        disabled={isSaving}
+                                                        className="w-full rounded-lg border border-indigo-200 bg-white py-1.5 pl-7 pr-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 dark:border-indigo-700 dark:bg-slate-900 dark:text-slate-100"
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <span className="shrink-0 text-xs font-bold text-slate-700 dark:text-slate-200">
+                                                    S/ {item.price.toFixed(2)}
+                                                </span>
+                                            )}
+                                            <span className="shrink-0 text-xs font-black text-indigo-600 dark:text-indigo-400">
+                                                S/ {item.total.toFixed(2)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="rounded-2xl bg-indigo-50 p-4 transition-colors dark:bg-indigo-900/20">
                             <div className="mb-2 flex justify-between text-[11px] font-semibold text-indigo-800/80 dark:text-indigo-200/80">
