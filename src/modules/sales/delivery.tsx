@@ -1042,7 +1042,12 @@ const Delivery: React.FC = () => {
             const cleanSubtotal = parseFloat(subtotal.toFixed(2));
             const cleanIgvAmount = parseFloat(igvAmount.toFixed(2));
             const cleanTotalDiscount = parseFloat(totalDiscount.toFixed(2));
-
+            // Sunat exige el descuento global sobre la base imponible (sin IGV);
+            // totalDiscount está expresado con IGV (mismo monto que ve el cliente en pantalla).
+            const globalDiscountOnBase = parseFloat(
+                (totalDiscount / (1 + igvPercentageDecimal)).toFixed(2),
+            );
+            
             const paymentsSum = paymentLines.reduce(
                 (sum, p) => sum + (Number(p.amount) || 0),
                 0,
@@ -1126,7 +1131,7 @@ const Delivery: React.FC = () => {
                 currency: "PEN",
                 exchangeRate: 1.0,
                 itemsTotalDiscount: 0,
-                globalDiscount: cleanTotalDiscount,
+                globalDiscount: globalDiscountOnBase,
                 globalDiscountPercent: parseFloat(
                     (Number(discountPercent) || 0).toFixed(2),
                 ),

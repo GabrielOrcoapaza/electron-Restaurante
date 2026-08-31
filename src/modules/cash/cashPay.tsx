@@ -1524,6 +1524,11 @@ const CashPay: React.FC<CashPayProps> = ({
                 paymentAfterItemDiscount - paymentGlobalDiscount,
             );
             const igvDecimal = igvPercentage / 100;
+            // Sunat exige el descuento global sobre la base imponible (sin IGV);
+            // paymentGlobalDiscount está expresado con IGV (mismo monto que ve el cliente en pantalla).
+            const paymentGlobalDiscountOnBase = roundMoney2(
+                paymentGlobalDiscount / (1 + igvDecimal),
+            );
             const paymentSubtotal = parseFloat(
                 (
                     Math.round((paymentTotal / (1 + igvDecimal)) * 100) / 100
@@ -1678,7 +1683,7 @@ const CashPay: React.FC<CashPayProps> = ({
                 currency: "PEN",
                 exchangeRate: 1.0,
                 itemsTotalDiscount: paymentItemsDiscount,
-                globalDiscount: paymentGlobalDiscount,
+                globalDiscount: paymentGlobalDiscountOnBase,
                 globalDiscountPercent: Number(discountPercent) || 0,
                 totalDiscount: paymentTotalDiscount,
                 globalDiscountOnTotal: paymentGlobalDiscount,
