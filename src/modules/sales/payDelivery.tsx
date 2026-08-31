@@ -527,9 +527,11 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
                                                     S/ {item.price.toFixed(2)}
                                                 </span>
                                             )}
-                                            <span className="shrink-0 text-xs font-black text-indigo-600 dark:text-indigo-400">
-                                                S/ {item.total.toFixed(2)}
-                                            </span>
+                                            {!canEditPrice && (
+                                                <span className="shrink-0 text-xs font-black text-indigo-600 dark:text-indigo-400">
+                                                    S/ {item.total.toFixed(2)}
+                                                </span>
+                                            )}
                                         </div>
                                     ))}
                                 </div>

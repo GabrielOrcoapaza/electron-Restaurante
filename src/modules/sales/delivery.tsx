@@ -85,6 +85,7 @@ type CartItem = {
     promotionName?: string | null;
     isCombo?: boolean;
     comboComponents?: any[];
+    originalPrice?: number;
     manualPriceEdited?: boolean;
 };
 
@@ -350,6 +351,9 @@ const Delivery: React.FC = () => {
             );
 
             let updated = items.map((item) => {
+                if (item.manualPriceEdited) {
+                    return { ...item, discount: 0, promotionName: null };
+                }
                 // ✅ NUEVO: Si ya tiene descuento, mantenerlo
                 if ((item.discount ?? 0) > 0) {
                     return item;
@@ -382,7 +386,7 @@ const Delivery: React.FC = () => {
             if (nxmPromos.length > 0) {
                 const lines: CartLine[] = updated
                     .map((item, idx) =>
-                        item.product
+                        item.product && !item.manualPriceEdited
                             ? {
                                   index: idx,
                                   product: item.product,
@@ -395,8 +399,10 @@ const Delivery: React.FC = () => {
                     .filter(Boolean) as CartLine[];
                 const freeSet = computeNxMFreeSet(lines, nxmPromos);
                 freeSet.forEach(({ promoName, freeUnits }, idx) => {
-                    // ✅ NUEVO: Solo aplicar si no tiene descuento
-                    if ((updated[idx].discount ?? 0) === 0) {
+                    if (
+                        (updated[idx].discount ?? 0) === 0 &&
+                        !updated[idx].manualPriceEdited
+                    ) {
                         updated[idx] = {
                             ...updated[idx],
                             discount:
@@ -622,6 +628,7 @@ const Delivery: React.FC = () => {
                 productId: product.id,
                 name: product.name,
                 price: productPrice,
+                originalPrice: productPrice,
                 quantity: qty,
                 total: productPrice * qty,
                 notes: "",
@@ -629,6 +636,7 @@ const Delivery: React.FC = () => {
                 product: product,
                 discount: 0,
                 promotionName: null,
+                manualPriceEdited: false,
             };
             setCartItems([...cartItems, newItem]);
         }
@@ -681,6 +689,7 @@ const Delivery: React.FC = () => {
                 productId: comboProduct.id,
                 name: comboProduct.name,
                 price: comboPrice,
+                originalPrice: comboPrice,
                 quantity: 1,
                 total: comboPrice,
                 notes: "",
@@ -689,6 +698,7 @@ const Delivery: React.FC = () => {
                 promotionName: null,
                 isCombo: true,
                 comboComponents: selections,
+                manualPriceEdited: false,
             };
             setCartItems([...cartItems, newItem]);
         }
@@ -752,27 +762,30 @@ const Delivery: React.FC = () => {
 
     const handleUpdatePrice = (itemId: string, newPrice: number) => {
         if (!canEditPrice) {
-            showToast("No tienes permiso para editar precios.", "warning");
+            showToast(
+                "No tiene permiso para editar el precio del ítem en Delivery",
+                "warning",
+            );
             return;
         }
         const price = Math.max(0, roundMoney2(Number(newPrice) || 0));
         const updatedItems = cartItems.map((item) => {
             if (item.id !== itemId) return item;
             const validQuantity = Number(item.quantity) || 1;
+            const originalPrice = roundMoney2(
+                Number(item.originalPrice ?? item.price) || 0,
+            );
+            const manualPriceEdited = price !== originalPrice;
             return {
                 ...item,
                 price,
                 total: roundMoney2(price * validQuantity),
                 discount: 0,
                 promotionName: null,
-                manualPriceEdited: true,
+                manualPriceEdited,
             };
         });
-        setCartItems(
-            activePromotions.length > 0
-                ? recalculatePromotions(updatedItems, activePromotions)
-                : updatedItems,
-        );
+        setCartItems(updatedItems);
     };
 
     // Función para eliminar ítem
@@ -983,6 +996,17 @@ const Delivery: React.FC = () => {
         const itemsSource = isSunatBillableDocument
             ? cartItems.filter((item) => getCartLineTotal(item) > 0)
             : cartItems;
+
+        if (
+            itemsSource.some((item) => item.manualPriceEdited) &&
+            !canEditPrice
+        ) {
+            showToast(
+                "No tiene permiso para editar el precio del ítem en Delivery",
+                "error",
+            );
+            return;
+        }
 
         if (isSunatBillableDocument && itemsSource.length === 0) {
             showToast(
@@ -2286,7 +2310,7 @@ const Delivery: React.FC = () => {
                                                         >
                                                             {item.name}
                                                         </div>
-                                                        {canEditPrice && (
+                                                        {canEditPrice ? (
                                                             <div className="inline-flex shrink-0 items-center overflow-hidden rounded-md border border-indigo-200 bg-white dark:border-indigo-700 dark:bg-slate-900">
                                                                 <span className="border-r border-indigo-100 px-1 py-0.5 text-[9px] font-bold leading-none text-slate-400 dark:border-indigo-800">
                                                                     S/
@@ -2312,6 +2336,20 @@ const Delivery: React.FC = () => {
                                                                     className="w-11 border-none bg-transparent py-0.5 pl-1 pr-1 text-right text-[10px] font-bold text-slate-900 outline-none dark:text-slate-100"
                                                                 />
                                                             </div>
+                                                        ) : (
+                                                            <span
+                                                                className="shrink-0 font-bold text-slate-700 dark:text-slate-200"
+                                                                style={{
+                                                                    fontSize: isSmall
+                                                                        ? "0.7rem"
+                                                                        : isCompactPos
+                                                                          ? "0.75rem"
+                                                                          : "0.8125rem",
+                                                                }}
+                                                            >
+                                                                S/{" "}
+                                                                {item.price.toFixed(2)}
+                                                            </span>
                                                         )}
                                                     </div>
                                                     {item.product &&
@@ -2371,21 +2409,6 @@ const Delivery: React.FC = () => {
                                                                 )}
                                                             </div>
                                                         )}
-                                                </div>
-
-                                                {/* Total línea */}
-                                                <div
-                                                    className="shrink-0 self-start font-black text-indigo-600 dark:text-indigo-400"
-                                                    style={{
-                                                        fontSize: isSmall
-                                                            ? "0.7rem"
-                                                            : isCompactPos
-                                                              ? "0.75rem"
-                                                              : "0.8125rem",
-                                                        paddingTop: "1px",
-                                                    }}
-                                                >
-                                                    S/ {item.total.toFixed(2)}
                                                 </div>
 
                                                 {/* Icono observaciones */}
