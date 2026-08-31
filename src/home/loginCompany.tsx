@@ -6,6 +6,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useResponsive } from "../hooks/useResponsive";
 import { useToast } from "../context/ToastContext";
 import VirtualKeyboard from "../components/VirtualKeyboard";
+import { normalizeTaxAffectationType } from "../utils/getBranchIgvPercentage";
 
 const LoginCompany: React.FC = () => {
     const navigate = useNavigate();
@@ -100,6 +101,9 @@ const LoginCompany: React.FC = () => {
                         categories: data.companyLogin.branch.categories || [],
                         tables: allTables,
                         igvPercentage: data.companyLogin.branch.igvPercentage,
+                        taxAffectationType: normalizeTaxAffectationType(
+                            data.companyLogin.branch.taxAffectationType,
+                        ),
                     },
                     companyLogo: data.companyLogin.companyLogoBase64,
                     branchLogo: data.companyLogin.branchLogoBase64,

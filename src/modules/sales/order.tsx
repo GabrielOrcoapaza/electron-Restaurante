@@ -1661,10 +1661,17 @@ const Order: React.FC<OrderProps> = ({
                     (Math.round(rawPrice * 100) / 100).toFixed(2),
                 );
 
-                const unitValue = unitValueFromInclusivePrice(
-                    unitPrice,
-                    igvPercentageFromBranch,
-                );
+                const igvRate =
+                    igvPercentageFromBranch > 0
+                        ? igvPercentageFromBranch / 100
+                        : 0;
+                const unitValue =
+                    igvRate > 0
+                        ? unitValueFromInclusivePrice(
+                              unitPrice,
+                              igvPercentageFromBranch,
+                          )
+                        : unitPrice;
 
                 const rawQuantity =
                     typeof item.quantity === "number"
@@ -3734,7 +3741,9 @@ const Order: React.FC<OrderProps> = ({
                                               : "0.875rem",
                                     }}
                                 >
-                                    <span>Impuestos</span>
+                                    <span>
+                                        IGV ({igvPercentageFromBranch}%)
+                                    </span>
                                     <b>S/ {taxes.toFixed(2)}</b>
                                 </div>
                                 <div

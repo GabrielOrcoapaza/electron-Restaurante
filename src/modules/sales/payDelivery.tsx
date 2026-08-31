@@ -62,6 +62,9 @@ export type PayDeliveryModalProps = {
     isOpen: boolean;
     onClose: () => void;
     cartTotal: number;
+    subtotal: number;
+    igvAmount: number;
+    igvPercentage: number;
     isFactura: boolean;
     personSearchTerm: string;
     setPersonSearchTerm: (v: string) => void;
@@ -110,6 +113,9 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
     isOpen,
     onClose,
     cartTotal,
+    subtotal,
+    igvAmount,
+    igvPercentage,
     isFactura,
     personSearchTerm,
     setPersonSearchTerm,
@@ -465,7 +471,15 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
                         </div>
 
                         <div className="rounded-2xl bg-indigo-50 p-4 transition-colors dark:bg-indigo-900/20">
-                            <div className="flex items-center justify-between">
+                            <div className="mb-2 flex justify-between text-[11px] font-semibold text-indigo-800/80 dark:text-indigo-200/80">
+                                <span>Subtotal</span>
+                                <span>S/ {subtotal.toFixed(2)}</span>
+                            </div>
+                            <div className="mb-3 flex justify-between text-[11px] font-semibold text-indigo-800/80 dark:text-indigo-200/80">
+                                <span>IGV ({igvPercentage}%)</span>
+                                <span>S/ {igvAmount.toFixed(2)}</span>
+                            </div>
+                            <div className="flex items-center justify-between border-t border-indigo-200/70 pt-3 dark:border-indigo-800/50">
                                 <span className="text-xs font-bold uppercase tracking-widest text-indigo-700 dark:text-indigo-300">Total a pagar</span>
                                 <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">S/ {cartTotal.toFixed(2)}</span>
                             </div>

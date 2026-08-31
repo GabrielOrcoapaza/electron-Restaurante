@@ -30,3 +30,21 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
         'products.view', 'kitchen.view', 'messages.view', 'branch.view'
     ],
 };
+
+/**
+ * Misma regla que User.get_effective_permissions() en el backend:
+ * customPermissions no vacío → solo esos; si no → defaults del rol.
+ */
+export function getEffectivePermissions(
+    role: string,
+    customPermissions?: string[] | null,
+): string[] {
+    const roleUpper = (role || '').toUpperCase();
+    const custom = Array.isArray(customPermissions)
+        ? customPermissions.filter(Boolean)
+        : [];
+    if (custom.length > 0) {
+        return [...new Set(custom)];
+    }
+    return ROLE_DEFAULT_PERMISSIONS[roleUpper] ?? [];
+}

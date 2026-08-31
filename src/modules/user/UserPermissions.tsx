@@ -4,6 +4,7 @@ import { GET_USERS_BY_BRANCH_LIGHT } from '../../graphql/queries';
 import { SET_USER_PERMISSIONS } from '../../graphql/mutations';
 import { useAuth } from '../../hooks/useAuth';
 import { getPermissionOptions } from '../../constants/permissionLabels';
+import { getEffectivePermissions } from '../../constants/rolePermissions';
 import { useToast } from '../../context/ToastContext';
 
 interface User {
@@ -55,8 +56,7 @@ const UserPermissions: React.FC = () => {
 
   const openModal = (u: User) => {
     setSelectedUser(u);
-    const codes = Array.isArray(u.customPermissions) ? u.customPermissions : [];
-    setSelectedCodes(new Set(codes));
+    setSelectedCodes(new Set(getEffectivePermissions(u.role, u.customPermissions)));
   };
 
   const togglePermission = (code: string) => {
@@ -226,7 +226,7 @@ const UserPermissions: React.FC = () => {
                         </svg>
                     </div>
                     <p className="text-xs font-medium leading-relaxed text-amber-700 dark:text-amber-400">
-                        Marca los permisos específicos que tendrá este usuario. Si no marcas ninguno, se utilizarán los permisos predeterminados de su rol ({getRoleLabel(selectedUser.role)}).
+                        Marca o desmarca los permisos que tendrá este usuario. Solo tendrá acceso a los que queden marcados al guardar. Si guardas sin marcar ninguno, se usarán los permisos predeterminados de su rol ({getRoleLabel(selectedUser.role)}).
                     </p>
                 </div>
 

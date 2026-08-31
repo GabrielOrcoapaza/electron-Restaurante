@@ -21,6 +21,7 @@ import {
     GET_MODIFIERS_BY_SUBCATEGORY,
     SEARCH_PERSON_BY_DOCUMENT,
     GET_ACTIVE_PROMOTIONS,
+    GET_ACTIVE_COMBOS,
 } from "../../graphql/queries";
 import { CREATE_PERSON } from "../../graphql/mutations";
 import ModalObservation from "./modalObservation";
@@ -42,7 +43,7 @@ import {
     promotionBadgeLabel,
     type CartLine,
 } from "../../utils/promotionUtils";
-import type { IPromotion } from "../../types/promotions";
+import type { ComboProduct, IPromotion } from "../../types/promotions";
 import { productStockLabel } from "../../utils/productStockDisplay";
 import {
     buildCartStockUsage,
@@ -62,6 +63,12 @@ import {
     roundMoney2,
     unitValueFromInclusivePrice,
 } from "../../utils/taxAmounts";
+import {
+    buildQuickAddComponents,
+    canDeliveryQuickAddCombo,
+    comboSelectionsMatch,
+    isDeliveryQuickAddCombo,
+} from "../../utils/comboQuickAdd";
 
 type CartItem = {
     id: string;
@@ -161,7 +168,18 @@ const Delivery: React.FC = () => {
     const [activePromotions, setActivePromotions] = useState<IPromotion[]>([]);
     const [giftMessage, setGiftMessage] = useState<string | null>(null);
     const [showComboModal, setShowComboModal] = useState(false);
+    const [showCombosPanel, setShowCombosPanel] = useState(false);
     const [pendingComboProduct, setPendingComboProduct] = useState<any>(null);
+
+    const { data: combosData, loading: combosLoading } = useQuery(
+        GET_ACTIVE_COMBOS,
+        {
+            variables: { branchId: companyData?.branch?.id },
+            skip: !companyData?.branch?.id,
+            fetchPolicy: "network-only",
+        },
+    );
+    const activeCombos: ComboProduct[] = combosData?.activeCombos ?? [];
 
     useEffect(() => {
         if (promotionsData?.activePromotions) {
@@ -497,18 +515,22 @@ const Delivery: React.FC = () => {
     let productsList = products || [];
 
     // Flags de navegación para la grilla
-    const showCategoriesInGrid = !isSearching && !selectedCategory;
+    const showCombosInGrid = showCombosPanel && !isSearching;
+    const showCategoriesInGrid =
+        !isSearching && !selectedCategory && !showCombosPanel;
     const showSubcategoriesInGrid =
         !isSearching &&
+        !showCombosPanel &&
         selectedCategory &&
         !selectedSubcategory &&
         (subcategoriesLoading || subcategoriesOfCategory.length > 0);
     const showProductsInGrid =
-        isSearching ||
-        (selectedCategory &&
-            !subcategoriesLoading &&
-            !awaitingSubcategoryPick &&
-            (selectedSubcategory || subcategoriesOfCategory.length === 0));
+        !showCombosPanel &&
+        (isSearching ||
+            (selectedCategory &&
+                !subcategoriesLoading &&
+                !awaitingSubcategoryPick &&
+                (selectedSubcategory || subcategoriesOfCategory.length === 0)));
 
     /** Una sola sub activa → pasar directo a productos filtrados por esa sub */
     useEffect(() => {
@@ -545,10 +567,14 @@ const Delivery: React.FC = () => {
         const product = productsList.find((p: any) => p.id === productId);
         if (!product) return;
 
-        // Si es un combo (tipo PROMOTION), abrir modal de selección de componentes
+        // Combo de bebidas / productos fijos → agregar directo; menú → modal de elección
         if (product.productType === "PROMOTION" && product.asPromotion) {
-            setPendingComboProduct(product);
-            setShowComboModal(true);
+            if (isDeliveryQuickAddCombo(product)) {
+                handleAddCombo(product, buildQuickAddComponents(product));
+            } else {
+                setPendingComboProduct(product);
+                setShowComboModal(true);
+            }
             setSearchTerm("");
             if (!productIdToAdd) {
                 setSelectedProduct(null);
@@ -626,23 +652,63 @@ const Delivery: React.FC = () => {
             return;
         }
 
-        const newItem: CartItem = {
-            id: `combo-${comboProduct.id}-${Date.now()}`,
-            productId: comboProduct.id,
-            name: comboProduct.name,
-            price: comboProduct.salePrice,
-            quantity: 1,
-            total: comboProduct.salePrice,
-            notes: "",
-            product: comboProduct,
-            discount: 0,
-            promotionName: null,
-            isCombo: true,
-            comboComponents: selections,
-        };
-        setCartItems([...cartItems, newItem]);
+        const comboPrice = Number(comboProduct.salePrice) || 0;
+        const existingItemIndex = cartItems.findIndex(
+            (item) =>
+                item.isCombo &&
+                String(item.productId) === String(comboProduct.id) &&
+                comboSelectionsMatch(item.comboComponents, selections),
+        );
+
+        if (existingItemIndex >= 0) {
+            const updatedItems = [...cartItems];
+            const existingItem = updatedItems[existingItemIndex];
+            const newQuantity = Number(existingItem.quantity) + 1;
+            const price = Number(existingItem.price) || comboPrice;
+            updatedItems[existingItemIndex] = {
+                ...existingItem,
+                quantity: newQuantity,
+                total: price * newQuantity,
+            };
+            setCartItems(updatedItems);
+        } else {
+            const newItem: CartItem = {
+                id: `combo-${comboProduct.id}-${Date.now()}`,
+                productId: comboProduct.id,
+                name: comboProduct.name,
+                price: comboPrice,
+                quantity: 1,
+                total: comboPrice,
+                notes: "",
+                product: comboProduct,
+                discount: 0,
+                promotionName: null,
+                isCombo: true,
+                comboComponents: selections,
+            };
+            setCartItems([...cartItems, newItem]);
+        }
         setShowComboModal(false);
         setPendingComboProduct(null);
+    };
+
+    const handleComboGridClick = (combo: ComboProduct) => {
+        if (isDeliveryQuickAddCombo(combo)) {
+            handleAddCombo(combo, buildQuickAddComponents(combo));
+            return;
+        }
+        setPendingComboProduct(combo);
+        setShowComboModal(true);
+    };
+
+    const toggleCombosPanel = () => {
+        setShowCombosPanel((active) => {
+            const next = !active;
+            if (next) {
+                setSearchTerm("");
+            }
+            return next;
+        });
     };
 
     // Función para actualizar cantidad
@@ -1443,8 +1509,13 @@ const Delivery: React.FC = () => {
                             <span className="sm:hidden">Código</span>
                         </button>
                         <button
-                            onClick={() => setShowComboModal(true)}
-                            className="flex items-center gap-2 rounded-xl border border-orange-500 bg-orange-500 px-3 py-2.5 text-xs font-bold text-white shadow-md shadow-orange-500/20 hover:bg-orange-600 transition-all duration-200 md:px-4 md:text-sm"
+                            type="button"
+                            onClick={toggleCombosPanel}
+                            className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold transition-all duration-200 md:px-4 md:text-sm ${
+                                showCombosPanel
+                                    ? "border-orange-500 bg-orange-500 text-white shadow-md shadow-orange-500/20"
+                                    : "border-orange-500 bg-white text-orange-600 hover:bg-orange-50 dark:border-orange-500 dark:bg-slate-800 dark:text-orange-400 dark:hover:bg-orange-950/30"
+                            }`}
                         >
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -1499,10 +1570,29 @@ const Delivery: React.FC = () => {
                                 <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 md:text-base">
                                     Resultados de búsqueda
                                 </h3>
+                            ) : showCombosPanel ? (
+                                <h3 className="inline-flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-bold text-orange-700 shadow-sm dark:border-orange-900/50 dark:bg-orange-900/20 dark:text-orange-300">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-4 w-4"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                                        />
+                                    </svg>
+                                    Combos
+                                </h3>
                             ) : (
                                 <>
                                     <button
                                         onClick={() => {
+                                            setShowCombosPanel(false);
                                             setSelectedCategory(null);
                                             setSelectedSubcategory(null);
                                         }}
@@ -1585,10 +1675,15 @@ const Delivery: React.FC = () => {
 
                     {/* Grid de items */}
                     <div className="flex-1 overflow-y-auto p-3 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 md:p-6">
-                        {productsLoading && showProductsInGrid ? (
+                        {(productsLoading && showProductsInGrid) ||
+                        (combosLoading && showCombosInGrid) ? (
                             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                                 <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500"></div>
-                                <p className="text-sm">Cargando productos...</p>
+                                <p className="text-sm">
+                                    {showCombosInGrid
+                                        ? "Cargando combos..."
+                                        : "Cargando productos..."}
+                                </p>
                             </div>
                         ) : (
                             <div
@@ -1597,6 +1692,101 @@ const Delivery: React.FC = () => {
                                     gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCol}, 1fr))`,
                                 }}
                             >
+                                {/* Render Combos */}
+                                {showCombosInGrid &&
+                                    (activeCombos.length === 0 ? (
+                                        <div className="col-span-full py-12 text-center text-slate-500 dark:text-slate-400">
+                                            No hay combos disponibles
+                                        </div>
+                                    ) : (
+                                        activeCombos.map((combo) => {
+                                            const quickAdd =
+                                                canDeliveryQuickAddCombo(combo);
+                                            const quickAddBlocked =
+                                                isDeliveryQuickAddCombo(combo) &&
+                                                !quickAdd;
+
+                                            return (
+                                                <div
+                                                    key={combo.id}
+                                                    onClick={() => {
+                                                        if (quickAddBlocked) {
+                                                            showToast(
+                                                                `Sin stock: ${combo.name}`,
+                                                                "error",
+                                                            );
+                                                            return;
+                                                        }
+                                                        handleComboGridClick(
+                                                            combo,
+                                                        );
+                                                    }}
+                                                    className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border p-2.5 transition-all duration-200 ${
+                                                        quickAddBlocked
+                                                            ? "cursor-not-allowed border-slate-200 bg-white opacity-50 dark:border-slate-800 dark:bg-slate-900"
+                                                            : quickAdd
+                                                              ? "cursor-pointer border-emerald-300/60 bg-white hover:-translate-y-1 hover:border-emerald-400 hover:shadow-md dark:border-emerald-800/50 dark:bg-slate-900 dark:hover:border-emerald-500/50"
+                                                              : "cursor-pointer border-orange-200 bg-white hover:-translate-y-1 hover:border-orange-400 hover:shadow-md dark:border-orange-900/40 dark:bg-slate-900 dark:hover:border-orange-500/50"
+                                                    }`}
+                                                >
+                                                    {quickAdd && (
+                                                        <div className="absolute left-2 top-2 z-10">
+                                                            <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-md">
+                                                                ⚡ 1 toque
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex aspect-square w-full items-center justify-center rounded-xl bg-orange-50 text-3xl transition-colors duration-200 group-hover:bg-orange-100 dark:bg-orange-950/30 dark:group-hover:bg-orange-900/30">
+                                                        ⭐
+                                                    </div>
+                                                    <div className="mt-3 flex flex-1 flex-col gap-1">
+                                                        <h4 className="line-clamp-2 text-xs font-bold leading-tight text-slate-800 dark:text-slate-100 md:text-sm">
+                                                            {combo.name}
+                                                        </h4>
+                                                        {combo.description && (
+                                                            <p className="line-clamp-2 text-[0.65rem] text-slate-500 dark:text-slate-400 md:text-xs">
+                                                                {
+                                                                    combo.description
+                                                                }
+                                                            </p>
+                                                        )}
+                                                        <div className="mt-auto flex items-center justify-between pt-1">
+                                                            <span className="text-xs font-black text-orange-600 dark:text-orange-400 md:text-sm">
+                                                                S/{" "}
+                                                                {Number(
+                                                                    combo.salePrice,
+                                                                ).toFixed(2)}
+                                                            </span>
+                                                            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-orange-50 text-orange-600 transition-colors duration-200 group-hover:bg-orange-600 group-hover:text-white dark:bg-orange-900/30 dark:text-orange-400 dark:group-hover:bg-orange-500 dark:group-hover:text-white">
+                                                                <svg
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                    className="h-4 w-4"
+                                                                    fill="none"
+                                                                    viewBox="0 0 24 24"
+                                                                    stroke="currentColor"
+                                                                >
+                                                                    <path
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        strokeWidth={
+                                                                            3
+                                                                        }
+                                                                        d="M12 4v16m8-8H4"
+                                                                    />
+                                                                </svg>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {quickAddBlocked && (
+                                                        <div className="absolute inset-x-2 bottom-2 rounded-lg bg-red-500/90 px-2 py-0.5 text-center text-[0.65rem] font-bold text-white">
+                                                            Sin stock
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })
+                                    ))}
+
                                 {/* Render Categorías */}
                                 {showCategoriesInGrid &&
                                     (categoriesLoading ? (
@@ -2410,6 +2600,9 @@ const Delivery: React.FC = () => {
                     isOpen={showPaymentModal}
                     onClose={() => setShowPaymentModal(false)}
                     cartTotal={cartTotal}
+                    subtotal={subtotal}
+                    igvAmount={igvAmount}
+                    igvPercentage={igvPercentageFromBranch}
                     isFactura={isFactura}
                     personSearchTerm={personSearchTerm}
                     setPersonSearchTerm={setPersonSearchTerm}
@@ -2497,6 +2690,7 @@ const Delivery: React.FC = () => {
                     }}
                     onConfirm={handleAddCombo}
                     initialProduct={pendingComboProduct}
+                    enableQuickAdd
                 />
             )}
 

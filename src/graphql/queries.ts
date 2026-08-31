@@ -1771,6 +1771,16 @@ export const GET_ACTIVE_COMBOS = gql`
             unitMeasure
             isActive
             productType
+            subcategoryId
+            subcategory {
+                id
+                name
+                category {
+                    id
+                    name
+                    icon
+                }
+            }
             asPromotion {
                 id
                 name
@@ -1796,6 +1806,7 @@ export const GET_ACTIVE_COMBOS = gql`
                         id
                         name
                         salePrice
+                        productType
                         isActive
                         currentStock
                         managesStock

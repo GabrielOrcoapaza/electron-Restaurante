@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useApolloClient } from '@apollo/client';
 import { useAuth } from './useAuth';
+import { normalizeTaxAffectationType } from '../utils/getBranchIgvPercentage';
 import { GET_BRANCH_FULL } from '../graphql/queries';
 import {
   GET_FLOORS_BY_BRANCH,
@@ -94,8 +95,9 @@ export const useSwitchBranch = () => {
           name: avail.name,
           address: avail.address,
           igvPercentage: avail.igvPercentage ?? companyData.branch.igvPercentage,
-          taxAffectationType:
+          taxAffectationType: normalizeTaxAffectationType(
             avail.taxAffectationType ?? companyData.branch.taxAffectationType,
+          ),
           isPayment: avail.isPayment ?? true,
           isBilling: avail.isBilling ?? false,
           isDelivery: avail.isDelivery ?? false,

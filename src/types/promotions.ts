@@ -13,6 +13,7 @@ export interface IPromotionScope {
         name: string;
         salePrice: number;
         isActive: boolean;
+        productType?: string | null;
         currentStock?: number | null;
         managesStock?: boolean | null;
         subcategoryId?: string | null;
@@ -186,6 +187,16 @@ export interface ComboProduct {
     unitMeasure: string;
     isActive: boolean;
     productType: string;
+    subcategoryId?: string | null;
+    subcategory?: {
+        id: string;
+        name: string;
+        category?: {
+            id: string;
+            name: string;
+            icon?: string | null;
+        } | null;
+    } | null;
     asPromotion: ComboPromotion | null;
 }
 

@@ -13,6 +13,13 @@ import type {
 } from "../types/promotions";
 import { isProductOrderable } from "../utils/operationStock";
 import { productStockLabel } from "../utils/productStockDisplay";
+import {
+    buildQuickAddComponents,
+    canDeliveryQuickAddCombo,
+    canQuickAddCombo,
+    isDeliveryQuickAddCombo,
+    isQuickAddCombo,
+} from "../utils/comboQuickAdd";
 
 interface ComboSelectorModalProps {
     branchId: string;
@@ -22,6 +29,8 @@ interface ComboSelectorModalProps {
     ) => void;
     onClose: () => void;
     initialProduct?: ComboProduct | null;
+    /** En delivery: un toque agrega combos de bebidas con productos fijos */
+    enableQuickAdd?: boolean;
 }
 
 /** Grupo de elección dentro del combo (1 scope o varios scopes fusionados) */
@@ -126,6 +135,7 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
     onConfirm,
     onClose,
     initialProduct,
+    enableQuickAdd = false,
 }) => {
     const [selectedCombo, setSelectedCombo] = useState<ComboProduct | null>(
         initialProduct || null,
@@ -182,6 +192,25 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
         }
         return map;
     }, [activeCombo?.asPromotion?.scopes]);
+
+    const deliveryQuickAddDoneRef = useRef(false);
+
+    // Delivery: si el combo es bebida con productos fijos, agregar sin pedir selección
+    useEffect(() => {
+        if (
+            !enableQuickAdd ||
+            !initialProduct ||
+            deliveryQuickAddDoneRef.current
+        ) {
+            return;
+        }
+        const combo =
+            combos.find((c) => sameId(c.id, initialProduct.id)) ??
+            initialProduct;
+        if (!canDeliveryQuickAddCombo(combo)) return;
+        deliveryQuickAddDoneRef.current = true;
+        onConfirm(combo, buildQuickAddComponents(combo));
+    }, [enableQuickAdd, initialProduct, combos, onConfirm]);
 
     useEffect(() => {
         if (!selectedComboId) {
@@ -341,6 +370,20 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
         choiceGroups.every((g) => groupHasSelectable(g)) &&
         allSelected;
 
+    const tryQuickAddCombo = useCallback(
+        (combo: ComboProduct) => {
+            const qualifies = enableQuickAdd
+                ? isDeliveryQuickAddCombo(combo)
+                : isQuickAddCombo(combo);
+            if (!qualifies) {
+                setSelectedCombo(combo);
+                return;
+            }
+            onConfirm(combo, buildQuickAddComponents(combo));
+        },
+        [enableQuickAdd, onConfirm],
+    );
+
     const handleConfirm = () => {
         if (!activeCombo?.asPromotion) return;
 
@@ -436,28 +479,57 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
                                     No hay combos disponibles en este momento.
                                 </div>
                             ) : (
-                                combos.map((combo) => (
-                                    <button
-                                        type="button"
-                                        key={combo.id}
-                                        onClick={() => setSelectedCombo(combo)}
-                                        className="flex flex-col items-start gap-2 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-left transition-all hover:border-orange-500 hover:bg-orange-500/10"
-                                    >
-                                        <div className="flex w-full items-center justify-between">
-                                            <span className="font-bold text-white">
-                                                {combo.name}
-                                            </span>
-                                            <span className="font-bold text-orange-400">
-                                                S/ {combo.salePrice.toFixed(2)}
-                                            </span>
-                                        </div>
-                                        {combo.description && (
-                                            <span className="text-sm text-slate-400">
-                                                {combo.description}
-                                            </span>
-                                        )}
-                                    </button>
-                                ))
+                                combos.map((combo) => {
+                                    const quickAdd = enableQuickAdd
+                                        ? canDeliveryQuickAddCombo(combo)
+                                        : canQuickAddCombo(combo);
+                                    const quickAddBlocked = enableQuickAdd
+                                        ? isDeliveryQuickAddCombo(combo) &&
+                                          !quickAdd
+                                        : isQuickAddCombo(combo) && !quickAdd;
+
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={combo.id}
+                                            onClick={() =>
+                                                tryQuickAddCombo(combo)
+                                            }
+                                            className={`flex flex-col items-start gap-2 rounded-xl border px-4 py-3 text-left transition-all ${
+                                                quickAdd
+                                                    ? "border-emerald-600/60 bg-emerald-950/30 hover:border-emerald-500 hover:bg-emerald-500/10 active:scale-[0.99]"
+                                                    : quickAddBlocked
+                                                      ? "border-slate-700 bg-slate-800/60 opacity-70"
+                                                      : "border-slate-700 bg-slate-800 hover:border-orange-500 hover:bg-orange-500/10"
+                                            }`}
+                                        >
+                                            <div className="flex w-full items-center justify-between gap-2">
+                                                <span className="font-bold text-white">
+                                                    {combo.name}
+                                                </span>
+                                                <span className="shrink-0 font-bold text-orange-400">
+                                                    S/{" "}
+                                                    {combo.salePrice.toFixed(2)}
+                                                </span>
+                                            </div>
+                                            {quickAdd && (
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-bold text-emerald-300">
+                                                    ⚡ Agregar con 1 toque
+                                                </span>
+                                            )}
+                                            {quickAddBlocked && (
+                                                <span className="text-xs font-semibold text-red-300">
+                                                    Sin stock en algún componente
+                                                </span>
+                                            )}
+                                            {combo.description && (
+                                                <span className="text-sm text-slate-400">
+                                                    {combo.description}
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })
                             )}
                         </div>
                     ) : (
