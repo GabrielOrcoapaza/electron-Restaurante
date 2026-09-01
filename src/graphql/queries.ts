@@ -435,7 +435,7 @@ export const GET_PRODUCTS_BY_CATEGORY = gql`
             name
             description
             salePrice
-            imageBase64
+            image
             preparationTime
             productType
             isActive
@@ -495,7 +495,7 @@ export const GET_PRODUCTS_BY_BRANCH = gql`
             name
             description
             salePrice
-            imageBase64
+            image
             preparationTime
             productType
             isActive
@@ -584,7 +584,7 @@ export const GET_PRODUCTS_WITH_STOCK = gql`
             currentStock
             stockMin
             stockMax
-            imageBase64
+            image
             isActive
             productType
             subcategoryId
@@ -603,7 +603,7 @@ export const GET_PRODUCT_BY_CODE = gql`
             name
             description
             salePrice
-            imageBase64
+            image
             preparationTime
             isActive
             subcategoryId
@@ -627,7 +627,7 @@ export const SEARCH_PRODUCTS = gql`
             name
             description
             salePrice
-            imageBase64
+            image
             preparationTime
             isActive
             subcategoryId

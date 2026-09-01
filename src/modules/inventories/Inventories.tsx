@@ -7,6 +7,7 @@ import {
 } from "../../graphql/queries";
 import { useAuth } from "../../hooks/useAuth";
 import { normalizeProductUnitMeasure } from "../../constants/productUnitMeasures";
+import { getFullImageUrl } from "../../utils/getFullImageUrl";
 import ImportStockModal from "./ImportStockModal";
 
 interface Product {
@@ -20,7 +21,7 @@ interface Product {
     currentStock?: number | null;
     stockMin?: number | null;
     stockMax?: number | null;
-    imageBase64?: string;
+    image?: string;
     isActive: boolean;
     productType: string;
     subcategoryId?: string;
@@ -461,6 +462,9 @@ const Inventories: React.FC = () => {
                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
                                     {paginatedProducts.map((p) => {
                                         const status = getStockStatus(p);
+                                        const productImageSrc = getFullImageUrl(
+                                            p.image,
+                                        );
                                         return (
                                             <tr
                                                 key={p.id}
@@ -469,10 +473,14 @@ const Inventories: React.FC = () => {
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-3">
                                                         <div className="h-10 w-10 overflow-hidden rounded-xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800">
-                                                            {p.imageBase64 ? (
+                                                            {productImageSrc ? (
                                                                 <img
-                                                                    src={`data:image/jpeg;base64,${p.imageBase64}`}
+                                                                    src={
+                                                                        productImageSrc
+                                                                    }
                                                                     alt={p.name}
+                                                                    loading="lazy"
+                                                                    decoding="async"
                                                                     className="h-full w-full object-cover"
                                                                 />
                                                             ) : (

@@ -9,6 +9,11 @@ import {
     PRODUCT_UNIT_MEASURE_OPTIONS,
     normalizeProductUnitMeasure,
 } from "../../constants/productUnitMeasures";
+import {
+    PRODUCT_IMAGE_WIDTH,
+    PRODUCT_IMAGE_HEIGHT,
+    resizeProductImageFile,
+} from "../../utils/resizeProductImage";
 
 interface CreateProductProps {
     onClose: () => void;
@@ -145,7 +150,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
 
     const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (
+        e: React.ChangeEvent<HTMLInputElement>,
+    ) => {
         const file = e.target.files?.[0];
         if (!file) return;
         if (!file.type.startsWith("image/")) {
@@ -165,15 +172,17 @@ const CreateProduct: React.FC<CreateProductProps> = ({
             return;
         }
         setMessage(null);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const dataUrl = reader.result as string;
-            const comma = dataUrl.indexOf(",");
-            const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-            setImageBase64(b64);
+        try {
+            const { dataUrl, base64 } = await resizeProductImageFile(file);
+            setImageBase64(base64);
             setImagePreview(dataUrl);
-        };
-        reader.readAsDataURL(file);
+        } catch {
+            setMessage({
+                type: "error",
+                text: "No se pudo procesar la imagen",
+            });
+            e.target.value = "";
+        }
     };
 
     const handleClearImage = () => {
@@ -632,7 +641,9 @@ const CreateProduct: React.FC<CreateProductProps> = ({
                                         }}
                                     />
                                     <p className="mt-1 text-[0.65rem] text-slate-400 dark:text-slate-500">
-                                        JPG, PNG, WebP o GIF. Máx. 3 MB.
+                                        JPG, PNG, WebP o GIF. Máx. 3 MB. Se
+                                        ajusta a {PRODUCT_IMAGE_WIDTH}×
+                                        {PRODUCT_IMAGE_HEIGHT} px.
                                     </p>
                                 </div>
                                 {imagePreview && (

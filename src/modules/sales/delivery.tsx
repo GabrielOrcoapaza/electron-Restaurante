@@ -50,6 +50,7 @@ import {
 } from "../../utils/promotionUtils";
 import type { ComboProduct, IPromotion } from "../../types/promotions";
 import { productStockLabel } from "../../utils/productStockDisplay";
+import { getFullImageUrl } from "../../utils/getFullImageUrl";
 import {
     buildCartStockUsage,
     canAddComboQuantity,
@@ -2031,6 +2032,8 @@ const Delivery: React.FC = () => {
                                                     cartItems,
                                                     1,
                                                 );
+                                            const productImageSrc =
+                                                getFullImageUrl(product.image);
                                             return (
                                                 <div
                                                     key={product.id}
@@ -2062,13 +2065,17 @@ const Delivery: React.FC = () => {
                                                             </span>
                                                         </div>
                                                     )}
-                                                    {product.imageBase64 ? (
+                                                    {productImageSrc ? (
                                                         <div className="aspect-square w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
                                                             <img
-                                                                src={`data:image/jpeg;base64,${product.imageBase64}`}
+                                                                src={
+                                                                    productImageSrc
+                                                                }
                                                                 alt={
                                                                     product.name
                                                                 }
+                                                                loading="lazy"
+                                                                decoding="async"
                                                                 className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
                                                             />
                                                         </div>

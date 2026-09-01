@@ -7,6 +7,14 @@ import { useResponsive } from "../hooks/useResponsive";
 import { useToast } from "../context/ToastContext";
 import VirtualKeyboard from "../components/VirtualKeyboard";
 import { normalizeTaxAffectationType } from "../utils/getBranchIgvPercentage";
+import {
+    loadPersistedBranchLoginLogo,
+    loadBranchLoginLogoCache,
+    saveBranchLoginLogoCache,
+    resolveLogoSrc,
+} from "../utils/resolveLogoSrc";
+import { normalizeLogoForLoginCache } from "../utils/resizeLogoImage";
+import { isLikelyImagePath } from "../utils/getFullImageUrl";
 
 const LoginCompany: React.FC = () => {
     const navigate = useNavigate();
@@ -28,7 +36,15 @@ const LoginCompany: React.FC = () => {
     >(null);
     const keyboardRef = useRef<HTMLDivElement>(null);
 
+    const [displayLogoSrc, setDisplayLogoSrc] = useState<string | null>(() =>
+        loadPersistedBranchLoginLogo(),
+    );
+
     const [companyLoginMutation, { loading }] = useMutation(COMPANY_LOGIN);
+
+    useEffect(() => {
+        setDisplayLogoSrc(loadBranchLoginLogoCache(formData.ruc));
+    }, [formData.ruc]);
 
     useEffect(() => {
         const fetchMacAddress = async () => {
@@ -92,6 +108,21 @@ const LoginCompany: React.FC = () => {
 
                 showToast("Empresa validada correctamente", "success");
 
+                let logoForCache: string | null = null;
+                const branchLogoRaw =
+                    data.companyLogin.branchLogoBase64 ||
+                    data.companyLogin.branch?.logo ||
+                    data.companyLogin.companyLogoBase64 ||
+                    data.companyLogin.company?.logo ||
+                    null;
+                if (branchLogoRaw) {
+                    logoForCache = await normalizeLogoForLoginCache(
+                        branchLogoRaw,
+                    );
+                    saveBranchLoginLogoCache(rucClean, logoForCache);
+                    setDisplayLogoSrc(resolveLogoSrc(logoForCache));
+                }
+
                 loginCompany({
                     company: data.companyLogin.company,
                     branch: {
@@ -106,7 +137,10 @@ const LoginCompany: React.FC = () => {
                         ),
                     },
                     companyLogo: data.companyLogin.companyLogoBase64,
-                    branchLogo: data.companyLogin.branchLogoBase64,
+                    branchLogo:
+                        logoForCache && !isLikelyImagePath(logoForCache)
+                            ? logoForCache
+                            : data.companyLogin.branchLogoBase64,
                     availableBranches: data.companyLogin.availableBranches,
                 });
 
@@ -175,24 +209,34 @@ const LoginCompany: React.FC = () => {
                 {!isMobile && (
                     <div className="left-panel">
                         <div className="brand-content">
-                            <div className="brand-icon-container">
-                                <span className="brand-icon">
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="40"
-                                        height="40"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="white"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" />
-                                        <path d="M7 2v20" />
-                                        <path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
-                                    </svg>
-                                </span>
+                            <div
+                                className={`brand-icon-container${displayLogoSrc ? " has-logo" : ""}`}
+                            >
+                                {displayLogoSrc ? (
+                                    <img
+                                        src={displayLogoSrc}
+                                        alt="Logo de la sede"
+                                        className="brand-logo-img"
+                                    />
+                                ) : (
+                                    <span className="brand-icon">
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="40"
+                                            height="40"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="white"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" />
+                                            <path d="M7 2v20" />
+                                            <path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
+                                        </svg>
+                                    </span>
+                                )}
                             </div>
                             <h1 className="brand-title">SumApp</h1>
                             <p className="brand-subtitle">
@@ -278,6 +322,15 @@ const LoginCompany: React.FC = () => {
                 <div className="right-panel">
                     <div className="form-container">
                         <div className="form-header">
+                            {displayLogoSrc && (
+                                <div className="form-header-logo-wrap">
+                                    <img
+                                        src={displayLogoSrc}
+                                        alt="Logo de la sede"
+                                        className="form-header-logo"
+                                    />
+                                </div>
+                            )}
                             <h2>Bienvenido</h2>
                             <p>Ingresa los datos de tu empresa para comenzar</p>
                             {!isElectron && (
@@ -645,6 +698,12 @@ const LoginCompany: React.FC = () => {
           position: relative;
         }
 
+        .brand-content {
+          display: flex;
+          flex-direction: column;
+          width: 100%;
+        }
+
         .brand-icon-container {
           background: linear-gradient(135deg, var(--primary), var(--secondary));
           width: 5rem;
@@ -653,14 +712,51 @@ const LoginCompany: React.FC = () => {
           display: flex;
           align-items: center;
           justify-content: center;
+          align-self: center;
           margin-bottom: 2rem;
           box-shadow: 0 15px 30px rgba(255, 107, 107, 0.4);
           animation: floatIcon 4s ease-in-out infinite;
+          overflow: hidden;
+        }
+
+        .brand-icon-container.has-logo {
+          background: white;
+          padding: 0.35rem;
         }
 
         .brand-icon {
           font-size: 2.5rem;
           color: white;
+        }
+
+        .brand-logo-img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          display: block;
+        }
+
+        .form-header-logo-wrap {
+          display: none;
+        }
+
+        @media (max-width: 768px) {
+          .form-header-logo-wrap {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 1rem;
+          }
+        }
+
+        .form-header-logo {
+          width: 5rem;
+          height: 5rem;
+          object-fit: contain;
+          border-radius: 1rem;
+          background: white;
+          padding: 0.5rem;
+          border: 1px solid rgba(0, 0, 0, 0.06);
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
         }
 
         @keyframes floatIcon {

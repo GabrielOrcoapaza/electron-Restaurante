@@ -5,6 +5,11 @@ import { UPDATE_BRANCH } from "../../graphql/mutations";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../context/ToastContext";
 import { normalizeTaxAffectationType } from "../../utils/getBranchIgvPercentage";
+import { saveBranchLoginLogoCache } from "../../utils/resolveLogoSrc";
+import {
+    LOGO_IMAGE_SIZE,
+    resizeLogoImageFile,
+} from "../../utils/resizeLogoImage";
 
 type BranchFormState = {
     name: string;
@@ -104,7 +109,7 @@ const ToggleField = ({
 );
 
 const BranchSettings: React.FC = () => {
-    const { companyData, switchBranch } = useAuth();
+    const { companyData, switchBranch, loginCompany } = useAuth();
     const { showToast } = useToast();
     const branchId = companyData?.branch?.id;
 
@@ -141,10 +146,26 @@ const BranchSettings: React.FC = () => {
                     "success",
                 );
                 if (companyData?.branch) {
-                    switchBranch({
+                    const updatedBranch = {
                         ...companyData.branch,
                         ...result.branch,
-                    });
+                    };
+                    switchBranch(updatedBranch);
+                    const logoToCache =
+                        logoBase64 || (result.branch.logo as string | undefined);
+                    if (logoToCache && companyData.company?.ruc) {
+                        saveBranchLoginLogoCache(
+                            companyData.company.ruc,
+                            logoToCache,
+                        );
+                    }
+                    if (logoBase64) {
+                        loginCompany({
+                            ...companyData,
+                            branch: updatedBranch,
+                            branchLogo: logoBase64,
+                        });
+                    }
                 }
                 setLogoBase64(null);
                 refetch();
@@ -169,16 +190,24 @@ const BranchSettings: React.FC = () => {
         setForm((prev) => ({ ...prev, [name]: value }));
     };
 
-    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleLogoChange = async (
+        e: React.ChangeEvent<HTMLInputElement>,
+    ) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const result = reader.result as string;
-            setLogoPreview(result);
-            setLogoBase64(result.split(",")[1] ?? null);
-        };
-        reader.readAsDataURL(file);
+        if (!file.type.startsWith("image/")) {
+            showToast("El archivo debe ser una imagen", "error");
+            e.target.value = "";
+            return;
+        }
+        try {
+            const { dataUrl, base64 } = await resizeLogoImageFile(file);
+            setLogoPreview(dataUrl);
+            setLogoBase64(base64);
+        } catch {
+            showToast("No se pudo procesar el logo", "error");
+            e.target.value = "";
+        }
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -301,6 +330,10 @@ const BranchSettings: React.FC = () => {
                                 onChange={handleLogoChange}
                                 className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-slate-300 dark:file:bg-indigo-900/30 dark:file:text-indigo-300"
                             />
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                Se ajusta a {LOGO_IMAGE_SIZE}×{LOGO_IMAGE_SIZE}{" "}
+                                px para los login.
+                            </p>
                         </div>
                     </div>
                 </div>

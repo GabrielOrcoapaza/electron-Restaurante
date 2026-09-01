@@ -24,6 +24,7 @@ import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
 import { prefetchOperationForCash } from "../../utils/prefetchOperationForCash";
 import { getBranchIgvPercentage } from "../../utils/getBranchIgvPercentage";
 import { unitValueFromInclusivePrice } from "../../utils/taxAmounts";
+import { getFullImageUrl } from "../../utils/getFullImageUrl";
 import {
     CREATE_OPERATION,
     ADD_ITEMS_TO_OPERATION,
@@ -2832,6 +2833,10 @@ const Order: React.FC<OrderProps> = ({
                                                                     orderItems,
                                                                     1,
                                                                 );
+                                                            const productImageSrc =
+                                                                getFullImageUrl(
+                                                                    product.image,
+                                                                );
                                                             return (
                                                             <div
                                                                 key={product.id}
@@ -2871,12 +2876,16 @@ const Order: React.FC<OrderProps> = ({
                                                                         </span>
                                                                     );
                                                                 })()}
-                                                                {product.imageBase64 ? (
+                                                                {productImageSrc ? (
                                                                     <img
-                                                                        src={`data:image/jpeg;base64,${product.imageBase64}`}
+                                                                        src={
+                                                                            productImageSrc
+                                                                        }
                                                                         alt={
                                                                             product.name
                                                                         }
+                                                                        loading="lazy"
+                                                                        decoding="async"
                                                                         style={{
                                                                             width: "100%",
                                                                             height: isSmall

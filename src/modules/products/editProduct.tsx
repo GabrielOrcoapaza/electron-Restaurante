@@ -10,6 +10,11 @@ import {
     PRODUCT_UNIT_MEASURE_OPTIONS,
     normalizeProductUnitMeasure,
 } from "../../constants/productUnitMeasures";
+import {
+    PRODUCT_IMAGE_WIDTH,
+    PRODUCT_IMAGE_HEIGHT,
+    resizeProductImageFile,
+} from "../../utils/resizeProductImage";
 
 interface Product {
     id: string;
@@ -164,7 +169,9 @@ const EditProduct: React.FC<EditProductProps> = ({
     const [updateProduct, { loading }] = useMutation(UPDATE_PRODUCT);
     const [linkProductToPromotion] = useMutation(LINK_PRODUCT_TO_PROMOTION);
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (
+        e: React.ChangeEvent<HTMLInputElement>,
+    ) => {
         const file = e.target.files?.[0];
         if (!file) return;
         if (!file.type.startsWith("image/")) {
@@ -177,16 +184,15 @@ const EditProduct: React.FC<EditProductProps> = ({
             e.target.value = "";
             return;
         }
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const dataUrl = reader.result as string;
-            const comma = dataUrl.indexOf(",");
-            const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-            setNewImageBase64(b64);
+        try {
+            const { dataUrl, base64 } = await resizeProductImageFile(file);
+            setNewImageBase64(base64);
             setNewImagePreview(dataUrl);
             setImageRemoved(false);
-        };
-        reader.readAsDataURL(file);
+        } catch {
+            showToast("No se pudo procesar la imagen", "error");
+            e.target.value = "";
+        }
     };
 
     const handleClearImage = () => {
@@ -680,8 +686,10 @@ const EditProduct: React.FC<EditProductProps> = ({
                                         }}
                                     />
                                     <p className="mt-1 text-[0.65rem] text-slate-400 dark:text-slate-500">
-                                        JPG, PNG, WebP o GIF. Máx. 3 MB. Guardar
-                                        envía la nueva imagen o quita la actual.
+                                        JPG, PNG, WebP o GIF. Máx. 3 MB. Se
+                                        ajusta a {PRODUCT_IMAGE_WIDTH}×
+                                        {PRODUCT_IMAGE_HEIGHT} px. Guardar envía
+                                        la nueva imagen o quita la actual.
                                     </p>
                                 </div>
                                 {(displayImageSrc ||

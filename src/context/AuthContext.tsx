@@ -410,6 +410,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     // Limpiar solo los datos de la compañía (para cambiar de compañía)
+    // Limpiar caché de logo solo al iniciar sesión con otra empresa (no al cerrar sesión de usuario)
     const clearCompanyData = () => {
         console.log("🧹 Limpiando datos de compañía...");
         localStorage.removeItem("companyData");

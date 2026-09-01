@@ -7,6 +7,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useResponsive } from "../hooks/useResponsive";
 import { useToast } from "../context/ToastContext";
 import VirtualKeyboard from "../components/VirtualKeyboard";
+import { resolveBranchLogoSrc } from "../utils/resolveLogoSrc";
 
 const Login: React.FC = () => {
     const navigate = useNavigate();
@@ -34,6 +35,7 @@ const Login: React.FC = () => {
     const searchInputRef = useRef<HTMLInputElement>(null);
     const [showConfirmExit, setShowConfirmExit] = useState(false);
     const [macAddress, setMacAddress] = useState<string>("");
+    const branchLogoSrc = resolveBranchLogoSrc(companyData);
 
     const roleDisplay = (role?: string): string => {
         const r = role?.toUpperCase();
@@ -264,7 +266,19 @@ const Login: React.FC = () => {
                     <div className="header-top-row">
                         <div className="header-info">
                             <div className="user-icon-ring">
-                                <span className="user-icon">👤</span>
+                                {branchLogoSrc ? (
+                                    <img
+                                        src={branchLogoSrc}
+                                        alt={
+                                            companyData?.branch?.name ||
+                                            companyData?.company?.denomination ||
+                                            "Logo de la sede"
+                                        }
+                                        className="branch-logo-img"
+                                    />
+                                ) : (
+                                    <span className="user-icon">👤</span>
+                                )}
                             </div>
                             {/* SEARCH BOX integrado al lado del usuario */}
                             <div className="search-container">
@@ -747,7 +761,14 @@ const Login: React.FC = () => {
 
         .user-icon { font-size: 1.7rem; color: white; }
 
-
+        .branch-logo-img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          padding: 0.35rem;
+          background: white;
+          border-radius: 0.75rem;
+        }
 
         .header-actions {
           display: flex;
