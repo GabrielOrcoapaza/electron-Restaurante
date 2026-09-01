@@ -84,6 +84,7 @@ const UserPermissions: React.FC = () => {
         CASHIER: "Cajero",
         WAITER: "Mozo",
         COOK: "Cocinero",
+        MOTORIZADO: "Motorizado",
     };
     return roles[role] || role;
   };

@@ -114,7 +114,9 @@ const EditUser: React.FC<EditUserProps> = ({ user, onSuccess, onClose }) => {
     { value: 'CASHIER', label: 'Cajero' },
     { value: 'WAITER', label: 'Mozo' },
     { value: 'COOK', label: 'Cocinero' },
+    { value: 'MOTORIZADO', label: 'Motorizado' },
   ];
+  const isMotorizado = formData.role === 'MOTORIZADO';
 
 
   return (
@@ -151,13 +153,15 @@ const EditUser: React.FC<EditUserProps> = ({ user, onSuccess, onClose }) => {
             <form onSubmit={handleSubmit} className="flex flex-col gap-8">
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                     <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Email *</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            {isMotorizado ? 'Email (opcional)' : 'Email *'}
+                        </label>
                         <input
                             type="email"
                             name="email"
                             value={formData.email}
                             onChange={handleChange}
-                            required
+                            required={!isMotorizado}
                             className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200 dark:focus:bg-slate-800"
                         />
                     </div>

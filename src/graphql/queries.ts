@@ -817,6 +817,20 @@ export const GET_USERS_BY_BRANCH_LIGHT = gql`
     }
 `;
 
+/** Usuarios de una sede filtrados por rol (ej. MOTORIZADO, para el selector de delivery). */
+export const GET_USERS_BY_BRANCH_ROLE = gql`
+    query GetUsersByBranchRole($branchId: ID!, $role: String) {
+        usersByBranch(branchId: $branchId, role: $role) {
+            id
+            firstName
+            lastName
+            fullName
+            role
+            isActive
+        }
+    }
+`;
+
 // Solo ADMIN: lista de permisos disponibles (códigos del sistema)
 // Backend Graphene suele exponer el campo como available_permissions (snake_case)
 export const GET_AVAILABLE_PERMISSIONS = gql`

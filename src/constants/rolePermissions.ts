@@ -29,6 +29,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     'COOK': [
         'products.view', 'kitchen.view', 'messages.view', 'branch.view'
     ],
+    'MOTORIZADO': [
+        'branch.view'
+    ],
 };
 
 /**

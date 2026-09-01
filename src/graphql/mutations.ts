@@ -932,9 +932,9 @@ export const PRINT_PARTIAL_PRECUENTA = gql`
 // Mutación para crear usuario/empleado
 export const CREATE_USER = gql`
     mutation CreateUser(
-        $dni: String!
-        $email: String!
-        $password: String!
+        $dni: String
+        $email: String
+        $password: String
         $firstName: String!
         $lastName: String!
         $branchId: ID!
@@ -1929,6 +1929,7 @@ export const CREATE_SALE_CARRY_OUT = gql`
         $deviceId: String
         $printerId: ID
         $shouldPrint: Boolean
+        $driverId: ID
     ) {
         createSaleCarryOut(
             branchId: $branchId
@@ -1958,6 +1959,7 @@ export const CREATE_SALE_CARRY_OUT = gql`
             deviceId: $deviceId
             printerId: $printerId
             shouldPrint: $shouldPrint
+            driverId: $driverId
         ) {
             success
             message
@@ -1975,6 +1977,24 @@ export const CREATE_SALE_CARRY_OUT = gql`
             printLocally
             printViaBluetooth
             documentData
+        }
+    }
+`;
+
+/** Obtiene (o crea si no existe) el producto de servicio "Delivery" de la sede, para agregarlo al carrito con el costo de envío. */
+export const GET_OR_CREATE_DELIVERY_PRODUCT = gql`
+    mutation GetOrCreateDeliveryProduct($branchId: ID!) {
+        getOrCreateDeliveryProduct(branchId: $branchId) {
+            success
+            message
+            product {
+                id
+                code
+                name
+                salePrice
+                productType
+                unitMeasure
+            }
         }
     }
 `;

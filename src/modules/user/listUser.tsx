@@ -85,6 +85,7 @@ const ListUser: React.FC = () => {
     { value: 'CASHIER', label: 'Cajero' },
     { value: 'WAITER', label: 'Mozo' },
     { value: 'COOK', label: 'Cocinero' },
+    { value: 'MOTORIZADO', label: 'Motorizado' },
   ];
 
   const getRoleLabel = (role: string) => {
@@ -97,6 +98,7 @@ const ListUser: React.FC = () => {
       case 'CASHIER': return 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400';
       case 'WAITER': return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400';
       case 'COOK': return 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400';
+      case 'MOTORIZADO': return 'bg-violet-50 text-violet-600 dark:bg-violet-900/20 dark:text-violet-400';
       default: return 'bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
     }
   };

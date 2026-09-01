@@ -8,7 +8,10 @@ import {
     getBranchIgvPercentage,
     getBranchTaxAffectationType,
 } from "../../utils/getBranchIgvPercentage";
-import { CREATE_SALE_CARRY_OUT } from "../../graphql/mutations";
+import {
+    CREATE_SALE_CARRY_OUT,
+    GET_OR_CREATE_DELIVERY_PRODUCT,
+} from "../../graphql/mutations";
 import {
     GET_CATEGORIES_BY_BRANCH_LIGHT,
     GET_SUBCATEGORIES_BY_CATEGORY,
@@ -23,6 +26,7 @@ import {
     SEARCH_PERSON_BY_DOCUMENT,
     GET_ACTIVE_PROMOTIONS,
     GET_ACTIVE_COMBOS,
+    GET_USERS_BY_BRANCH_ROLE,
 } from "../../graphql/queries";
 import { CREATE_PERSON } from "../../graphql/mutations";
 import ModalObservation from "./modalObservation";
@@ -151,6 +155,13 @@ const Delivery: React.FC = () => {
     // Descuento: solo uno a la vez — monto fijo (S/) o porcentaje (%)
     const [discountAmount, setDiscountAmount] = useState<number>(0);
     const [discountPercent, setDiscountPercent] = useState<number>(0);
+
+    // Delivery: motorizado asignado y costo de envío (se agrega al carrito como detalle de venta)
+    const [selectedDriverId, setSelectedDriverId] = useState<string>("");
+    const [deliveryCost, setDeliveryCost] = useState<number>(0);
+    const [deliveryProductId, setDeliveryProductId] = useState<string | null>(
+        null,
+    );
     // Modal de información de pago (se abre al hacer click en Procesar Venta)
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showCreateClientModal, setShowCreateClientModal] = useState(false);
@@ -194,6 +205,63 @@ const Delivery: React.FC = () => {
 
     // Mutación para crear venta
     const [createSaleCarryOutMutation] = useMutation(CREATE_SALE_CARRY_OUT);
+
+    // Motorizados de la sede (rol MOTORIZADO) para el selector de delivery.
+    // network-only: si no, Apollo devuelve la lista cacheada y un motorizado recién
+    // registrado en "Empleados" no aparece hasta reiniciar la app.
+    const { data: driversData } = useQuery(GET_USERS_BY_BRANCH_ROLE, {
+        variables: {
+            branchId: companyData?.branch?.id,
+            role: "MOTORIZADO",
+        },
+        skip: !companyData?.branch?.id,
+        fetchPolicy: "network-only",
+    });
+    const drivers = driversData?.usersByBranch ?? [];
+
+    // Producto de servicio "Delivery" (se crea automáticamente si no existe en la sede)
+    const [getOrCreateDeliveryProduct] = useMutation(
+        GET_OR_CREATE_DELIVERY_PRODUCT,
+    );
+    useEffect(() => {
+        if (!companyData?.branch?.id || deliveryProductId) return;
+        getOrCreateDeliveryProduct({
+            variables: { branchId: companyData.branch.id },
+        })
+            .then((res) => {
+                const product = res.data?.getOrCreateDeliveryProduct?.product;
+                if (product?.id) setDeliveryProductId(String(product.id));
+            })
+            .catch((e) =>
+                console.error("[Delivery] getOrCreateDeliveryProduct:", e),
+            );
+    }, [companyData?.branch?.id, deliveryProductId, getOrCreateDeliveryProduct]);
+
+    // Sincroniza el costo de delivery como un ítem del carrito (detalle de venta)
+    const DELIVERY_ITEM_ID = "__delivery_service__";
+    useEffect(() => {
+        setCartItems((prev) => {
+            const withoutDelivery = prev.filter(
+                (i) => i.id !== DELIVERY_ITEM_ID,
+            );
+            if (deliveryCost > 0 && deliveryProductId) {
+                return [
+                    ...withoutDelivery,
+                    {
+                        id: DELIVERY_ITEM_ID,
+                        productId: deliveryProductId,
+                        name: "Delivery",
+                        price: deliveryCost,
+                        quantity: 1,
+                        total: deliveryCost,
+                        notes: "",
+                        discount: 0,
+                    },
+                ];
+            }
+            return withoutDelivery;
+        });
+    }, [deliveryCost, deliveryProductId]);
 
     // Categorías sin subcategorías anidadas (menos peso al abrir delivery)
     const { data: categoriesData, loading: categoriesLoading } = useQuery(
@@ -1212,6 +1280,9 @@ const Delivery: React.FC = () => {
             if (selectedPerson) {
                 variables.personId = selectedPerson.id;
             }
+            if (selectedDriverId) {
+                variables.driverId = selectedDriverId;
+            }
 
             const result = await createSaleCarryOutMutation({ variables });
 
@@ -1285,6 +1356,8 @@ const Delivery: React.FC = () => {
                 setSelectedCategory(null);
                 setSelectedSubcategory(null);
                 setSearchTerm("");
+                setSelectedDriverId("");
+                setDeliveryCost(0);
             } else {
                 throw new Error(
                     result.data?.createSaleCarryOut?.message ||
@@ -2324,6 +2397,7 @@ const Delivery: React.FC = () => {
                                                                             ? ""
                                                                             : item.price
                                                                     }
+                                                                    onFocus={(e) => e.target.select()}
                                                                     onChange={(e) =>
                                                                         handleUpdatePrice(
                                                                             item.id,
@@ -2522,6 +2596,56 @@ const Delivery: React.FC = () => {
                                 })}
                             </div>
                         )}
+                    </div>
+                    {/* Delivery: motorizado + costo de envío */}
+                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                Motorizado
+                            </label>
+                            <select
+                                value={selectedDriverId}
+                                onChange={(e) =>
+                                    setSelectedDriverId(e.target.value)
+                                }
+                                className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-indigo-500"
+                            >
+                                <option value="">Sin asignar</option>
+                                {drivers.map((d: any) => (
+                                    <option key={d.id} value={d.id}>
+                                        {d.fullName ||
+                                            `${d.firstName} ${d.lastName}`}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                Costo delivery (S/)
+                            </label>
+                            <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 transition-all duration-200 focus-within:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-indigo-500">
+                                <span className="text-xs font-bold text-slate-400">
+                                    S/
+                                </span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step={0.01}
+                                    value={deliveryCost || ""}
+                                    onChange={(e) =>
+                                        setDeliveryCost(
+                                            Math.max(
+                                                0,
+                                                parseFloat(e.target.value) ||
+                                                    0,
+                                            ),
+                                        )
+                                    }
+                                    placeholder="0.00"
+                                    className="w-full border-none bg-transparent text-xs font-bold text-slate-800 outline-none dark:text-slate-100"
+                                />
+                            </div>
+                        </div>
                     </div>
                     {/* Descuento */}
                     <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
