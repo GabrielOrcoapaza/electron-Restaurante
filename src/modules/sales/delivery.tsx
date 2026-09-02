@@ -2840,15 +2840,6 @@ const Delivery: React.FC = () => {
                     totalPaymentsAmount={totalPaymentsAmount}
                     changeDue={changeDue}
                     onConfirm={handleProcessSale}
-                    cartItems={cartItems.map((item) => ({
-                        id: item.id,
-                        name: item.name,
-                        price: item.price,
-                        quantity: item.quantity,
-                        total: item.total,
-                    }))}
-                    canEditPrice={canEditPrice}
-                    onUpdateItemPrice={handleUpdatePrice}
                 />
             )}
 
