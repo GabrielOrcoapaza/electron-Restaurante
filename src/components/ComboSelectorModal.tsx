@@ -52,7 +52,7 @@ type ComboListProduct = {
     isActive?: boolean;
     managesStock?: boolean | null;
     currentStock?: number | null;
-    productType?: string;
+    productType?: string | null;
 };
 
 const isComboListProduct = (p: ComboListProduct): boolean =>
