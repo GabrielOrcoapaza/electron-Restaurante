@@ -163,6 +163,8 @@ const Delivery: React.FC = () => {
     const [deliveryProductId, setDeliveryProductId] = useState<string | null>(
         null,
     );
+    // Observación general de la venta (opcional)
+    const [saleObservation, setSaleObservation] = useState<string>("");
     // Modal de información de pago (se abre al hacer click en Procesar Venta)
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showCreateClientModal, setShowCreateClientModal] = useState(false);
@@ -1273,7 +1275,7 @@ const Delivery: React.FC = () => {
                 totalAmount: cleanCartTotal,
                 items,
                 payments: paymentsPayload,
-                notes: "",
+                notes: saleObservation.trim(),
                 deviceId: resolvedDeviceId, // No truncar, el backend ya se encarga
                 shouldPrint,
             };
@@ -1359,6 +1361,7 @@ const Delivery: React.FC = () => {
                 setSearchTerm("");
                 setSelectedDriverId("");
                 setDeliveryCost(0);
+                setSaleObservation("");
             } else {
                 throw new Error(
                     result.data?.createSaleCarryOut?.message ||
@@ -2653,6 +2656,21 @@ const Delivery: React.FC = () => {
                                 />
                             </div>
                         </div>
+                    </div>
+                    {/* Observación de la venta (opcional) */}
+                    <div className="mt-4 flex flex-col gap-1.5 border-t border-slate-100 pt-4 dark:border-slate-800">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                            Observación (opcional)
+                        </label>
+                        <input
+                            type="text"
+                            value={saleObservation}
+                            onChange={(e) =>
+                                setSaleObservation(e.target.value)
+                            }
+                            placeholder="Ej: dejar en recepción, sin ají, referencia de la dirección..."
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-indigo-500"
+                        />
                     </div>
                     {/* Descuento */}
                     <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
