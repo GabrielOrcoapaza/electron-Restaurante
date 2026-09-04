@@ -36,6 +36,7 @@ import {
     GET_CATEGORIES_BY_BRANCH_LIGHT,
     GET_SUBCATEGORIES_BY_CATEGORY,
     GET_PRODUCTS_BY_CATEGORY,
+    GET_PRODUCTS_BY_BRANCH,
     GET_OPERATION_BY_TABLE,
     GET_OPERATION_BY_ID,
     SEARCH_PRODUCTS,
@@ -453,6 +454,7 @@ const Order: React.FC<OrderProps> = ({
     const [activePromotions, setActivePromotions] = useState<IPromotion[]>([]);
     const [giftMessage, setGiftMessage] = useState<string | null>(null);
     const [showComboModal, setShowComboModal] = useState(false);
+    const [showPlatosPanel, setShowPlatosPanel] = useState(false);
     const [pendingComboProduct, setPendingComboProduct] = useState<any>(null);
 
     const handleVirtualKeyPress = (key: string) => {
@@ -646,6 +648,18 @@ const Order: React.FC<OrderProps> = ({
             fetchPolicy: "network-only",
         });
 
+    const { data: productsByBranchData, loading: productsByBranchLoading } =
+        useQuery(GET_PRODUCTS_BY_BRANCH, {
+            variables: { branchId: companyData?.branch.id },
+            skip: !companyData?.branch.id,
+            fetchPolicy: "network-only",
+        });
+
+    const allBranchProducts = useMemo(() => {
+        const all = productsByBranchData?.productsByBranch || [];
+        return all.filter(isOrderSearchProduct);
+    }, [productsByBranchData?.productsByBranch]);
+
     // Query lazy para obtener observaciones de una subcategoría (siempre del servidor)
     const [getObservations] = useLazyQuery(GET_MODIFIERS_BY_SUBCATEGORY, {
         fetchPolicy: "network-only",
@@ -691,6 +705,9 @@ const Order: React.FC<OrderProps> = ({
         const raw = searchData?.searchProducts;
         products = Array.isArray(raw) ? raw.filter(isOrderSearchProduct) : raw;
         productsLoading = searchLoading;
+    } else if (showPlatosPanel) {
+        products = allBranchProducts;
+        productsLoading = productsByBranchLoading;
     } else if (selectedCategory) {
         if (subcategoriesLoading || awaitingSubcategoryPick) {
             products = [];
@@ -724,13 +741,17 @@ const Order: React.FC<OrderProps> = ({
     const isSearching = searchByCodeOnly
         ? searchTerm.trim().length >= 1
         : searchTerm.length >= 3;
-    const showCategoriesInGrid = !isSearching && !selectedCategory;
+    const showPlatosInGrid = showPlatosPanel && !isSearching;
+    const showCategoriesInGrid =
+        !isSearching && !selectedCategory && !showPlatosPanel;
     const showSubcategoriesInGrid =
         !isSearching &&
+        !showPlatosPanel &&
         selectedCategory &&
         !selectedSubcategory &&
         (subcategoriesLoading || subcategoriesOfCategory.length > 0);
     const showProductsInGrid =
+        showPlatosPanel ||
         isSearching ||
         (selectedCategory &&
             !subcategoriesLoading &&
@@ -1318,6 +1339,18 @@ const Order: React.FC<OrderProps> = ({
         commitOrderItems([...orderItems, newItem]);
         setShowComboModal(false);
         setPendingComboProduct(null);
+    };
+
+    const togglePlatosPanel = () => {
+        setShowPlatosPanel((active) => {
+            const next = !active;
+            if (next) {
+                setSearchTerm("");
+                setSelectedCategory(null);
+                setSelectedSubcategory(null);
+            }
+            return next;
+        });
     };
 
     // Función para abrir el modal de observaciones (carga las observaciones si es necesario)
@@ -2379,6 +2412,31 @@ const Order: React.FC<OrderProps> = ({
                                     >
                                         Búsqueda solo código
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={togglePlatosPanel}
+                                        className={`flex items-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-bold transition-all duration-200 ${
+                                            showPlatosPanel
+                                                ? "border-indigo-500 bg-indigo-500 text-white shadow-md shadow-indigo-500/20"
+                                                : "border-indigo-500 bg-white text-indigo-600 hover:bg-indigo-50 dark:border-indigo-500 dark:bg-slate-900 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
+                                        }`}
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            className="h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                                            />
+                                        </svg>
+                                        Todo
+                                    </button>
                                     <div className="relative flex-1 min-w-0">
                                         <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg opacity-60">
                                             🔎
@@ -2468,11 +2526,42 @@ const Order: React.FC<OrderProps> = ({
                                             >
                                                 Resultados de búsqueda
                                             </h3>
+                                        ) : showPlatosPanel ? (
+                                            <h3
+                                                className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300"
+                                                style={{
+                                                    fontSize:
+                                                        breadcrumbFontSize,
+                                                    fontWeight: 700,
+                                                    margin: 0,
+                                                    padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
+                                                    borderWidth: "1.5px",
+                                                    borderRadius:
+                                                        breadcrumbBtnRadius,
+                                                }}
+                                            >
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    className="h-4 w-4"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth={2}
+                                                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                                                    />
+                                                </svg>
+                                                Platos
+                                            </h3>
                                         ) : (
                                             <>
                                                 <button
                                                     type="button"
                                                     onClick={() => {
+                                                        setShowPlatosPanel(false);
                                                         setSelectedCategory(
                                                             null,
                                                         );
@@ -2674,6 +2763,10 @@ const Order: React.FC<OrderProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => {
+                                            if (showPlatosPanel) {
+                                                setShowPlatosPanel(false);
+                                                return;
+                                            }
                                             if (selectedSubcategory) {
                                                 setSelectedSubcategory(null);
                                                 return;
@@ -2685,7 +2778,8 @@ const Order: React.FC<OrderProps> = ({
                                         }}
                                         disabled={
                                             isSearching ||
-                                            (!selectedCategory &&
+                                            (!showPlatosPanel &&
+                                                !selectedCategory &&
                                                 !selectedSubcategory)
                                         }
                                         className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition-all duration-150 hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
@@ -2715,7 +2809,9 @@ const Order: React.FC<OrderProps> = ({
                                                     : "0.875rem",
                                             }}
                                         >
-                                            Cargando...
+                                            {showPlatosInGrid
+                                                ? "Cargando platos..."
+                                                : "Cargando..."}
                                         </div>
                                     ) : (
                                         <div
@@ -2739,6 +2835,9 @@ const Order: React.FC<OrderProps> = ({
                                                                     category.id
                                                                 }
                                                                 onClick={() => {
+                                                                    setShowPlatosPanel(
+                                                                        false,
+                                                                    );
                                                                     setSelectedCategory(
                                                                         category.id,
                                                                     );

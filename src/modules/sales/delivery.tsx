@@ -188,6 +188,7 @@ const Delivery: React.FC = () => {
     const [giftMessage, setGiftMessage] = useState<string | null>(null);
     const [showComboModal, setShowComboModal] = useState(false);
     const [showCombosPanel, setShowCombosPanel] = useState(false);
+    const [showPlatosPanel, setShowPlatosPanel] = useState(false);
     const [pendingComboProduct, setPendingComboProduct] = useState<any>(null);
 
     const { data: combosData, loading: combosLoading } = useQuery(
@@ -357,6 +358,17 @@ const Delivery: React.FC = () => {
             skip: !companyData?.branch.id,
             fetchPolicy: "network-only",
         });
+
+    const allBranchProducts = useMemo(() => {
+        const all = productsByBranchData?.productsByBranch || [];
+        return all.filter(
+            (p: any) =>
+                p.isActive !== false &&
+                (p.productType === "DISH" ||
+                    p.productType === "BEVERAGE" ||
+                    p.productType === "PROMOTION"),
+        );
+    }, [productsByBranchData?.productsByBranch]);
 
     // Obtener documentos con sus series (siempre del servidor, no caché)
     const { data: documentsData } = useQuery(GET_DOCUMENTS_WITH_SERIALS, {
@@ -580,6 +592,9 @@ const Delivery: React.FC = () => {
                     p.description?.toLowerCase().includes(searchLower),
             );
         }
+    } else if (showPlatosPanel) {
+        products = allBranchProducts;
+        productsLoading = productsByBranchLoading;
     } else if (selectedCategory) {
         if (subcategoriesLoading || awaitingSubcategoryPick) {
             products = [];
@@ -597,17 +612,23 @@ const Delivery: React.FC = () => {
 
     // Flags de navegación para la grilla
     const showCombosInGrid = showCombosPanel && !isSearching;
+    const showPlatosInGrid = showPlatosPanel && !isSearching;
     const showCategoriesInGrid =
-        !isSearching && !selectedCategory && !showCombosPanel;
+        !isSearching &&
+        !selectedCategory &&
+        !showCombosPanel &&
+        !showPlatosPanel;
     const showSubcategoriesInGrid =
         !isSearching &&
         !showCombosPanel &&
+        !showPlatosPanel &&
         selectedCategory &&
         !selectedSubcategory &&
         (subcategoriesLoading || subcategoriesOfCategory.length > 0);
     const showProductsInGrid =
         !showCombosPanel &&
-        (isSearching ||
+        (showPlatosPanel ||
+            isSearching ||
             (selectedCategory &&
                 !subcategoriesLoading &&
                 !awaitingSubcategoryPick &&
@@ -791,6 +812,22 @@ const Delivery: React.FC = () => {
             const next = !active;
             if (next) {
                 setSearchTerm("");
+                setShowPlatosPanel(false);
+                setSelectedCategory(null);
+                setSelectedSubcategory(null);
+            }
+            return next;
+        });
+    };
+
+    const togglePlatosPanel = () => {
+        setShowPlatosPanel((active) => {
+            const next = !active;
+            if (next) {
+                setSearchTerm("");
+                setShowCombosPanel(false);
+                setSelectedCategory(null);
+                setSelectedSubcategory(null);
             }
             return next;
         });
@@ -1646,6 +1683,31 @@ const Delivery: React.FC = () => {
                         </button>
                         <button
                             type="button"
+                            onClick={togglePlatosPanel}
+                            className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold transition-all duration-200 md:px-4 md:text-sm ${
+                                showPlatosPanel
+                                    ? "border-indigo-500 bg-indigo-500 text-white shadow-md shadow-indigo-500/20"
+                                    : "border-indigo-500 bg-white text-indigo-600 hover:bg-indigo-50 dark:border-indigo-500 dark:bg-slate-800 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
+                            }`}
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                                />
+                            </svg>
+                            <span className="hidden sm:inline">Todo</span>
+                        </button>
+                        <button
+                            type="button"
                             onClick={toggleCombosPanel}
                             className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold transition-all duration-200 md:px-4 md:text-sm ${
                                 showCombosPanel
@@ -1706,6 +1768,24 @@ const Delivery: React.FC = () => {
                                 <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 md:text-base">
                                     Resultados de búsqueda
                                 </h3>
+                            ) : showPlatosPanel ? (
+                                <h3 className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-4 w-4"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                                        />
+                                    </svg>
+                                    Platos
+                                </h3>
                             ) : showCombosPanel ? (
                                 <h3 className="inline-flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-bold text-orange-700 shadow-sm dark:border-orange-900/50 dark:bg-orange-900/20 dark:text-orange-300">
                                     <svg
@@ -1729,6 +1809,7 @@ const Delivery: React.FC = () => {
                                     <button
                                         onClick={() => {
                                             setShowCombosPanel(false);
+                                            setShowPlatosPanel(false);
                                             setSelectedCategory(null);
                                             setSelectedSubcategory(null);
                                         }}
@@ -1818,7 +1899,9 @@ const Delivery: React.FC = () => {
                                 <p className="text-sm">
                                     {showCombosInGrid
                                         ? "Cargando combos..."
-                                        : "Cargando productos..."}
+                                        : showPlatosInGrid
+                                          ? "Cargando platos..."
+                                          : "Cargando productos..."}
                                 </p>
                             </div>
                         ) : (
@@ -1937,6 +2020,8 @@ const Delivery: React.FC = () => {
                                             <div
                                                 key={category.id}
                                                 onClick={() => {
+                                                    setShowPlatosPanel(false);
+                                                    setShowCombosPanel(false);
                                                     setSelectedCategory(
                                                         category.id,
                                                     );
