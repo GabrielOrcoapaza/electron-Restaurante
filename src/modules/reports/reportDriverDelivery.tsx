@@ -3,6 +3,9 @@ import { useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import { GET_DRIVER_DELIVERY_REPORT, GET_USERS_BY_BRANCH_ROLE } from '../../graphql/queries';
 import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
+import ReportExportExcelButton from '../../components/ReportExportExcelButton';
+import { useToast } from '../../context/ToastContext';
+import { downloadDriverDeliveryReport } from './reportExcelExports';
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
     style: 'currency',
@@ -37,6 +40,7 @@ function formatCorrelativo(serial: string, number: number): string {
 
 const ReportDriverDelivery: React.FC = () => {
     const { companyData } = useAuth();
+    const { showToast } = useToast();
     const branchId = companyData?.branch?.id;
 
     const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
@@ -62,6 +66,33 @@ const ReportDriverDelivery: React.FC = () => {
 
     const documents: DriverDeliveryReportItem[] = data?.driverDeliveryReport?.documents ?? [];
     const summary: DriverDeliveryReportSummary | null = data?.driverDeliveryReport?.summary ?? null;
+
+    const selectedDriverName = driverId
+        ? drivers.find((d) => d.id === driverId)?.fullName
+        : undefined;
+
+    const handleExportExcel = async () => {
+        if (!documents.length) {
+            showToast('No hay entregas para exportar en este periodo.', 'warning');
+            return;
+        }
+
+        try {
+            const result = await downloadDriverDeliveryReport(
+                documents,
+                summary,
+                { startDate, endDate },
+                selectedDriverName,
+            );
+            showToast(result.message || 'Reporte descargado en Excel.', 'success');
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'No se pudo exportar el reporte.';
+            showToast(message, 'error');
+        }
+    };
 
     if (!branchId) {
         return (
@@ -92,16 +123,22 @@ const ReportDriverDelivery: React.FC = () => {
                         </p>
                     </div>
                 </div>
-                <button
-                    onClick={() => refetch()}
-                    disabled={loading}
-                    className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    {loading ? "Actualizando" : "Refrescar"}
-                </button>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <ReportExportExcelButton
+                        onClick={handleExportExcel}
+                        disabled={loading || documents.length === 0}
+                    />
+                    <button
+                        onClick={() => refetch()}
+                        disabled={loading}
+                        className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        {loading ? "Actualizando" : "Refrescar"}
+                    </button>
+                </div>
             </div>
 
             {/* Filter Toolbar */}

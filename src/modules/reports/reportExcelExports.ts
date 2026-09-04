@@ -319,3 +319,142 @@ export async function downloadCancellationReport(
         sheets: [{ name: "Anulaciones", rows }],
     });
 }
+
+type DriverDeliveryDocumentForExport = {
+    serial: string;
+    number: number;
+    emissionDate: string;
+    emissionTime?: string;
+    clientName?: string;
+    clientDocumentNumber?: string;
+    deliveryPrice: number;
+    totalAmount: number;
+    billingStatus?: string;
+    driverName?: string;
+};
+
+type DriverDeliverySummaryForExport = {
+    totalDocuments: number;
+    totalDeliveryPrice: number;
+    totalSaleAmount: number;
+};
+
+function formatDriverDeliveryCorrelativo(serial: string, number: number): string {
+    return `${serial}-${String(number).padStart(8, "0")}`;
+}
+
+export async function downloadDriverDeliveryReport(
+    documents: DriverDeliveryDocumentForExport[],
+    summary: DriverDeliverySummaryForExport | null,
+    range: DateRange,
+    driverName?: string,
+): Promise<ExportToExcelResult> {
+    const documentRows: ExcelRow[] = documents.map((doc) => ({
+        Fecha: `${doc.emissionDate} ${doc.emissionTime?.slice(0, 5) ?? ""}`.trim(),
+        Comprobante: formatDriverDeliveryCorrelativo(doc.serial, doc.number),
+        Cliente: doc.clientName || "Cliente varios",
+        "Doc. cliente": doc.clientDocumentNumber ?? "",
+        Motorizado: doc.driverName ?? "",
+        "Precio delivery": roundMoney(doc.deliveryPrice),
+        "Total venta": roundMoney(doc.totalAmount),
+        "Estado SUNAT": doc.billingStatus ?? "",
+    }));
+
+    const summaryRows: ExcelRow[] = summary
+        ? [
+              { Concepto: "Documentos", Valor: summary.totalDocuments },
+              {
+                  Concepto: "Total cobrado delivery",
+                  Valor: roundMoney(summary.totalDeliveryPrice),
+              },
+              {
+                  Concepto: "Total ventas",
+                  Valor: roundMoney(summary.totalSaleAmount),
+              },
+          ]
+        : [];
+
+    const driverSuffix = driverName
+        ? `_${driverName.replace(/\s+/g, "-")}`
+        : "";
+
+    return exportToExcel({
+        filename: `motorizados-delivery${driverSuffix}_${range.startDate}_${range.endDate}`,
+        sheets: [
+            { name: "Entregas", rows: documentRows },
+            { name: "Resumen", rows: summaryRows },
+        ],
+    });
+}
+
+type ClientSalesDocumentForExport = {
+    serial: string;
+    number: number;
+    emissionDate: string;
+    emissionTime?: string;
+    clientName: string;
+    clientDocumentNumber?: string;
+    clientDocumentType?: string;
+    paymentMethods?: string;
+    totalAmount: number;
+    billingStatus?: string;
+};
+
+type ClientSalesSummaryForExport = {
+    totalDocuments: number;
+    totalClients: number;
+    totalAmount: number;
+    totalCash: number;
+    totalYape: number;
+    totalPlin: number;
+    totalCard: number;
+    totalTransfer: number;
+    totalRappi: number;
+    totalPedidoYa: number;
+    totalOthers: number;
+};
+
+function formatClientSalesCorrelativo(serial: string, number: number): string {
+    return `${serial}-${String(number).padStart(8, "0")}`;
+}
+
+export async function downloadClientSalesReport(
+    documents: ClientSalesDocumentForExport[],
+    summary: ClientSalesSummaryForExport | null,
+    range: DateRange,
+): Promise<ExportToExcelResult> {
+    const documentRows: ExcelRow[] = documents.map((doc) => ({
+        Fecha: `${doc.emissionDate} ${doc.emissionTime?.slice(0, 5) ?? ""}`.trim(),
+        Comprobante: formatClientSalesCorrelativo(doc.serial, doc.number),
+        Cliente: doc.clientName,
+        "Tipo doc.": doc.clientDocumentType ?? "",
+        "Doc. cliente": doc.clientDocumentNumber ?? "",
+        "Método de pago": doc.paymentMethods ?? "",
+        Total: roundMoney(doc.totalAmount),
+        "Estado SUNAT": doc.billingStatus ?? "",
+    }));
+
+    const summaryRows: ExcelRow[] = summary
+        ? [
+              { Concepto: "Documentos", Valor: summary.totalDocuments },
+              { Concepto: "Clientes distintos", Valor: summary.totalClients },
+              { Concepto: "Total vendido", Valor: roundMoney(summary.totalAmount) },
+              { Concepto: "Efectivo", Valor: roundMoney(summary.totalCash) },
+              { Concepto: "Yape", Valor: roundMoney(summary.totalYape) },
+              { Concepto: "Plin", Valor: roundMoney(summary.totalPlin) },
+              { Concepto: "Tarjeta", Valor: roundMoney(summary.totalCard) },
+              { Concepto: "Transferencia", Valor: roundMoney(summary.totalTransfer) },
+              { Concepto: "Rappi", Valor: roundMoney(summary.totalRappi) },
+              { Concepto: "Pedido Ya", Valor: roundMoney(summary.totalPedidoYa) },
+              { Concepto: "Otros", Valor: roundMoney(summary.totalOthers) },
+          ]
+        : [];
+
+    return exportToExcel({
+        filename: `ventas-clientes_${range.startDate}_${range.endDate}`,
+        sheets: [
+            { name: "Ventas", rows: documentRows },
+            { name: "Resumen", rows: summaryRows },
+        ],
+    });
+}
