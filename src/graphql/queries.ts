@@ -1529,6 +1529,43 @@ export const GET_USER_SALES_REPORT = gql`
     }
 `;
 
+// Reporte de motorizados: documentos emitidos de ventas delivery, filtrable por motorizado y rango de fechas
+export const GET_DRIVER_DELIVERY_REPORT = gql`
+    query GetDriverDeliveryReport(
+        $branchId: ID!
+        $startDate: Date!
+        $endDate: Date!
+        $driverId: ID
+    ) {
+        driverDeliveryReport(
+            branchId: $branchId
+            startDate: $startDate
+            endDate: $endDate
+            driverId: $driverId
+        ) {
+            documents {
+                id
+                serial
+                number
+                emissionDate
+                emissionTime
+                clientName
+                clientDocumentNumber
+                deliveryPrice
+                totalAmount
+                billingStatus
+                driverId
+                driverName
+            }
+            summary {
+                totalDocuments
+                totalDeliveryPrice
+                totalSaleAmount
+            }
+        }
+    }
+`;
+
 // Query para obtener reporte de anulaciones
 export const GET_CANCELLATION_REPORT = gql`
     query GetCancellationReport(

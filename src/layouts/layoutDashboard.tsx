@@ -38,6 +38,7 @@ import ReportCancel from "../modules/reports/reportCancel";
 import ReportsProductsSold from "../modules/reports/reportsProductsSold";
 import ReportCategorySales from "../modules/reports/reportCategorySales";
 import ReportEmployee from "../modules/reports/reportEmployee";
+import ReportDriverDelivery from "../modules/reports/reportDriverDelivery";
 import ReportExpense from "../modules/reports/reportExpense";
 import Observation from "../modules/configuration/observation";
 import Subcategory from "../modules/configuration/subcategory";
@@ -278,6 +279,7 @@ const LayoutDashboardContent: React.FC = () => {
         | "productsSold"
         | "categorySales"
         | "employees"
+        | "drivers"
         | "expenses"
     >("sales");
     const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(
@@ -807,6 +809,8 @@ const LayoutDashboardContent: React.FC = () => {
                                           ? "Visualiza ventas de platos y bebidas agrupadas por categoría."
                                           : reportType === "expenses"
                                             ? "Visualiza compras, gastos manuales y egresos de caja."
+                                          : reportType === "drivers"
+                                            ? "Visualiza las entregas delivery realizadas por cada motorizado."
                                           : "Visualiza ventas por empleado en el periodo."
                                 : currentView === "configuration"
                                   ? "Configura observaciones y subcategorías de tus productos."
@@ -843,7 +847,10 @@ const LayoutDashboardContent: React.FC = () => {
         hasPermission("reports.sales") ||
         hasPermission("reports.cancellations") ||
         hasPermission("reports.sold_products") ||
-        hasPermission("reports.user_sales");
+        hasPermission("reports.user_sales") ||
+        hasPermission("reports.driver_delivery");
+    const canSeeDriverDeliveryReport =
+        isAdmin || hasPermission("reports.driver_delivery");
     const canSeeExpenseReport =
         isAdmin ||
         hasPermission("purchases.manage") ||
@@ -1760,6 +1767,19 @@ const LayoutDashboardContent: React.FC = () => {
                                     <span>👤</span>
                                     Empleados
                                 </button>
+                                {canSeeDriverDeliveryReport && (
+                                    <button
+                                        onClick={() => setReportType("drivers")}
+                                        className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                            reportType === "drivers"
+                                                ? "bg-sky-500 text-white"
+                                                : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                        }`}
+                                    >
+                                        <span>🛵</span>
+                                        Motorizados
+                                    </button>
+                                )}
                                 {canSeeExpenseReport && (
                                     <button
                                         onClick={() =>
@@ -1786,6 +1806,8 @@ const LayoutDashboardContent: React.FC = () => {
                                 <ReportCategorySales />
                             ) : reportType === "expenses" ? (
                                 <ReportExpense />
+                            ) : reportType === "drivers" ? (
+                                <ReportDriverDelivery />
                             ) : (
                                 <ReportEmployee />
                             )}
