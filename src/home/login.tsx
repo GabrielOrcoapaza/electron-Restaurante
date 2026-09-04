@@ -61,8 +61,11 @@ const Login: React.FC = () => {
         fetchPolicy: "network-only",
     });
 
-    const allEmployees =
-        usersData?.usersByBranch || companyData?.branch?.users || [];
+    const allEmployees = (
+        usersData?.usersByBranch ||
+        companyData?.branch?.users ||
+        []
+    ).filter((employee: any) => employee.role !== "MOTORIZADO");
 
     useEffect(() => {
         getMacAddress().then((mac) => setMacAddress(mac));

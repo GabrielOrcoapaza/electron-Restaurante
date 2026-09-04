@@ -1566,6 +1566,48 @@ export const GET_DRIVER_DELIVERY_REPORT = gql`
     }
 `;
 
+// Reporte de clientes: documentos emitidos con cliente identificado, con resumen por método de pago
+export const GET_CLIENT_SALES_REPORT = gql`
+    query GetClientSalesReport(
+        $branchId: ID!
+        $startDate: Date!
+        $endDate: Date!
+    ) {
+        clientSalesReport(
+            branchId: $branchId
+            startDate: $startDate
+            endDate: $endDate
+        ) {
+            documents {
+                id
+                serial
+                number
+                emissionDate
+                emissionTime
+                clientName
+                clientDocumentNumber
+                clientDocumentType
+                paymentMethods
+                totalAmount
+                billingStatus
+            }
+            summary {
+                totalDocuments
+                totalClients
+                totalAmount
+                totalCash
+                totalYape
+                totalPlin
+                totalCard
+                totalTransfer
+                totalRappi
+                totalPedidoYa
+                totalOthers
+            }
+        }
+    }
+`;
+
 // Query para obtener reporte de anulaciones
 export const GET_CANCELLATION_REPORT = gql`
     query GetCancellationReport(
