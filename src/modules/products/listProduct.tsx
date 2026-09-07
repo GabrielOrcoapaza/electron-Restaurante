@@ -22,6 +22,7 @@ interface Product {
     name: string;
     description?: string;
     salePrice: number;
+    image?: string;
     preparationTime?: number;
     productType?: string;
     purchasePrice?: number;

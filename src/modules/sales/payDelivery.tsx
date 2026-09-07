@@ -1,7 +1,8 @@
 import React from 'react';
 import { useResponsive } from '../../hooks/useResponsive';
-import CreateClient from '../user/createClient';
-import EditClient from '../user/editClient';
+import ClientSearchBar, {
+    type EditClientForModal,
+} from '../../components/ClientSearchBar';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -48,15 +49,7 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 const roundMoney2 = (n: number): number =>
     Math.round((Number(n) || 0) * 100) / 100;
 
-export type EditClientForModal = {
-    id: string;
-    name: string;
-    documentType: string;
-    documentNumber: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-};
+export type { EditClientForModal };
 
 export type PayDeliveryModalProps = {
     isOpen: boolean;
@@ -167,16 +160,6 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
 
     if (!isOpen) return null;
 
-    const handleSearchSunatClick = () => {
-        const term = (personSearchTerm || '').trim().replace(/\s/g, '');
-        const validDoc = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
-        if (validDoc) {
-            onSearchSunat();
-        } else {
-            showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.', 'warning');
-        }
-    };
-
     return (
         <>
         <div
@@ -205,130 +188,45 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
 
                 <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
                     <div className="flex flex-col gap-5">
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                Cliente (opcional)
-                            </label>
-                            <div className="relative">
-                                <div className="flex items-stretch gap-2">
-                                    <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white transition-all focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900">
-                                        <input
-                                            type="text"
-                                            value={personSearchTerm}
-                                            onChange={(e) => {
-                                                setPersonSearchTerm(e.target.value);
-                                                setSelectedPerson(null);
-                                            }}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    handleSearchSunatClick();
-                                                }
-                                            }}
-                                            placeholder={isFactura ? 'Buscar cliente (solo RUC)...' : 'Buscar cliente (DNI/RUC)...'}
-                                            disabled={clientsLoading || isSaving}
-                                            className="w-full bg-transparent px-4 py-2.5 text-sm text-slate-900 outline-none dark:text-slate-100 disabled:cursor-not-allowed"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={handleSearchSunatClick}
-                                            disabled={clientsLoading || sunatSearchLoading || isSaving}
-                                            title="Buscar en SUNAT"
-                                            className={`flex shrink-0 items-center justify-center px-4 transition-all ${
-                                                sunatSearchLoading || isSaving
-                                                    ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
-                                                    : 'bg-teal-600 text-white hover:bg-teal-700 active:scale-95'
-                                            }`}
-                                        >
-                                            {sunatSearchLoading ? (
-                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                                            ) : (
-                                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                                </svg>
-                                            )}
-                                        </button>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={onOpenEditClient}
-                                        disabled={!selectedPerson?.id || isSaving}
-                                        title="Editar cliente"
-                                        className="flex shrink-0 items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2.5 text-base text-indigo-700 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/45"
-                                    >
-                                        ✏️
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={onOpenCreateClient}
-                                        disabled={isSaving}
-                                        title="Nuevo cliente"
-                                        className="flex shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-base text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/45"
-                                    >
-                                        ➕
-                                    </button>
-                                </div>
-
-                                {personSearchTerm && !selectedPerson && filteredClients.length > 0 && (
-                                    <div className="absolute left-0 right-0 top-full z-10 mt-2 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900">
-                                        {!isFactura && (
-                                            <div
-                                                onClick={() => { setSelectedPerson(null); setPersonSearchTerm(''); }}
-                                                className="cursor-pointer border-b border-slate-100 px-4 py-3 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/50"
-                                            >
-                                                Sin cliente (Consumidor final)
-                                            </div>
-                                        )}
-                                        {filteredClients.map((client: any) => (
-                                            <div
-                                                key={client.id}
-                                                onClick={() => {
-                                                    setSelectedPerson({
-                                                        id: client.id,
-                                                        name: client.name || '',
-                                                        documentType: client.documentType || '',
-                                                        documentNumber: client.documentNumber || '',
-                                                    });
-                                                    setPersonSearchTerm(client.name || '');
-                                                }}
-                                                className="cursor-pointer border-b border-slate-100 px-4 py-2.5 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
-                                            >
-                                                <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{client.name}</div>
-                                                <div className="text-[10px] font-medium text-slate-500 dark:text-slate-500">{client.documentType}: {client.documentNumber}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {personSearchTerm && !selectedPerson && !clientsLoading && filteredClients.length === 0 && (
-                                    <div className="mt-2 flex flex-col gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-900/50">
-                                        <p className="text-[10px] font-medium text-slate-500 dark:text-slate-500">
-                                            {isFactura ? 'No hay clientes con RUC registrados' : 'No se encontraron clientes registrados'}
-                                        </p>
-                                        {(() => {
-                                            const term = (personSearchTerm || '').trim().replace(/\s/g, '');
-                                            const canSearchSunat = (/^\d{8}$/.test(term) && !isFactura) || /^\d{11}$/.test(term);
-                                            if (canSearchSunat) {
-                                                return (
-                                                    <button
-                                                        type="button"
-                                                        onClick={onSearchSunat}
-                                                        disabled={sunatSearchLoading || isSaving}
-                                                        className="flex items-center justify-center gap-2 rounded-lg bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700 transition-all hover:bg-teal-100 dark:bg-teal-900/20 dark:text-teal-400 dark:hover:bg-teal-900/30"
-                                                    >
-                                                        {sunatSearchLoading ? (
-                                                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-teal-600/30 border-t-teal-600" />
-                                                        ) : '🔍'}
-                                                        <span>Buscar en SUNAT</span>
-                                                    </button>
-                                                );
-                                            }
-                                            return <p className="text-[10px] leading-tight text-slate-400">Ingrese DNI (8 dígitos) o RUC (11 dígitos) y use la lupa.</p>;
-                                        })()}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                        <ClientSearchBar
+                            variant="default"
+                            label="Cliente (opcional)"
+                            searchTerm={personSearchTerm}
+                            onSearchTermChange={(value) => {
+                                setPersonSearchTerm(value);
+                                setSelectedPerson(null);
+                            }}
+                            selectedClient={selectedPerson}
+                            onSelectClient={(client) => {
+                                setSelectedPerson(client);
+                                setPersonSearchTerm(client.name);
+                            }}
+                            onClearClient={() => {
+                                setSelectedPerson(null);
+                                setPersonSearchTerm('');
+                            }}
+                            filteredClients={filteredClients}
+                            clientsLoading={clientsLoading}
+                            sunatSearchLoading={sunatSearchLoading}
+                            disabled={isSaving}
+                            isFactura={isFactura}
+                            onSearchSunat={onSearchSunat}
+                            onOpenCreateClient={onOpenCreateClient}
+                            onOpenEditClient={onOpenEditClient}
+                            showCreateClientModal={showCreateClientModal}
+                            onCloseCreateClientModal={onCloseCreateClientModal}
+                            onCreateClientSuccess={onCreateClientSuccess}
+                            showEditClientModal={showEditClientModal}
+                            editClientForModal={editClientForModal}
+                            onCloseEditClientModal={onCloseEditClientModal}
+                            onEditClientSuccess={onEditClientSuccess}
+                            onInvalidSunatSearch={() =>
+                                showToast(
+                                    'Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa para buscar en SUNAT.',
+                                    'warning',
+                                )
+                            }
+                        />
 
                         <div className="grid grid-cols-5 gap-3">
                             <div className="col-span-3 flex flex-col gap-1.5">
@@ -516,24 +414,6 @@ const PayDeliveryModal: React.FC<PayDeliveryModalProps> = ({
             </div>
         </div>
 
-        {showCreateClientModal && (
-            <div className="fixed inset-0 z-[1100]">
-                <CreateClient
-                    onSuccess={onCreateClientSuccess}
-                    onClose={onCloseCreateClientModal}
-                />
-            </div>
-        )}
-
-        {showEditClientModal && editClientForModal && (
-            <div className="fixed inset-0 z-[1100]">
-                <EditClient
-                    client={editClientForModal}
-                    onSuccess={onEditClientSuccess}
-                    onClose={onCloseEditClientModal}
-                />
-            </div>
-        )}
         </>
     );
 };

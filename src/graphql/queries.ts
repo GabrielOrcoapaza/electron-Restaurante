@@ -561,6 +561,7 @@ export const GET_PRODUCTS = gql`
             stockMax
             managesStock
             managesStockLocked
+            image
             asPromotion {
                 id
                 name

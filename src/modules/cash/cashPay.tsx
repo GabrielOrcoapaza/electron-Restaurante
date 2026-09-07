@@ -39,8 +39,7 @@ import {
     SEARCH_PERSON_BY_DOCUMENT,
     GET_ACTIVE_PROMOTIONS,
 } from "../../graphql/queries";
-import CreateClient from "../user/createClient";
-import EditClient from "../user/editClient";
+import ClientSearchBar from "../../components/ClientSearchBar";
 import {
     formatLocalDateYYYYMMDD,
     formatLocalTimeHHMMSS,
@@ -2770,159 +2769,85 @@ const CashPay: React.FC<CashPayProps> = ({
                 <div
                     style={{
                         flex: 1,
-                        display: "flex",
-                        gap: "0.4rem",
                         position: "relative",
                     }}
                 >
-                    <div
-                        className="overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900"
-                        style={{
-                            flex: 1,
-                            display: "flex",
-                            height: isNarrow ? "44px" : "50px",
+                    <ClientSearchBar
+                        variant="cash"
+                        compactPlaceholder={isXs}
+                        searchTerm={clientSearchTerm}
+                        onSearchTermChange={(value) => {
+                            setEnableBranchClientsQuery(true);
+                            setClientSearchTerm(value);
+                            setSelectedClientId("");
+                            setSelectedClientSnapshot(null);
                         }}
-                    >
-                        <input
-                            type="text"
-                            placeholder={
-                                isXs
-                                    ? "DNI/RUC..."
-                                    : "Buscar cliente (DNI/RUC)..."
+                        selectedClient={
+                            selectedClientId && selectedClient
+                                ? {
+                                      id: selectedClient.id,
+                                      name: selectedClient.name || "",
+                                      documentType:
+                                          selectedClient.documentType || "DNI",
+                                      documentNumber:
+                                          selectedClient.documentNumber || "",
+                                  }
+                                : null
+                        }
+                        onSelectClient={(client) => selectClient(client)}
+                        onClearClient={clearClientSelection}
+                        filteredClients={filteredClients}
+                        sunatSearchLoading={sunatSearchLoading}
+                        onSearchSunat={handleSearchSunat}
+                        onOpenCreateClient={() => {
+                            setEnableBranchClientsQuery(true);
+                            setShowCreateClientModal(true);
+                        }}
+                        onOpenEditClient={() => setShowEditClientModal(true)}
+                        showCreateClientModal={showCreateClientModal}
+                        onCloseCreateClientModal={() =>
+                            setShowCreateClientModal(false)
+                        }
+                        onCreateClientSuccess={() => {
+                            setEnableBranchClientsQuery(true);
+                            queueMicrotask(() => {
+                                void refetchClients();
+                            });
+                        }}
+                        showEditClientModal={showEditClientModal}
+                        editClientForModal={
+                            showEditClientModal && selectedClient
+                                ? {
+                                      id: selectedClient.id,
+                                      name: selectedClient.name || "",
+                                      documentType:
+                                          selectedClient.documentType || "",
+                                      documentNumber:
+                                          selectedClient.documentNumber || "",
+                                      email: selectedClient.email,
+                                      phone: selectedClient.phone,
+                                      address: selectedClient.address,
+                                  }
+                                : null
+                        }
+                        onCloseEditClientModal={() =>
+                            setShowEditClientModal(false)
+                        }
+                        onEditClientSuccess={async () => {
+                            setEnableBranchClientsQuery(true);
+                            const result = await refetchClients();
+                            const updated = (
+                                result.data?.personsByBranch || []
+                            ).find(
+                                (c: { id: string }) =>
+                                    c.id === selectedClient?.id,
+                            );
+                            if (updated) {
+                                selectClient(updated);
                             }
-                            value={clientSearchTerm}
-                            onFocus={() => setEnableBranchClientsQuery(true)}
-                            onChange={(e) => {
-                                setClientSearchTerm(e.target.value);
-                                setSelectedClientId("");
-                                setSelectedClientSnapshot(null);
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleSearchSunat();
-                                }
-                            }}
-                            className="bg-transparent text-slate-900 placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
-                            style={{
-                                flex: 1,
-                                padding: "0.3rem 0.75rem",
-                                border: "none",
-                                fontSize: isNarrow ? "0.9rem" : "0.75rem",
-                                outline: "none",
-                            }}
-                        />
-                        <button
-                            onClick={handleSearchSunat}
-                            disabled={sunatSearchLoading}
-                            title="Buscar en SUNAT"
-                            className="border-l border-slate-300 bg-sky-50 text-sky-700 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/45"
-                            style={{
-                                padding: "0 1rem",
-                                cursor: sunatSearchLoading
-                                    ? "not-allowed"
-                                    : "pointer",
-                            }}
-                        >
-                            🔍
-                        </button>
-                    </div>
-                    <div style={{ display: "flex", gap: "0.4rem" }}>
-                        <button
-                            type="button"
-                            onClick={() => setShowEditClientModal(true)}
-                            disabled={!selectedClientId}
-                            title="Editar Cliente"
-                            className="rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/45"
-                            style={{
-                                padding: isNarrow ? "0 1rem" : "0.3rem 0.6rem",
-                                fontSize: isNarrow ? "1.1rem" : "0.75rem",
-                                borderRadius: "6px",
-                                height: isNarrow ? "44px" : "auto",
-                                cursor: !selectedClientId
-                                    ? "not-allowed"
-                                    : "pointer",
-                                opacity: !selectedClientId ? 0.6 : 1,
-                            }}
-                        >
-                            ✏️
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setEnableBranchClientsQuery(true);
-                                setShowCreateClientModal(true);
-                            }}
-                            title="Nuevo Cliente"
-                            className="rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/45"
-                            style={{
-                                padding: isNarrow ? "0 1rem" : "0.3rem 0.6rem",
-                                fontSize: isNarrow ? "1.1rem" : "0.75rem",
-                                borderRadius: "6px",
-                                height: isNarrow ? "44px" : "auto",
-                                cursor: "pointer",
-                            }}
-                        >
-                            ➕
-                        </button>
-                    </div>
-
-                    {clientSearchTerm &&
-                        !selectedClientId &&
-                        filteredClients.length > 0 && (
-                            <div
-                                className="rounded-md border border-slate-200 bg-white shadow-md dark:border-slate-700 dark:bg-slate-900"
-                                style={{
-                                    position: "absolute",
-                                    top: "100%",
-                                    left: 0,
-                                    marginTop: "0.2rem",
-                                    width: "250px",
-                                    maxHeight: "200px",
-                                    overflowY: "auto",
-                                    zIndex: 100,
-                                }}
-                            >
-                                <div
-                                    onClick={clearClientSelection}
-                                    className="cursor-pointer border-b border-slate-100 px-2 py-2 text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
-                                    style={{
-                                        fontSize: "0.75rem",
-                                    }}
-                                >
-                                    Sin cliente (Consumidor final)
-                                </div>
-                                {filteredClients.map((client: any) => (
-                                    <div
-                                        key={client.id}
-                                        onClick={() => {
-                                            selectClient(client);
-                                        }}
-                                        className="cursor-pointer border-b border-slate-100 px-2 py-2 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
-                                        style={{}}
-                                    >
-                                        <div
-                                            className="text-slate-800 dark:text-slate-100"
-                                            style={{
-                                                fontSize: "0.75rem",
-                                                fontWeight: 700,
-                                            }}
-                                        >
-                                            {client.name}
-                                        </div>
-                                        <div
-                                            className="text-slate-500 dark:text-slate-400"
-                                            style={{
-                                                fontSize: "0.65rem",
-                                            }}
-                                        >
-                                            {client.documentType || "DNI"}:{" "}
-                                            {client.documentNumber}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                            setShowEditClientModal(false);
+                        }}
+                    />
                 </div>
             </section>
 
@@ -4089,37 +4014,6 @@ const CashPay: React.FC<CashPayProps> = ({
                         </div>
                     </div>
                 </div>
-            )}
-
-            {showCreateClientModal && (
-                <CreateClient
-                    onSuccess={() => {
-                        setEnableBranchClientsQuery(true);
-                        queueMicrotask(() => {
-                            void refetchClients();
-                        });
-                    }}
-                    onClose={() => setShowCreateClientModal(false)}
-                />
-            )}
-            {showEditClientModal && selectedClient && (
-                <EditClient
-                    client={selectedClient}
-                    onSuccess={async () => {
-                        setEnableBranchClientsQuery(true);
-                        const result = await refetchClients();
-                        const updated = (
-                            result.data?.personsByBranch || []
-                        ).find(
-                            (c: { id: string }) => c.id === selectedClient.id,
-                        );
-                        if (updated) {
-                            selectClient(updated);
-                        }
-                        setShowEditClientModal(false);
-                    }}
-                    onClose={() => setShowEditClientModal(false)}
-                />
             )}
 
             {cashDocPreview && (

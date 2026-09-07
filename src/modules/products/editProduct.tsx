@@ -15,6 +15,7 @@ import {
     PRODUCT_IMAGE_HEIGHT,
     resizeProductImageFile,
 } from "../../utils/resizeProductImage";
+import { getFullImageUrl } from "../../utils/getFullImageUrl";
 
 interface Product {
     id: string;
@@ -22,7 +23,7 @@ interface Product {
     name: string;
     description?: string;
     salePrice: number;
-    imageBase64?: string;
+    image?: string;
     preparationTime?: number;
     productType?: string;
     purchasePrice?: number;
@@ -143,13 +144,11 @@ const EditProduct: React.FC<EditProductProps> = ({
     const imageInputRef = useRef<HTMLInputElement>(null);
     const { showToast } = useToast();
 
-    const existingImageDataUrl =
-        product.imageBase64 && !imageRemoved
-            ? product.imageBase64.startsWith("data:")
-                ? product.imageBase64
-                : `data:image/jpeg;base64,${product.imageBase64}`
+    const existingImageUrl =
+        product.image && !imageRemoved
+            ? getFullImageUrl(product.image)
             : null;
-    const displayImageSrc = newImagePreview ?? existingImageDataUrl;
+    const displayImageSrc = newImagePreview ?? existingImageUrl;
 
     const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 
@@ -202,7 +201,7 @@ const EditProduct: React.FC<EditProductProps> = ({
             if (imageInputRef.current) imageInputRef.current.value = "";
             return;
         }
-        if (product.imageBase64) {
+        if (product.image) {
             setImageRemoved(true);
         }
         if (imageInputRef.current) imageInputRef.current.value = "";
@@ -297,7 +296,7 @@ const EditProduct: React.FC<EditProductProps> = ({
         let imageMutation: string | null | undefined = undefined;
         if (newImageBase64 !== null) {
             imageMutation = newImageBase64;
-        } else if (imageRemoved && product.imageBase64) {
+        } else if (imageRemoved && product.image) {
             imageMutation = null;
         }
 

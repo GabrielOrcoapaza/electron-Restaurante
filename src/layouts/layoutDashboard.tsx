@@ -50,6 +50,7 @@ import DevicePrintConfigs from "../modules/configuration/devicePrintConfigs";
 import FloorModule from "../modules/configuration/floor";
 import TableModule from "../modules/configuration/table";
 import Delivery from "../modules/sales/delivery";
+import PointOfSale from "../modules/sales/pos";
 import BranchSettings from "../modules/branch/BranchSettings";
 import { GET_MY_UNREAD_MESSAGES } from "../graphql/queries";
 import {
@@ -207,6 +208,7 @@ const LayoutDashboardContent: React.FC = () => {
         | "reports"
         | "configuration"
         | "delivery"
+        | "pos"
         | "branch"
     >(() => {
         const savedView = localStorage.getItem("currentDashboardView");
@@ -225,6 +227,7 @@ const LayoutDashboardContent: React.FC = () => {
             "reports",
             "configuration",
             "delivery",
+            "pos",
             "branch",
         ];
         return savedView && validViews.includes(savedView)
@@ -647,6 +650,7 @@ const LayoutDashboardContent: React.FC = () => {
             | "reports"
             | "configuration"
             | "delivery"
+            | "pos"
             | "branch",
     ) => {
         const leavingCash = currentView === "cash";
@@ -774,8 +778,10 @@ const LayoutDashboardContent: React.FC = () => {
                                 : currentView === "configuration"
                                   ? "Configuración"
                                   : currentView === "delivery"
-                                    ? "Punto de venta"
-                                    : currentView === "branch"
+                                    ? "Delivery"
+                                    : currentView === "pos"
+                                      ? "Punto de venta"
+                                      : currentView === "branch"
                                       ? "Sede"
                                       : "Caja";
 
@@ -819,8 +825,10 @@ const LayoutDashboardContent: React.FC = () => {
                                 : currentView === "configuration"
                                   ? "Configura observaciones y subcategorías de tus productos."
                                   : currentView === "delivery"
-                                    ? "Gestiona las ventas para llevar sin asignar mesa."
-                                    : currentView === "branch"
+                                    ? "Gestiona entregas a domicilio con motorizado y costo de envío."
+                                    : currentView === "pos"
+                                      ? "Venta directa para llevar sin mesa."
+                                      : currentView === "branch"
                                       ? "Consulta y edita la configuración de la sucursal activa."
                                       : selectedCashTable
                                       ? `Procesa el pago de ${selectedCashTable.name}.`
@@ -834,6 +842,7 @@ const LayoutDashboardContent: React.FC = () => {
     const canSeePromotions = canSeeProducts;
     const canSeeFloors = isAdmin || hasPermission("orders.create");
     const canSeeDelivery = isAdmin || hasPermission("point_of_sale");
+    const canSeePos = isAdmin || hasPermission("point_of_sale");
     const canSeeConfiguration = isAdmin || hasPermission("config.manage");
     const canSeeBranch = isAdmin || hasPermission("config.manage");
     const canSeeMessages = isAdmin || hasPermission("messages.view");
@@ -883,6 +892,7 @@ const LayoutDashboardContent: React.FC = () => {
             (v === "floors" && canSeeFloors) ||
             (v === "cash" && canSeeFloors) ||
             (v === "delivery" && canSeeDelivery) ||
+            (v === "pos" && canSeePos) ||
             (v === "products" && canSeeProducts) ||
             (v === "promotions" && canSeePromotions) ||
             (v === "configuration" && canSeeConfiguration) ||
@@ -897,6 +907,7 @@ const LayoutDashboardContent: React.FC = () => {
             (v === "reports" && canSeeReports);
         if (!allowed(currentView)) {
             if (canSeeFloors) setCurrentView("floors");
+            else if (canSeePos) setCurrentView("pos");
             else if (canSeeDelivery) setCurrentView("delivery");
             else if (canSeeProducts) setCurrentView("products");
             else if (canSeePromotions) setCurrentView("promotions");
@@ -915,6 +926,7 @@ const LayoutDashboardContent: React.FC = () => {
         currentView,
         canSeeFloors,
         canSeeDelivery,
+        canSeePos,
         canSeeProducts,
         canSeePromotions,
         canSeeConfiguration,
@@ -1025,11 +1037,20 @@ const LayoutDashboardContent: React.FC = () => {
                             />
                         )}
 
+                        {canSeePos && (
+                            <SidebarItem
+                                view="pos"
+                                icon="🛒"
+                                label="Punto de venta"
+                                isActive={currentView === "pos"}
+                            />
+                        )}
+
                         {canSeeDelivery && (
                             <SidebarItem
                                 view="delivery"
                                 icon="🚗"
-                                label="Punto de venta"
+                                label="Delivery"
                                 isActive={currentView === "delivery"}
                             />
                         )}
@@ -1158,7 +1179,9 @@ const LayoutDashboardContent: React.FC = () => {
                     display: "flex",
                     flexDirection: "column",
                     overflowY:
-                        currentView === "cash" || currentView === "delivery"
+                        currentView === "cash" ||
+                        currentView === "delivery" ||
+                        currentView === "pos"
                             ? "hidden"
                             : "auto",
                     overflowX: "hidden",
@@ -1663,8 +1686,10 @@ const LayoutDashboardContent: React.FC = () => {
                 {/* Contenido */}
                 <main
                     className={`flex flex-1 flex-col overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 ${
-                        currentView === "cash" || currentView === "delivery"
-                            ? "p-1 overflow-hidden"
+                        currentView === "cash" ||
+                        currentView === "delivery" ||
+                        currentView === "pos"
+                            ? "p-0 overflow-hidden"
                             : "p-4 overflow-y-auto"
                     }`}
                 >
@@ -1988,6 +2013,7 @@ const LayoutDashboardContent: React.FC = () => {
                         </div>
                     )}
                     {currentView === "delivery" && <Delivery />}
+                    {currentView === "pos" && <PointOfSale />}
                     {currentView === "branch" && <BranchSettings />}
                 </main>
             </div>
