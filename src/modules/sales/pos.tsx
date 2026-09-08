@@ -25,6 +25,7 @@ import {
     GET_PERSONS_BY_BRANCH,
     SEARCH_PERSON_BY_DOCUMENT,
     GET_ACTIVE_PROMOTIONS,
+    GET_DEVICE_PRINT_CONFIGS_BY_BRANCH,
 } from "../../graphql/queries";
 import {
     type DeliveryPaymentLine,
@@ -63,6 +64,8 @@ import {
     unitValueFromInclusivePrice,
 } from "../../utils/taxAmounts";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
+import { DocumentPrintPreviewModal } from "../../components/DocumentPrintPreviewModal";
+import type { DocumentPreviewAction } from "../../utils/issuedDocumentPrintWithPreview";
 
 type CartItem = {
     id: string;
@@ -94,6 +97,12 @@ const documentToAbbrev = (doc: any): DocAbbrev => {
     if (doc?.code === "01") return "F";
     if (doc?.code === "03") return "B";
     return "NV";
+};
+
+const docAbbrevToPrintType = (abbrev: DocAbbrev): string => {
+    if (abbrev === "F") return "FACTURA";
+    if (abbrev === "B") return "BOLETA";
+    return "CUENTA";
 };
 
 const findDocumentByAbbrev = (
@@ -198,6 +207,7 @@ const PointOfSale: React.FC = () => {
     ]);
     const [discountAmount, setDiscountAmount] = useState(0);
     const [activePaymentMethod, setActivePaymentMethod] = useState("CASH");
+    const [showCheckout, setShowCheckout] = useState(false);
 
     const [showCreateClientModal, setShowCreateClientModal] = useState(false);
     const [showEditClientModal, setShowEditClientModal] = useState(false);
@@ -208,6 +218,13 @@ const PointOfSale: React.FC = () => {
     const [giftMessage, setGiftMessage] = useState<string | null>(null);
 
     const categoryScrollRef = useRef<HTMLDivElement>(null);
+    const posDocPreviewResolverRef = useRef<
+        ((action: DocumentPreviewAction) => void) | null
+    >(null);
+
+    const [posDocPreview, setPosDocPreview] = useState<{
+        title: string;
+    } | null>(null);
 
     const [createSaleCarryOutMutation] = useMutation(CREATE_SALE_CARRY_OUT);
 
@@ -300,6 +317,20 @@ const PointOfSale: React.FC = () => {
         fetchPolicy: "network-only",
     });
     const cashRegisters = cashRegistersData?.cashRegistersByBranch || [];
+
+    const { data: devicePrintConfigsData } = useQuery(
+        GET_DEVICE_PRINT_CONFIGS_BY_BRANCH,
+        {
+            variables: {
+                branchId: companyData?.branch?.id,
+                isActive: true,
+            },
+            skip: !companyData?.branch?.id,
+            fetchPolicy: "cache-first",
+        },
+    );
+    const devicePrintConfigs =
+        devicePrintConfigsData?.devicePrintConfigsByBranch || [];
 
     const {
         data: clientsData,
@@ -437,12 +468,6 @@ const PointOfSale: React.FC = () => {
     }, [activePromotions, cartItems.length, recalculatePromotions]);
 
     useEffect(() => {
-        if (categories.length > 0 && !selectedCategory) {
-            setSelectedCategory(String(categories[0].id));
-        }
-    }, [categories, selectedCategory]);
-
-    useEffect(() => {
         if (!selectedCategory || subcategoriesLoading) return;
         const subs = (subcategoriesData?.subcategoriesByCategory || []).filter(
             (s: any) => s.isActive !== false,
@@ -523,6 +548,9 @@ const PointOfSale: React.FC = () => {
             productsList = productsByCategoryData?.productsByCategory || [];
             productsLoading = productsByCategoryLoading;
         }
+    } else {
+        productsList = productsByBranchData?.productsByBranch || [];
+        productsLoading = productsByBranchLoading;
     }
 
     if (
@@ -619,6 +647,60 @@ const PointOfSale: React.FC = () => {
             setCartItems(updated);
         }
     };
+
+    const handleUpdateCartQuantity = (itemId: string, newQuantity: number) => {
+        if (newQuantity <= 0) {
+            setCartItems((prev) => prev.filter((item) => item.id !== itemId));
+            return;
+        }
+
+        const item = cartItems.find((i) => i.id === itemId);
+        if (!item?.product) {
+            setCartItems((prev) =>
+                prev.map((i) =>
+                    i.id === itemId
+                        ? {
+                              ...i,
+                              quantity: newQuantity,
+                              total: i.price * newQuantity,
+                          }
+                        : i,
+                ),
+            );
+            return;
+        }
+
+        const stockRunning = buildCartStockUsage(
+            cartItems.filter((i) => i.id !== itemId),
+        );
+        const stockCheck = canAddProductQuantity(
+            item.product,
+            newQuantity,
+            stockRunning,
+        );
+        if (!stockCheck.ok) {
+            showToast(stockCheck.message ?? "Sin stock disponible", "error");
+            return;
+        }
+
+        setCartItems((prev) =>
+            prev.map((i) =>
+                i.id === itemId
+                    ? {
+                          ...i,
+                          quantity: newQuantity,
+                          total: i.price * newQuantity,
+                      }
+                    : i,
+            ),
+        );
+    };
+
+    useEffect(() => {
+        if (cartItems.length === 0) {
+            setShowCheckout(false);
+        }
+    }, [cartItems.length]);
 
     const cartItemsTotal = cartItems.reduce((sum, item) => {
         const itemTotal = Number(item.total) || 0;
@@ -830,6 +912,77 @@ const PointOfSale: React.FC = () => {
         );
     };
 
+    const getIntegratedPrintCopies = useCallback(
+        (deviceId: string, abbrev: DocAbbrev): number => {
+            const printType = docAbbrevToPrintType(abbrev);
+            const deviceNorm = deviceId.trim().toLowerCase();
+            const match = devicePrintConfigs.find(
+                (cfg: any) =>
+                    cfg.isActive !== false &&
+                    cfg.printType === printType &&
+                    cfg.useIntegratedPrinter === true &&
+                    String(cfg.deviceId || "")
+                        .trim()
+                        .toLowerCase() === deviceNorm,
+            );
+            const copies = Number(match?.copies);
+            return Number.isFinite(copies) && copies > 0 ? copies : 1;
+        },
+        [devicePrintConfigs],
+    );
+
+    const printCarryOutIssuedDocument = async (
+        carryOutResult: {
+            printLocally?: boolean | null;
+            print_locally?: boolean | null;
+            printViaBluetooth?: boolean | null;
+            print_via_bluetooth?: boolean | null;
+            documentData?: string | null;
+            document_data?: string | null;
+            operation?: { id?: string | null } | null;
+        },
+        resolvedDeviceId: string,
+        abbrev: DocAbbrev,
+    ): Promise<boolean> => {
+        const printLocallyFlag =
+            carryOutResult?.printLocally === true ||
+            carryOutResult?.print_locally === true;
+        const documentData =
+            carryOutResult?.documentData ??
+            carryOutResult?.document_data ??
+            null;
+
+        const printPayload = {
+            printLocally:
+                carryOutResult?.printLocally ?? carryOutResult?.print_locally,
+            printViaBluetooth:
+                carryOutResult?.printViaBluetooth ??
+                carryOutResult?.print_via_bluetooth,
+            documentData,
+        };
+        const printMeta = {
+            label: "venta POS",
+            operationId: carryOutResult?.operation?.id ?? null,
+            deviceId: resolvedDeviceId || null,
+            localPrinterName: getLocalTicketPrinterStorage().trim() || null,
+        };
+
+        if (printLocallyFlag) {
+            const copies = getIntegratedPrintCopies(resolvedDeviceId, abbrev);
+            let allOk = true;
+            for (let copy = 0; copy < copies; copy++) {
+                const ok = await invokeLocalIssuedDocumentPrint(
+                    printPayload,
+                    printMeta,
+                );
+                if (!ok) allOk = false;
+            }
+            return allOk;
+        }
+
+        return invokeLocalIssuedDocumentPrint(printPayload, printMeta);
+    };
+
     const handleProcessSale = async () => {
         if (cartItems.length === 0) {
             showToast("Debe agregar al menos un producto", "error");
@@ -899,8 +1052,33 @@ const PointOfSale: React.FC = () => {
             return;
         }
 
+        const docForPay = documents.find(
+            (d: any) => String(d.id) === String(selectedDocument),
+        );
+        if (!docForPay) {
+            showToast("Tipo de documento no válido", "error");
+            return;
+        }
+
+        const previewTitle = docForPay.description?.trim() || "Comprobante";
+
+        const userAction = await new Promise<DocumentPreviewAction>(
+            (resolve) => {
+                posDocPreviewResolverRef.current = resolve;
+                setPosDocPreview({ title: previewTitle });
+            },
+        );
+
+        setPosDocPreview(null);
+        posDocPreviewResolverRef.current = null;
+
+        if (userAction === "cancel") {
+            return;
+        }
+
+        const shouldPrint = userAction === "print";
+
         setIsSaving(true);
-        const shouldPrint = true;
 
         try {
             const now = new Date();
@@ -1009,11 +1187,27 @@ const PointOfSale: React.FC = () => {
                 ];
             }
 
+            if (paymentsPayload.length === 0) {
+                showToast(
+                    "Agregue al menos un pago con monto mayor a 0",
+                    "error",
+                );
+                setIsSaving(false);
+                return;
+            }
+
             const resolvedDeviceId = await resolveClientDeviceIdForPrint({
                 getMacAddress,
                 getDeviceId,
                 logPrefix: "[POS/venta]",
             });
+
+            if (shouldPrint && !resolvedDeviceId?.trim()) {
+                showToast(
+                    "No se pudo identificar el dispositivo para imprimir. Configure la MAC en SumApp o el ID del equipo.",
+                    "warning",
+                );
+            }
 
             const variables: any = {
                 branchId: companyData?.branch.id,
@@ -1063,32 +1257,17 @@ const PointOfSale: React.FC = () => {
                         print_via_bluetooth?: boolean;
                         document_data?: string | null;
                     };
+
+                    const localPrintOk = await printCarryOutIssuedDocument(
+                        carryOutResult,
+                        resolvedDeviceId,
+                        docAbbrev,
+                    );
+
                     const printLocallyFlag =
                         carryOutResult?.printLocally === true ||
                         carryOutResult?.print_locally === true;
 
-                    const localPrintOk = await invokeLocalIssuedDocumentPrint(
-                        {
-                            printLocally:
-                                carryOutResult?.printLocally ??
-                                carryOutResult?.print_locally,
-                            printViaBluetooth:
-                                carryOutResult?.printViaBluetooth ??
-                                carryOutResult?.print_via_bluetooth,
-                            documentData:
-                                carryOutResult?.documentData ??
-                                carryOutResult?.document_data ??
-                                null,
-                        },
-                        {
-                            label: "venta POS",
-                            operationId:
-                                carryOutResult?.operation?.id ?? null,
-                            deviceId: resolvedDeviceId ?? null,
-                            localPrinterName:
-                                getLocalTicketPrinterStorage().trim() || null,
-                        },
-                    );
                     if (printLocallyFlag && !localPrintOk) {
                         showToast(
                             "La venta se registró, pero no se pudo imprimir en la impresora local. Revise la impresora USB en Configuración o el nombre en impresoras locales.",
@@ -1111,6 +1290,7 @@ const PointOfSale: React.FC = () => {
                     },
                 ]);
                 setActivePaymentMethod("CASH");
+                setShowCheckout(false);
             } else {
                 throw new Error(
                     result.data?.createSaleCarryOut?.message ||
@@ -1138,43 +1318,45 @@ const PointOfSale: React.FC = () => {
     const primaryPaymentLine = paymentLines[0];
 
     return (
+        <>
         <div className="flex h-full w-full flex-col overflow-hidden bg-white md:flex-row">
             {/* Catálogo */}
             <div className="flex min-h-0 flex-[2] flex-col border-r border-slate-200">
-                <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3">
-                    <div className="flex items-center gap-2">
-                        <h2 className="text-base font-semibold text-slate-800">
-                            Venta directa / Para llevar
-                        </h2>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => setShowSearch((v) => !v)}
-                        className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
-                            showSearch
-                                ? "bg-[#3b82f6] text-white"
-                                : "text-slate-600 hover:bg-slate-100"
-                        }`}
-                    >
-                        <SearchIcon />
-                    </button>
-                </div>
-
-                {showSearch && (
-                    <div className="shrink-0 border-b border-slate-100 px-4 py-2">
-                        <div className="relative">
-                            <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <div className="flex shrink-0 items-center gap-3 border-b border-slate-100 px-4 py-3">
+                    <h2 className="shrink-0 text-base font-semibold text-slate-800">
+                        Venta directa
+                    </h2>
+                    {showSearch && (
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          
                             <input
                                 type="text"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 placeholder="Buscar productos..."
-                                className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-[#3b82f6]"
+                                className="min-w-0 flex-1 rounded-lg border border-slate-200 py-2 px-3 text-sm outline-none focus:border-[#3b82f6]"
                                 autoFocus
                             />
                         </div>
-                    </div>
-                )}
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setShowSearch((v) => {
+                                if (v) setSearchTerm("");
+                                return !v;
+                            });
+                        }}
+                        className={`ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                            showSearch
+                                ? "bg-[#3b82f6] text-white"
+                                : "text-slate-600 hover:bg-slate-100"
+                        }`}
+                        aria-label="Buscar productos"
+                    >
+                        <SearchIcon />
+                    </button>
+                </div>
 
                 {giftMessage && (
                     <div className="mx-3 mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
@@ -1195,6 +1377,20 @@ const PointOfSale: React.FC = () => {
                         className="flex flex-1 gap-2 overflow-x-auto"
                         style={{ scrollbarWidth: "none" }}
                     >
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSelectedCategory(null);
+                                setSelectedSubcategory(null);
+                            }}
+                            className={`shrink-0 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-wide ${
+                                !selectedCategory
+                                    ? "border-[#3b82f6] bg-[#3b82f6] text-white"
+                                    : "border-slate-300 bg-white text-slate-700"
+                            }`}
+                        >
+                            Todos
+                        </button>
                         {categories.map((cat: any) => (
                             <button
                                 key={cat.id}
@@ -1306,9 +1502,157 @@ const PointOfSale: React.FC = () => {
                 </div>
             </div>
 
-            {/* Cobro */}
+            {/* Panel derecho — carrito o cobro */}
             <div className="flex min-h-0 w-full flex-col md:w-[340px] md:shrink-0 lg:w-[400px]">
+                {!showCheckout ? (
+                    <>
+                        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3">
+                            <h2 className="text-base font-bold text-slate-900">
+                                Pedido
+                            </h2>
+                            <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-[#3b82f6]">
+                                {cartItems.length}{" "}
+                                {cartItems.length === 1 ? "ítem" : "ítems"}
+                            </span>
+                        </div>
+
+                        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                            {cartItems.length === 0 ? (
+                                <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-slate-400">
+                                    <span className="text-3xl">🛒</span>
+                                    <p>Selecciona productos del catálogo</p>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-2">
+                                    {cartItems.map((item) => {
+                                        const lineTotal =
+                                            getCartLineTotal(item) -
+                                            (item.discount || 0);
+                                        return (
+                                            <div
+                                                key={item.id}
+                                                className="rounded-lg border border-slate-200 bg-slate-50 p-3"
+                                            >
+                                                <div className="mb-2 flex items-start justify-between gap-2">
+                                                    <p className="text-xs font-semibold uppercase leading-tight text-slate-800">
+                                                        {item.name}
+                                                    </p>
+                                                    <p className="shrink-0 text-sm font-bold text-slate-900">
+                                                        {currencyFormatter.format(
+                                                            lineTotal,
+                                                        )}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleUpdateCartQuantity(
+                                                                    item.id,
+                                                                    item.quantity -
+                                                                        1,
+                                                                )
+                                                            }
+                                                            className="flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-sm font-bold text-slate-700 hover:bg-slate-100"
+                                                        >
+                                                            −
+                                                        </button>
+                                                        <span className="min-w-[1.5rem] text-center text-sm font-bold text-slate-800">
+                                                            {item.quantity}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleUpdateCartQuantity(
+                                                                    item.id,
+                                                                    item.quantity +
+                                                                        1,
+                                                                )
+                                                            }
+                                                            className="flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-sm font-bold text-slate-700 hover:bg-slate-100"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500">
+                                                        {currencyFormatter.format(
+                                                            item.price,
+                                                        )}{" "}
+                                                        c/u
+                                                    </p>
+                                                </div>
+                                                {item.discount ? (
+                                                    <p className="mt-1 text-[10px] font-semibold text-emerald-600">
+                                                        Desc.{" "}
+                                                        {currencyFormatter.format(
+                                                            item.discount,
+                                                        )}
+                                                        {item.promotionName
+                                                            ? ` — ${item.promotionName}`
+                                                            : ""}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="shrink-0 border-t border-slate-100 px-4 py-3">
+                            <div className="mb-3 space-y-1.5 text-xs">
+                                <div className="flex justify-between text-slate-500">
+                                    <span>Subtotal</span>
+                                    <span className="font-semibold text-slate-700">
+                                        {currencyFormatter.format(subtotal)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-slate-500">
+                                    <span>IGV ({igvPercentageFromBranch}%)</span>
+                                    <span className="font-semibold text-slate-700">
+                                        {currencyFormatter.format(igvAmount)}
+                                    </span>
+                                </div>
+                                {totalDiscount > 0 && (
+                                    <div className="flex justify-between font-semibold text-emerald-600">
+                                        <span>Descuento</span>
+                                        <span>
+                                            -{" "}
+                                            {currencyFormatter.format(
+                                                totalDiscount,
+                                            )}
+                                        </span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-bold text-slate-900">
+                                    <span>Total</span>
+                                    <span className="text-[#3b82f6]">
+                                        {currencyFormatter.format(cartTotal)}
+                                    </span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowCheckout(true)}
+                                disabled={cartItems.length === 0}
+                                className="w-full rounded-lg bg-[#3b82f6] py-3.5 text-sm font-bold text-white shadow-md transition-colors hover:bg-[#2563eb] disabled:opacity-50"
+                            >
+                                Continuar
+                            </button>
+                        </div>
+                    </>
+                ) : (
+                    <>
                 <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 px-4 py-3">
+                    <button
+                        type="button"
+                        onClick={() => setShowCheckout(false)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
+                        aria-label="Volver al pedido"
+                    >
+                        <ChevronLeft />
+                    </button>
                     <h2 className="text-base font-bold text-slate-900">
                         Monto a cobrar — {currencyFormatter.format(cartTotal)}
                     </h2>
@@ -1573,8 +1917,26 @@ const PointOfSale: React.FC = () => {
                         {isSaving ? "Procesando..." : "Aceptar y Crear"}
                     </button>
                 </div>
+                    </>
+                )}
             </div>
         </div>
+
+            {posDocPreview && (
+                <DocumentPrintPreviewModal
+                    title={posDocPreview.title}
+                    onPrint={() => {
+                        posDocPreviewResolverRef.current?.("print");
+                    }}
+                    onContinuePay={() => {
+                        posDocPreviewResolverRef.current?.("continue");
+                    }}
+                    onCancel={() => {
+                        posDocPreviewResolverRef.current?.("cancel");
+                    }}
+                />
+            )}
+        </>
     );
 };
 

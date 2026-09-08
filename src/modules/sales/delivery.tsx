@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { useUserPermissions } from "../../hooks/useUserPermissions";
@@ -30,11 +30,11 @@ import {
 } from "../../graphql/queries";
 import { CREATE_PERSON } from "../../graphql/mutations";
 import ModalObservation from "./modalObservation";
-import PayDeliveryModal, {
+import PayDeliveryCheckout, {
     type DeliveryPaymentLine,
     type EditClientForModal,
 } from "./payDelivery";
-import CategoryIcon from "../../components/CategoryIcon";
+import { PosProductCard } from "../../components/PosProductCard";
 import {
     formatLocalDateYYYYMMDD,
     formatLocalTimeHHMMSS,
@@ -102,6 +102,67 @@ type Person = {
     documentNumber: string;
 };
 
+const getProductQtyInCart = (cartItems: CartItem[], productId: string) =>
+    cartItems
+        .filter(
+            (i) =>
+                String(i.productId) === String(productId) &&
+                !i.isCombo &&
+                !i.notes,
+        )
+        .reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
+
+const SearchIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className={className}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+    >
+        <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+        />
+    </svg>
+);
+
+const ChevronLeft = () => (
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+    >
+        <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15 19l-7-7 7-7"
+        />
+    </svg>
+);
+
+const ChevronRight = () => (
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+    >
+        <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 5l7 7-7 7"
+        />
+    </svg>
+);
+
 const Delivery: React.FC = () => {
     const { companyData, user, getDeviceId, getMacAddress } =
         useAuth();
@@ -114,8 +175,6 @@ const Delivery: React.FC = () => {
     const isSmall = breakpoint === "sm";
     const isMedium = breakpoint === "md";
     const isCompactPos = isMedium || isPosTouchScreen;
-    // Valores adaptativos
-    const gridMinCol = isSmall ? "110px" : isCompactPos ? "125px" : "140px";
 
     // IGV de la sucursal
     const igvPercentageFromBranch = getBranchIgvPercentage(companyData);
@@ -130,6 +189,7 @@ const Delivery: React.FC = () => {
     >(null);
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [searchByCodeOnly, setSearchByCodeOnly] = useState<boolean>(false);
+    const [showSearch, setShowSearch] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -165,8 +225,8 @@ const Delivery: React.FC = () => {
     );
     // Observación general de la venta (opcional)
     const [saleObservation, setSaleObservation] = useState<string>("");
-    // Modal de información de pago (se abre al hacer click en Procesar Venta)
-    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    // Vista de cobro (se muestra al hacer click en Procesar Venta)
+    const [showCheckout, setShowCheckout] = useState(false);
     const [showCreateClientModal, setShowCreateClientModal] = useState(false);
     const [showEditClientModal, setShowEditClientModal] = useState(false);
     const [editClientForModal, setEditClientForModal] =
@@ -177,6 +237,7 @@ const Delivery: React.FC = () => {
     const deliveryDocPreviewResolverRef = useRef<
         ((action: DocumentPreviewAction) => void) | null
     >(null);
+    const categoryScrollRef = useRef<HTMLDivElement>(null);
 
     // Estados para combos y promociones
     const { data: promotionsData } = useQuery(GET_ACTIVE_PROMOTIONS, {
@@ -188,7 +249,6 @@ const Delivery: React.FC = () => {
     const [giftMessage, setGiftMessage] = useState<string | null>(null);
     const [showComboModal, setShowComboModal] = useState(false);
     const [showCombosPanel, setShowCombosPanel] = useState(false);
-    const [showPlatosPanel, setShowPlatosPanel] = useState(false);
     const [pendingComboProduct, setPendingComboProduct] = useState<any>(null);
 
     const { data: combosData, loading: combosLoading } = useQuery(
@@ -592,9 +652,6 @@ const Delivery: React.FC = () => {
                     p.description?.toLowerCase().includes(searchLower),
             );
         }
-    } else if (showPlatosPanel) {
-        products = allBranchProducts;
-        productsLoading = productsByBranchLoading;
     } else if (selectedCategory) {
         if (subcategoriesLoading || awaitingSubcategoryPick) {
             products = [];
@@ -604,35 +661,11 @@ const Delivery: React.FC = () => {
             productsLoading = productsByCategoryLoading;
         }
     } else {
-        products = productsByBranchData?.productsByBranch;
+        products = allBranchProducts;
         productsLoading = productsByBranchLoading;
     }
 
     let productsList = products || [];
-
-    // Flags de navegación para la grilla
-    const showCombosInGrid = showCombosPanel && !isSearching;
-    const showPlatosInGrid = showPlatosPanel && !isSearching;
-    const showCategoriesInGrid =
-        !isSearching &&
-        !selectedCategory &&
-        !showCombosPanel &&
-        !showPlatosPanel;
-    const showSubcategoriesInGrid =
-        !isSearching &&
-        !showCombosPanel &&
-        !showPlatosPanel &&
-        selectedCategory &&
-        !selectedSubcategory &&
-        (subcategoriesLoading || subcategoriesOfCategory.length > 0);
-    const showProductsInGrid =
-        !showCombosPanel &&
-        (showPlatosPanel ||
-            isSearching ||
-            (selectedCategory &&
-                !subcategoriesLoading &&
-                !awaitingSubcategoryPick &&
-                (selectedSubcategory || subcategoriesOfCategory.length === 0)));
 
     /** Una sola sub activa → pasar directo a productos filtrados por esa sub */
     useEffect(() => {
@@ -661,7 +694,13 @@ const Delivery: React.FC = () => {
         );
     }
 
-    // Función para agregar producto al carrito (permite precio cero y productos con precio)
+    if (!showCombosPanel) {
+        productsList = productsList.filter(
+            (p: any) => p.productType !== "PROMOTION",
+        );
+    }
+
+    // Función para agregar producto al carrito
     const handleAddProduct = (productIdToAdd?: string, qtyToAdd?: number) => {
         const productId = productIdToAdd || selectedProduct;
         if (!productId) return;
@@ -739,6 +778,28 @@ const Delivery: React.FC = () => {
         }
     };
 
+    const handleRemoveProduct = (productId: string) => {
+        const idx = cartItems.findIndex(
+            (item) =>
+                String(item.productId) === String(productId) &&
+                !item.isCombo &&
+                !item.notes,
+        );
+        if (idx < 0) return;
+        const item = cartItems[idx];
+        if (item.quantity <= 1) {
+            setCartItems(cartItems.filter((_, i) => i !== idx));
+        } else {
+            const updated = [...cartItems];
+            updated[idx] = {
+                ...item,
+                quantity: item.quantity - 1,
+                total: item.price * (item.quantity - 1),
+            };
+            setCartItems(updated);
+        }
+    };
+
     // Handler para cuando el usuario confirma el combo desde el modal
     const handleAddCombo = (comboProduct: any, selections: any[]) => {
         const stockRunning = buildCartStockUsage(cartItems);
@@ -812,20 +873,6 @@ const Delivery: React.FC = () => {
             const next = !active;
             if (next) {
                 setSearchTerm("");
-                setShowPlatosPanel(false);
-                setSelectedCategory(null);
-                setSelectedSubcategory(null);
-            }
-            return next;
-        });
-    };
-
-    const togglePlatosPanel = () => {
-        setShowPlatosPanel((active) => {
-            const next = !active;
-            if (next) {
-                setSearchTerm("");
-                setShowCombosPanel(false);
                 setSelectedCategory(null);
                 setSelectedSubcategory(null);
             }
@@ -1038,7 +1085,7 @@ const Delivery: React.FC = () => {
     };
 
     useEffect(() => {
-        if (!showPaymentModal) return;
+        if (!showCheckout) return;
         setPaymentLines([
             {
                 id: "1",
@@ -1047,7 +1094,7 @@ const Delivery: React.FC = () => {
                 referenceNumber: "",
             },
         ]);
-    }, [showPaymentModal]);
+    }, [showCheckout, cartTotal]);
 
     // Función para procesar la venta
     const handleProcessSale = async () => {
@@ -1375,7 +1422,7 @@ const Delivery: React.FC = () => {
                 }
 
                 showToast("Venta procesada exitosamente", "success");
-                setShowPaymentModal(false);
+                setShowCheckout(false);
 
                 // Limpiar formulario
                 setCartItems([]);
@@ -1395,6 +1442,7 @@ const Delivery: React.FC = () => {
                 setDiscountPercent(0);
                 setSelectedCategory(null);
                 setSelectedSubcategory(null);
+                setShowCombosPanel(false);
                 setSearchTerm("");
                 setSelectedDriverId("");
                 setDeliveryCost(0);
@@ -1608,634 +1656,288 @@ const Delivery: React.FC = () => {
         }
     }, [cashRegisters, selectedCashRegister]);
 
+    const scrollCategories = useCallback((direction: "left" | "right") => {
+        categoryScrollRef.current?.scrollBy({
+            left: direction === "left" ? -200 : 200,
+            behavior: "smooth",
+        });
+    }, []);
+
     return (
-        <div className="flex h-full w-full flex-col overflow-hidden bg-slate-50 p-2 transition-colors duration-200 dark:bg-slate-950 md:flex-row md:gap-4 md:p-4">
-            {/* Panel izquierdo - Productos */}
-            <div className="flex min-h-0 flex-1 flex-col gap-3 md:gap-4">
-                {/* Búsqueda */}
-                <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900 md:p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="relative flex-1">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-5 w-5"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                                    />
-                                </svg>
-                            </span>
-                            <input
-                                type="text"
-                                placeholder={
-                                    searchByCodeOnly
-                                        ? "Código del producto..."
-                                        : "Buscar productos..."
+        <div className="flex h-full w-full flex-col overflow-hidden bg-white md:flex-row">
+            {/* Catálogo — estilo POS */}
+            <div className="flex min-h-0 flex-[2] flex-col border-r border-slate-200 bg-white">
+                <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 px-4 py-3">
+                    <h2 className="shrink-0 text-base font-semibold text-slate-800">
+                        Delivery
+                    </h2>
+                    {showSearch && (
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (
+                                    e.key === "Enter" &&
+                                    productsList.length > 0
+                                ) {
+                                    e.preventDefault();
+                                    handleAddProduct(productsList[0].id, 1);
                                 }
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (
-                                        e.key === "Enter" &&
-                                        productsList.length > 0
-                                    ) {
-                                        e.preventDefault();
-                                        handleAddProduct(productsList[0].id, 1);
-                                    }
-                                }}
-                                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none transition-all duration-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 md:text-base"
-                            />
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setSearchByCodeOnly((v) => !v)}
-                            className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all duration-200 md:px-4 md:text-sm ${
+                            }}
+                            placeholder={
                                 searchByCodeOnly
-                                    ? "border-indigo-500 bg-indigo-500 text-white shadow-md shadow-indigo-500/20"
-                                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                            }`}
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                                />
-                            </svg>
-                            <span className="hidden sm:inline">
-                                Solo código
-                            </span>
-                            <span className="sm:hidden">Código</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={togglePlatosPanel}
-                            className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold transition-all duration-200 md:px-4 md:text-sm ${
-                                showPlatosPanel
-                                    ? "border-indigo-500 bg-indigo-500 text-white shadow-md shadow-indigo-500/20"
-                                    : "border-indigo-500 bg-white text-indigo-600 hover:bg-indigo-50 dark:border-indigo-500 dark:bg-slate-800 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
-                            }`}
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                                />
-                            </svg>
-                            <span className="hidden sm:inline">Todo</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={toggleCombosPanel}
-                            className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold transition-all duration-200 md:px-4 md:text-sm ${
-                                showCombosPanel
-                                    ? "border-orange-500 bg-orange-500 text-white shadow-md shadow-orange-500/20"
-                                    : "border-orange-500 bg-white text-orange-600 hover:bg-orange-50 dark:border-orange-500 dark:bg-slate-800 dark:text-orange-400 dark:hover:bg-orange-950/30"
-                            }`}
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-                                />
-                            </svg>
-                            <span className="hidden sm:inline">Combos</span>
-                        </button>
-                    </div>
+                                    ? "Código del producto..."
+                                    : "Buscar productos..."
+                            }
+                            className="min-w-0 flex-1 rounded-lg border border-slate-200 py-2 px-3 text-sm outline-none focus:border-[#3b82f6]"
+                            autoFocus
+                        />
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => setSearchByCodeOnly((v) => !v)}
+                        className={`shrink-0 rounded-lg border px-2.5 py-2 text-[11px] font-semibold ${
+                            searchByCodeOnly
+                                ? "border-[#3b82f6] bg-[#3b82f6] text-white"
+                                : "border-slate-200 bg-white text-slate-600"
+                        }`}
+                    >
+                        Código
+                    </button>
+                    <button
+                        type="button"
+                        onClick={toggleCombosPanel}
+                        className={`shrink-0 rounded-lg border px-2.5 py-2 text-[11px] font-bold ${
+                            showCombosPanel
+                                ? "border-orange-500 bg-orange-500 text-white"
+                                : "border-orange-500 bg-white text-orange-600"
+                        }`}
+                    >
+                        Combos
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setShowSearch((v) => {
+                                if (v) setSearchTerm("");
+                                return !v;
+                            });
+                        }}
+                        className={`ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                            showSearch
+                                ? "bg-[#3b82f6] text-white"
+                                : "text-slate-600 hover:bg-slate-100"
+                        }`}
+                        aria-label="Buscar productos"
+                    >
+                        <SearchIcon />
+                    </button>
                 </div>
 
-                {/* Banner de regalo disponible */}
                 {giftMessage && (
-                    <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 shadow-sm dark:border-amber-900/50 dark:bg-amber-900/20">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-5 w-5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
-                                />
-                            </svg>
-                        </div>
-                        <p className="flex-1 text-sm font-semibold text-amber-800 dark:text-amber-200">
-                            {giftMessage}
-                        </p>
+                    <div className="mx-3 mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                        {giftMessage}
                     </div>
                 )}
 
-                {/* Área de navegación y Lista de items */}
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
-                    {/* Header de navegación / Breadcrumbs */}
-                    <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-3 transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900/50 md:p-4">
-                        <div className="flex flex-1 items-center gap-2 overflow-x-auto overflow-y-hidden whitespace-nowrap pb-1 md:gap-3">
-                            {isSearching ? (
-                                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 md:text-base">
-                                    Resultados de búsqueda
-                                </h3>
-                            ) : showPlatosPanel ? (
-                                <h3 className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300">
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-4 w-4"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                                        />
-                                    </svg>
-                                    Platos
-                                </h3>
-                            ) : showCombosPanel ? (
-                                <h3 className="inline-flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-bold text-orange-700 shadow-sm dark:border-orange-900/50 dark:bg-orange-900/20 dark:text-orange-300">
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-4 w-4"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-                                        />
-                                    </svg>
-                                    Combos
-                                </h3>
-                            ) : (
-                                <>
+                {!showCombosPanel && (
+                    <>
+                        <div className="flex shrink-0 items-center gap-1 border-b border-slate-100 px-2 py-2.5">
+                            <button
+                                type="button"
+                                onClick={() => scrollCategories("left")}
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+                            >
+                                <ChevronLeft />
+                            </button>
+                            <div
+                                ref={categoryScrollRef}
+                                className="flex flex-1 gap-2 overflow-x-auto"
+                                style={{ scrollbarWidth: "none" }}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedCategory(null);
+                                        setSelectedSubcategory(null);
+                                    }}
+                                    className={`shrink-0 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-wide ${
+                                        !selectedCategory
+                                            ? "border-[#3b82f6] bg-[#3b82f6] text-white"
+                                            : "border-slate-300 bg-white text-slate-700"
+                                    }`}
+                                >
+                                    Todos
+                                </button>
+                                {categories.map((cat: any) => (
                                     <button
+                                        key={cat.id}
+                                        type="button"
                                         onClick={() => {
-                                            setShowCombosPanel(false);
-                                            setShowPlatosPanel(false);
-                                            setSelectedCategory(null);
+                                            setSelectedCategory(String(cat.id));
                                             setSelectedSubcategory(null);
                                         }}
-                                        className={`inline-flex items-center gap-2 justify-center rounded-xl border px-4 py-2 text-sm font-bold transition-all duration-150 ${
-                                            !selectedCategory
-                                                ? "border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300"
-                                                : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300"
+                                        className={`shrink-0 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-wide ${
+                                            String(selectedCategory) ===
+                                            String(cat.id)
+                                                ? "border-[#3b82f6] bg-[#3b82f6] text-white"
+                                                : "border-slate-300 bg-white text-slate-700"
                                         }`}
                                     >
-                                        <CategoryIcon
-                                            iconId="grid_view"
-                                            type="category"
-                                            size="1.1rem"
-                                        />
-                                        Categorías
+                                        {cat.name}
                                     </button>
-                                    {selectedCategory && (
-                                        <>
-                                            <span className="text-slate-300 dark:text-slate-700">
-                                                /
-                                            </span>
-                                            <button
-                                                onClick={() =>
-                                                    setSelectedSubcategory(null)
-                                                }
-                                                className={`inline-flex max-w-[12rem] items-center gap-2 justify-center truncate rounded-xl border px-4 py-2 text-sm font-bold transition-all duration-150 ${
-                                                    !selectedSubcategory
-                                                        ? "border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300"
-                                                        : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300"
-                                                }`}
-                                            >
-                                                <CategoryIcon
-                                                    iconId={
-                                                        categories.find(
-                                                            (c: any) =>
-                                                                c.id ===
-                                                                selectedCategory,
-                                                        )?.icon
-                                                    }
-                                                    type="category"
-                                                    size="1.1rem"
-                                                />
-                                                {categories.find(
-                                                    (c: any) =>
-                                                        c.id ===
-                                                        selectedCategory,
-                                                )?.name || "Categoría"}
-                                            </button>
-                                        </>
-                                    )}
-                                    {selectedSubcategory && (
-                                        <>
-                                            <span className="text-slate-300 dark:text-slate-700">
-                                                /
-                                            </span>
-                                            <span className="inline-flex max-w-[12rem] items-center gap-2 justify-center truncate rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-                                                <CategoryIcon
-                                                    iconId={
-                                                        subcategoriesOfCategory.find(
-                                                            (s: any) =>
-                                                                s.id ===
-                                                                selectedSubcategory,
-                                                        )?.icon
-                                                    }
-                                                    type="subcategory"
-                                                    size="1.1rem"
-                                                />
-                                                {subcategoriesOfCategory.find(
-                                                    (s: any) =>
-                                                        s.id ===
-                                                        selectedSubcategory,
-                                                )?.name || "Subcategoría"}
-                                            </span>
-                                        </>
-                                    )}
-                                </>
-                            )}
+                                ))}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => scrollCategories("right")}
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+                            >
+                                <ChevronRight />
+                            </button>
                         </div>
-                    </div>
 
-                    {/* Grid de items */}
-                    <div className="flex-1 overflow-y-auto p-3 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 md:p-6">
-                        {(productsLoading && showProductsInGrid) ||
-                        (combosLoading && showCombosInGrid) ? (
-                            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                                <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500"></div>
-                                <p className="text-sm">
-                                    {showCombosInGrid
-                                        ? "Cargando combos..."
-                                        : showPlatosInGrid
-                                          ? "Cargando platos..."
-                                          : "Cargando productos..."}
-                                </p>
+                        {subcategoriesOfCategory.length > 1 && (
+                            <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-100 px-3 py-2">
+                                {subcategoriesOfCategory.map((sub: any) => (
+                                    <button
+                                        key={sub.id}
+                                        type="button"
+                                        onClick={() =>
+                                            setSelectedSubcategory(String(sub.id))
+                                        }
+                                        className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase ${
+                                            String(selectedSubcategory) ===
+                                            String(sub.id)
+                                                ? "border-slate-600 bg-slate-700 text-white"
+                                                : "border-slate-200 bg-white text-slate-600"
+                                        }`}
+                                    >
+                                        {sub.name}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                    {showCombosPanel ? (
+                        combosLoading ? (
+                            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                                Cargando combos...
+                            </div>
+                        ) : activeCombos.length === 0 ? (
+                            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                                No hay combos disponibles
                             </div>
                         ) : (
                             <div
-                                className="grid gap-3 md:gap-4"
+                                className="grid gap-2"
                                 style={{
-                                    gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCol}, 1fr))`,
+                                    gridTemplateColumns:
+                                        "repeat(auto-fill, minmax(100px, 1fr))",
                                 }}
                             >
-                                {/* Render Combos */}
-                                {showCombosInGrid &&
-                                    (activeCombos.length === 0 ? (
-                                        <div className="col-span-full py-12 text-center text-slate-500 dark:text-slate-400">
-                                            No hay combos disponibles
-                                        </div>
-                                    ) : (
-                                        activeCombos.map((combo) => {
-                                            const quickAdd =
-                                                canDeliveryQuickAddCombo(combo);
-                                            const quickAddBlocked =
-                                                isDeliveryQuickAddCombo(combo) &&
-                                                !quickAdd;
-
-                                            return (
-                                                <div
-                                                    key={combo.id}
-                                                    onClick={() => {
-                                                        if (quickAddBlocked) {
-                                                            showToast(
-                                                                `Sin stock: ${combo.name}`,
-                                                                "error",
-                                                            );
-                                                            return;
-                                                        }
-                                                        handleComboGridClick(
-                                                            combo,
-                                                        );
-                                                    }}
-                                                    className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border p-2.5 transition-all duration-200 ${
-                                                        quickAddBlocked
-                                                            ? "cursor-not-allowed border-slate-200 bg-white opacity-50 dark:border-slate-800 dark:bg-slate-900"
-                                                            : quickAdd
-                                                              ? "cursor-pointer border-emerald-300/60 bg-white hover:-translate-y-1 hover:border-emerald-400 hover:shadow-md dark:border-emerald-800/50 dark:bg-slate-900 dark:hover:border-emerald-500/50"
-                                                              : "cursor-pointer border-orange-200 bg-white hover:-translate-y-1 hover:border-orange-400 hover:shadow-md dark:border-orange-900/40 dark:bg-slate-900 dark:hover:border-orange-500/50"
-                                                    }`}
-                                                >
-                                                    {quickAdd && (
-                                                        <div className="absolute left-2 top-2 z-10">
-                                                            <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-md">
-                                                                ⚡ 1 toque
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                    <div className="flex aspect-square w-full items-center justify-center rounded-xl bg-orange-50 text-3xl transition-colors duration-200 group-hover:bg-orange-100 dark:bg-orange-950/30 dark:group-hover:bg-orange-900/30">
-                                                        ⭐
-                                                    </div>
-                                                    <div className="mt-3 flex flex-1 flex-col gap-1">
-                                                        <h4 className="line-clamp-2 text-xs font-bold leading-tight text-slate-800 dark:text-slate-100 md:text-sm">
-                                                            {combo.name}
-                                                        </h4>
-                                                        {combo.description && (
-                                                            <p className="line-clamp-2 text-[0.65rem] text-slate-500 dark:text-slate-400 md:text-xs">
-                                                                {
-                                                                    combo.description
-                                                                }
-                                                            </p>
-                                                        )}
-                                                        <div className="mt-auto flex items-center justify-between pt-1">
-                                                            <span className="text-xs font-black text-orange-600 dark:text-orange-400 md:text-sm">
-                                                                S/{" "}
-                                                                {Number(
-                                                                    combo.salePrice,
-                                                                ).toFixed(2)}
-                                                            </span>
-                                                            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-orange-50 text-orange-600 transition-colors duration-200 group-hover:bg-orange-600 group-hover:text-white dark:bg-orange-900/30 dark:text-orange-400 dark:group-hover:bg-orange-500 dark:group-hover:text-white">
-                                                                <svg
-                                                                    xmlns="http://www.w3.org/2000/svg"
-                                                                    className="h-4 w-4"
-                                                                    fill="none"
-                                                                    viewBox="0 0 24 24"
-                                                                    stroke="currentColor"
-                                                                >
-                                                                    <path
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        strokeWidth={
-                                                                            3
-                                                                        }
-                                                                        d="M12 4v16m8-8H4"
-                                                                    />
-                                                                </svg>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    {quickAddBlocked && (
-                                                        <div className="absolute inset-x-2 bottom-2 rounded-lg bg-red-500/90 px-2 py-0.5 text-center text-[0.65rem] font-bold text-white">
-                                                            Sin stock
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })
-                                    ))}
-
-                                {/* Render Categorías */}
-                                {showCategoriesInGrid &&
-                                    (categoriesLoading ? (
-                                        <div className="col-span-full flex flex-col items-center justify-center py-12 text-slate-400">
-                                            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500"></div>
-                                            <p className="text-sm">
-                                                Cargando categorías...
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        categories.map((category: any) => (
-                                            <div
-                                                key={category.id}
-                                                onClick={() => {
-                                                    setShowPlatosPanel(false);
-                                                    setShowCombosPanel(false);
-                                                    setSelectedCategory(
-                                                        category.id,
+                                {activeCombos.map((combo) => {
+                                    const quickAddBlocked =
+                                        isDeliveryQuickAddCombo(combo) &&
+                                        !canDeliveryQuickAddCombo(combo);
+                                    return (
+                                        <button
+                                            key={combo.id}
+                                            type="button"
+                                            onClick={() => {
+                                                if (quickAddBlocked) {
+                                                    showToast(
+                                                        `Sin stock: ${combo.name}`,
+                                                        "error",
                                                     );
-                                                    setSelectedSubcategory(
-                                                        null,
-                                                    );
-                                                }}
-                                                className="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-center transition-all duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50 dark:hover:bg-slate-800/50"
-                                                style={{
-                                                    minHeight: isSmall
-                                                        ? "100px"
-                                                        : "130px",
-                                                }}
-                                            >
-                                                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20 md:h-16 md:w-16">
-                                                    <CategoryIcon
-                                                        iconId={category.icon}
-                                                        type="category"
-                                                        size={
-                                                            isSmall
-                                                                ? "1.25rem"
-                                                                : "1.75rem"
-                                                        }
-                                                    />
-                                                </div>
-                                                <div className="text-xs font-bold text-slate-800 transition-colors duration-200 group-hover:text-indigo-600 dark:text-slate-100 dark:group-hover:text-indigo-400 md:text-sm">
-                                                    {category.name}
-                                                </div>
+                                                    return;
+                                                }
+                                                handleComboGridClick(combo);
+                                            }}
+                                            disabled={quickAddBlocked}
+                                            className="flex flex-col overflow-hidden rounded-lg border border-orange-200 bg-white text-left disabled:opacity-50"
+                                        >
+                                            <div className="flex aspect-[4/3] items-center justify-center bg-orange-50 text-3xl">
+                                                ⭐
                                             </div>
-                                        ))
-                                    ))}
-
-                                {/* Render Subcategorías */}
-                                {showSubcategoriesInGrid &&
-                                    (subcategoriesLoading ? (
-                                        <div className="col-span-full flex flex-col items-center justify-center py-12 text-slate-400">
-                                            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500"></div>
-                                            <p className="text-sm">
-                                                Cargando subcategorías...
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        subcategoriesOfCategory.map(
-                                            (sub: any) => (
-                                                <div
-                                                    key={sub.id}
-                                                    onClick={() =>
-                                                        setSelectedSubcategory(
-                                                            sub.id,
-                                                        )
-                                                    }
-                                                    className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50 dark:hover:bg-slate-800/50"
-                                                    style={{
-                                                        minHeight: isSmall
-                                                            ? "90px"
-                                                            : "110px",
-                                                    }}
-                                                >
-                                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20 md:h-12 md:w-12">
-                                                        <CategoryIcon
-                                                            iconId={sub.icon}
-                                                            type="subcategory"
-                                                            size={
-                                                                isSmall
-                                                                    ? "1.1rem"
-                                                                    : "1.25rem"
-                                                            }
-                                                        />
-                                                    </div>
-                                                    <div className="text-xs font-semibold text-slate-700 transition-colors duration-200 group-hover:text-indigo-600 dark:text-slate-200 dark:group-hover:text-indigo-400">
-                                                        {sub.name}
-                                                    </div>
-                                                </div>
-                                            ),
-                                        )
-                                    ))}
-
-                                {/* Render Productos */}
-                                {showProductsInGrid &&
-                                    (productsList.length === 0 ? (
-                                        <div className="col-span-full py-12 text-center text-slate-500 dark:text-slate-400">
-                                            No se encontraron productos
-                                        </div>
-                                    ) : (
-                                        productsList.map((product: any) => {
-                                            const promoBadge =
-                                                findBadgePromotion(
-                                                    product,
-                                                    activePromotions,
-                                                );
-                                            const outOfStock =
-                                                product.productType !==
-                                                    "PROMOTION" &&
-                                                !canAddMoreProduct(
-                                                    product,
-                                                    cartItems,
-                                                    1,
-                                                );
-                                            const productImageSrc =
-                                                getFullImageUrl(product.image);
-                                            return (
-                                                <div
-                                                    key={product.id}
-                                                    onClick={() => {
-                                                        if (outOfStock) {
-                                                            showToast(
-                                                                `Sin stock: ${product.name}`,
-                                                                "error",
-                                                            );
-                                                            return;
-                                                        }
-                                                        handleAddProduct(
-                                                            product.id,
-                                                            1,
-                                                        );
-                                                    }}
-                                                    className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-2.5 transition-all duration-200 dark:border-slate-800 dark:bg-slate-900 ${
-                                                        outOfStock
-                                                            ? "cursor-not-allowed opacity-50"
-                                                            : "hover:-translate-y-1 hover:border-indigo-300 hover:shadow-md dark:hover:border-indigo-500/50"
-                                                    }`}
-                                                >
-                                                    {promoBadge && (
-                                                        <div className="absolute left-2 top-2 z-10">
-                                                            <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
-                                                                {promotionBadgeLabel(
-                                                                    promoBadge,
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                    {productImageSrc ? (
-                                                        <div className="aspect-square w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
-                                                            <img
-                                                                src={
-                                                                    productImageSrc
-                                                                }
-                                                                alt={
-                                                                    product.name
-                                                                }
-                                                                loading="lazy"
-                                                                decoding="async"
-                                                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
-                                                            />
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex aspect-square w-full items-center justify-center rounded-xl bg-slate-50 text-2xl transition-colors duration-200 group-hover:bg-indigo-50 dark:bg-slate-800 dark:group-hover:bg-indigo-900/20">
-                                                            🍽️
-                                                        </div>
-                                                    )}
-                                                    <div className="mt-3 flex flex-1 flex-col gap-1">
-                                                        <h4 className="line-clamp-2 text-xs font-bold leading-tight text-slate-800 dark:text-slate-100 md:text-sm">
-                                                            {product.name}
-                                                        </h4>
-                                                        {productStockLabel(
-                                                            product,
-                                                        ) && (
-                                                            <span className="text-[0.65rem] font-semibold text-slate-500 dark:text-slate-400 md:text-xs">
-                                                                {productStockLabel(
-                                                                    product,
-                                                                )}
-                                                            </span>
-                                                        )}
-                                                        {Number(
-                                                            product.preparationTime,
-                                                        ) > 0 && (
-                                                            <span className="text-[0.65rem] font-medium text-slate-500 dark:text-slate-400 md:text-xs">
-                                                                ⏱️{" "}
-                                                                {
-                                                                    product.preparationTime
-                                                                }{" "}
-                                                                min
-                                                            </span>
-                                                        )}
-                                                        <div className="mt-auto flex items-center justify-between pt-1">
-                                                            <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 md:text-sm">
-                                                                S/{" "}
-                                                                {parseFloat(
-                                                                    product.salePrice ||
-                                                                        0,
-                                                                ).toFixed(2)}
-                                                            </span>
-                                                            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-colors duration-200 group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-900/30 dark:text-indigo-400 dark:group-hover:bg-indigo-500 dark:group-hover:text-white">
-                                                                <svg
-                                                                    xmlns="http://www.w3.org/2000/svg"
-                                                                    className="h-4 w-4"
-                                                                    fill="none"
-                                                                    viewBox="0 0 24 24"
-                                                                    stroke="currentColor"
-                                                                >
-                                                                    <path
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        strokeWidth={
-                                                                            3
-                                                                        }
-                                                                        d="M12 4v16m8-8H4"
-                                                                    />
-                                                                </svg>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    {outOfStock && (
-                                                        <div className="absolute inset-x-2 bottom-2 rounded-lg bg-red-500/90 px-2 py-0.5 text-center text-[0.65rem] font-bold text-white">
-                                                            Sin stock
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })
-                                    ))}
+                                            <div className="p-2">
+                                                <p className="line-clamp-2 text-[10px] font-semibold uppercase text-slate-800">
+                                                    {combo.name}
+                                                </p>
+                                                <p className="mt-1 text-sm font-bold text-slate-900">
+                                                    S/{" "}
+                                                    {Number(
+                                                        combo.salePrice,
+                                                    ).toFixed(2)}
+                                                </p>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
                             </div>
-                        )}
-                    </div>
+                        )
+                    ) : categoriesLoading || productsLoading ? (
+                        <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                            Cargando...
+                        </div>
+                    ) : awaitingSubcategoryPick ? (
+                        <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                            Seleccione una subcategoría
+                        </div>
+                    ) : productsList.length === 0 ? (
+                        <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                            No hay resultados
+                        </div>
+                    ) : (
+                        <div
+                            className="grid gap-2"
+                            style={{
+                                gridTemplateColumns:
+                                    "repeat(auto-fill, minmax(100px, 1fr))",
+                            }}
+                        >
+                            {productsList.map((product: any) => {
+                                const qty = getProductQtyInCart(
+                                    cartItems,
+                                    product.id,
+                                );
+                                const promoBadge = findBadgePromotion(
+                                    product,
+                                    activePromotions,
+                                );
+                                const outOfStock =
+                                    product.productType !== "PROMOTION" &&
+                                    !canAddMoreProduct(product, cartItems, 1);
+                                return (
+                                    <PosProductCard
+                                        key={product.id}
+                                        name={product.name}
+                                        price={
+                                            parseFloat(product.salePrice) || 0
+                                        }
+                                        imageUrl={getFullImageUrl(product.image)}
+                                        quantity={qty}
+                                        badge={
+                                            promoBadge
+                                                ? promotionBadgeLabel(promoBadge)
+                                                : undefined
+                                        }
+                                        disabled={outOfStock}
+                                        onAdd={() =>
+                                            handleAddProduct(product.id, 1)
+                                        }
+                                        onRemove={() =>
+                                            handleRemoveProduct(product.id)
+                                        }
+                                    />
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -2243,6 +1945,8 @@ const Delivery: React.FC = () => {
             <div className="flex w-full flex-col gap-4 overflow-hidden md:w-[380px] lg:w-[420px]">
                 {/* Carrito */}
                 <div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
+                    {!showCheckout ? (
+                    <>
                     <div className="mb-4 flex items-center justify-between">
                         <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800 dark:text-slate-100">
                             <svg
@@ -2757,72 +2461,6 @@ const Delivery: React.FC = () => {
                             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-indigo-500"
                         />
                     </div>
-                    {/* Descuento */}
-                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                                Dscto (S/)
-                            </label>
-                            <div
-                                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-all duration-200 ${pct > 0 ? "bg-slate-50 opacity-40 dark:bg-slate-800/50" : "border-slate-200 bg-white focus-within:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-indigo-500"}`}
-                            >
-                                <span className="text-xs font-bold text-slate-400">
-                                    S/
-                                </span>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    step={0.01}
-                                    value={discountAmount || ""}
-                                    disabled={pct > 0}
-                                    onChange={(e) => {
-                                        const v = Math.max(
-                                            0,
-                                            parseFloat(e.target.value) || 0,
-                                        );
-                                        setDiscountAmount(v);
-                                        if (v > 0) setDiscountPercent(0);
-                                    }}
-                                    placeholder="0.00"
-                                    className="w-full border-none bg-transparent text-xs font-bold text-slate-800 outline-none dark:text-slate-100"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                                Dscto (%)
-                            </label>
-                            <div
-                                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-all duration-200 ${(Number(discountAmount) || 0) > 0 ? "bg-slate-50 opacity-40 dark:bg-slate-800/50" : "border-slate-200 bg-white focus-within:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-indigo-500"}`}
-                            >
-                                <input
-                                    type="number"
-                                    min={0}
-                                    max={100}
-                                    step={0.5}
-                                    value={discountPercent || ""}
-                                    disabled={(Number(discountAmount) || 0) > 0}
-                                    onChange={(e) => {
-                                        const v = Math.max(
-                                            0,
-                                            Math.min(
-                                                100,
-                                                parseFloat(e.target.value) || 0,
-                                            ),
-                                        );
-                                        setDiscountPercent(v);
-                                        if (v > 0) setDiscountAmount(0);
-                                    }}
-                                    placeholder="0"
-                                    className="w-full border-none bg-transparent text-xs font-bold text-slate-800 outline-none dark:text-slate-100"
-                                />
-                                <span className="text-xs font-bold text-slate-400">
-                                    %
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
                     {/* Totales */}
                     <div className="mt-4 flex flex-col gap-2 rounded-2xl bg-slate-50 p-3 transition-colors duration-200 dark:bg-slate-800/50">
                         <div className="flex justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -2852,11 +2490,10 @@ const Delivery: React.FC = () => {
                             </span>
                         </div>
                     </div>
-                </div>
 
                 {/* Botón procesar */}
                 <button
-                    onClick={() => setShowPaymentModal(true)}
+                    onClick={() => setShowCheckout(true)}
                     disabled={isSaving || cartItems.length === 0}
                     className={`flex items-center justify-center gap-3 rounded-2xl py-4 text-base font-black uppercase tracking-widest transition-all duration-300 shadow-lg ${
                         isSaving || cartItems.length === 0
@@ -2889,62 +2526,61 @@ const Delivery: React.FC = () => {
                         </>
                     )}
                 </button>
+                    </>
+                    ) : (
+                        <PayDeliveryCheckout
+                            onBack={() => setShowCheckout(false)}
+                            cartTotal={cartTotal}
+                            subtotal={subtotal}
+                            igvAmount={igvAmount}
+                            igvPercentage={igvPercentageFromBranch}
+                            isFactura={isFactura}
+                            personSearchTerm={personSearchTerm}
+                            setPersonSearchTerm={setPersonSearchTerm}
+                            selectedPerson={selectedPerson}
+                            setSelectedPerson={setSelectedPerson}
+                            filteredClients={filteredClients}
+                            clientsLoading={clientsLoading}
+                            sunatSearchLoading={sunatSearchLoading}
+                            isSaving={isSaving}
+                            onSearchSunat={handleSearchSunat}
+                            onOpenCreateClient={() => setShowCreateClientModal(true)}
+                            onOpenEditClient={handleOpenEditClient}
+                            showCreateClientModal={showCreateClientModal}
+                            onCloseCreateClientModal={() =>
+                                setShowCreateClientModal(false)
+                            }
+                            onCreateClientSuccess={handleCreateClientSuccess}
+                            showEditClientModal={showEditClientModal}
+                            editClientForModal={editClientForModal}
+                            onCloseEditClientModal={() => {
+                                setShowEditClientModal(false);
+                                setEditClientForModal(null);
+                            }}
+                            onEditClientSuccess={handleEditClientSuccess}
+                            showToast={showToast}
+                            documents={documents}
+                            selectedDocument={selectedDocument}
+                            setSelectedDocument={setSelectedDocument}
+                            setSelectedSerial={setSelectedSerial}
+                            paymentLines={paymentLines}
+                            onAddPayment={addDeliveryPayment}
+                            onRemovePayment={removeDeliveryPayment}
+                            onUpdatePayment={updateDeliveryPayment}
+                            canAddPayment={canAddDeliveryPayment}
+                            paymentsCoverDebt={paymentsCoverDebt}
+                            totalPaymentsAmount={totalPaymentsAmount}
+                            changeDue={changeDue}
+                            discountAmount={discountAmount}
+                            setDiscountAmount={setDiscountAmount}
+                            discountPercent={discountPercent}
+                            setDiscountPercent={setDiscountPercent}
+                            totalDiscount={totalDiscount}
+                            onConfirm={handleProcessSale}
+                        />
+                    )}
+                </div>
             </div>
-
-            {/* Modal Información de Pago */}
-            {showPaymentModal && (
-                <PayDeliveryModal
-                    isOpen={showPaymentModal}
-                    onClose={() => setShowPaymentModal(false)}
-                    cartTotal={cartTotal}
-                    subtotal={subtotal}
-                    igvAmount={igvAmount}
-                    igvPercentage={igvPercentageFromBranch}
-                    isFactura={isFactura}
-                    personSearchTerm={personSearchTerm}
-                    setPersonSearchTerm={setPersonSearchTerm}
-                    selectedPerson={selectedPerson}
-                    setSelectedPerson={setSelectedPerson}
-                    filteredClients={filteredClients}
-                    clientsLoading={clientsLoading}
-                    sunatSearchLoading={sunatSearchLoading}
-                    isSaving={isSaving}
-                    onSearchSunat={handleSearchSunat}
-                    onOpenCreateClient={() => setShowCreateClientModal(true)}
-                    onOpenEditClient={handleOpenEditClient}
-                    showCreateClientModal={showCreateClientModal}
-                    onCloseCreateClientModal={() =>
-                        setShowCreateClientModal(false)
-                    }
-                    onCreateClientSuccess={handleCreateClientSuccess}
-                    showEditClientModal={showEditClientModal}
-                    editClientForModal={editClientForModal}
-                    onCloseEditClientModal={() => {
-                        setShowEditClientModal(false);
-                        setEditClientForModal(null);
-                    }}
-                    onEditClientSuccess={handleEditClientSuccess}
-                    showToast={showToast}
-                    documents={documents}
-                    selectedDocument={selectedDocument}
-                    setSelectedDocument={setSelectedDocument}
-                    serials={serials}
-                    selectedSerial={selectedSerial}
-                    setSelectedSerial={setSelectedSerial}
-                    cashRegisters={cashRegisters}
-                    selectedCashRegister={selectedCashRegister}
-                    setSelectedCashRegister={setSelectedCashRegister}
-                    paymentLines={paymentLines}
-                    onAddPayment={addDeliveryPayment}
-                    onRemovePayment={removeDeliveryPayment}
-                    onUpdatePayment={updateDeliveryPayment}
-                    canAddPayment={canAddDeliveryPayment}
-                    paymentsCoverDebt={paymentsCoverDebt}
-                    totalPaymentsAmount={totalPaymentsAmount}
-                    changeDue={changeDue}
-                    onConfirm={handleProcessSale}
-                />
-            )}
 
             {showObservationModal &&
                 (() => {
