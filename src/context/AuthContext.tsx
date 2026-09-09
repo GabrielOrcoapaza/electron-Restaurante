@@ -87,6 +87,7 @@ export interface CompanyData {
         isMultiWaiterEnabled?: boolean;
         isCommandItemMode?: boolean;
         separateRepeatedItems?: boolean;
+        allowCloseWithOccupiedTables?: boolean;
         isKitchenPrint?: boolean;
         isKitchenDisplay?: boolean;
         requireWaiterPassword?: boolean;

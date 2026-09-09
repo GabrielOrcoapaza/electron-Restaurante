@@ -37,6 +37,7 @@ export const COMPANY_LOGIN = gql`
                 isMultiWaiterEnabled
                 isCommandItemMode
                 separateRepeatedItems
+                allowCloseWithOccupiedTables
                 isKitchenPrint
                 isKitchenDisplay
                 requireWaiterPassword
@@ -151,6 +152,7 @@ export const USER_LOGIN = gql`
                 isMultiWaiterEnabled
                 isCommandItemMode
                 separateRepeatedItems
+                allowCloseWithOccupiedTables
                 isKitchenPrint
                 isKitchenDisplay
                 printCancellations
@@ -2498,6 +2500,7 @@ export const UPDATE_BRANCH = gql`
         $requireWaiterPassword: Boolean
         $isMultiWaiterEnabled: Boolean
         $separateRepeatedItems: Boolean
+        $allowCloseWithOccupiedTables: Boolean
     ) {
         updateBranch(
             id: $id
@@ -2523,6 +2526,7 @@ export const UPDATE_BRANCH = gql`
             requireWaiterPassword: $requireWaiterPassword
             isMultiWaiterEnabled: $isMultiWaiterEnabled
             separateRepeatedItems: $separateRepeatedItems
+            allowCloseWithOccupiedTables: $allowCloseWithOccupiedTables
         ) {
             success
             message
@@ -2546,6 +2550,7 @@ export const UPDATE_BRANCH = gql`
                 isMultiWaiterEnabled
                 isCommandItemMode
                 separateRepeatedItems
+                allowCloseWithOccupiedTables
                 isKitchenPrint
                 isKitchenDisplay
                 requireWaiterPassword

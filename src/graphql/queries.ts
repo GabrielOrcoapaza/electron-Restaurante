@@ -697,6 +697,7 @@ export const GET_BRANCH_FULL = gql`
             isMultiWaiterEnabled
             isCommandItemMode
             separateRepeatedItems
+            allowCloseWithOccupiedTables
             isKitchenPrint
             isKitchenDisplay
             requireWaiterPassword
@@ -776,6 +777,7 @@ export const GET_BRANCH_BY_ID = gql`
             isMultiWaiterEnabled
             isCommandItemMode
             separateRepeatedItems
+            allowCloseWithOccupiedTables
             isKitchenPrint
             isKitchenDisplay
             requireWaiterPassword

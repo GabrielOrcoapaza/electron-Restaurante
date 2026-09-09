@@ -24,6 +24,7 @@ type BranchFormState = {
     requireWaiterPassword: boolean;
     isMultiWaiterEnabled: boolean;
     separateRepeatedItems: boolean;
+    allowCloseWithOccupiedTables: boolean;
     taxAffectationType: string;
 };
 
@@ -47,6 +48,7 @@ const emptyForm = (): BranchFormState => ({
     requireWaiterPassword: false,
     isMultiWaiterEnabled: false,
     separateRepeatedItems: false,
+    allowCloseWithOccupiedTables: false,
     taxAffectationType: "10",
 });
 
@@ -69,6 +71,9 @@ function branchToForm(branch: Record<string, unknown>): BranchFormState {
         ),
         separateRepeatedItems: Boolean(
             branch.separateRepeatedItems ?? false,
+        ),
+        allowCloseWithOccupiedTables: Boolean(
+            branch.allowCloseWithOccupiedTables ?? false,
         ),
         taxAffectationType: normalizeTaxAffectationType(
             branch.taxAffectationType as string | null | undefined,
@@ -233,6 +238,7 @@ const BranchSettings: React.FC = () => {
             requireWaiterPassword: form.requireWaiterPassword,
             isMultiWaiterEnabled: form.isMultiWaiterEnabled,
             separateRepeatedItems: form.separateRepeatedItems,
+            allowCloseWithOccupiedTables: form.allowCloseWithOccupiedTables,
             taxAffectationType: form.taxAffectationType,
         };
 
@@ -428,6 +434,16 @@ const BranchSettings: React.FC = () => {
                             checked={form.separateRepeatedItems}
                             onChange={(v) =>
                                 handleToggle("separateRepeatedItems", v)
+                            }
+                        />
+                        <ToggleField
+                            label="Permitir cerrar caja con mesas ocupadas"
+                            checked={form.allowCloseWithOccupiedTables}
+                            onChange={(v) =>
+                                handleToggle(
+                                    "allowCloseWithOccupiedTables",
+                                    v,
+                                )
                             }
                         />
                         <ToggleField
