@@ -38,6 +38,8 @@ interface ClientSalesReportSummary {
     totalTransfer: number;
     totalRappi: number;
     totalPedidoYa: number;
+    totalLlamaFood: number;
+    totalCredito: number;
     totalOthers: number;
 }
 
@@ -229,6 +231,8 @@ const ReportClientSales: React.FC = () => {
                                 { label: "Transf.", amount: summary.totalTransfer, color: "text-purple-600", bg: "bg-purple-50 dark:bg-purple-900/20" },
                                 { label: "Rappi", amount: summary.totalRappi, color: "text-orange-600", bg: "bg-orange-50 dark:bg-orange-900/20" },
                                 { label: "Pedido Ya", amount: summary.totalPedidoYa, color: "text-pink-600", bg: "bg-pink-50 dark:bg-pink-900/20" },
+                                { label: "LlamaFood", amount: summary.totalLlamaFood, color: "text-fuchsia-600", bg: "bg-fuchsia-50 dark:bg-fuchsia-900/20" },
+                                { label: "Crédito (pend.)", amount: summary.totalCredito, color: "text-yellow-600", bg: "bg-yellow-50 dark:bg-yellow-900/20" },
                                 { label: "Otros", amount: summary.totalOthers, color: "text-slate-600", bg: "bg-slate-50 dark:bg-slate-800/30" },
                             ].map((item, idx) => (
                                 <div key={idx} className={`flex flex-col rounded-2xl p-3 ${item.bg}`}>

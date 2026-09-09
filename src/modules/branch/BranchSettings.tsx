@@ -23,6 +23,7 @@ type BranchFormState = {
     isCommandItemMode: boolean;
     requireWaiterPassword: boolean;
     isMultiWaiterEnabled: boolean;
+    separateRepeatedItems: boolean;
     taxAffectationType: string;
 };
 
@@ -45,6 +46,7 @@ const emptyForm = (): BranchFormState => ({
     isCommandItemMode: false,
     requireWaiterPassword: false,
     isMultiWaiterEnabled: false,
+    separateRepeatedItems: false,
     taxAffectationType: "10",
 });
 
@@ -64,6 +66,9 @@ function branchToForm(branch: Record<string, unknown>): BranchFormState {
         ),
         isMultiWaiterEnabled: Boolean(
             branch.isMultiWaiterEnabled ?? false,
+        ),
+        separateRepeatedItems: Boolean(
+            branch.separateRepeatedItems ?? false,
         ),
         taxAffectationType: normalizeTaxAffectationType(
             branch.taxAffectationType as string | null | undefined,
@@ -227,6 +232,7 @@ const BranchSettings: React.FC = () => {
             isCommandItemMode: form.isCommandItemMode,
             requireWaiterPassword: form.requireWaiterPassword,
             isMultiWaiterEnabled: form.isMultiWaiterEnabled,
+            separateRepeatedItems: form.separateRepeatedItems,
             taxAffectationType: form.taxAffectationType,
         };
 
@@ -415,6 +421,13 @@ const BranchSettings: React.FC = () => {
                             checked={form.isMultiWaiterEnabled}
                             onChange={(v) =>
                                 handleToggle("isMultiWaiterEnabled", v)
+                            }
+                        />
+                        <ToggleField
+                            label="Desagrupar productos repetidos"
+                            checked={form.separateRepeatedItems}
+                            onChange={(v) =>
+                                handleToggle("separateRepeatedItems", v)
                             }
                         />
                         <ToggleField

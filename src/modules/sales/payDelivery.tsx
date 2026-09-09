@@ -28,6 +28,10 @@ export const SALE_PAYMENT_METHODS: { value: string; label: string }[] = [
     { value: 'TRANSFER', label: 'Transferencia Bancaria' },
     { value: 'RAPPI', label: 'Rappi' },
     { value: 'PEDIDO_YA', label: 'Pedido Ya' },
+    { value: 'LLAMA_FOOD', label: 'LlamaFood' },
+    // Placeholder temporal: se usa cuando aún no se sabe qué método cobrará el motorizado
+    // (plataformas de terceros). Se regulariza luego desde Gestión de Cajas.
+    { value: 'CREDITO', label: 'Crédito (pendiente de regularizar)' },
     { value: 'OTROS', label: 'Otros' },
 ];
 

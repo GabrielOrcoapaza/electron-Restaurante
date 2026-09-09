@@ -51,6 +51,7 @@ export interface ExpenseReportSummary {
     totalTransfer: number;
     totalRappi: number;
     totalPedidoYa: number;
+    totalLlamaFood: number;
     totalOthers: number;
 }
 
@@ -89,6 +90,7 @@ const buildSummary = (payments: ExpensePayment[]): ExpenseReportSummary => {
         totalTransfer: 0,
         totalRappi: 0,
         totalPedidoYa: 0,
+        totalLlamaFood: 0,
         totalOthers: 0,
     };
 
@@ -103,6 +105,7 @@ const buildSummary = (payments: ExpensePayment[]): ExpenseReportSummary => {
         else if (method === "TRANSFER") summary.totalTransfer += amount;
         else if (method === "RAPPI") summary.totalRappi += amount;
         else if (method === "PEDIDO_YA") summary.totalPedidoYa += amount;
+        else if (method === "LLAMA_FOOD") summary.totalLlamaFood += amount;
         else summary.totalOthers += amount;
     }
 
@@ -114,6 +117,7 @@ const buildSummary = (payments: ExpensePayment[]): ExpenseReportSummary => {
     summary.totalTransfer = roundMoney2(summary.totalTransfer);
     summary.totalRappi = roundMoney2(summary.totalRappi);
     summary.totalPedidoYa = roundMoney2(summary.totalPedidoYa);
+    summary.totalLlamaFood = roundMoney2(summary.totalLlamaFood);
     summary.totalOthers = roundMoney2(summary.totalOthers);
 
     return summary;
@@ -455,6 +459,7 @@ const ReportExpense: React.FC = () => {
                             "TRANSFER",
                             "RAPPI",
                             "PEDIDO_YA",
+                            "LLAMA_FOOD",
                             "OTROS",
                         ].map((method) => (
                             <option key={method} value={method}>

@@ -112,6 +112,8 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
     TRANSFER: "Transferencia",
     RAPPI: "Rappi",
     PEDIDO_YA: "Pedido Ya",
+    LLAMA_FOOD: "LlamaFood",
+    CREDITO: "Crédito (pendiente)",
     OTROS: "Otros",
 };
 
@@ -1072,6 +1074,22 @@ const Cashs: React.FC = () => {
                                                             darkBorder:
                                                                 "border-red-800/30",
                                                         },
+                                                        LLAMA_FOOD: {
+                                                            color: "text-fuchsia-600",
+                                                            bg: "bg-fuchsia-50/50",
+                                                            border: "border-fuchsia-100",
+                                                            darkBg: "bg-fuchsia-900/10",
+                                                            darkBorder:
+                                                                "border-fuchsia-800/30",
+                                                        },
+                                                        CREDITO: {
+                                                            color: "text-yellow-600",
+                                                            bg: "bg-yellow-50/50",
+                                                            border: "border-yellow-100",
+                                                            darkBg: "bg-yellow-900/10",
+                                                            darkBorder:
+                                                                "border-yellow-800/30",
+                                                        },
                                                     };
                                                     const style = config[
                                                         p.methodCode
@@ -1271,6 +1289,8 @@ const Cashs: React.FC = () => {
                                                                                         <option value="TRANSFER">Transferencia</option>
                                                                                         <option value="RAPPI">Rappi</option>
                                                                                         <option value="PEDIDO_YA">Pedido Ya</option>
+                                                                                        <option value="LLAMA_FOOD">LlamaFood</option>
+                                                                                        <option value="CREDITO">Crédito (pendiente)</option>
                                                                                         <option value="OTROS">Otros</option>
                                                                                     </select>
                                                                                 )}
@@ -1519,6 +1539,12 @@ const Cashs: React.FC = () => {
                                                                                             </option>
                                                                                             <option value="PEDIDO_YA">
                                                                                                 Pedido Ya
+                                                                                            </option>
+                                                                                            <option value="LLAMA_FOOD">
+                                                                                                LlamaFood
+                                                                                            </option>
+                                                                                            <option value="CREDITO">
+                                                                                                Crédito (pendiente)
                                                                                             </option>
                                                                                             <option value="OTROS">
                                                                                                 Otros

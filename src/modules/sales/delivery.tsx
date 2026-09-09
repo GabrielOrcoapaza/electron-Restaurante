@@ -41,8 +41,7 @@ import {
     formatInstantISO,
 } from "../../utils/localDateTime";
 import {
-    findBestDiscountPromotion,
-    calculateLineDiscount,
+    computeDiscountPromotions,
     computeNxMFreeSet,
     findBadgePromotion,
     promotionBadgeLabel,
@@ -167,6 +166,11 @@ const Delivery: React.FC = () => {
     const { companyData, user, getDeviceId, getMacAddress } =
         useAuth();
     const { showToast } = useToast();
+    // Si está activo, cada unidad de un producto repetido queda en su propia línea
+    // (nunca se agrupan por cantidad). Config de sede — ver BranchSettings.tsx.
+    const separateRepeatedItems = Boolean(
+        companyData?.branch?.separateRepeatedItems,
+    );
     const { hasPermission } = useUserPermissions();
     const { breakpoint, isPosTouchScreen } = useResponsive();
     const canEditPrice = hasPermission("products.edit_prices_delivery");
@@ -493,7 +497,36 @@ const Delivery: React.FC = () => {
                 0,
             );
 
-            let updated = items.map((item) => {
+            // Elegibles para DISCOUNT_PERCENT/DISCOUNT_AMOUNT: no editados manualmente, sin
+            // descuento previo ya fijado, no combo, con producto.
+            const isEligibleForDiscount = (item: CartItem) =>
+                !item.manualPriceEdited &&
+                (item.discount ?? 0) === 0 &&
+                !item.isCombo &&
+                !!item.product;
+
+            const discountLines: CartLine[] = items
+                .map((item, idx) =>
+                    isEligibleForDiscount(item)
+                        ? {
+                              index: idx,
+                              product: item.product,
+                              unitPrice: item.price,
+                              quantity: item.quantity,
+                              isGift: false,
+                          }
+                        : null,
+                )
+                .filter(Boolean) as CartLine[];
+            // Agrupado por producto: un DISCOUNT_AMOUNT nunca se aplica dos veces al mismo
+            // producto repartido en varias líneas (ver comentario en computeDiscountPromotions).
+            const discountResults = computeDiscountPromotions(
+                discountLines,
+                promotions,
+                cartTotal,
+            );
+
+            let updated = items.map((item, idx) => {
                 if (item.manualPriceEdited) {
                     return { ...item, discount: 0, promotionName: null };
                 }
@@ -503,23 +536,10 @@ const Delivery: React.FC = () => {
                 }
                 if (item.isCombo || !item.product)
                     return { ...item, discount: 0, promotionName: null };
-                const promo = findBestDiscountPromotion(
-                    item.product,
-                    promotions,
-                    cartTotal,
-                );
-                if (promo) {
-                    return {
-                        ...item,
-                        discount: calculateLineDiscount(
-                            item.price,
-                            item.quantity,
-                            promo,
-                        ),
-                        promotionName: promo.name,
-                    };
-                }
-                return { ...item, discount: 0, promotionName: null };
+                const result = discountResults.get(idx);
+                return result
+                    ? { ...item, discount: result.discount, promotionName: result.promoName }
+                    : { ...item, discount: 0, promotionName: null };
             });
 
             // NxM - los más baratos del grupo quedan gratis
@@ -741,9 +761,9 @@ const Delivery: React.FC = () => {
             return;
         }
 
-        const existingItemIndex = cartItems.findIndex(
-            (item) => item.productId === product.id,
-        );
+        const existingItemIndex = separateRepeatedItems
+            ? -1
+            : cartItems.findIndex((item) => item.productId === product.id);
 
         if (existingItemIndex >= 0) {
             const updatedItems = [...cartItems];
@@ -818,12 +838,14 @@ const Delivery: React.FC = () => {
         }
 
         const comboPrice = Number(comboProduct.salePrice) || 0;
-        const existingItemIndex = cartItems.findIndex(
-            (item) =>
-                item.isCombo &&
-                String(item.productId) === String(comboProduct.id) &&
-                comboSelectionsMatch(item.comboComponents, selections),
-        );
+        const existingItemIndex = separateRepeatedItems
+            ? -1
+            : cartItems.findIndex(
+                  (item) =>
+                      item.isCombo &&
+                      String(item.productId) === String(comboProduct.id) &&
+                      comboSelectionsMatch(item.comboComponents, selections),
+              );
 
         if (existingItemIndex >= 0) {
             const updatedItems = [...cartItems];

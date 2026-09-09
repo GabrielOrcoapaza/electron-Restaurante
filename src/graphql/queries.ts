@@ -694,6 +694,7 @@ export const GET_BRANCH_FULL = gql`
             isDelivery
             isMultiWaiterEnabled
             isCommandItemMode
+            separateRepeatedItems
             isKitchenPrint
             isKitchenDisplay
             requireWaiterPassword
@@ -772,6 +773,7 @@ export const GET_BRANCH_BY_ID = gql`
             isDelivery
             isMultiWaiterEnabled
             isCommandItemMode
+            separateRepeatedItems
             isKitchenPrint
             isKitchenDisplay
             requireWaiterPassword
@@ -1603,6 +1605,8 @@ export const GET_CLIENT_SALES_REPORT = gql`
                 totalTransfer
                 totalRappi
                 totalPedidoYa
+                totalLlamaFood
+                totalCredito
                 totalOthers
             }
         }

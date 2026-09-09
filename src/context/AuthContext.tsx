@@ -86,6 +86,7 @@ export interface CompanyData {
         isDelivery?: boolean;
         isMultiWaiterEnabled?: boolean;
         isCommandItemMode?: boolean;
+        separateRepeatedItems?: boolean;
         isKitchenPrint?: boolean;
         isKitchenDisplay?: boolean;
         requireWaiterPassword?: boolean;

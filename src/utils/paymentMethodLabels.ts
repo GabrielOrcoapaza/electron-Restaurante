@@ -6,6 +6,8 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
     TRANSFER: "Transferencia",
     RAPPI: "Rappi",
     PEDIDO_YA: "Pedido Ya",
+    LLAMA_FOOD: "LlamaFood",
+    CREDITO: "Crédito",
     OTROS: "Otros",
 };
 

@@ -56,8 +56,7 @@ import {
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
 import { getLocalTicketPrinterStorage } from "../../utils/localPrinterPreference";
 import {
-    findBestDiscountPromotion,
-    calculateLineDiscount,
+    computeDiscountPromotions,
     computeNxMFreeSet,
     findBadgePromotion,
     promotionBadgeLabel,
@@ -148,33 +147,48 @@ function applyPromotionsToOrder(
         0,
     );
 
-    let updated = nonGiftItems.map((item) => {
+    // Elegibles para DISCOUNT_PERCENT/DISCOUNT_AMOUNT: no congelados (ya tenían descuento y
+    // no son nuevos), no combo, no impresos, con producto.
+    const isEligibleForDiscount = (item: OrderItem) =>
+        !((item.discount ?? 0) > 0 && !item.isNew) &&
+        !item.isCombo &&
+        !item.isPrinted &&
+        !!item.product;
+
+    const discountLines: CartLine[] = nonGiftItems
+        .map((item, idx) =>
+            isEligibleForDiscount(item)
+                ? {
+                      index: idx,
+                      product: item.product,
+                      unitPrice: item.price,
+                      quantity: item.quantity,
+                      isGift: false,
+                  }
+                : null,
+        )
+        .filter(Boolean) as CartLine[];
+    // Agrupado por producto: un DISCOUNT_AMOUNT nunca se aplica dos veces al mismo producto
+    // repartido en varias líneas (ver comentario en computeDiscountPromotions).
+    const discountResults = computeDiscountPromotions(
+        discountLines,
+        promotions,
+        cartTotal,
+        subcategoriesOfCategoryParam,
+        selectedCategoryParam,
+    );
+
+    let updated = nonGiftItems.map((item, idx) => {
         if ((item.discount ?? 0) > 0 && !item.isNew) {
             return item;
         }
         if (item.isCombo || item.isPrinted) {
             return { ...item, discount: 0, promotionName: null };
         }
-        const promo = findBestDiscountPromotion(
-            item.product,
-            promotions,
-            cartTotal,
-            subcategoriesOfCategoryParam,
-            selectedCategoryParam,
-        );
-        if (promo) {
-            const disc = calculateLineDiscount(
-                item.price,
-                item.quantity,
-                promo,
-            );
-            return {
-                ...item,
-                discount: disc,
-                promotionName: promo.name,
-            };
-        }
-        return { ...item, discount: 0, promotionName: null };
+        const result = discountResults.get(idx);
+        return result
+            ? { ...item, discount: result.discount, promotionName: result.promoName }
+            : { ...item, discount: 0, promotionName: null };
     });
 
     const nxmPromos = promotions.filter((p) => p.promotionType === "NXM");
@@ -294,6 +308,11 @@ const Order: React.FC<OrderProps> = ({
         userRoleUpper === "CAJA";
 
     const igvPercentageFromBranch = getBranchIgvPercentage(companyData);
+    // Si está activo, cada unidad de un producto repetido queda en su propia línea
+    // (nunca se agrupan por cantidad). Config de sede — ver BranchSettings.tsx.
+    const separateRepeatedItems = Boolean(
+        companyData?.branch?.separateRepeatedItems,
+    );
 
     // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil en grid)
     const isXs = breakpoint === "xs";
@@ -1201,9 +1220,11 @@ const Order: React.FC<OrderProps> = ({
             // En órdenes existentes:
             // - Si hay un item nuevo (sin guardar) con el mismo producto, aumentar su cantidad
             // - Si solo hay items guardados o no existe, crear una nueva fila
-            const existingNewItemIndex = orderItems.findIndex(
-                (item) => item.productId === product.id && item.isNew === true,
-            );
+            const existingNewItemIndex = separateRepeatedItems
+                ? -1
+                : orderItems.findIndex(
+                      (item) => item.productId === product.id && item.isNew === true,
+                  );
 
             if (existingNewItemIndex >= 0) {
                 // Si existe un item nuevo con el mismo producto, aumentar su cantidad
@@ -1223,9 +1244,11 @@ const Order: React.FC<OrderProps> = ({
             }
         } else {
             // Para nuevas órdenes, agrupar productos por productId (aumentar cantidad si existe)
-            const existingItemIndex = orderItems.findIndex(
-                (item) => item.productId === product.id,
-            );
+            const existingItemIndex = separateRepeatedItems
+                ? -1
+                : orderItems.findIndex(
+                      (item) => item.productId === product.id,
+                  );
 
             if (existingItemIndex >= 0) {
                 // Si el producto ya existe, aumentar la cantidad
