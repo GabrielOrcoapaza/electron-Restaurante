@@ -193,6 +193,7 @@ export const GET_OPERATION_BY_TABLE = gql`
             igvPercentage
             operationType
             operationDate
+            notes
             user {
                 id
                 firstName
@@ -346,6 +347,7 @@ export const GET_TABLES_BY_FLOOR = gql`
             currentOperation {
                 id
                 operationDate
+                notes
             }
             occupiedById
             userName

@@ -38,6 +38,8 @@ export interface Table {
   currentOperation?: {
     id?: string;
     operationDate?: string | null;
+    /** Observación de la orden (ej. nombre del cliente en la mesa). */
+    notes?: string | null;
   } | null;
   occupiedById?: number;
   userName?: string;

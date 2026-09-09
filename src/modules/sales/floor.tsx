@@ -810,6 +810,27 @@ const Floor: React.FC<FloorProps> = ({
                                                                 {table.userName}
                                                             </div>
                                                         )}
+
+                                                    {table.currentOperation
+                                                        ?.notes &&
+                                                        table.status !==
+                                                            "AVAILABLE" && (
+                                                            <div
+                                                                title={
+                                                                    table
+                                                                        .currentOperation
+                                                                        .notes!
+                                                                }
+                                                                className={`mt-1 max-w-full truncate rounded-lg px-2 py-0.5 ${isXs ? "text-sm" : "text-[11px]"} font-semibold italic ${classes.text} bg-white/40 dark:bg-black/25`}
+                                                            >
+                                                                📝{" "}
+                                                                {
+                                                                    table
+                                                                        .currentOperation
+                                                                        .notes
+                                                                }
+                                                            </div>
+                                                        )}
                                                 </div>
 
                                                 {showSessionLockIcon && (

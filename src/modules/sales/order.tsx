@@ -444,6 +444,9 @@ const Order: React.FC<OrderProps> = ({
     const [searchByCodeOnly, setSearchByCodeOnly] = useState<boolean>(false);
     const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
     const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+    // Observación general de la orden (opcional) — ej. nombre del cliente en la mesa.
+    // Se ve en la tarjeta de la mesa (floor.tsx) una vez creada la orden.
+    const [orderObservation, setOrderObservation] = useState<string>("");
     const [initializedFromExistingOrder, setInitializedFromExistingOrder] =
         useState(false);
     const [productObservations, setProductObservations] = useState<
@@ -1838,7 +1841,7 @@ const Order: React.FC<OrderProps> = ({
                 operationType: "SALE",
                 serviceType: "RESTAURANT",
                 status: status,
-                notes: "",
+                notes: orderObservation.trim(),
                 details: details,
                 subtotal: calculatedSubtotal,
                 igvAmount: calculatedIgvAmount,
@@ -3820,6 +3823,25 @@ const Order: React.FC<OrderProps> = ({
                                     </div>
                                 )}
                             </div>
+
+                            {!isExistingOrder && (
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                        Observación (opcional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={orderObservation}
+                                        onChange={(e) =>
+                                            setOrderObservation(
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="Ej: nombre del cliente, referencia..."
+                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-indigo-500"
+                                    />
+                                </div>
+                            )}
 
                             <div
                                 className="border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
