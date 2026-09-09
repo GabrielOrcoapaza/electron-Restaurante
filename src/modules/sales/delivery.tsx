@@ -29,6 +29,7 @@ import {
     GET_USERS_BY_BRANCH_ROLE,
 } from "../../graphql/queries";
 import { CREATE_PERSON } from "../../graphql/mutations";
+import { filterPersonsForCustomerSearch } from "../../utils/clientSearchUtils";
 import ModalObservation from "./modalObservation";
 import PayDeliveryCheckout, {
     type DeliveryPaymentLine,
@@ -111,23 +112,6 @@ const getProductQtyInCart = (cartItems: CartItem[], productId: string) =>
         )
         .reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
 
-const SearchIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
-    <svg
-        xmlns="http://www.w3.org/2000/svg"
-        className={className}
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-    >
-        <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-        />
-    </svg>
-);
-
 const ChevronLeft = () => (
     <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -176,9 +160,18 @@ const Delivery: React.FC = () => {
     const canEditPrice = hasPermission("products.edit_prices_delivery");
 
     // Responsive: sm 640-767, md 768-1023, lg 1024-1279, xl 1280-1535, 2xl >=1536
+    const isXs = breakpoint === "xs";
     const isSmall = breakpoint === "sm";
     const isMedium = breakpoint === "md";
     const isCompactPos = isMedium || isPosTouchScreen;
+
+    const productsGridColumns = isXs
+        ? "repeat(2, 1fr)"
+        : isSmall
+          ? "repeat(3, 1fr)"
+          : isCompactPos
+            ? "repeat(5, 1fr)"
+            : "repeat(8, 1fr)";
 
     // IGV de la sucursal
     const igvPercentageFromBranch = getBranchIgvPercentage(companyData);
@@ -193,7 +186,6 @@ const Delivery: React.FC = () => {
     >(null);
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [searchByCodeOnly, setSearchByCodeOnly] = useState<boolean>(false);
-    const [showSearch, setShowSearch] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -625,25 +617,15 @@ const Delivery: React.FC = () => {
         }
     }, [activePromotions, cartItems.length, recalculatePromotions]);
 
-    const filteredClients = useMemo(() => {
-        let clients = (clientsData?.personsByBranch || []).filter(
-            (c: any) => !c.isSupplier && c.isActive !== false,
-        );
-        if (isFactura) {
-            clients = clients.filter(
-                (c: any) => (c.documentType || "").toUpperCase() === "RUC",
-            );
-        }
-        if (!personSearchTerm) return clients.slice(0, 50);
-        const lower = personSearchTerm.toLowerCase();
-        return clients
-            .filter(
-                (c: any) =>
-                    (c.name || "").toLowerCase().includes(lower) ||
-                    (c.documentNumber || "").includes(lower),
-            )
-            .slice(0, 50);
-    }, [clientsData, personSearchTerm, isFactura]);
+    const filteredClients = useMemo(
+        () =>
+            filterPersonsForCustomerSearch(
+                clientsData?.personsByBranch || [],
+                personSearchTerm,
+                { isFactura },
+            ),
+        [clientsData, personSearchTerm, isFactura],
+    );
 
     // Determinar qué productos mostrar
     let products;
@@ -722,6 +704,8 @@ const Delivery: React.FC = () => {
 
     // Función para agregar producto al carrito
     const handleAddProduct = (productIdToAdd?: string, qtyToAdd?: number) => {
+        if (showCheckout) setShowCheckout(false);
+
         const productId = productIdToAdd || selectedProduct;
         if (!productId) return;
 
@@ -882,6 +866,8 @@ const Delivery: React.FC = () => {
     };
 
     const handleComboGridClick = (combo: ComboProduct) => {
+        if (showCheckout) setShowCheckout(false);
+
         if (isDeliveryQuickAddCombo(combo)) {
             handleAddCombo(combo, buildQuickAddComponents(combo));
             return;
@@ -1539,7 +1525,7 @@ const Delivery: React.FC = () => {
                 return;
             }
             const person = result.person;
-            if (person.id && result.foundLocally) {
+            if (person.id && (result.foundLocally || result.foundInSunat)) {
                 selectPersonFromClient({
                     id: person.id,
                     name: person.name || "",
@@ -1557,7 +1543,6 @@ const Delivery: React.FC = () => {
                 }
                 return;
             }
-            // Encontrado en SUNAT (o datos para crear): crear cliente y seleccionar
             const { data: createData } = await createPersonMutation({
                 variables: {
                     branchId: companyData.branch.id,
@@ -1693,29 +1678,26 @@ const Delivery: React.FC = () => {
                     <h2 className="shrink-0 text-base font-semibold text-slate-800">
                         Delivery
                     </h2>
-                    {showSearch && (
-                        <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (
-                                    e.key === "Enter" &&
-                                    productsList.length > 0
-                                ) {
-                                    e.preventDefault();
-                                    handleAddProduct(productsList[0].id, 1);
-                                }
-                            }}
-                            placeholder={
-                                searchByCodeOnly
-                                    ? "Código del producto..."
-                                    : "Buscar productos..."
+                    <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (
+                                e.key === "Enter" &&
+                                productsList.length > 0
+                            ) {
+                                e.preventDefault();
+                                handleAddProduct(productsList[0].id, 1);
                             }
-                            className="min-w-0 flex-1 rounded-lg border border-slate-200 py-2 px-3 text-sm outline-none focus:border-[#3b82f6]"
-                            autoFocus
-                        />
-                    )}
+                        }}
+                        placeholder={
+                            searchByCodeOnly
+                                ? "Código del producto..."
+                                : "Buscar productos..."
+                        }
+                        className="min-w-0 flex-1 rounded-lg border border-slate-200 py-2 px-3 text-sm outline-none focus:border-[#3b82f6]"
+                    />
                     <button
                         type="button"
                         onClick={() => setSearchByCodeOnly((v) => !v)}
@@ -1737,23 +1719,6 @@ const Delivery: React.FC = () => {
                         }`}
                     >
                         Combos
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setShowSearch((v) => {
-                                if (v) setSearchTerm("");
-                                return !v;
-                            });
-                        }}
-                        className={`ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                            showSearch
-                                ? "bg-[#3b82f6] text-white"
-                                : "text-slate-600 hover:bg-slate-100"
-                        }`}
-                        aria-label="Buscar productos"
-                    >
-                        <SearchIcon />
                     </button>
                 </div>
 
@@ -1858,8 +1823,7 @@ const Delivery: React.FC = () => {
                             <div
                                 className="grid gap-2"
                                 style={{
-                                    gridTemplateColumns:
-                                        "repeat(auto-fill, minmax(100px, 1fr))",
+                                    gridTemplateColumns: productsGridColumns,
                                 }}
                             >
                                 {activeCombos.map((combo) => {
@@ -1918,8 +1882,7 @@ const Delivery: React.FC = () => {
                         <div
                             className="grid gap-2"
                             style={{
-                                gridTemplateColumns:
-                                    "repeat(auto-fill, minmax(100px, 1fr))",
+                                gridTemplateColumns: productsGridColumns,
                             }}
                         >
                             {productsList.map((product: any) => {

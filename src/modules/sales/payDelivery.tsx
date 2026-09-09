@@ -74,6 +74,19 @@ const findDocumentByAbbrev = (
     );
 };
 
+/** Etiquetas y colores alineados con cashPay.tsx */
+const docTypeButtonLabel = (abbrev: DocAbbrev, doc?: any): string => {
+    if (abbrev === 'F') return 'Factura';
+    if (abbrev === 'B') return 'Boleta';
+    return doc?.description || 'Nota de venta';
+};
+
+const docTypeButtonAccent = (abbrev: DocAbbrev): string => {
+    if (abbrev === 'F') return '#4f46e5';
+    if (abbrev === 'B') return '#059669';
+    return '#475569';
+};
+
 export type PayDeliveryCheckoutProps = {
     onBack: () => void;
     cartTotal: number;
@@ -273,25 +286,43 @@ const PayDeliveryCheckout: React.FC<PayDeliveryCheckoutProps> = ({
                         <p className="mb-2 text-xs font-medium text-slate-600 dark:text-slate-400">
                             Tipo de doc:
                         </p>
-                        <div className="flex gap-3">
-                            {(['NV', 'B', 'F'] as DocAbbrev[]).map((type) => (
-                                <button
-                                    key={type}
-                                    type="button"
-                                    onClick={() => selectDocAbbrev(type)}
-                                    disabled={
-                                        isSaving ||
-                                        !findDocumentByAbbrev(documents, type)
-                                    }
-                                    className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors disabled:opacity-30 ${
-                                        docAbbrev === type
-                                            ? 'border-indigo-600 bg-indigo-600 text-white'
-                                            : 'border-slate-300 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200'
-                                    }`}
-                                >
-                                    {type}
-                                </button>
-                            ))}
+                        <div className="flex flex-wrap gap-2">
+                            {(['NV', 'B', 'F'] as DocAbbrev[]).map((type) => {
+                                const doc = findDocumentByAbbrev(documents, type);
+                                const isSelected = docAbbrev === type;
+                                const accent = docTypeButtonAccent(type);
+                                return (
+                                    <button
+                                        key={type}
+                                        type="button"
+                                        onClick={() => selectDocAbbrev(type)}
+                                        disabled={isSaving || !doc}
+                                        title={doc?.description}
+                                        className={`rounded-md border-2 text-[0.72rem] font-extrabold leading-tight transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-30 ${
+                                            isSelected
+                                                ? ''
+                                                : 'bg-white dark:bg-slate-900'
+                                        }`}
+                                        style={{
+                                            flex: '1 1 calc(33.33% - 0.4rem)',
+                                            minWidth: '5.5rem',
+                                            padding: '0.65rem 0.35rem',
+                                            ...(isSelected
+                                                ? {
+                                                      background: accent,
+                                                      borderColor: accent,
+                                                      color: '#ffffff',
+                                                  }
+                                                : {
+                                                      borderColor: '#cbd5e1',
+                                                      color: accent,
+                                                  }),
+                                        }}
+                                    >
+                                        {docTypeButtonLabel(type, doc)}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 

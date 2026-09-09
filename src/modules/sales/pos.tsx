@@ -32,6 +32,7 @@ import {
     SALE_PAYMENT_METHODS,
     paymentMethodNeedsReference,
 } from "./payDelivery";
+import { filterPersonsForCustomerSearch } from "../../utils/clientSearchUtils";
 import ClientSearchBar, {
     type ClientSearchPerson,
     type EditClientForModal,
@@ -523,25 +524,15 @@ const PointOfSale: React.FC = () => {
         }
     }, [cashRegisters, selectedCashRegister]);
 
-    const filteredClients = useMemo(() => {
-        let clients = (clientsData?.personsByBranch || []).filter(
-            (c: any) => !c.isSupplier && c.isActive !== false,
-        );
-        if (isFactura) {
-            clients = clients.filter(
-                (c: any) => (c.documentType || "").toUpperCase() === "RUC",
-            );
-        }
-        if (!personSearchTerm) return clients.slice(0, 50);
-        const lower = personSearchTerm.toLowerCase();
-        return clients
-            .filter(
-                (c: any) =>
-                    (c.name || "").toLowerCase().includes(lower) ||
-                    (c.documentNumber || "").includes(lower),
-            )
-            .slice(0, 50);
-    }, [clientsData, personSearchTerm, isFactura]);
+    const filteredClients = useMemo(
+        () =>
+            filterPersonsForCustomerSearch(
+                clientsData?.personsByBranch || [],
+                personSearchTerm,
+                { isFactura },
+            ),
+        [clientsData, personSearchTerm, isFactura],
+    );
 
     const isSearching = searchTerm.trim().length >= searchMinLength;
     let productsList: any[] = [];
@@ -821,7 +812,7 @@ const PointOfSale: React.FC = () => {
                 return;
             }
             const person = result.person;
-            if (person.id && result.foundLocally) {
+            if (person.id && (result.foundLocally || result.foundInSunat)) {
                 selectPersonFromClient(person);
                 const { data: refetched } = await refetchClients();
                 const updated = (refetched?.personsByBranch || []).find(
