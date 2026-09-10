@@ -224,7 +224,7 @@ const PayDeliveryCheckout: React.FC<PayDeliveryCheckoutProps> = ({
     };
 
     return (
-        <>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="mb-4 flex shrink-0 items-center gap-2 border-b border-slate-100 pb-4 dark:border-slate-800">
                 <button
                     type="button"
@@ -506,10 +506,10 @@ const PayDeliveryCheckout: React.FC<PayDeliveryCheckoutProps> = ({
                     type="button"
                     onClick={onConfirm}
                     disabled={confirmDisabled}
-                    className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-black uppercase tracking-widest text-white transition-all shadow-lg ${
+                    className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-black uppercase tracking-wider text-white transition-all ${
                         confirmDisabled
-                            ? 'cursor-not-allowed bg-slate-300 dark:bg-slate-800 shadow-none'
-                            : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-indigo-600/30 active:translate-y-0'
+                            ? 'cursor-not-allowed bg-slate-300 dark:bg-slate-800'
+                            : 'bg-indigo-600 shadow-md shadow-indigo-600/20 hover:bg-indigo-700'
                     }`}
                 >
                     {isSaving ? (
@@ -522,7 +522,7 @@ const PayDeliveryCheckout: React.FC<PayDeliveryCheckoutProps> = ({
                     )}
                 </button>
             </div>
-        </>
+        </div>
     );
 };
 
