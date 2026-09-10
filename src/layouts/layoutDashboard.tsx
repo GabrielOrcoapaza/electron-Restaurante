@@ -50,7 +50,6 @@ import DevicePrintConfigs from "../modules/configuration/devicePrintConfigs";
 import FloorModule from "../modules/configuration/floor";
 import TableModule from "../modules/configuration/table";
 import Delivery from "../modules/sales/delivery";
-import PointOfSale from "../modules/sales/pos";
 import BranchSettings from "../modules/branch/BranchSettings";
 import { GET_MY_UNREAD_MESSAGES } from "../graphql/queries";
 import {
@@ -170,7 +169,6 @@ const LayoutDashboardContent: React.FC = () => {
             : "280px";
 
     const sidebarWidth = sidebarOpen ? sidebarWidthValue : "0px";
-    const displayedSidebarWidth = isOverlay ? sidebarWidthValue : sidebarWidth;
 
     const headerFontSize = isMobileOnly
         ? "1.125rem"
@@ -208,7 +206,6 @@ const LayoutDashboardContent: React.FC = () => {
         | "reports"
         | "configuration"
         | "delivery"
-        | "pos"
         | "branch"
     >(() => {
         const savedView = localStorage.getItem("currentDashboardView");
@@ -227,13 +224,23 @@ const LayoutDashboardContent: React.FC = () => {
             "reports",
             "configuration",
             "delivery",
-            "pos",
             "branch",
         ];
         return savedView && validViews.includes(savedView)
             ? (savedView as any)
             : "floors";
     });
+
+    /** Delivery, mesas y caja: el menú se superpone para no comprimir el catálogo. */
+    const isPosFullscreenView =
+        currentView === "delivery" ||
+        currentView === "cash" ||
+        currentView === "floors";
+
+    const isSidebarOverlay = isOverlay || isPosFullscreenView;
+    const displayedSidebarWidth = isSidebarOverlay
+        ? sidebarWidthValue
+        : sidebarWidth;
 
     useEffect(() => {
         if (currentView) {
@@ -644,13 +651,13 @@ const LayoutDashboardContent: React.FC = () => {
             | "permissions"
             | "cashs"
             | "products"
+            | "promotions"
             | "inventory"
             | "kardex"
             | "purchase"
             | "reports"
             | "configuration"
             | "delivery"
-            | "pos"
             | "branch",
     ) => {
         const leavingCash = currentView === "cash";
@@ -679,15 +686,14 @@ const LayoutDashboardContent: React.FC = () => {
             setFloorsTablesSubTab("floors");
         }
         setSelectedCashTable(null);
-        if (isOverlay) {
-            setSidebarOpen(false);
-        }
+        setSidebarOpen(false);
     };
 
     const handleOpenCash = (table: Table) => {
         lastCashTableIdRef.current = String(table.id);
         setSelectedCashTable(table);
         setCurrentView("cash");
+        setSidebarOpen(false);
     };
 
     const handleBackFromCash = async () => {
@@ -779,9 +785,7 @@ const LayoutDashboardContent: React.FC = () => {
                                   ? "Configuración"
                                   : currentView === "delivery"
                                     ? "Delivery"
-                                    : currentView === "pos"
-                                      ? "Punto de venta"
-                                      : currentView === "branch"
+                                    : currentView === "branch"
                                       ? "Sede"
                                       : "Caja";
 
@@ -826,9 +830,7 @@ const LayoutDashboardContent: React.FC = () => {
                                   ? "Configura observaciones y subcategorías de tus productos."
                                   : currentView === "delivery"
                                     ? "Gestiona entregas a domicilio con motorizado y costo de envío."
-                                    : currentView === "pos"
-                                      ? "Venta directa para llevar sin mesa."
-                                      : currentView === "branch"
+                                    : currentView === "branch"
                                       ? "Consulta y edita la configuración de la sucursal activa."
                                       : selectedCashTable
                                       ? `Procesa el pago de ${selectedCashTable.name}.`
@@ -842,7 +844,6 @@ const LayoutDashboardContent: React.FC = () => {
     const canSeePromotions = canSeeProducts;
     const canSeeFloors = isAdmin || hasPermission("orders.create");
     const canSeeDelivery = isAdmin || hasPermission("point_of_sale");
-    const canSeePos = isAdmin || hasPermission("point_of_sale");
     const canSeeConfiguration = isAdmin || hasPermission("config.manage");
     const canSeeBranch = isAdmin || hasPermission("config.manage");
     const canSeeMessages = isAdmin || hasPermission("messages.view");
@@ -892,7 +893,6 @@ const LayoutDashboardContent: React.FC = () => {
             (v === "floors" && canSeeFloors) ||
             (v === "cash" && canSeeFloors) ||
             (v === "delivery" && canSeeDelivery) ||
-            (v === "pos" && canSeePos) ||
             (v === "products" && canSeeProducts) ||
             (v === "promotions" && canSeePromotions) ||
             (v === "configuration" && canSeeConfiguration) ||
@@ -907,7 +907,6 @@ const LayoutDashboardContent: React.FC = () => {
             (v === "reports" && canSeeReports);
         if (!allowed(currentView)) {
             if (canSeeFloors) setCurrentView("floors");
-            else if (canSeePos) setCurrentView("pos");
             else if (canSeeDelivery) setCurrentView("delivery");
             else if (canSeeProducts) setCurrentView("products");
             else if (canSeePromotions) setCurrentView("promotions");
@@ -926,7 +925,6 @@ const LayoutDashboardContent: React.FC = () => {
         currentView,
         canSeeFloors,
         canSeeDelivery,
-        canSeePos,
         canSeeProducts,
         canSeePromotions,
         canSeeConfiguration,
@@ -945,8 +943,8 @@ const LayoutDashboardContent: React.FC = () => {
         <div
             style={{
                 height: "100vh",
-                width: "100vw",
-                maxWidth: "100vw",
+                width: "100%",
+                maxWidth: "100%",
                 backgroundColor: "#f8fafc",
                 fontFamily:
                     "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
@@ -958,7 +956,7 @@ const LayoutDashboardContent: React.FC = () => {
             }}
         >
             {/* Overlay para móviles/tablets/laptops */}
-            {isOverlay && sidebarOpen && (
+            {isSidebarOverlay && sidebarOpen && (
                 <div
                     className="fixed inset-0 z-[999] bg-slate-950/60 backdrop-blur-sm transition-opacity duration-300"
                     onClick={() => setSidebarOpen(false)}
@@ -971,7 +969,7 @@ const LayoutDashboardContent: React.FC = () => {
                 style={{
                     width: displayedSidebarWidth,
                     transform:
-                        isOverlay && !sidebarOpen
+                        isSidebarOverlay && !sidebarOpen
                             ? `translateX(-${displayedSidebarWidth})`
                             : "translateX(0)",
                     transition:
@@ -1034,15 +1032,6 @@ const LayoutDashboardContent: React.FC = () => {
                                 icon="🪑"
                                 label="Mesas"
                                 isActive={isFloorsSection}
-                            />
-                        )}
-
-                        {canSeePos && (
-                            <SidebarItem
-                                view="pos"
-                                icon="🛒"
-                                label="Punto de venta"
-                                isActive={currentView === "pos"}
                             />
                         )}
 
@@ -1167,21 +1156,20 @@ const LayoutDashboardContent: React.FC = () => {
             <div
                 className="bg-slate-50 dark:bg-slate-950"
                 style={{
-                    marginLeft: isOverlay ? "0px" : sidebarWidth,
-                    width: isOverlay
-                        ? "100vw"
-                        : `calc(100vw - ${sidebarWidth})`,
-                    maxWidth: isOverlay
-                        ? "100vw"
-                        : `calc(100vw - ${sidebarWidth})`,
+                    marginLeft: isSidebarOverlay ? "0px" : sidebarWidth,
+                    width: isSidebarOverlay
+                        ? "100%"
+                        : `calc(100% - ${sidebarWidth})`,
+                    maxWidth: isSidebarOverlay
+                        ? "100%"
+                        : `calc(100% - ${sidebarWidth})`,
                     minWidth: 0,
                     height: "100vh",
                     display: "flex",
                     flexDirection: "column",
                     overflowY:
                         currentView === "cash" ||
-                        currentView === "delivery" ||
-                        currentView === "pos"
+                        currentView === "delivery"
                             ? "hidden"
                             : "auto",
                     overflowX: "hidden",
@@ -1687,8 +1675,7 @@ const LayoutDashboardContent: React.FC = () => {
                 <main
                     className={`flex flex-1 flex-col overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 ${
                         currentView === "cash" ||
-                        currentView === "delivery" ||
-                        currentView === "pos"
+                        currentView === "delivery"
                             ? "p-0 overflow-hidden"
                             : "p-4 overflow-y-auto"
                     }`}
@@ -2013,7 +2000,6 @@ const LayoutDashboardContent: React.FC = () => {
                         </div>
                     )}
                     {currentView === "delivery" && <Delivery />}
-                    {currentView === "pos" && <PointOfSale />}
                     {currentView === "branch" && <BranchSettings />}
                 </main>
             </div>

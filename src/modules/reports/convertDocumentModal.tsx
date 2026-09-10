@@ -15,6 +15,7 @@ import {
     formatLocalDateYYYYMMDD,
     formatLocalTimeHHMMSS,
 } from "../../utils/localDateTime";
+import { filterPersonsForCustomerSearch } from "../../utils/clientSearchUtils";
 
 interface SelectedClient {
     id: string;
@@ -172,7 +173,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                 setClientSearchTerm(client.name || "");
             };
 
-            if (person.id && result.foundLocally) {
+            if (person.id && (result.foundLocally || result.foundInSunat)) {
                 applySelectedClient({
                     id: person.id,
                     name: person.name || "",
@@ -185,7 +186,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                 );
                 if (updated?.name) {
                     applySelectedClient({
-                        id: person.id,
+                        id: updated.id,
                         name: updated.name,
                         documentType:
                             updated.documentType ||
@@ -240,29 +241,15 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
         }
     };
 
-    const filteredClients = useMemo(() => {
-        const clients = (clientsData?.personsByBranch || []).filter(
-            (person: {
-                isSupplier?: boolean;
-                isActive?: boolean;
-            }) => !person.isSupplier && person.isActive !== false,
-        );
-        if (!clientSearchTerm) return clients.slice(0, 50);
-        const lower = clientSearchTerm.toLowerCase();
-        return clients
-            .filter((c: { documentType?: string; name?: string; documentNumber?: string }) => {
-                if (
-                    isFactura &&
-                    (c.documentType || "").toUpperCase() !== "RUC"
-                )
-                    return false;
-                return (
-                    (c.name || "").toLowerCase().includes(lower) ||
-                    (c.documentNumber || "").includes(lower)
-                );
-            })
-            .slice(0, 50);
-    }, [clientsData, clientSearchTerm, isFactura]);
+    const filteredClients = useMemo(
+        () =>
+            filterPersonsForCustomerSearch(
+                clientsData?.personsByBranch || [],
+                clientSearchTerm,
+                { isFactura },
+            ),
+        [clientsData, clientSearchTerm, isFactura],
+    );
 
     const handleConvert = async () => {
         setError(null);
@@ -615,12 +602,7 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                                                         </div>
                                                     )}
                                                     {filteredClients.map(
-                                                        (client: {
-                                                            id: string;
-                                                            name: string;
-                                                            documentType: string;
-                                                            documentNumber: string;
-                                                        }) => (
+                                                        (client: any) => (
                                                             <div
                                                                 key={client.id}
                                                                 onClick={() => {

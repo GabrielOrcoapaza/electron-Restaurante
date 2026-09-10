@@ -41,6 +41,29 @@ type FloorTableAccessResult = {
     restrictedKind?: "session_lock" | "order_occupied";
 };
 
+type FloorTableStats = {
+    free: number;
+    occupied: number;
+};
+
+function computeFloorTableStats(tables: Table[]): FloorTableStats {
+    let free = 0;
+    let occupied = 0;
+    for (const table of tables) {
+        if (table.isActive === false) continue;
+        if (table.status === "AVAILABLE") {
+            free += 1;
+        } else if (
+            table.status === "OCCUPIED" ||
+            table.status === "TO_PAY" ||
+            table.status === "IN_PROCESS"
+        ) {
+            occupied += 1;
+        }
+    }
+    return { free, occupied };
+}
+
 /** Agrupa ráfagas de eventos WS en un solo GetTablesByFloor */
 const TABLES_WS_EVENT_DEBOUNCE_MS = 400;
 /** Tras reconexión WS, evita N refetch si el socket tiembla */
@@ -206,6 +229,8 @@ const Floor: React.FC<FloorProps> = ({
     /** Candado por mesa vía WS (GraphQL producción puede aún no exponer estos campos en TableType). */
     const [sessionLockOverlayByTableId, setSessionLockOverlayByTableId] =
         useState<Record<string, TableSessionLockOverlay>>({});
+    const [floorTableStatsByFloorId, setFloorTableStatsByFloorId] =
+        useState<Record<string, FloorTableStats>>({});
 
     useEffect(() => {
         setSessionLockOverlayByTableId({});
@@ -306,6 +331,61 @@ const Floor: React.FC<FloorProps> = ({
         (t) => t.isActive !== false,
     );
 
+    const fetchAllFloorTableStats = useCallback(async () => {
+        if (activeFloors.length === 0) {
+            setFloorTableStatsByFloorId({});
+            return;
+        }
+
+        const results = await Promise.all(
+            activeFloors.map(async (floor: { id: string }) => {
+                const floorId = normalizeGraphQLId(floor.id);
+                if (!floorId) {
+                    return {
+                        floorId: floor.id,
+                        stats: { free: 0, occupied: 0 },
+                    };
+                }
+
+                try {
+                    const { data } = await apolloClient.query({
+                        query: GET_TABLES_BY_FLOOR,
+                        variables: { floorId },
+                        fetchPolicy: "network-only",
+                    });
+                    const tables: Table[] = data?.tablesByFloor ?? [];
+                    return {
+                        floorId: floor.id,
+                        stats: computeFloorTableStats(tables),
+                    };
+                } catch {
+                    return {
+                        floorId: floor.id,
+                        stats: { free: 0, occupied: 0 },
+                    };
+                }
+            }),
+        );
+
+        setFloorTableStatsByFloorId(
+            Object.fromEntries(
+                results.map(({ floorId, stats }) => [floorId, stats]),
+            ),
+        );
+    }, [activeFloors, apolloClient]);
+
+    useEffect(() => {
+        void fetchAllFloorTableStats();
+    }, [fetchAllFloorTableStats]);
+
+    useEffect(() => {
+        if (!selectedFloorId || !tablesData) return;
+        setFloorTableStatsByFloorId((prev) => ({
+            ...prev,
+            [selectedFloorId]: computeFloorTableStats(visibleTables),
+        }));
+    }, [selectedFloorId, visibleTables, tablesData]);
+
     /**
      * Si otro equipo cobra la orden por caja mientras esta PC está en «Elige una opción»,
      * al llegar el refetch/WS la mesa queda sin operación: cerrar el modal para no seguir en una orden inexistente.
@@ -361,13 +441,19 @@ const Floor: React.FC<FloorProps> = ({
             ids.push(
                 window.setTimeout(() => {
                     void refetchTablesFromServer().catch(() => {});
+                    void fetchAllFloorTableStats().catch(() => {});
                 }, ms),
             );
         });
         return () => {
             ids.forEach((id) => window.clearTimeout(id));
         };
-    }, [tablesRefreshNonce, refetchTablesFromServer, floorIdForQuery]);
+    }, [
+        tablesRefreshNonce,
+        refetchTablesFromServer,
+        fetchAllFloorTableStats,
+        floorIdForQuery,
+    ]);
 
     const tablesWsEventDebounceRef = useRef<ReturnType<
         typeof setTimeout
@@ -395,6 +481,7 @@ const Floor: React.FC<FloorProps> = ({
                         message: String(error),
                     });
                 });
+            void fetchAllFloorTableStats().catch(() => {});
         };
 
         const scheduleEventRefetch = () => {
@@ -503,7 +590,14 @@ const Floor: React.FC<FloorProps> = ({
             unsubscribeError();
             unsubscribePong();
         };
-    }, [subscribe, refetchTablesFromServer, floorIdForQuery, showToast]);
+    }, [
+        subscribe,
+        refetchTablesFromServer,
+        fetchAllFloorTableStats,
+        floorIdForQuery,
+        selectedFloorId,
+        showToast,
+    ]);
 
     const handleFloorSelect = (floorId: string) => {
         setSelectedFloorId(floorId);
@@ -646,6 +740,9 @@ const Floor: React.FC<FloorProps> = ({
                             {activeFloors.map((floor: any) => {
                                 const isFloorSelected =
                                     selectedFloorId === floor.id;
+                                const floorStats = floorTableStatsByFloorId[
+                                    floor.id
+                                ] ?? { free: 0, occupied: 0 };
                                 return (
                                     <button
                                         key={floor.id}
@@ -669,6 +766,22 @@ const Floor: React.FC<FloorProps> = ({
                                         >
                                             {floor.name}
                                         </span>
+                                        <div
+                                            className={`mt-1 flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-0.5 ${isXs ? "text-[11px]" : "text-[10px]"} font-semibold leading-tight`}
+                                        >
+                                            <span className="text-green-600 dark:text-green-400">
+                                                {floorStats.free} libre
+                                                {floorStats.free === 1
+                                                    ? ""
+                                                    : "s"}
+                                            </span>
+                                            <span className="text-red-600 dark:text-red-400">
+                                                {floorStats.occupied} ocupada
+                                                {floorStats.occupied === 1
+                                                    ? ""
+                                                    : "s"}
+                                            </span>
+                                        </div>
                                         {isFloorSelected && (
                                             <div className="absolute right-2 top-2 flex h-2 w-2 rounded-full bg-indigo-500 dark:bg-indigo-400" />
                                         )}

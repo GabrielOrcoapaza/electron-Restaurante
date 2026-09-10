@@ -29,6 +29,7 @@ import {
     GET_USERS_BY_BRANCH_ROLE,
 } from "../../graphql/queries";
 import { CREATE_PERSON } from "../../graphql/mutations";
+import { filterPersonsForCustomerSearch } from "../../utils/clientSearchUtils";
 import ModalObservation from "./modalObservation";
 import PayDeliveryCheckout, {
     type DeliveryPaymentLine,
@@ -59,8 +60,6 @@ import {
     isStockWarningMessage,
 } from "../../utils/operationStock";
 import { ComboSelectorModal } from "../../components/ComboSelectorModal";
-import type { DocumentPreviewAction } from "../../utils/issuedDocumentPrintWithPreview";
-import { DocumentPrintPreviewModal } from "../../components/DocumentPrintPreviewModal";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
 import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
 import { getLocalTicketPrinterStorage } from "../../utils/localPrinterPreference";
@@ -111,23 +110,6 @@ const getProductQtyInCart = (cartItems: CartItem[], productId: string) =>
         )
         .reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
 
-const SearchIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
-    <svg
-        xmlns="http://www.w3.org/2000/svg"
-        className={className}
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-    >
-        <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-        />
-    </svg>
-);
-
 const ChevronLeft = () => (
     <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -172,13 +154,25 @@ const Delivery: React.FC = () => {
         companyData?.branch?.separateRepeatedItems,
     );
     const { hasPermission } = useUserPermissions();
-    const { breakpoint, isPosTouchScreen } = useResponsive();
+    const { breakpoint, isPosTouchScreen, width: viewportWidth } =
+        useResponsive();
     const canEditPrice = hasPermission("products.edit_prices_delivery");
 
     // Responsive: sm 640-767, md 768-1023, lg 1024-1279, xl 1280-1535, 2xl >=1536
+    const isXs = breakpoint === "xs";
     const isSmall = breakpoint === "sm";
     const isMedium = breakpoint === "md";
     const isCompactPos = isMedium || isPosTouchScreen;
+
+    const productsGridColumns = isXs
+        ? "repeat(2, 1fr)"
+        : isSmall
+          ? "repeat(3, 1fr)"
+          : isCompactPos
+            ? "repeat(5, 1fr)"
+            : viewportWidth < 1536
+              ? "repeat(6, 1fr)"
+              : "repeat(8, 1fr)";
 
     // IGV de la sucursal
     const igvPercentageFromBranch = getBranchIgvPercentage(companyData);
@@ -193,7 +187,6 @@ const Delivery: React.FC = () => {
     >(null);
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [searchByCodeOnly, setSearchByCodeOnly] = useState<boolean>(false);
-    const [showSearch, setShowSearch] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -235,12 +228,6 @@ const Delivery: React.FC = () => {
     const [showEditClientModal, setShowEditClientModal] = useState(false);
     const [editClientForModal, setEditClientForModal] =
         useState<EditClientForModal | null>(null);
-    const [deliveryDocPreview, setDeliveryDocPreview] = useState<{
-        title: string;
-    } | null>(null);
-    const deliveryDocPreviewResolverRef = useRef<
-        ((action: DocumentPreviewAction) => void) | null
-    >(null);
     const categoryScrollRef = useRef<HTMLDivElement>(null);
 
     // Estados para combos y promociones
@@ -625,25 +612,15 @@ const Delivery: React.FC = () => {
         }
     }, [activePromotions, cartItems.length, recalculatePromotions]);
 
-    const filteredClients = useMemo(() => {
-        let clients = (clientsData?.personsByBranch || []).filter(
-            (c: any) => !c.isSupplier && c.isActive !== false,
-        );
-        if (isFactura) {
-            clients = clients.filter(
-                (c: any) => (c.documentType || "").toUpperCase() === "RUC",
-            );
-        }
-        if (!personSearchTerm) return clients.slice(0, 50);
-        const lower = personSearchTerm.toLowerCase();
-        return clients
-            .filter(
-                (c: any) =>
-                    (c.name || "").toLowerCase().includes(lower) ||
-                    (c.documentNumber || "").includes(lower),
-            )
-            .slice(0, 50);
-    }, [clientsData, personSearchTerm, isFactura]);
+    const filteredClients = useMemo(
+        () =>
+            filterPersonsForCustomerSearch(
+                clientsData?.personsByBranch || [],
+                personSearchTerm,
+                { isFactura },
+            ),
+        [clientsData, personSearchTerm, isFactura],
+    );
 
     // Determinar qué productos mostrar
     let products;
@@ -722,6 +699,8 @@ const Delivery: React.FC = () => {
 
     // Función para agregar producto al carrito
     const handleAddProduct = (productIdToAdd?: string, qtyToAdd?: number) => {
+        if (showCheckout) setShowCheckout(false);
+
         const productId = productIdToAdd || selectedProduct;
         if (!productId) return;
 
@@ -882,6 +861,8 @@ const Delivery: React.FC = () => {
     };
 
     const handleComboGridClick = (combo: ComboProduct) => {
+        if (showCheckout) setShowCheckout(false);
+
         if (isDeliveryQuickAddCombo(combo)) {
             handleAddCombo(combo, buildQuickAddComponents(combo));
             return;
@@ -1201,24 +1182,7 @@ const Delivery: React.FC = () => {
             return;
         }
 
-        const previewTitle =
-            docForPay.description?.trim() || "Comprobante";
-
-        const userAction = await new Promise<DocumentPreviewAction>(
-            (resolve) => {
-                deliveryDocPreviewResolverRef.current = resolve;
-                setDeliveryDocPreview({ title: previewTitle });
-            },
-        );
-
-        setDeliveryDocPreview(null);
-        deliveryDocPreviewResolverRef.current = null;
-
-        if (userAction === "cancel") {
-            return;
-        }
-
-        const shouldPrint = userAction === "print";
+        const shouldPrint = true;
 
         setIsSaving(true);
 
@@ -1539,7 +1503,7 @@ const Delivery: React.FC = () => {
                 return;
             }
             const person = result.person;
-            if (person.id && result.foundLocally) {
+            if (person.id && (result.foundLocally || result.foundInSunat)) {
                 selectPersonFromClient({
                     id: person.id,
                     name: person.name || "",
@@ -1557,7 +1521,6 @@ const Delivery: React.FC = () => {
                 }
                 return;
             }
-            // Encontrado en SUNAT (o datos para crear): crear cliente y seleccionar
             const { data: createData } = await createPersonMutation({
                 variables: {
                     branchId: companyData.branch.id,
@@ -1686,36 +1649,33 @@ const Delivery: React.FC = () => {
     }, []);
 
     return (
-        <div className="flex h-full w-full flex-col overflow-hidden bg-white md:flex-row">
+        <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden bg-white md:flex-row">
             {/* Catálogo — estilo POS */}
-            <div className="flex min-h-0 flex-[2] flex-col border-r border-slate-200 bg-white">
+            <div className="flex min-h-0 min-w-0 flex-[2] flex-col border-r border-slate-200 bg-white md:h-full">
                 <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 px-4 py-3">
                     <h2 className="shrink-0 text-base font-semibold text-slate-800">
                         Delivery
                     </h2>
-                    {showSearch && (
-                        <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (
-                                    e.key === "Enter" &&
-                                    productsList.length > 0
-                                ) {
-                                    e.preventDefault();
-                                    handleAddProduct(productsList[0].id, 1);
-                                }
-                            }}
-                            placeholder={
-                                searchByCodeOnly
-                                    ? "Código del producto..."
-                                    : "Buscar productos..."
+                    <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (
+                                e.key === "Enter" &&
+                                productsList.length > 0
+                            ) {
+                                e.preventDefault();
+                                handleAddProduct(productsList[0].id, 1);
                             }
-                            className="min-w-0 flex-1 rounded-lg border border-slate-200 py-2 px-3 text-sm outline-none focus:border-[#3b82f6]"
-                            autoFocus
-                        />
-                    )}
+                        }}
+                        placeholder={
+                            searchByCodeOnly
+                                ? "Código del producto..."
+                                : "Buscar productos..."
+                        }
+                        className="min-w-0 flex-1 rounded-lg border border-slate-200 py-2 px-3 text-sm outline-none focus:border-[#3b82f6]"
+                    />
                     <button
                         type="button"
                         onClick={() => setSearchByCodeOnly((v) => !v)}
@@ -1737,23 +1697,6 @@ const Delivery: React.FC = () => {
                         }`}
                     >
                         Combos
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setShowSearch((v) => {
-                                if (v) setSearchTerm("");
-                                return !v;
-                            });
-                        }}
-                        className={`ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                            showSearch
-                                ? "bg-[#3b82f6] text-white"
-                                : "text-slate-600 hover:bg-slate-100"
-                        }`}
-                        aria-label="Buscar productos"
-                    >
-                        <SearchIcon />
                     </button>
                 </div>
 
@@ -1858,8 +1801,7 @@ const Delivery: React.FC = () => {
                             <div
                                 className="grid gap-2"
                                 style={{
-                                    gridTemplateColumns:
-                                        "repeat(auto-fill, minmax(100px, 1fr))",
+                                    gridTemplateColumns: productsGridColumns,
                                 }}
                             >
                                 {activeCombos.map((combo) => {
@@ -1918,8 +1860,7 @@ const Delivery: React.FC = () => {
                         <div
                             className="grid gap-2"
                             style={{
-                                gridTemplateColumns:
-                                    "repeat(auto-fill, minmax(100px, 1fr))",
+                                gridTemplateColumns: productsGridColumns,
                             }}
                         >
                             {productsList.map((product: any) => {
@@ -1964,13 +1905,11 @@ const Delivery: React.FC = () => {
             </div>
 
             {/* Panel derecho - Carrito y Pago */}
-            <div className="flex w-full flex-col gap-4 overflow-hidden md:w-[380px] lg:w-[420px]">
-                {/* Carrito */}
-                <div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
-                    {!showCheckout ? (
+            <div className="flex min-h-0 w-full min-w-0 flex-col overflow-hidden border-l border-slate-200 bg-white md:h-full md:w-[340px] md:shrink-0 lg:w-[380px] xl:w-[400px] dark:border-slate-800 dark:bg-slate-900">
+                {!showCheckout ? (
                     <>
-                    <div className="mb-4 flex items-center justify-between">
-                        <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800 dark:text-slate-100">
+                    <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+                        <h3 className="flex items-center gap-2 text-base font-bold text-slate-800 dark:text-slate-100">
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
                                 className="h-5 w-5 text-indigo-500"
@@ -1992,9 +1931,12 @@ const Delivery: React.FC = () => {
                         </span>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+                    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
                         {cartItems.length === 0 ? (
-                            <></>
+                            <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-slate-400">
+                                <span className="text-3xl">🛒</span>
+                                <p>Selecciona productos del catálogo</p>
+                            </div>
                         ) : (
                             <div className="flex flex-col gap-2.5">
                                 {cartItems.map((item) => {
@@ -2418,8 +2360,10 @@ const Delivery: React.FC = () => {
                             </div>
                         )}
                     </div>
+
+                    <div className="shrink-0 space-y-3 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
                     {/* Delivery: motorizado + costo de envío */}
-                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+                    <div className="grid grid-cols-2 gap-3">
                         <div className="flex flex-col gap-1.5">
                             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                 Motorizado
@@ -2469,7 +2413,7 @@ const Delivery: React.FC = () => {
                         </div>
                     </div>
                     {/* Observación de la venta (opcional) */}
-                    <div className="mt-4 flex flex-col gap-1.5 border-t border-slate-100 pt-4 dark:border-slate-800">
+                    <div className="flex flex-col gap-1.5">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                             Observación (opcional)
                         </label>
@@ -2484,7 +2428,7 @@ const Delivery: React.FC = () => {
                         />
                     </div>
                     {/* Totales */}
-                    <div className="mt-4 flex flex-col gap-2 rounded-2xl bg-slate-50 p-3 transition-colors duration-200 dark:bg-slate-800/50">
+                    <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-3 transition-colors duration-200 dark:bg-slate-800/50">
                         <div className="flex justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
                             <span>Subtotal</span>
                             <span className="font-bold text-slate-700 dark:text-slate-200">
@@ -2513,43 +2457,29 @@ const Delivery: React.FC = () => {
                         </div>
                     </div>
 
-                {/* Botón procesar */}
                 <button
+                    type="button"
                     onClick={() => setShowCheckout(true)}
                     disabled={isSaving || cartItems.length === 0}
-                    className={`flex items-center justify-center gap-3 rounded-2xl py-4 text-base font-black uppercase tracking-widest transition-all duration-300 shadow-lg ${
+                    className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-black uppercase tracking-wider transition-all ${
                         isSaving || cartItems.length === 0
-                            ? "cursor-not-allowed bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 shadow-none"
-                            : "bg-indigo-600 text-white shadow-indigo-600/30 hover:-translate-y-1 hover:bg-indigo-700 hover:shadow-indigo-600/40 active:translate-y-0"
+                            ? "cursor-not-allowed bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600"
+                            : "bg-indigo-600 text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700"
                     }`}
                 >
                     {isSaving ? (
                         <>
-                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
+                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                             <span>Procesando...</span>
                         </>
                     ) : (
-                        <>
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-6 w-6"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2.5}
-                                    d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
-                                />
-                            </svg>
-                            <span>Procesar Venta</span>
-                        </>
+                        <span>Procesar venta</span>
                     )}
                 </button>
+                    </div>
                     </>
-                    ) : (
+                ) : (
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
                         <PayDeliveryCheckout
                             onBack={() => setShowCheckout(false)}
                             cartTotal={cartTotal}
@@ -2600,8 +2530,8 @@ const Delivery: React.FC = () => {
                             totalDiscount={totalDiscount}
                             onConfirm={handleProcessSale}
                         />
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
 
             {showObservationModal &&
@@ -2649,20 +2579,6 @@ const Delivery: React.FC = () => {
                 />
             )}
 
-            {deliveryDocPreview && (
-                <DocumentPrintPreviewModal
-                    title={deliveryDocPreview.title}
-                    onPrint={() => {
-                        deliveryDocPreviewResolverRef.current?.("print");
-                    }}
-                    onContinuePay={() => {
-                        deliveryDocPreviewResolverRef.current?.("continue");
-                    }}
-                    onCancel={() => {
-                        deliveryDocPreviewResolverRef.current?.("cancel");
-                    }}
-                />
-            )}
         </div>
     );
 };

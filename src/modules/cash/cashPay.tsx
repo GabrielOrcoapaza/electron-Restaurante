@@ -67,6 +67,7 @@ import {
 } from "../../utils/localPrinterPreference";
 import { normalizeGraphQLId } from "../../utils/sanitizeGraphQLVariables";
 import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
+import { filterPersonsForCustomerSearch } from "../../utils/clientSearchUtils";
 
 type CashPayProps = {
     table: Table | null;
@@ -564,15 +565,10 @@ const CashPay: React.FC<CashPayProps> = ({
         return doc.description || "Documento";
     };
 
-    const filteredClients = allClients
-        .filter((client: any) => {
-            if (!clientSearchTerm) return true;
-            const search = clientSearchTerm.toLowerCase();
-            const name = (client.name || "").toLowerCase();
-            const documentNumber = (client.documentNumber || "").toLowerCase();
-            return name.includes(search) || documentNumber.includes(search);
-        })
-        .slice(0, 50);
+    const filteredClients = filterPersonsForCustomerSearch(
+        allClients,
+        clientSearchTerm,
+    );
 
     const cashRegisters = cashRegistersData?.cashRegistersByBranch || [];
 
@@ -855,18 +851,29 @@ const CashPay: React.FC<CashPayProps> = ({
                 return;
             }
             const person = result.person;
-            if (person.id && result.foundLocally) {
+            const selectFoundPerson = (p: typeof person) => {
                 selectClient({
-                    id: person.id,
-                    name: person.name,
-                    documentType: person.documentType || documentType,
-                    documentNumber: person.documentNumber || term,
-                    email: person.email,
-                    phone: person.phone,
-                    address: person.address,
+                    id: p.id,
+                    name: p.name,
+                    documentType: p.documentType || documentType,
+                    documentNumber: p.documentNumber || term,
+                    email: p.email,
+                    phone: p.phone,
+                    address: p.address,
                 });
+            };
+
+            if (person.id && (result.foundLocally || result.foundInSunat)) {
+                setEnableBranchClientsQuery(true);
+                selectFoundPerson(person);
+                const { data: refetched } = await refetchClients();
+                const updated = (refetched?.personsByBranch || []).find(
+                    (p: any) => p.id === person.id,
+                );
+                if (updated) selectFoundPerson(updated);
                 return;
             }
+
             const { data: createData } = await createPersonMutation({
                 variables: {
                     branchId: companyData.branch.id,
@@ -884,6 +891,12 @@ const CashPay: React.FC<CashPayProps> = ({
                 queueMicrotask(() => {
                     void refetchClients();
                 });
+            } else {
+                showToast(
+                    createData?.createPerson?.message ||
+                        "Error al registrar el cliente.",
+                    "error",
+                );
             }
         } catch (err: any) {
             showToast(err?.message, "error");
