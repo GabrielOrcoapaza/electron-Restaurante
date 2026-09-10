@@ -6,6 +6,8 @@ import { PRINT_EXPENSES_REPORT } from "../../graphql/mutations";
 import ReportExpenseList from "./reportExpenseList";
 import {
     formatLocalDateYYYYMMDD,
+    toLocalRangeEndISO,
+    toLocalRangeStartISO,
 } from "../../utils/localDateTime";
 import { getPaymentMethodLabel } from "../../utils/paymentMethodLabels";
 import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
@@ -72,9 +74,6 @@ const isCancelledPayment = (status?: string | null): boolean => {
         normalized === "VOID"
     );
 };
-
-const toRangeStartISO = (date: string) => `${date}T00:00:00`;
-const toRangeEndISO = (date: string) => `${date}T23:59:59.999`;
 
 const buildSummary = (payments: ExpensePayment[]): ExpenseReportSummary => {
     const summary: ExpenseReportSummary = {
@@ -145,8 +144,8 @@ const ReportExpense: React.FC = () => {
         {
             variables: {
                 branchId: branchId!,
-                startDate: toRangeStartISO(startDate),
-                endDate: toRangeEndISO(endDate),
+                startDate: toLocalRangeStartISO(startDate),
+                endDate: toLocalRangeEndISO(endDate),
             },
             skip: !branchId || !startDate || !endDate,
             fetchPolicy: "network-only",
@@ -239,8 +238,8 @@ const ReportExpense: React.FC = () => {
             const { data } = await printExpensesReportMutation({
                 variables: {
                     branchId: branchId!,
-                    startDate: toRangeStartISO(startDate),
-                    endDate: toRangeEndISO(endDate),
+                    startDate: toLocalRangeStartISO(startDate),
+                    endDate: toLocalRangeEndISO(endDate),
                     deviceId: resolvedDeviceId,
                     userId: user.id,
                     paymentMethod: paymentMethodFilter || null,

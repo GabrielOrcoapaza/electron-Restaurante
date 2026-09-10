@@ -36,7 +36,7 @@ type ExpensePrintMethodGroup = {
     items: ExpensePrintItem[];
 };
 
-function formatTime(value: string): string {
+function formatTimeOnly(value: string): string {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "";
     return date.toLocaleTimeString("es-PE", {
@@ -75,7 +75,7 @@ export function buildExpenseReportPrintJson(
         grouped[code].items.push({
             description: (payment.notes || "Egreso").slice(0, 60),
             amount,
-            time: formatTime(payment.paymentDate),
+            time: formatTimeOnly(payment.paymentDate),
             reference: payment.referenceNumber || "",
             user: payment.user?.fullName || "",
         });
