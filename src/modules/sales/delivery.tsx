@@ -60,8 +60,6 @@ import {
     isStockWarningMessage,
 } from "../../utils/operationStock";
 import { ComboSelectorModal } from "../../components/ComboSelectorModal";
-import type { DocumentPreviewAction } from "../../utils/issuedDocumentPrintWithPreview";
-import { DocumentPrintPreviewModal } from "../../components/DocumentPrintPreviewModal";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
 import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
 import { getLocalTicketPrinterStorage } from "../../utils/localPrinterPreference";
@@ -230,12 +228,6 @@ const Delivery: React.FC = () => {
     const [showEditClientModal, setShowEditClientModal] = useState(false);
     const [editClientForModal, setEditClientForModal] =
         useState<EditClientForModal | null>(null);
-    const [deliveryDocPreview, setDeliveryDocPreview] = useState<{
-        title: string;
-    } | null>(null);
-    const deliveryDocPreviewResolverRef = useRef<
-        ((action: DocumentPreviewAction) => void) | null
-    >(null);
     const categoryScrollRef = useRef<HTMLDivElement>(null);
 
     // Estados para combos y promociones
@@ -1190,24 +1182,7 @@ const Delivery: React.FC = () => {
             return;
         }
 
-        const previewTitle =
-            docForPay.description?.trim() || "Comprobante";
-
-        const userAction = await new Promise<DocumentPreviewAction>(
-            (resolve) => {
-                deliveryDocPreviewResolverRef.current = resolve;
-                setDeliveryDocPreview({ title: previewTitle });
-            },
-        );
-
-        setDeliveryDocPreview(null);
-        deliveryDocPreviewResolverRef.current = null;
-
-        if (userAction === "cancel") {
-            return;
-        }
-
-        const shouldPrint = userAction === "print";
+        const shouldPrint = true;
 
         setIsSaving(true);
 
@@ -2604,20 +2579,6 @@ const Delivery: React.FC = () => {
                 />
             )}
 
-            {deliveryDocPreview && (
-                <DocumentPrintPreviewModal
-                    title={deliveryDocPreview.title}
-                    onPrint={() => {
-                        deliveryDocPreviewResolverRef.current?.("print");
-                    }}
-                    onContinuePay={() => {
-                        deliveryDocPreviewResolverRef.current?.("continue");
-                    }}
-                    onCancel={() => {
-                        deliveryDocPreviewResolverRef.current?.("cancel");
-                    }}
-                />
-            )}
         </div>
     );
 };
