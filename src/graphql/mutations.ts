@@ -1864,6 +1864,33 @@ export const PRINT_CLOSURE_EXPENSES = gql`
     }
 `;
 
+// Mutación para imprimir un listado único de egresos por rango de fechas
+// (sin depender de un cierre de caja puntual, a diferencia de PRINT_CLOSURE_EXPENSES)
+export const PRINT_EXPENSES_REPORT = gql`
+    mutation PrintExpensesReport(
+        $branchId: ID!
+        $startDate: DateTime!
+        $endDate: DateTime!
+        $deviceId: String!
+        $userId: ID!
+        $paymentMethod: String
+    ) {
+        printExpensesReport(
+            branchId: $branchId
+            startDate: $startDate
+            endDate: $endDate
+            deviceId: $deviceId
+            userId: $userId
+            paymentMethod: $paymentMethod
+        ) {
+            success
+            message
+            printLocally
+            documentData
+        }
+    }
+`;
+
 // Mutación para imprimir movimiento de caja (ingreso/egreso)
 export const PRINT_PAYMENT = gql`
     mutation PrintPayment($paymentId: ID!, $deviceId: String!) {

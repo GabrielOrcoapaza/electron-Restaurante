@@ -2,10 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { GET_PAYMENTS_BY_DATE_RANGE } from "../../graphql/queries";
-import {
-    PRINT_CLOSURE_EXPENSES,
-    PRINT_PAYMENT,
-} from "../../graphql/mutations";
+import { PRINT_EXPENSES_REPORT } from "../../graphql/mutations";
 import ReportExpenseList from "./reportExpenseList";
 import {
     formatLocalDateYYYYMMDD,
@@ -124,12 +121,11 @@ const buildSummary = (payments: ExpensePayment[]): ExpenseReportSummary => {
 };
 
 const ReportExpense: React.FC = () => {
-    const { companyData, getMacAddress, getDeviceId } = useAuth();
+    const { companyData, user, getMacAddress, getDeviceId } = useAuth();
     const { showToast } = useToast();
     const branchId = companyData?.branch?.id;
 
-    const [printClosureExpensesMutation] = useMutation(PRINT_CLOSURE_EXPENSES);
-    const [printPaymentMutation] = useMutation(PRINT_PAYMENT);
+    const [printExpensesReportMutation] = useMutation(PRINT_EXPENSES_REPORT);
 
     const [startDate, setStartDate] = useState<string>(() =>
         formatLocalDateYYYYMMDD(),
@@ -216,6 +212,15 @@ const ReportExpense: React.FC = () => {
             return;
         }
 
+        if (!user?.id) {
+            setPrintMessage({
+                type: "error",
+                text: "No se pudo identificar al usuario actual.",
+            });
+            setTimeout(() => setPrintMessage(null), 4000);
+            return;
+        }
+
         setPrintingReport(true);
         setPrintMessage(null);
 
@@ -231,93 +236,33 @@ const ReportExpense: React.FC = () => {
                 );
             }
 
-            const closureIds = [
-                ...new Set(
-                    expensePayments
-                        .map((p) => p.cashClosure?.id)
-                        .filter((id): id is string => Boolean(id)),
-                ),
-            ];
-            const orphanPayments = expensePayments.filter(
-                (p) => !p.cashClosure?.id,
-            );
+            const { data } = await printExpensesReportMutation({
+                variables: {
+                    branchId: branchId!,
+                    startDate: toRangeStartISO(startDate),
+                    endDate: toRangeEndISO(endDate),
+                    deviceId: resolvedDeviceId,
+                    userId: user.id,
+                    paymentMethod: paymentMethodFilter || null,
+                },
+            });
 
-            const errors: string[] = [];
-            let printedClosures = 0;
-            let printedOrphans = 0;
-
-            for (const closureId of closureIds) {
-                const { data } = await printClosureExpensesMutation({
-                    variables: {
-                        closureId,
-                        deviceId: resolvedDeviceId,
-                    },
-                });
-                const result = data?.printClosureExpenses;
-                if (result?.success && !result.printLocally) {
-                    printedClosures += 1;
-                } else if (result?.success && result.printLocally) {
-                    errors.push(
-                        "Este equipo tiene impresora integrada/USB activa. Desactívela en Configuración → Impresoras por dispositivo para usar impresión en red.",
-                    );
-                } else {
-                    errors.push(
-                        result?.message ||
-                            "No se pudo imprimir el reporte de egresos del cierre.",
-                    );
-                }
-            }
-
-            for (const payment of orphanPayments) {
-                const { data } = await printPaymentMutation({
-                    variables: {
-                        paymentId: payment.id,
-                        deviceId: resolvedDeviceId,
-                    },
-                });
-                const result = data?.printPayment;
-                if (result?.success && !result.printLocally) {
-                    printedOrphans += 1;
-                } else if (result?.success && result.printLocally) {
-                    errors.push(
-                        `Egreso ${payment.id}: impresora integrada/USB activa en este equipo.`,
-                    );
-                } else {
-                    errors.push(
-                        result?.message ||
-                            `No se pudo imprimir el egreso ${payment.id}.`,
-                    );
-                }
-            }
-
-            if (printedClosures + printedOrphans === 0) {
+            const result = data?.printExpensesReport;
+            if (!result?.success) {
                 throw new Error(
-                    errors[0] ||
-                        "No se pudo enviar el reporte a la impresora de red.",
+                    result?.message ||
+                        "No se pudo imprimir el reporte de egresos.",
                 );
             }
-
-            const parts: string[] = [];
-            if (printedClosures > 0) {
-                parts.push(
-                    printedClosures === 1
-                        ? "1 reporte de cierre enviado a impresión en red"
-                        : `${printedClosures} reportes de cierre enviados a impresión en red`,
-                );
-            }
-            if (printedOrphans > 0) {
-                parts.push(
-                    printedOrphans === 1
-                        ? "1 egreso sin cierre enviado a impresión en red"
-                        : `${printedOrphans} egresos sin cierre enviados a impresión en red`,
+            if (result.printLocally) {
+                throw new Error(
+                    "Este equipo tiene impresora integrada/USB activa. Desactívela en Configuración → Impresoras por dispositivo para usar impresión en red.",
                 );
             }
 
             setPrintMessage({
-                type: errors.length > 0 ? "warning" : "success",
-                text:
-                    parts.join(". ") +
-                    (errors.length > 0 ? `. ${errors[0]}` : "."),
+                type: "success",
+                text: "Reporte de egresos enviado a impresión en red.",
             });
         } catch (err: unknown) {
             const msg =
