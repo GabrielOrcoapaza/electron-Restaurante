@@ -1099,44 +1099,42 @@ const Delivery: React.FC = () => {
         ]);
     }, [showCheckout, cartTotal]);
 
-    // Función para procesar la venta
-    const handleProcessSale = async () => {
+    const validateSaleBeforePay = useCallback((): boolean => {
         if (cartItems.length === 0) {
             showToast("Debe agregar al menos un producto al carrito", "error");
-            return;
+            return false;
         }
 
         if (!selectedDocument) {
             showToast("Debe seleccionar un tipo de documento", "error");
-            return;
+            return false;
         }
 
         if (!selectedSerial) {
             showToast("Debe seleccionar una serie", "error");
-            return;
+            return false;
         }
 
-        // Factura (código 01) solo permite cliente con RUC; Boleta permite DNI o RUC
         if (isFactura) {
             if (!selectedPerson) {
                 showToast(
                     "Para emitir una FACTURA debe seleccionar un cliente con RUC",
                     "error",
                 );
-                return;
+                return false;
             }
             if ((selectedPerson.documentType || "").toUpperCase() !== "RUC") {
                 showToast(
                     "Para emitir una FACTURA el cliente debe tener un RUC válido",
                     "error",
                 );
-                return;
+                return false;
             }
         }
 
         if (!selectedCashRegister) {
             showToast("Debe seleccionar una caja registradora", "error");
-            return;
+            return false;
         }
 
         const totalPaidCheck = paymentLines.reduce(
@@ -1148,7 +1146,7 @@ const Delivery: React.FC = () => {
                 `La suma de los pagos debe ser al menos el total a pagar (${cartTotal.toFixed(2)}).`,
                 "error",
             );
-            return;
+            return false;
         }
 
         const itemsSource = isSunatBillableDocument
@@ -1163,7 +1161,7 @@ const Delivery: React.FC = () => {
                 "No tiene permiso para editar el precio del ítem en Delivery",
                 "error",
             );
-            return;
+            return false;
         }
 
         if (isSunatBillableDocument && itemsSource.length === 0) {
@@ -1171,7 +1169,7 @@ const Delivery: React.FC = () => {
                 "No se puede emitir factura o boleta solo con productos de precio cero. SUNAT exige líneas con importe mayor a cero, o use otro tipo de comprobante.",
                 "error",
             );
-            return;
+            return false;
         }
 
         const docForPay = documents.find(
@@ -1179,10 +1177,33 @@ const Delivery: React.FC = () => {
         );
         if (!docForPay) {
             showToast("Tipo de documento no válido", "error");
+            return false;
+        }
+
+        return true;
+    }, [
+        cartItems,
+        selectedDocument,
+        selectedSerial,
+        isFactura,
+        selectedPerson,
+        selectedCashRegister,
+        paymentLines,
+        cartTotal,
+        isSunatBillableDocument,
+        canEditPrice,
+        documents,
+        showToast,
+    ]);
+
+    const handleProcessSale = async (shouldPrint: boolean = true) => {
+        if (!validateSaleBeforePay()) {
             return;
         }
 
-        const shouldPrint = true;
+        const itemsSource = isSunatBillableDocument
+            ? cartItems.filter((item) => getCartLineTotal(item) > 0)
+            : cartItems;
 
         setIsSaving(true);
 
@@ -2528,6 +2549,7 @@ const Delivery: React.FC = () => {
                             discountPercent={discountPercent}
                             setDiscountPercent={setDiscountPercent}
                             totalDiscount={totalDiscount}
+                            onValidateBeforeConfirm={validateSaleBeforePay}
                             onConfirm={handleProcessSale}
                         />
                     </div>

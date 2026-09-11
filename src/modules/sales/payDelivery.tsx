@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import ClientSearchBar, {
     type EditClientForModal,
 } from '../../components/ClientSearchBar';
+import { DocumentPrintPreviewModal } from '../../components/DocumentPrintPreviewModal';
+import ConfirmModal from '../../components/ConfirmModal';
+import type { DocumentPreviewAction } from '../../utils/issuedDocumentPrintWithPreview';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -134,7 +137,8 @@ export type PayDeliveryCheckoutProps = {
     discountPercent: number;
     setDiscountPercent: (v: number) => void;
     totalDiscount: number;
-    onConfirm: () => void;
+    onValidateBeforeConfirm?: () => boolean;
+    onConfirm: (shouldPrint: boolean) => void | Promise<void>;
 };
 
 const ChevronLeft = () => (
@@ -197,8 +201,21 @@ const PayDeliveryCheckout: React.FC<PayDeliveryCheckoutProps> = ({
     discountPercent,
     setDiscountPercent,
     totalDiscount,
+    onValidateBeforeConfirm,
     onConfirm,
 }) => {
+    const isPrintPreviewOpenRef = useRef(false);
+    const docPreviewResolverRef = useRef<
+        ((action: DocumentPreviewAction) => void) | null
+    >(null);
+    const noPrintConfirmResolverRef = useRef<
+        ((confirmed: boolean) => void) | null
+    >(null);
+    const [docPreview, setDocPreview] = useState<{ title: string } | null>(
+        null,
+    );
+    const [showNoPrintConfirm, setShowNoPrintConfirm] = useState(false);
+
     const pct = Number(discountPercent) || 0;
 
     const remaining =
@@ -220,6 +237,55 @@ const PayDeliveryCheckout: React.FC<PayDeliveryCheckoutProps> = ({
             setSelectedDocument(doc.id);
             const docSerials = doc.serials || [];
             setSelectedSerial(docSerials[0]?.serial || '');
+        }
+    };
+
+    const handleConfirmClick = async () => {
+        if (
+            confirmDisabled ||
+            isSaving ||
+            isPrintPreviewOpenRef.current
+        ) {
+            return;
+        }
+
+        if (onValidateBeforeConfirm && !onValidateBeforeConfirm()) {
+            return;
+        }
+
+        const previewTitle = docTypeButtonLabel(docAbbrev, selectedDoc);
+
+        isPrintPreviewOpenRef.current = true;
+        try {
+            const userAction = await new Promise<DocumentPreviewAction>(
+                (resolve) => {
+                    docPreviewResolverRef.current = resolve;
+                    setDocPreview({ title: previewTitle });
+                },
+            );
+
+            setDocPreview(null);
+            docPreviewResolverRef.current = null;
+
+            if (userAction === 'cancel') {
+                return;
+            }
+
+            if (userAction === 'continue') {
+                const confirmed = await new Promise<boolean>((resolve) => {
+                    noPrintConfirmResolverRef.current = resolve;
+                    setShowNoPrintConfirm(true);
+                });
+                setShowNoPrintConfirm(false);
+                noPrintConfirmResolverRef.current = null;
+                if (!confirmed) {
+                    return;
+                }
+            }
+
+            await onConfirm(userAction === 'print');
+        } finally {
+            isPrintPreviewOpenRef.current = false;
         }
     };
 
@@ -504,7 +570,7 @@ const PayDeliveryCheckout: React.FC<PayDeliveryCheckoutProps> = ({
             <div className="mt-4 shrink-0 border-t border-slate-100 pt-4 dark:border-slate-800">
                 <button
                     type="button"
-                    onClick={onConfirm}
+                    onClick={handleConfirmClick}
                     disabled={confirmDisabled}
                     className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-black uppercase tracking-wider text-white transition-all ${
                         confirmDisabled
@@ -522,6 +588,35 @@ const PayDeliveryCheckout: React.FC<PayDeliveryCheckoutProps> = ({
                     )}
                 </button>
             </div>
+
+            {docPreview && (
+                <DocumentPrintPreviewModal
+                    title={docPreview.title}
+                    onPrint={() => {
+                        docPreviewResolverRef.current?.('print');
+                    }}
+                    onContinuePay={() => {
+                        docPreviewResolverRef.current?.('continue');
+                    }}
+                    onCancel={() => {
+                        docPreviewResolverRef.current?.('cancel');
+                    }}
+                />
+            )}
+
+            <ConfirmModal
+                isOpen={showNoPrintConfirm}
+                title="Continuar sin imprimir"
+                message="¿Está seguro de que desea continuar con el pago sin imprimir el comprobante?"
+                confirmLabel="Sí, continuar"
+                cancelLabel="No, volver"
+                onConfirm={() => {
+                    noPrintConfirmResolverRef.current?.(true);
+                }}
+                onClose={() => {
+                    noPrintConfirmResolverRef.current?.(false);
+                }}
+            />
         </div>
     );
 };
