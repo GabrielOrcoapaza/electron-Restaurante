@@ -22,6 +22,13 @@ interface Product {
     isActive: boolean;
     managesStock?: boolean;
     managesStockLocked?: boolean;
+    subcategoryId?: string | null;
+    subcategory?: {
+        id: string;
+        name: string;
+        category?: { id: string; name: string } | null;
+    } | null;
+    asPromotion?: { id: string; name: string; promotionType?: string } | null;
 }
 
 const Products: React.FC = () => {

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery } from "@apollo/client";
 import { UPDATE_PRODUCT, LINK_PRODUCT_TO_PROMOTION } from "../../graphql/mutations";
 import { GET_CATEGORIES_BY_BRANCH } from "../../graphql/queries";
@@ -17,6 +17,12 @@ import {
 } from "../../utils/resizeProductImage";
 import { getFullImageUrl } from "../../utils/getFullImageUrl";
 
+interface ProductSubcategoryNested {
+    id: string;
+    name: string;
+    category?: { id: string; name: string } | null;
+}
+
 interface Product {
     id: string;
     code: string;
@@ -34,6 +40,8 @@ interface Product {
     isActive?: boolean;
     managesStock?: boolean;
     managesStockLocked?: boolean;
+    subcategoryId?: string | null;
+    subcategory?: ProductSubcategoryNested | null;
     asPromotion?: { id: string; name: string; promotionType?: string } | null;
 }
 
@@ -115,9 +123,13 @@ const EditProduct: React.FC<EditProductProps> = ({
     const fieldClass =
         "w-full rounded-lg border border-slate-300 bg-white text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
 
+    const initialSubcategoryId =
+        product.subcategory?.id ?? product.subcategoryId ?? "";
+    const initialCategoryId = product.subcategory?.category?.id ?? "";
+
     const [formData, setFormData] = useState({
-        categoryId: "",
-        subcategoryId: "",
+        categoryId: initialCategoryId,
+        subcategoryId: initialSubcategoryId,
         code: product.code,
         name: product.name,
         description: product.description || "",
@@ -164,6 +176,24 @@ const EditProduct: React.FC<EditProductProps> = ({
     );
     const availableSubcategories =
         selectedCategory?.subcategories?.filter((sub) => sub.isActive) || [];
+
+    const subcategoryOptions = useMemo(() => {
+        const options = [...availableSubcategories];
+        const currentSub = product.subcategory;
+        if (
+            currentSub &&
+            formData.subcategoryId === currentSub.id &&
+            !options.some((sub) => sub.id === currentSub.id)
+        ) {
+            options.unshift({
+                id: currentSub.id,
+                name: currentSub.name,
+                order: 0,
+                isActive: false,
+            });
+        }
+        return options;
+    }, [availableSubcategories, formData.subcategoryId, product.subcategory]);
 
     const [updateProduct, { loading }] = useMutation(UPDATE_PRODUCT);
     const [linkProductToPromotion] = useMutation(LINK_PRODUCT_TO_PROMOTION);
@@ -430,7 +460,7 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     }}
                                 >
                                     <option value="">
-                                        Mantener categoría actual
+                                        Seleccionar categoría
                                     </option>
                                     {categories
                                         .filter((cat) => cat.isActive)
@@ -469,18 +499,19 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     }}
                                 >
                                     <option value="">
-                                        Mantener subcategoría actual
+                                        Seleccionar subcategoría
                                     </option>
-                                    {availableSubcategories.map(
-                                        (subcategory) => (
-                                            <option
-                                                key={subcategory.id}
-                                                value={subcategory.id}
-                                            >
-                                                {subcategory.name}
-                                            </option>
-                                        ),
-                                    )}
+                                    {subcategoryOptions.map((subcategory) => (
+                                        <option
+                                            key={subcategory.id}
+                                            value={subcategory.id}
+                                        >
+                                            {subcategory.name}
+                                            {!subcategory.isActive
+                                                ? " (inactiva)"
+                                                : ""}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                         </div>
