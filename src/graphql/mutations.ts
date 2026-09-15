@@ -38,6 +38,7 @@ export const COMPANY_LOGIN = gql`
                 isCommandItemMode
                 separateRepeatedItems
                 allowCloseWithOccupiedTables
+                allowCashOpenings
                 isKitchenPrint
                 isKitchenDisplay
                 requireWaiterPassword
@@ -153,6 +154,7 @@ export const USER_LOGIN = gql`
                 isCommandItemMode
                 separateRepeatedItems
                 allowCloseWithOccupiedTables
+                allowCashOpenings
                 isKitchenPrint
                 isKitchenDisplay
                 printCancellations
@@ -1072,6 +1074,37 @@ export const CLOSE_CASH = gql`
                 }
             }
             summary
+        }
+    }
+`;
+
+export const CREATE_CASH_OPENING = gql`
+    mutation CreateCashOpening(
+        $cashRegisterId: ID!
+        $userId: ID!
+        $branchId: ID!
+        $openingAmount: Float
+        $notes: String
+    ) {
+        createCashOpening(
+            cashRegisterId: $cashRegisterId
+            userId: $userId
+            branchId: $branchId
+            openingAmount: $openingAmount
+            notes: $notes
+        ) {
+            success
+            message
+            opening {
+                id
+                openingAmount
+                notes
+                openedAt
+                user {
+                    id
+                    fullName
+                }
+            }
         }
     }
 `;
@@ -2528,6 +2561,7 @@ export const UPDATE_BRANCH = gql`
         $isMultiWaiterEnabled: Boolean
         $separateRepeatedItems: Boolean
         $allowCloseWithOccupiedTables: Boolean
+        $allowCashOpenings: Boolean
     ) {
         updateBranch(
             id: $id
@@ -2554,6 +2588,7 @@ export const UPDATE_BRANCH = gql`
             isMultiWaiterEnabled: $isMultiWaiterEnabled
             separateRepeatedItems: $separateRepeatedItems
             allowCloseWithOccupiedTables: $allowCloseWithOccupiedTables
+            allowCashOpenings: $allowCashOpenings
         ) {
             success
             message
@@ -2578,6 +2613,7 @@ export const UPDATE_BRANCH = gql`
                 isCommandItemMode
                 separateRepeatedItems
                 allowCloseWithOccupiedTables
+                allowCashOpenings
                 isKitchenPrint
                 isKitchenDisplay
                 requireWaiterPassword

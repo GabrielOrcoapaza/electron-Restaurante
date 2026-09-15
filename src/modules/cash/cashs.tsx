@@ -1,21 +1,25 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useQuery, useMutation } from "@apollo/client";
+import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import {
     GET_CASH_REGISTERS,
     GET_CASH_CLOSURE_PREVIEW,
     GET_CASH_CLOSURES,
     GET_PAYMENTS_PENDING_CLOSURE,
+    GET_CASH_CLOSURE_DETAIL,
 } from "../../graphql/queries";
+import { openCashClosureReportPrintWindow } from "../../utils/cashClosureReportHtml";
 import {
     CLOSE_CASH,
     REPRINT_CLOSURE,
     PRINT_PAYMENT,
     CANCEL_PAYMENT,
     UPDATE_PAYMENT_METHOD,
+    CREATE_CASH_OPENING,
 } from "../../graphql/mutations";
 import ManualTransactionModal from "./manualTransactionModal";
 import CashDetailModal from "./cashDetailModal";
+import CashOpeningModal from "./cashOpeningModal";
 import ConfirmModal from "../../components/ConfirmModal";
 import { useToast } from "../../context/ToastContext";
 import { isElectronRenderer } from "../../utils/electronPrint";
@@ -41,6 +45,13 @@ interface CashRegister {
     currentBalance: number;
     isActive: boolean;
     status?: string;
+    currentOpening?: {
+        id: string;
+        openingAmount: number;
+        notes?: string;
+        openedAt: string;
+        user: { id: string; fullName: string };
+    } | null;
 }
 
 interface CashPreview {
@@ -141,14 +152,21 @@ const Cashs: React.FC = () => {
     const { showToast } = useToast();
     const branchId = companyData?.branch?.id || "";
     const userId = user?.id || "";
+    const allowCashOpenings = Boolean(companyData?.branch?.allowCashOpenings);
 
     const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+    const [registerToOpen, setRegisterToOpen] =
+        useState<CashRegister | null>(null);
+    const [openingLoading, setOpeningLoading] = useState(false);
     const [selectedRegister, setSelectedRegister] =
         useState<CashRegister | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [selectedClosureDetail, setSelectedClosureDetail] =
         useState<CashClosure | null>(null);
     const [reprintingClosureId, setReprintingClosureId] = useState<
+        string | null
+    >(null);
+    const [exportingClosureId, setExportingClosureId] = useState<
         string | null
     >(null);
     const [showMovements, setShowMovements] = useState(true);
@@ -211,6 +229,10 @@ const Cashs: React.FC = () => {
     const [printPaymentMutation] = useMutation(PRINT_PAYMENT);
     const [cancelPaymentMutation] = useMutation(CANCEL_PAYMENT);
     const [updatePaymentMethodMutation] = useMutation(UPDATE_PAYMENT_METHOD);
+    const [createCashOpeningMutation] = useMutation(CREATE_CASH_OPENING);
+    const [fetchClosureDetail] = useLazyQuery(GET_CASH_CLOSURE_DETAIL, {
+        fetchPolicy: "network-only",
+    });
 
     useEffect(() => {
         setLocallyCancelledMovements([]);
@@ -262,6 +284,40 @@ const Cashs: React.FC = () => {
     const preview: CashPreview | null = previewData?.cashClosurePreview || null;
     const history: CashClosure[] =
         historyData?.cashClosures || historyData?.cash_closures || [];
+
+    const handleOpenRegister = async (
+        openingAmount: number,
+        notes: string,
+    ) => {
+        if (!registerToOpen) return;
+        try {
+            setOpeningLoading(true);
+            const result = await createCashOpeningMutation({
+                variables: {
+                    cashRegisterId: registerToOpen.id,
+                    userId,
+                    branchId,
+                    openingAmount,
+                    notes: notes || undefined,
+                },
+            });
+            if (result.data?.createCashOpening?.success) {
+                showToast("Caja abierta correctamente", "success");
+                refetchRegisters();
+                setRegisterToOpen(null);
+            } else {
+                showToast(
+                    result.data?.createCashOpening?.message ||
+                        "Error al abrir la caja",
+                    "error",
+                );
+            }
+        } catch (error: any) {
+            showToast(error.message || "Error al abrir la caja", "error");
+        } finally {
+            setOpeningLoading(false);
+        }
+    };
 
     const handleCloseRegister = async (registerId: string) => {
         try {
@@ -453,6 +509,38 @@ const Cashs: React.FC = () => {
             showToast(error.message || "Error al imprimir el ticket", "error");
         } finally {
             setReprintingClosureId(null);
+        }
+    };
+
+    const handleExportClosurePdf = async (closureId: string) => {
+        setExportingClosureId(closureId);
+        try {
+            const result = await fetchClosureDetail({
+                variables: { closureId },
+            });
+            const detail = result.data?.cashClosureDetail;
+            if (!detail) {
+                showToast(
+                    result.error?.message ||
+                        "No se pudo obtener el detalle del cierre",
+                    "error",
+                );
+                return;
+            }
+            const opened = openCashClosureReportPrintWindow(detail);
+            if (!opened) {
+                showToast(
+                    "El navegador bloqueó la ventana de impresión. Habilite las ventanas emergentes para SumApp.",
+                    "warning",
+                );
+            }
+        } catch (error: any) {
+            showToast(
+                error.message || "Error al generar el reporte",
+                "error",
+            );
+        } finally {
+            setExportingClosureId(null);
         }
     };
 
@@ -728,59 +816,117 @@ const Cashs: React.FC = () => {
                                                               ? "Caja Principal"
                                                               : "Caja Secundaria"}
                                                       </span>
+                                                      {allowCashOpenings &&
+                                                          register.status ===
+                                                              "OPEN" &&
+                                                          register.currentOpening && (
+                                                              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                                                  Abierta por{" "}
+                                                                  {
+                                                                      register
+                                                                          .currentOpening
+                                                                          .user
+                                                                          .fullName
+                                                                  }{" "}
+                                                                  · S/{" "}
+                                                                  {Number(
+                                                                      register
+                                                                          .currentOpening
+                                                                          .openingAmount,
+                                                                  ).toFixed(2)}
+                                                              </span>
+                                                          )}
                                                   </div>
-                                                  <span
-                                                      className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-wider ${getStatusStyles(register.status)}`}
-                                                  >
-                                                      {register.status ===
-                                                      "CLOSED"
-                                                          ? "Cerrada"
-                                                          : "Activa"}
-                                                  </span>
+                                                  {allowCashOpenings && (
+                                                      <span
+                                                          className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+                                                              register.status ===
+                                                              "OPEN"
+                                                                  ? "bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50"
+                                                                  : getStatusStyles(
+                                                                        "CLOSED",
+                                                                    )
+                                                          }`}
+                                                      >
+                                                          {register.status ===
+                                                          "OPEN"
+                                                              ? "Abierta"
+                                                              : "Sin abrir"}
+                                                      </span>
+                                                  )}
                                               </div>
 
                                               <div className="mt-2 flex items-center justify-between gap-4">
-                                                  <button
-                                                      onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          if (!isElectron)
-                                                              return;
-                                                          setPendingConfirm({
-                                                              type: "close_register",
-                                                              registerId:
-                                                                  register.id,
-                                                              registerName:
-                                                                  register.name,
-                                                          });
-                                                      }}
-                                                      disabled={!isElectron}
-                                                      className={`flex flex-1 items-center justify-center gap-2 rounded-2xl py-3 text-xs font-black text-white shadow-lg transition-all ${
-                                                          isElectron
-                                                              ? "bg-rose-600 shadow-rose-500/20 hover:bg-rose-700 active:scale-95"
-                                                              : "bg-slate-400 opacity-50 cursor-not-allowed"
-                                                      }`}
-                                                      title={
-                                                          !isElectron
-                                                              ? "El cierre de caja solo está disponible en la aplicación de escritorio"
-                                                              : ""
-                                                      }
-                                                  >
-                                                      <svg
-                                                          xmlns="http://www.w3.org/2000/svg"
-                                                          className="h-4 w-4"
-                                                          viewBox="0 0 20 20"
-                                                          fill="currentColor"
+                                                  {allowCashOpenings &&
+                                                      register.status !==
+                                                          "OPEN" && (
+                                                          <button
+                                                              onClick={(e) => {
+                                                                  e.stopPropagation();
+                                                                  setRegisterToOpen(
+                                                                      register,
+                                                                  );
+                                                              }}
+                                                              className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 text-xs font-black text-white shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-700 active:scale-95"
+                                                          >
+                                                              <svg
+                                                                  xmlns="http://www.w3.org/2000/svg"
+                                                                  className="h-4 w-4"
+                                                                  viewBox="0 0 20 20"
+                                                                  fill="currentColor"
+                                                              >
+                                                                  <path d="M14.5 1A4.5 4.5 0 0010 5.5V9H3a1 1 0 00-1 1v9a2 2 0 002 2h12a2 2 0 002-2v-9a1 1 0 00-1-1h-2V5.5a2.5 2.5 0 015 0v2.5a1 1 0 102 0V5.5A4.5 4.5 0 0014.5 1z" />
+                                                              </svg>
+                                                              Abrir Caja
+                                                          </button>
+                                                      )}
+                                                  {(!allowCashOpenings ||
+                                                      register.status ===
+                                                          "OPEN") && (
+                                                      <button
+                                                          onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              if (!isElectron)
+                                                                  return;
+                                                              setPendingConfirm(
+                                                                  {
+                                                                      type: "close_register",
+                                                                      registerId:
+                                                                          register.id,
+                                                                      registerName:
+                                                                          register.name,
+                                                                  },
+                                                              );
+                                                          }}
+                                                          disabled={!isElectron}
+                                                          className={`flex flex-1 items-center justify-center gap-2 rounded-2xl py-3 text-xs font-black text-white shadow-lg transition-all ${
+                                                              isElectron
+                                                                  ? "bg-rose-600 shadow-rose-500/20 hover:bg-rose-700 active:scale-95"
+                                                                  : "bg-slate-400 opacity-50 cursor-not-allowed"
+                                                          }`}
+                                                          title={
+                                                              !isElectron
+                                                                  ? "El cierre de caja solo está disponible en la aplicación de escritorio"
+                                                                  : ""
+                                                          }
                                                       >
-                                                          <path
-                                                              fillRule="evenodd"
-                                                              d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
-                                                              clipRule="evenodd"
-                                                          />
-                                                      </svg>
-                                                      {isElectron
-                                                          ? "Cerrar Caja"
-                                                          : "Solo en App"}
-                                                  </button>
+                                                          <svg
+                                                              xmlns="http://www.w3.org/2000/svg"
+                                                              className="h-4 w-4"
+                                                              viewBox="0 0 20 20"
+                                                              fill="currentColor"
+                                                          >
+                                                              <path
+                                                                  fillRule="evenodd"
+                                                                  d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                                                                  clipRule="evenodd"
+                                                              />
+                                                          </svg>
+                                                          {isElectron
+                                                              ? "Cerrar Caja"
+                                                              : "Solo en App"}
+                                                      </button>
+                                                  )}
                                               </div>
                                           </div>
                                           {/* Selected Indicator */}
@@ -1820,6 +1966,39 @@ const Cashs: React.FC = () => {
                                                                 )}
                                                             </button>
                                                             <button
+                                                                onClick={() =>
+                                                                    handleExportClosurePdf(
+                                                                        closure.id,
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    exportingClosureId ===
+                                                                    closure.id
+                                                                }
+                                                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-all hover:bg-emerald-50 hover:text-emerald-600 dark:bg-slate-800 dark:hover:bg-slate-700"
+                                                                title="Exportar PDF"
+                                                            >
+                                                                {exportingClosureId ===
+                                                                closure.id ? (
+                                                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-500/30 border-t-emerald-500" />
+                                                                ) : (
+                                                                    <svg
+                                                                        xmlns="http://www.w3.org/2000/svg"
+                                                                        className="h-4 w-4"
+                                                                        fill="none"
+                                                                        viewBox="0 0 24 24"
+                                                                        stroke="currentColor"
+                                                                    >
+                                                                        <path
+                                                                            strokeLinecap="round"
+                                                                            strokeLinejoin="round"
+                                                                            strokeWidth={2}
+                                                                            d="M12 10v6m0 0l-3-3m3 3l3-3M4 4h16v9a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
+                                                                        />
+                                                                    </svg>
+                                                                )}
+                                                            </button>
+                                                            <button
                                                                 onClick={() => {
                                                                     setSelectedClosureDetail(
                                                                         closure,
@@ -1891,6 +2070,17 @@ const Cashs: React.FC = () => {
                 closure={selectedClosureDetail}
                 onReprint={handleReprint}
                 reprintingClosureId={reprintingClosureId}
+            />
+
+            <CashOpeningModal
+                isOpen={registerToOpen !== null}
+                registerName={registerToOpen?.name ?? ""}
+                loading={openingLoading}
+                onConfirm={handleOpenRegister}
+                onClose={() => {
+                    if (openingLoading) return;
+                    setRegisterToOpen(null);
+                }}
             />
 
             <ConfirmModal

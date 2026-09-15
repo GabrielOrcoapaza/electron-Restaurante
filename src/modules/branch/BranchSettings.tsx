@@ -25,6 +25,7 @@ type BranchFormState = {
     isMultiWaiterEnabled: boolean;
     separateRepeatedItems: boolean;
     allowCloseWithOccupiedTables: boolean;
+    allowCashOpenings: boolean;
     taxAffectationType: string;
 };
 
@@ -49,6 +50,7 @@ const emptyForm = (): BranchFormState => ({
     isMultiWaiterEnabled: false,
     separateRepeatedItems: false,
     allowCloseWithOccupiedTables: false,
+    allowCashOpenings: false,
     taxAffectationType: "10",
 });
 
@@ -74,6 +76,9 @@ function branchToForm(branch: Record<string, unknown>): BranchFormState {
         ),
         allowCloseWithOccupiedTables: Boolean(
             branch.allowCloseWithOccupiedTables ?? false,
+        ),
+        allowCashOpenings: Boolean(
+            branch.allowCashOpenings ?? false,
         ),
         taxAffectationType: normalizeTaxAffectationType(
             branch.taxAffectationType as string | null | undefined,
@@ -239,6 +244,7 @@ const BranchSettings: React.FC = () => {
             isMultiWaiterEnabled: form.isMultiWaiterEnabled,
             separateRepeatedItems: form.separateRepeatedItems,
             allowCloseWithOccupiedTables: form.allowCloseWithOccupiedTables,
+            allowCashOpenings: form.allowCashOpenings,
             taxAffectationType: form.taxAffectationType,
         };
 
@@ -444,6 +450,13 @@ const BranchSettings: React.FC = () => {
                                     "allowCloseWithOccupiedTables",
                                     v,
                                 )
+                            }
+                        />
+                        <ToggleField
+                            label="Permitir aperturas de caja"
+                            checked={form.allowCashOpenings}
+                            onChange={(v) =>
+                                handleToggle("allowCashOpenings", v)
                             }
                         />
                         <ToggleField

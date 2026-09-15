@@ -138,6 +138,17 @@ export const GET_CASH_REGISTERS = gql`
             cashType
             currentBalance
             isActive
+            status
+            currentOpening {
+                id
+                openingAmount
+                notes
+                openedAt
+                user {
+                    id
+                    fullName
+                }
+            }
         }
     }
 `;
@@ -698,6 +709,7 @@ export const GET_BRANCH_FULL = gql`
             isCommandItemMode
             separateRepeatedItems
             allowCloseWithOccupiedTables
+            allowCashOpenings
             isKitchenPrint
             isKitchenDisplay
             requireWaiterPassword
@@ -778,6 +790,7 @@ export const GET_BRANCH_BY_ID = gql`
             isCommandItemMode
             separateRepeatedItems
             allowCloseWithOccupiedTables
+            allowCashOpenings
             isKitchenPrint
             isKitchenDisplay
             requireWaiterPassword
@@ -986,6 +999,67 @@ export const GET_CASH_CLOSURES = gql`
             branch {
                 id
                 name
+            }
+        }
+    }
+`;
+
+// Reporte detallado de un cierre ya realizado (para exportar/imprimir el PDF completo)
+export const GET_CASH_CLOSURE_DETAIL = gql`
+    query GetCashClosureDetail($closureId: ID!) {
+        cashClosureDetail(closureId: $closureId) {
+            closureId
+            closureNumber
+            companyName
+            companyRuc
+            branchName
+            branchAddress
+            status
+            openedAt
+            closedAt
+            reportDate
+            employeeName
+            cashRegisterName
+            openingAmount
+            totalIncome
+            totalExpense
+            netTotal
+            realCash
+            openings {
+                description
+                amount
+            }
+            expenses {
+                motive
+                amount
+            }
+            documentsByType {
+                documentName
+                count
+                total
+            }
+            documentsRange {
+                documentName
+                first
+                last
+            }
+            salesByMethod {
+                methodCode
+                methodName
+                count
+                total
+            }
+            products {
+                productName
+                quantity
+                discount
+                total
+            }
+            totals {
+                productsCount
+                productsValue
+                individualDiscountsValue
+                globalDiscountsValue
             }
         }
     }
