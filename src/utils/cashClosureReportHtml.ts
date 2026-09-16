@@ -1,8 +1,6 @@
 /**
- * Genera el HTML de "Reporte de cierre de caja" (formato A4, imprimible / exportable a PDF
- * desde el diálogo de impresión del sistema) y lo abre en una ventana nueva con .print().
- * Mismo patrón que openBrowserPrintDialog en issuedDocumentPrintWithPreview.ts, pero con
- * HTML propio (esto no es un ticket de comprobante, es un reporte multi-sección).
+ * Genera el HTML de "Reporte de cierre de caja" (formato A4) para vista previa en modal
+ * y descarga automática a la carpeta Descargas / Downloads vía Electron.
  */
 
 export type CashClosureReportRow<T extends Record<string, unknown>> = T;
@@ -291,21 +289,6 @@ export function buildCashClosureReportHtml(d: CashClosureDetailData): string {
 </html>`;
 }
 
-/** Abre una ventana nueva con el reporte y dispara el diálogo de impresión del sistema
- * (permite "Guardar como PDF" como destino, igual que el resto de la app). */
-export function openCashClosureReportPrintWindow(
-    detail: CashClosureDetailData,
-): boolean {
-    const html = buildCashClosureReportHtml(detail);
-    const w = window.open("", "_blank", "width=900,height=1000");
-    if (!w) return false;
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    // Pequeño delay para que el navegador termine de pintar antes de abrir el diálogo.
-    window.setTimeout(() => {
-        w.print();
-    }, 150);
-    return true;
+export function buildCashClosureReportFilename(closureNumber: number): string {
+    return `cierre_caja_${closureNumber}.pdf`;
 }

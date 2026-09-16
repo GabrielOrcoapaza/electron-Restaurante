@@ -13,6 +13,7 @@ import {
 import {
     documentJsonToPdfBuffer,
 } from "./ticketHtmlWindow";
+import { htmlToA4PdfBuffer } from "./officialA4Pdf";
 
 async function documentJsonToPdfBase64(documentJson: string): Promise<string> {
     const pdfBuffer = await documentJsonToPdfBuffer(documentJson, null);
@@ -27,6 +28,32 @@ function sanitizePdfFilename(filename: string): string {
 
 function resolveDownloadPath(filename: string): string {
     return resolveUniqueDownloadFilePath(filename, sanitizePdfFilename);
+}
+
+async function saveHtmlA4PdfToDownloads(
+    html: string,
+    filename: string,
+): Promise<{ ok: boolean; path?: string; message?: string }> {
+    if (!html?.trim()) {
+        return { ok: false, message: "HTML vacío." };
+    }
+
+    const pdfBuffer = await htmlToA4PdfBuffer(html);
+    if (!pdfBuffer?.length || pdfBuffer.length < 128) {
+        return { ok: false, message: "El PDF generado es inválido." };
+    }
+
+    const filePath = resolveDownloadPath(filename);
+    fs.writeFileSync(filePath, pdfBuffer);
+    log.info(`[preview] PDF A4 guardado en ${filePath} (${pdfBuffer.length} bytes)`);
+    try {
+        shell.showItemInFolder(filePath);
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        log.warn("[preview] No se pudo abrir Descargas en el explorador:", msg);
+    }
+
+    return { ok: true, path: filePath };
 }
 
 async function saveDocumentPdfToDownloads(
@@ -100,6 +127,35 @@ export function registerDocumentPreviewHandler(): void {
         },
     );
 
+    ipcMain.removeHandler("download-html-a4-pdf");
+    ipcMain.handle(
+        "download-html-a4-pdf",
+        async (_event, payload: { html: string; filename: string }) => {
+            const { html, filename } = payload;
+            try {
+                log.info("[preview] Descargando PDF A4 desde HTML…");
+                const result = await saveHtmlA4PdfToDownloads(
+                    html,
+                    filename || "reporte.pdf",
+                );
+                if (!result.ok) {
+                    return result;
+                }
+                return {
+                    ok: true,
+                    path: result.path,
+                    message: result.path
+                        ? formatSavedInDownloadsMessage(result.path)
+                        : "PDF guardado en Descargas.",
+                };
+            } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : String(e);
+                log.error("[preview] Error descargando PDF A4:", msg);
+                return { ok: false, message: msg };
+            }
+        },
+    );
+
     ipcMain.removeHandler("download-document-pdf");
     ipcMain.handle(
         "download-document-pdf",
@@ -133,6 +189,6 @@ export function registerDocumentPreviewHandler(): void {
     );
 
     log.info(
-        "[main] Handlers de vista previa: document-json-to-pdf, document-json-to-html, download-document-pdf",
+        "[main] Handlers de vista previa: document-json-to-pdf, document-json-to-html, download-html-a4-pdf, download-document-pdf",
     );
 }

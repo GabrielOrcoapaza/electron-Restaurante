@@ -8,7 +8,8 @@ import {
     GET_PAYMENTS_PENDING_CLOSURE,
     GET_CASH_CLOSURE_DETAIL,
 } from "../../graphql/queries";
-import { openCashClosureReportPrintWindow } from "../../utils/cashClosureReportHtml";
+import { downloadCashClosureReportPdf } from "../../utils/downloadCashClosureReportPdf";
+import type { CashClosureDetailData } from "../../utils/cashClosureReportHtml";
 import {
     CLOSE_CASH,
     REPRINT_CLOSURE,
@@ -19,6 +20,7 @@ import {
 } from "../../graphql/mutations";
 import ManualTransactionModal from "./manualTransactionModal";
 import CashDetailModal from "./cashDetailModal";
+import CashClosureReportModal from "./cashClosureReportModal";
 import CashOpeningModal from "./cashOpeningModal";
 import ConfirmModal from "../../components/ConfirmModal";
 import { useToast } from "../../context/ToastContext";
@@ -169,6 +171,12 @@ const Cashs: React.FC = () => {
     const [exportingClosureId, setExportingClosureId] = useState<
         string | null
     >(null);
+    const [closureReportDetail, setClosureReportDetail] =
+        useState<CashClosureDetailData | null>(null);
+    const [closureReportDownloadMessage, setClosureReportDownloadMessage] =
+        useState<string | null>(null);
+    const [closureReportDownloading, setClosureReportDownloading] =
+        useState(false);
     const [showMovements, setShowMovements] = useState(true);
     const [showHistory, setShowHistory] = useState(false);
     const [pendingConfirm, setPendingConfirm] =
@@ -514,6 +522,8 @@ const Cashs: React.FC = () => {
 
     const handleExportClosurePdf = async (closureId: string) => {
         setExportingClosureId(closureId);
+        setClosureReportDownloadMessage(null);
+        setClosureReportDownloading(false);
         try {
             const result = await fetchClosureDetail({
                 variables: { closureId },
@@ -527,14 +537,29 @@ const Cashs: React.FC = () => {
                 );
                 return;
             }
-            const opened = openCashClosureReportPrintWindow(detail);
-            if (!opened) {
+
+            setClosureReportDetail(detail);
+            setClosureReportDownloading(true);
+
+            const downloadResult = await downloadCashClosureReportPdf(detail);
+            setClosureReportDownloading(false);
+            setClosureReportDownloadMessage(downloadResult.message || null);
+
+            if (downloadResult.ok) {
                 showToast(
-                    "El navegador bloqueó la ventana de impresión. Habilite las ventanas emergentes para SumApp.",
+                    downloadResult.message ||
+                        "PDF guardado en su carpeta de descargas",
+                    "success",
+                );
+            } else {
+                showToast(
+                    downloadResult.message ||
+                        "No se pudo descargar el PDF del reporte",
                     "warning",
                 );
             }
         } catch (error: any) {
+            setClosureReportDownloading(false);
             showToast(
                 error.message || "Error al generar el reporte",
                 "error",
@@ -1976,7 +2001,7 @@ const Cashs: React.FC = () => {
                                                                     closure.id
                                                                 }
                                                                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-all hover:bg-emerald-50 hover:text-emerald-600 dark:bg-slate-800 dark:hover:bg-slate-700"
-                                                                title="Exportar PDF"
+                                                                title="Ver reporte PDF"
                                                             >
                                                                 {exportingClosureId ===
                                                                 closure.id ? (
@@ -2070,6 +2095,18 @@ const Cashs: React.FC = () => {
                 closure={selectedClosureDetail}
                 onReprint={handleReprint}
                 reprintingClosureId={reprintingClosureId}
+            />
+
+            <CashClosureReportModal
+                isOpen={closureReportDetail !== null}
+                onClose={() => {
+                    setClosureReportDetail(null);
+                    setClosureReportDownloadMessage(null);
+                    setClosureReportDownloading(false);
+                }}
+                detail={closureReportDetail}
+                downloadMessage={closureReportDownloadMessage}
+                downloading={closureReportDownloading}
             />
 
             <CashOpeningModal

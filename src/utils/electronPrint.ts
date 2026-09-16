@@ -9,6 +9,7 @@ export const PRINT_JSON_DOCUMENT_DIALOG_CHANNEL =
 export const DOCUMENT_JSON_TO_PDF_CHANNEL = "document-json-to-pdf" as const;
 export const DOCUMENT_JSON_TO_HTML_CHANNEL = "document-json-to-html" as const;
 export const DOWNLOAD_DOCUMENT_PDF_CHANNEL = "download-document-pdf" as const;
+export const DOWNLOAD_HTML_A4_PDF_CHANNEL = "download-html-a4-pdf" as const;
 export const OPEN_EXTERNAL_URL_CHANNEL = "open-external-url" as const;
 export const DOWNLOAD_OFFICIAL_DOCUMENT_PDF_CHANNEL =
 	"download-official-document-pdf" as const;
@@ -33,6 +34,11 @@ export type DocumentJsonToHtmlResult = {
 	message?: string;
 };
 export type DownloadDocumentPdfResult = {
+	ok: boolean;
+	path?: string;
+	message?: string;
+};
+export type DownloadHtmlA4PdfResult = {
 	ok: boolean;
 	path?: string;
 	message?: string;
@@ -155,6 +161,21 @@ export async function invokeElectronDocumentJsonToHtml(
 	return ipc.invoke(DOCUMENT_JSON_TO_HTML_CHANNEL, {
 		documentJson,
 	}) as Promise<DocumentJsonToHtmlResult>;
+}
+
+/** Genera un PDF A4 desde HTML y lo guarda en la carpeta Descargas / Downloads. */
+export async function invokeElectronDownloadHtmlA4Pdf(
+	html: string,
+	filename: string,
+): Promise<DownloadHtmlA4PdfResult> {
+	const ipc = getElectronIpcRenderer();
+	if (!ipc) {
+		return { ok: false, message: "No es entorno Electron." };
+	}
+	return ipc.invoke(DOWNLOAD_HTML_A4_PDF_CHANNEL, {
+		html,
+		filename,
+	}) as Promise<DownloadHtmlA4PdfResult>;
 }
 
 /** Genera el PDF en el proceso principal y lo guarda en la carpeta Descargas. */

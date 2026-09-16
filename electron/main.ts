@@ -658,7 +658,7 @@ function registerIpcHandlers(): void {
     });
 
     log.info(
-        "[main] Handlers IPC registrados: get-system-printers, print-json-document, print-json-document-dialog, document-json-to-pdf, document-json-to-html, download-document-pdf, open-external-url, download-official-document-pdf, download-remote-file, download-excel-file, check-for-updates",
+        "[main] Handlers IPC registrados: get-system-printers, print-json-document, print-json-document-dialog, document-json-to-pdf, document-json-to-html, download-html-a4-pdf, download-document-pdf, open-external-url, download-official-document-pdf, download-remote-file, download-excel-file, check-for-updates",
     );
 }
 if (isDev) {
