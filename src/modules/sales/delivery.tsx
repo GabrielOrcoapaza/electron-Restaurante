@@ -4,6 +4,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useUserPermissions } from "../../hooks/useUserPermissions";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useToast } from "../../context/ToastContext";
+import { useCashOpeningGate } from "../../hooks/useCashOpeningGate";
 import {
     getBranchIgvPercentage,
     getBranchTaxAffectationType,
@@ -144,10 +145,16 @@ const ChevronRight = () => (
     </svg>
 );
 
-const Delivery: React.FC = () => {
+const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
+    onGoToCashRegister,
+}) => {
     const { companyData, user, getDeviceId, getMacAddress } =
         useAuth();
     const { showToast } = useToast();
+    const {
+        isBlocked: isCashOpeningBlocked,
+        message: cashOpeningBlockedMessage,
+    } = useCashOpeningGate();
     // Si está activo, cada unidad de un producto repetido queda en su propia línea
     // (nunca se agrupan por cantidad). Config de sede — ver BranchSettings.tsx.
     const separateRepeatedItems = Boolean(
@@ -699,6 +706,11 @@ const Delivery: React.FC = () => {
 
     // Función para agregar producto al carrito
     const handleAddProduct = (productIdToAdd?: string, qtyToAdd?: number) => {
+        if (isCashOpeningBlocked) {
+            showToast(cashOpeningBlockedMessage, "warning");
+            return;
+        }
+
         if (showCheckout) setShowCheckout(false);
 
         const productId = productIdToAdd || selectedProduct;
@@ -1197,6 +1209,11 @@ const Delivery: React.FC = () => {
     ]);
 
     const handleProcessSale = async (shouldPrint: boolean = true) => {
+        if (isCashOpeningBlocked) {
+            showToast(cashOpeningBlockedMessage, "warning");
+            return;
+        }
+
         if (!validateSaleBeforePay()) {
             return;
         }
@@ -1668,6 +1685,33 @@ const Delivery: React.FC = () => {
             behavior: "smooth",
         });
     }, []);
+
+    if (isCashOpeningBlocked) {
+        return (
+            <div className="flex h-full min-h-0 w-full flex-col items-center justify-center bg-slate-50 p-6 text-center dark:bg-slate-950">
+                <div className="max-w-md rounded-3xl border border-amber-200 bg-white p-8 shadow-xl dark:border-amber-900/40 dark:bg-slate-900">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-3xl dark:bg-amber-950/40">
+                        🔒
+                    </div>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+                        Caja sin abrir
+                    </h2>
+                    <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                        {cashOpeningBlockedMessage}
+                    </p>
+                    {onGoToCashRegister && (
+                        <button
+                            type="button"
+                            onClick={onGoToCashRegister}
+                            className="mt-6 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                        >
+                            Ir a Caja
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden bg-white md:flex-row">

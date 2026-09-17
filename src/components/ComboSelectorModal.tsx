@@ -304,6 +304,8 @@ export const ComboSelectorModal: React.FC<ComboSelectorModalProps> = ({
 
         return () => {
             cancelled = true;
+            // Permite relanzar la carga si combos se actualizó mientras las queries seguían en vuelo
+            loadedComboIdRef.current = null;
         };
     }, [selectedComboId, combos]);
 

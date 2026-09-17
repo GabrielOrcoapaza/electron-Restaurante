@@ -32,6 +32,8 @@ import {
     RestrictedTableAccessModal,
     type RestrictedModalPayload,
 } from "../../components/RestrictedTableAccessModal";
+import { CashOpeningRequiredModal } from "../../components/CashOpeningRequiredModal";
+import { useCashOpeningGate } from "../../hooks/useCashOpeningGate";
 
 const FLOOR_ORDER_START_STORAGE_PREFIX = "appsuma:floorOrderStart:v1";
 
@@ -131,6 +133,7 @@ function formatElapsedShort(fromMs: number, nowMs: number): string {
 
 type FloorProps = {
     onOpenCash?: (table: Table) => void;
+    onGoToCashRegister?: () => void;
     /** Incrementado al volver desde Caja: refetch escalonado para alinear candado visual. */
     tablesRefreshNonce?: number;
 };
@@ -184,6 +187,7 @@ const getTableTailwindClasses = (status: string) => {
 
 const Floor: React.FC<FloorProps> = ({
     onOpenCash,
+    onGoToCashRegister,
     tablesRefreshNonce = 0,
 }) => {
     const { companyData, user } = useAuth();
@@ -191,6 +195,10 @@ const Floor: React.FC<FloorProps> = ({
     const { showToast } = useToast();
     const { breakpoint, isPosTouchScreen } = useResponsive();
     const apolloClient = useApolloClient();
+    const {
+        isBlocked: isCashOpeningBlocked,
+        refetch: refetchCashOpeningStatus,
+    } = useCashOpeningGate();
 
     // Adaptar según tamaño de pantalla
     const isXs = breakpoint === "xs";
@@ -225,6 +233,8 @@ const Floor: React.FC<FloorProps> = ({
     const [claimSessionDenied, setClaimSessionDenied] = useState(false);
     const [restrictedAccessModal, setRestrictedAccessModal] =
         useState<RestrictedModalPayload | null>(null);
+    const [showCashOpeningRequiredModal, setShowCashOpeningRequiredModal] =
+        useState(false);
     const [orderTimerTick, setOrderTimerTick] = useState(() => Date.now());
     /** Candado por mesa vía WS (GraphQL producción puede aún no exponer estos campos en TableType). */
     const [sessionLockOverlayByTableId, setSessionLockOverlayByTableId] =
@@ -276,6 +286,10 @@ const Floor: React.FC<FloorProps> = ({
             setSelectedFloorId(activeFloors[0].id);
         }
     }, [activeFloors, selectedFloorId]);
+
+    useEffect(() => {
+        void refetchCashOpeningStatus();
+    }, [tablesRefreshNonce, refetchCashOpeningStatus]);
 
     const floorIdForQuery = normalizeGraphQLId(selectedFloorId);
 
@@ -686,6 +700,11 @@ const Floor: React.FC<FloorProps> = ({
             Boolean(table.currentOperationId) ||
             table.status === "OCCUPIED" ||
             table.status === "TO_PAY";
+
+        if (isCashOpeningBlocked && !hasExistingOrder) {
+            setShowCashOpeningRequiredModal(true);
+            return;
+        }
 
         if (isMozo) {
             setShowStatusModal(false);
@@ -1099,6 +1118,12 @@ const Floor: React.FC<FloorProps> = ({
                     }}
                 />
             )}
+
+            <CashOpeningRequiredModal
+                isOpen={showCashOpeningRequiredModal}
+                onClose={() => setShowCashOpeningRequiredModal(false)}
+                onGoToCashRegister={onGoToCashRegister}
+            />
         </div>
     );
 };

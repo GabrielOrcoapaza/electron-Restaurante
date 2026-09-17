@@ -6,6 +6,7 @@ import React, {
     useCallback,
 } from "react";
 import { useNavigate } from "react-router-dom";
+import { useCashOpeningGate } from "../../hooks/useCashOpeningGate";
 import { useQuery, useMutation, useLazyQuery, useApolloClient } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { useResponsive } from "../../hooks/useResponsive";
@@ -292,6 +293,10 @@ const Order: React.FC<OrderProps> = ({
     const { sendMessage, disconnect } = useWebSocket();
     const { showToast } = useToast();
     const navigate = useNavigate();
+    const {
+        isBlocked: isCashOpeningBlocked,
+        message: cashOpeningBlockedMessage,
+    } = useCashOpeningGate();
     const apolloClient = useApolloClient();
     /** Claim fallido en servidor → mismo modal que en el plano (sin toast rojo). */
     const [claimSessionDenied, setClaimSessionDenied] = useState(false);
@@ -1155,6 +1160,11 @@ const Order: React.FC<OrderProps> = ({
 
     // Función para agregar producto a la orden
     const handleAddProduct = (productIdToAdd?: string, qtyToAdd?: number) => {
+        if (isCashOpeningBlocked && !isExistingOrder) {
+            showToast(cashOpeningBlockedMessage, "warning");
+            return;
+        }
+
         const productId = productIdToAdd || selectedProduct;
         if (!productId) return;
 
@@ -1332,6 +1342,11 @@ const Order: React.FC<OrderProps> = ({
 
     // NUEVO: Handler para agregar combos
     const handleAddCombo = (combo: any, components: any[]) => {
+        if (isCashOpeningBlocked && !isExistingOrder) {
+            showToast(cashOpeningBlockedMessage, "warning");
+            return;
+        }
+
         const stockRunning = buildCartStockUsage(orderItems);
         const stockCheck = canAddComboQuantity(
             combo.name ?? "Combo",
@@ -1552,6 +1567,11 @@ const Order: React.FC<OrderProps> = ({
         status: string = "PROCESSING",
         shouldPrint: boolean = true,
     ) => {
+        if (isCashOpeningBlocked && !isExistingOrder) {
+            showToast(cashOpeningBlockedMessage, "warning");
+            return;
+        }
+
         const itemsToProcess = isExistingOrder
             ? orderItems.filter((item) => item.isNew)
             : orderItems;

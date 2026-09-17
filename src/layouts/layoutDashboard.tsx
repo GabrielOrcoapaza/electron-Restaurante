@@ -696,6 +696,11 @@ const LayoutDashboardContent: React.FC = () => {
         setSidebarOpen(false);
     };
 
+    const handleGoToCashRegister = () => {
+        setCurrentView("cashs");
+        setSidebarOpen(false);
+    };
+
     const handleBackFromCash = async () => {
         const t = selectedCashTable;
         const uid = user?.id;
@@ -1683,6 +1688,7 @@ const LayoutDashboardContent: React.FC = () => {
                     {currentView === "floors" && (
                         <Floor
                             onOpenCash={handleOpenCash}
+                            onGoToCashRegister={handleGoToCashRegister}
                             tablesRefreshNonce={floorsTablesRefreshNonce}
                         />
                     )}
@@ -1999,7 +2005,9 @@ const LayoutDashboardContent: React.FC = () => {
                             )}
                         </div>
                     )}
-                    {currentView === "delivery" && <Delivery />}
+                    {currentView === "delivery" && (
+                        <Delivery onGoToCashRegister={handleGoToCashRegister} />
+                    )}
                     {currentView === "branch" && <BranchSettings />}
                 </main>
             </div>
