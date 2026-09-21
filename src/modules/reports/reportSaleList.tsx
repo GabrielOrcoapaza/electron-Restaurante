@@ -8,6 +8,7 @@ import {
 import { GET_DOCUMENTS } from "../../graphql/queries";
 import { useAuth } from "../../hooks/useAuth";
 import { useUserPermissions } from "../../hooks/useUserPermissions";
+import { useToast } from "../../context/ToastContext";
 import ConvertDocumentModal from "./convertDocumentModal";
 import { parseLocalEmissionDateTime } from "../../utils/localDateTime";
 import { getBranchIgvPercentage } from "../../utils/getBranchIgvPercentage";
@@ -181,6 +182,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     const apolloClient = useApolloClient();
     const igvPercentageForLabel = getBranchIgvPercentage(companyData);
     const { hasPermission } = useUserPermissions();
+    const { showToast } = useToast();
     const isElectron = isElectronRenderer();
 
     const [expandedDocument, setExpandedDocument] = useState<string | null>(
@@ -506,7 +508,18 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                 err instanceof Error
                     ? err.message
                     : "Error al reactivar la mesa.";
-            setReactivateMessage({ type: "error", text: msg });
+            const tableName =
+                documentToReactivate.operation?.table?.name?.trim();
+            const isTableOccupied = /ocupad/i.test(msg);
+            const toastMessage =
+                isTableOccupied && tableName
+                    ? `La mesa "${tableName}" está ocupada.`
+                    : isTableOccupied
+                      ? "La mesa está ocupada. No se puede reabrir."
+                      : msg;
+            showToast(toastMessage, "error");
+            setShowReactivateModal(false);
+            setDocumentToReactivate(null);
         } finally {
             setReactivatingDocId(null);
             setTimeout(() => setReactivateMessage(null), 5000);
