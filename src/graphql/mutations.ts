@@ -108,6 +108,17 @@ export const COMPANY_LOGIN = gql`
     }
 `;
 
+/** Renueva el access token (graphql_jwt). Argumento `token` = refreshToken guardado en login. */
+export const REFRESH_TOKEN = gql`
+    mutation RefreshToken($token: String!) {
+        refreshToken(token: $token) {
+            token
+            refreshExpiresIn
+            payload
+        }
+    }
+`;
+
 export const USER_LOGIN = gql`
     mutation UserLogin(
         $dni: String!

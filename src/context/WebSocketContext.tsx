@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { isTokenExpired } from "../utils/jwt";
+import { ensureValidAccessToken } from "../utils/tokenRefresh";
 
 // Tipos para los mensajes del WebSocket
 export interface WebSocketMessage {
@@ -141,6 +142,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     const lastWsUrlRef = useRef<string>("");
 
     const connectWebSocket = useCallback(() => {
+        void (async () => {
         // Obtener datos de cocina desde localStorage
         const { kitchenToken, kitchenBranchId, kitchenUserId } =
             getKitchenAuthData();
@@ -157,9 +159,9 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
             isKitchenMode = true;
             console.log("🍳 WebSocket en modo COCINA");
         } else if (token && companyData?.branch.id && user?.id) {
-            // Modo normal
+            // Modo normal: intentar renovar access token si está por vencer
             effectiveBranchId = companyData.branch.id;
-            tokenToUse = token;
+            tokenToUse = (await ensureValidAccessToken()) ?? token;
             console.log("📱 WebSocket en modo NORMAL");
         } else {
             // No hay datos suficientes
@@ -400,6 +402,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
                 }, delay);
             }
         }
+        })();
     }, [companyData?.branch.id, user?.id, token, notifySubscribers]);
 
     // Ref para manejar el cierre diferido (evita ruidos en React 18 Dev mode)

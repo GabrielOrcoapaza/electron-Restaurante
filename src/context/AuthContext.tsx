@@ -6,6 +6,7 @@ import {
     normalizeTaxAffectationType,
     type BranchSessionPatch,
 } from "../utils/getBranchIgvPercentage";
+import { ensureValidAccessToken } from "../utils/tokenRefresh";
 
 // Tipos para los datos de autenticación
 
@@ -263,6 +264,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             clearInterval(interval);
         };
     }, []);
+
+    // Renovar access token antes de que venza (turnos largos / uso nocturno).
+    useEffect(() => {
+        if (!isAuthenticated || !localStorage.getItem("refreshToken")) {
+            return;
+        }
+
+        const runRefreshCheck = () => {
+            void ensureValidAccessToken();
+        };
+
+        runRefreshCheck();
+        const refreshInterval = window.setInterval(runRefreshCheck, 5 * 60 * 1000);
+
+        return () => {
+            window.clearInterval(refreshInterval);
+        };
+    }, [isAuthenticated]);
 
     // Obtener o crear device_id
     const getDeviceId = (): string => {

@@ -37,6 +37,11 @@ import {
     getLocalTicketPrinterStorage,
 } from "../../utils/localPrinterPreference";
 import { issuedItemLineTotal } from "../../utils/taxAmounts";
+import {
+    getVoidConvertBlockedMessage,
+    getVoidConvertMaxDays,
+    isWithinVoidConvertWindow,
+} from "../../utils/issuedDocumentVoidPolicy";
 
 interface IssuedDocument {
     id: string;
@@ -464,8 +469,12 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     const branchDocuments: Array<{ id: string; code: string; isActive: boolean }> =
         documentsConfigData?.documentsByBranch || [];
 
-    const canConvertDocument = (_doc: IssuedDocument): boolean =>
-        branchDocuments.some((d) => d.isActive);
+    const canVoidOrConvertDocument = (doc: IssuedDocument): boolean =>
+        isWithinVoidConvertWindow(doc.emissionDate, doc.document.code);
+
+    const canConvertDocument = (doc: IssuedDocument): boolean =>
+        branchDocuments.some((d) => d.isActive) &&
+        canVoidOrConvertDocument(doc);
 
     const canReactivateTable = (doc: IssuedDocument): boolean => {
         const isRestaurant =
@@ -531,6 +540,16 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
             setFullAnnulMessage({
                 type: "error",
                 text: "Seleccione un motivo de anulación",
+            });
+            return;
+        }
+        if (!canVoidOrConvertDocument(documentForFullAnnul)) {
+            setFullAnnulMessage({
+                type: "error",
+                text: getVoidConvertBlockedMessage(
+                    documentForFullAnnul.emissionDate,
+                    documentForFullAnnul.document.code,
+                ),
             });
             return;
         }
@@ -1331,6 +1350,22 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
+                                                                if (
+                                                                    !canVoidOrConvertDocument(
+                                                                        doc,
+                                                                    )
+                                                                ) {
+                                                                    showToast(
+                                                                        getVoidConvertBlockedMessage(
+                                                                            doc.emissionDate,
+                                                                            doc
+                                                                                .document
+                                                                                .code,
+                                                                        ),
+                                                                        "error",
+                                                                    );
+                                                                    return;
+                                                                }
                                                                 setDocumentToConvert(
                                                                     doc,
                                                                 );
@@ -1344,29 +1379,52 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                                         </button>
                                                     )}
 
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setDocumentForFullAnnul(
-                                                                doc,
-                                                            );
-                                                            setFullAnnulReason(
-                                                                "",
-                                                            );
-                                                            setFullAnnulDescription(
-                                                                "",
-                                                            );
-                                                            setFullAnnulMessage(
-                                                                null,
-                                                            );
-                                                            setShowFullAnnulModal(
-                                                                true,
-                                                            );
-                                                        }}
-                                                        className="h-10 px-4 rounded-xl bg-red-600 text-white text-xs font-black uppercase tracking-widest transition-all hover:bg-red-700 shadow-sm"
-                                                    >
-                                                        Anul. Completa
-                                                    </button>
+                                                    {(getVoidConvertMaxDays(
+                                                        doc.document.code,
+                                                    ) === null ||
+                                                        canVoidOrConvertDocument(
+                                                            doc,
+                                                        )) && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (
+                                                                    !canVoidOrConvertDocument(
+                                                                        doc,
+                                                                    )
+                                                                ) {
+                                                                    showToast(
+                                                                        getVoidConvertBlockedMessage(
+                                                                            doc.emissionDate,
+                                                                            doc
+                                                                                .document
+                                                                                .code,
+                                                                        ),
+                                                                        "error",
+                                                                    );
+                                                                    return;
+                                                                }
+                                                                setDocumentForFullAnnul(
+                                                                    doc,
+                                                                );
+                                                                setFullAnnulReason(
+                                                                    "",
+                                                                );
+                                                                setFullAnnulDescription(
+                                                                    "",
+                                                                );
+                                                                setFullAnnulMessage(
+                                                                    null,
+                                                                );
+                                                                setShowFullAnnulModal(
+                                                                    true,
+                                                                );
+                                                            }}
+                                                            className="h-10 px-4 rounded-xl bg-red-600 text-white text-xs font-black uppercase tracking-widest transition-all hover:bg-red-700 shadow-sm"
+                                                        >
+                                                            Anul. Completa
+                                                        </button>
+                                                    )}
                                                 </>
                                             )}
 

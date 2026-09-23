@@ -1,14 +1,12 @@
 import React, { useMemo } from "react";
+import {
+    getUsedSalesReportPaymentMethods,
+    type SalesReportPaymentSummary,
+} from "../../utils/salesReportPaymentSummary";
 
-interface SalesReportSummary {
+interface SalesReportSummary extends SalesReportPaymentSummary {
     totalDocuments: number;
     totalAmount: number;
-    totalCash: number;
-    totalYape: number;
-    totalPlin: number;
-    totalCard: number;
-    totalTransfer: number;
-    totalOthers: number;
 }
 
 interface IssuedDocument {
@@ -39,15 +37,6 @@ const compactCurrency = new Intl.NumberFormat("es-PE", {
     notation: "compact",
     maximumFractionDigits: 1,
 });
-
-const PAYMENT_COLORS: Record<string, string> = {
-    Efectivo: "#3b82f6",
-    Yape: "#10b981",
-    Plin: "#f59e0b",
-    Tarjeta: "#f43f5e",
-    "Transf.": "#a855f7",
-    Otros: "#64748b",
-};
 
 const BILLING_STATUS_LABELS: Record<
     string,
@@ -341,15 +330,11 @@ const ReportSaleCharts: React.FC<ReportSaleChartsProps> = ({
     }, [documents]);
 
     const paymentSegments = useMemo(() => {
-        if (!summary) return [];
-        return [
-            { label: "Efectivo", value: summary.totalCash, color: PAYMENT_COLORS.Efectivo },
-            { label: "Yape", value: summary.totalYape, color: PAYMENT_COLORS.Yape },
-            { label: "Plin", value: summary.totalPlin, color: PAYMENT_COLORS.Plin },
-            { label: "Tarjeta", value: summary.totalCard, color: PAYMENT_COLORS.Tarjeta },
-            { label: "Transf.", value: summary.totalTransfer, color: PAYMENT_COLORS["Transf."] },
-            { label: "Otros", value: summary.totalOthers, color: PAYMENT_COLORS.Otros },
-        ].filter((s) => s.value > 0);
+        return getUsedSalesReportPaymentMethods(summary).map((item) => ({
+            label: item.label,
+            value: item.amount,
+            color: item.chartColor,
+        }));
     }, [summary]);
 
     if (!documents.length) {

@@ -6,6 +6,10 @@ import type { CategorySalesGroup, CategorySalesSummary } from "./reportCategoryS
 import type { ExpensePayment, ExpenseReportSummary } from "./reportExpense";
 import type { EmployeeDishLine, UserSaleOperation } from "./reportEmployee";
 import type { CancellationItem } from "./reportCancel";
+import {
+    getUsedSalesReportPaymentMethods,
+    type SalesReportPaymentSummary,
+} from "../../utils/salesReportPaymentSummary";
 
 type DateRange = {
     startDate: string;
@@ -235,13 +239,7 @@ type SalesDocumentForExport = {
 type SalesSummaryForExport = {
     totalDocuments: number;
     totalAmount: number;
-    totalCash: number;
-    totalYape: number;
-    totalPlin: number;
-    totalCard: number;
-    totalTransfer: number;
-    totalOthers: number;
-};
+} & SalesReportPaymentSummary;
 
 export async function downloadSalesReport(
     documents: SalesDocumentForExport[],
@@ -279,12 +277,10 @@ export async function downloadSalesReport(
         ? [
               { Concepto: "Documentos emitidos", Valor: summary.totalDocuments },
               { Concepto: "Venta total", Valor: roundMoney(summary.totalAmount) },
-              { Concepto: "Efectivo", Valor: roundMoney(summary.totalCash) },
-              { Concepto: "Yape", Valor: roundMoney(summary.totalYape) },
-              { Concepto: "Plin", Valor: roundMoney(summary.totalPlin) },
-              { Concepto: "Tarjeta", Valor: roundMoney(summary.totalCard) },
-              { Concepto: "Transferencia", Valor: roundMoney(summary.totalTransfer) },
-              { Concepto: "Otros", Valor: roundMoney(summary.totalOthers) },
+              ...getUsedSalesReportPaymentMethods(summary).map((item) => ({
+                  Concepto: item.label,
+                  Valor: roundMoney(item.amount),
+              })),
           ]
         : [];
 

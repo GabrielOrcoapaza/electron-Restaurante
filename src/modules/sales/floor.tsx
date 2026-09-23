@@ -341,8 +341,9 @@ const Floor: React.FC<FloorProps> = ({
             ),
         [tablesOnFloor, sessionLockOverlayByTableId, orderTimerTick],
     );
-    const visibleTables = sessionMergedTables.filter(
-        (t) => t.isActive !== false,
+    const visibleTables = useMemo(
+        () => sessionMergedTables.filter((t) => t.isActive !== false),
+        [sessionMergedTables],
     );
 
     const fetchAllFloorTableStats = useCallback(async () => {

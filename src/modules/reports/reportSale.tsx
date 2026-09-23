@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { GET_SALES_REPORT, GET_DOCUMENTS } from "../../graphql/queries";
@@ -8,16 +8,14 @@ import { formatLocalDateYYYYMMDD } from "../../utils/localDateTime";
 import ReportExportExcelButton from "../../components/ReportExportExcelButton";
 import { useToast } from "../../context/ToastContext";
 import { downloadSalesReport } from "./reportExcelExports";
+import {
+    getUsedSalesReportPaymentMethods,
+    type SalesReportPaymentSummary,
+} from "../../utils/salesReportPaymentSummary";
 
-interface SalesReportSummary {
+interface SalesReportSummary extends SalesReportPaymentSummary {
     totalDocuments: number;
     totalAmount: number;
-    totalCash: number;
-    totalYape: number;
-    totalPlin: number;
-    totalCard: number;
-    totalTransfer: number;
-    totalOthers: number;
 }
 
 interface IssuedDocument {
@@ -158,6 +156,11 @@ const ReportSale: React.FC = () => {
     const reportData: SalesReportData | null = data?.salesReport || null;
     const summary: SalesReportSummary | null = reportData?.summary || null;
     const salesDocuments: IssuedDocument[] = reportData?.documents || [];
+
+    const usedPaymentMethods = useMemo(
+        () => getUsedSalesReportPaymentMethods(summary),
+        [summary],
+    );
 
     const handleExportExcel = async () => {
         if (!salesDocuments.length) {
@@ -359,89 +362,60 @@ const ReportSale: React.FC = () => {
 
             {/* Summary Cards */}
             {summary && (
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="relative overflow-hidden rounded-[32px] bg-indigo-600 p-6 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
-                        <div className="relative z-10">
-                            <span className="text-[10px] font-black uppercase tracking-widest opacity-80">
-                                Total Documentos
-                            </span>
-                            <div className="mt-1 text-3xl font-black">
-                                {summary.totalDocuments}
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+                    <div className="flex shrink-0 gap-3">
+                        <div className="relative min-w-[132px] overflow-hidden rounded-2xl bg-indigo-600 px-4 py-3 text-white shadow-md shadow-indigo-200 dark:shadow-none">
+                            <div className="relative z-10">
+                                <span className="text-[9px] font-black uppercase tracking-widest opacity-80">
+                                    Total Documentos
+                                </span>
+                                <div className="mt-0.5 text-xl font-black">
+                                    {summary.totalDocuments}
+                                </div>
                             </div>
+                            <div className="absolute -right-3 -top-3 h-14 w-14 rounded-full bg-white/10" />
                         </div>
-                        <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+
+                        <div className="relative min-w-[152px] overflow-hidden rounded-2xl bg-emerald-500 px-4 py-3 text-white shadow-md shadow-emerald-200 dark:shadow-none">
+                            <div className="relative z-10">
+                                <span className="text-[9px] font-black uppercase tracking-widest opacity-80">
+                                    Venta Total Bruta
+                                </span>
+                                <div className="mt-0.5 text-lg font-black leading-tight">
+                                    {currencyFormatter.format(summary.totalAmount)}
+                                </div>
+                            </div>
+                            <div className="absolute -right-3 -top-3 h-14 w-14 rounded-full bg-white/10" />
+                        </div>
                     </div>
 
-                    <div className="relative overflow-hidden rounded-[32px] bg-emerald-500 p-6 text-white shadow-lg shadow-emerald-200 dark:shadow-none">
-                        <div className="relative z-10">
-                            <span className="text-[10px] font-black uppercase tracking-widest opacity-80">
-                                Venta Total Bruta
-                            </span>
-                            <div className="mt-1 text-3xl font-black">
-                                {currencyFormatter.format(summary.totalAmount)}
-                            </div>
-                        </div>
-                        <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
-                    </div>
-
-                    <div className="col-span-1 flex flex-col gap-3 rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800/50 dark:bg-slate-900 sm:col-span-2 lg:col-span-2">
+                    <div className="flex min-w-0 flex-1 flex-col gap-2 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                             Distribución por Método de Pago
                         </span>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                            {[
-                                {
-                                    label: "Efectivo",
-                                    amount: summary.totalCash,
-                                    color: "text-blue-600",
-                                    bg: "bg-blue-50 dark:bg-blue-900/20",
-                                },
-                                {
-                                    label: "Yape",
-                                    amount: summary.totalYape,
-                                    color: "text-emerald-600",
-                                    bg: "bg-emerald-50 dark:bg-emerald-900/20",
-                                },
-                                {
-                                    label: "Plin",
-                                    amount: summary.totalPlin,
-                                    color: "text-amber-600",
-                                    bg: "bg-amber-50 dark:bg-amber-900/20",
-                                },
-                                {
-                                    label: "Tarjeta",
-                                    amount: summary.totalCard,
-                                    color: "text-rose-600",
-                                    bg: "bg-rose-50 dark:bg-rose-900/20",
-                                },
-                                {
-                                    label: "Transf.",
-                                    amount: summary.totalTransfer,
-                                    color: "text-purple-600",
-                                    bg: "bg-purple-50 dark:bg-purple-900/20",
-                                },
-                                {
-                                    label: "Otros",
-                                    amount: summary.totalOthers,
-                                    color: "text-slate-600",
-                                    bg: "bg-slate-50 dark:bg-slate-800/30",
-                                },
-                            ].map((item, idx) => (
-                                <div
-                                    key={idx}
-                                    className={`flex flex-col rounded-2xl p-3 ${item.bg}`}
-                                >
-                                    <span className="text-[9px] font-black uppercase tracking-tighter opacity-70">
-                                        {item.label}
-                                    </span>
-                                    <span
-                                        className={`text-[11px] font-black ${item.color}`}
+                        {usedPaymentMethods.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                                {usedPaymentMethods.map((item) => (
+                                    <div
+                                        key={item.key}
+                                        className={`flex min-w-[96px] flex-col rounded-xl px-3 py-2 ${item.bg}`}
                                     >
-                                        {currencyFormatter.format(item.amount)}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
+                                        <span className="text-[9px] font-black uppercase tracking-tighter opacity-70">
+                                            {item.label}
+                                        </span>
+                                        <span
+                                            className={`text-[11px] font-black ${item.color}`}
+                                        >
+                                            {currencyFormatter.format(item.amount)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-xs font-bold text-slate-400">
+                                Sin cobros registrados en el periodo seleccionado.
+                            </p>
+                        )}
                     </div>
                 </div>
             )}

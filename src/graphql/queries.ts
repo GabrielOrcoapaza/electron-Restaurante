@@ -1489,6 +1489,10 @@ export const GET_SALES_REPORT = gql`
                 totalPlin
                 totalCard
                 totalTransfer
+                totalRappi
+                totalPedidoYa
+                totalLlamaFood
+                totalCredito
                 totalOthers
             }
         }

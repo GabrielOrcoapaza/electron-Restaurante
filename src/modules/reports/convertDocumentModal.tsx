@@ -16,6 +16,10 @@ import {
     formatLocalTimeHHMMSS,
 } from "../../utils/localDateTime";
 import { filterPersonsForCustomerSearch } from "../../utils/clientSearchUtils";
+import {
+    getVoidConvertBlockedMessage,
+    isWithinVoidConvertWindow,
+} from "../../utils/issuedDocumentVoidPolicy";
 
 interface SelectedClient {
     id: string;
@@ -28,6 +32,7 @@ interface SourceDocument {
     id: string;
     serial: string;
     number: string | number;
+    emissionDate: string;
     document: {
         id: string;
         code: string;
@@ -254,6 +259,21 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
     const handleConvert = async () => {
         setError(null);
         setSuccessMsg(null);
+
+        if (
+            !isWithinVoidConvertWindow(
+                sourceDocument.emissionDate,
+                sourceDocument.document.code,
+            )
+        ) {
+            setError(
+                getVoidConvertBlockedMessage(
+                    sourceDocument.emissionDate,
+                    sourceDocument.document.code,
+                ),
+            );
+            return;
+        }
 
         if (!targetDocumentId || !targetSerial) {
             setError("Seleccione tipo de documento y serie");
