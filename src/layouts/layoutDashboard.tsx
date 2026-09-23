@@ -297,6 +297,9 @@ const LayoutDashboardContent: React.FC = () => {
     const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(
         null,
     );
+    /** Atajo Caja → Orden: mesa a abrir en order.tsx al volver al plano. */
+    const [pendingOpenOrderTable, setPendingOpenOrderTable] =
+        useState<Table | null>(null);
     /** Mesa abierta en Caja (para liberar candado aunque `selectedCashTable` se nullifique al cambiar de vista). */
     const lastCashTableIdRef = useRef<string | null>(null);
     const [floorsTablesRefreshNonce, setFloorsTablesRefreshNonce] = useState(0);
@@ -692,8 +695,21 @@ const LayoutDashboardContent: React.FC = () => {
     const handleOpenCash = (table: Table) => {
         lastCashTableIdRef.current = String(table.id);
         setSelectedCashTable(table);
+        setPendingOpenOrderTable(null);
         setCurrentView("cash");
         setSidebarOpen(false);
+    };
+
+    const handleOpenOrder = (table: Table) => {
+        setPendingOpenOrderTable(table);
+        lastCashTableIdRef.current = null;
+        setSelectedCashTable(null);
+        setCurrentView("floors");
+        setSidebarOpen(false);
+    };
+
+    const handlePendingOpenOrderConsumed = () => {
+        setPendingOpenOrderTable(null);
     };
 
     const handleGoToCashRegister = () => {
@@ -1690,12 +1706,17 @@ const LayoutDashboardContent: React.FC = () => {
                             onOpenCash={handleOpenCash}
                             onGoToCashRegister={handleGoToCashRegister}
                             tablesRefreshNonce={floorsTablesRefreshNonce}
+                            pendingOpenOrderTable={pendingOpenOrderTable}
+                            onPendingOpenOrderConsumed={
+                                handlePendingOpenOrderConsumed
+                            }
                         />
                     )}
                     {currentView === "cash" && (
                         <CashPay
                             table={selectedCashTable}
                             onBack={handleBackFromCash}
+                            onOpenOrder={handleOpenOrder}
                             onPaymentSuccess={() => {
                                 // El WebSocket debería actualizar automáticamente las mesas
                                 // pero podemos forzar un refetch si es necesario

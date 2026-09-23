@@ -136,6 +136,9 @@ type FloorProps = {
     onGoToCashRegister?: () => void;
     /** Incrementado al volver desde Caja: refetch escalonado para alinear candado visual. */
     tablesRefreshNonce?: number;
+    /** Atajo desde Caja: abrir order.tsx de esta mesa al montar el plano. */
+    pendingOpenOrderTable?: Table | null;
+    onPendingOpenOrderConsumed?: () => void;
 };
 
 // Colores Tailwind por estado para mejor compatibilidad con dark/light
@@ -189,6 +192,8 @@ const Floor: React.FC<FloorProps> = ({
     onOpenCash,
     onGoToCashRegister,
     tablesRefreshNonce = 0,
+    pendingOpenOrderTable = null,
+    onPendingOpenOrderConsumed,
 }) => {
     const { companyData, user } = useAuth();
     const { hasPermission } = useUserPermissions();
@@ -345,6 +350,36 @@ const Floor: React.FC<FloorProps> = ({
         () => sessionMergedTables.filter((t) => t.isActive !== false),
         [sessionMergedTables],
     );
+
+    useEffect(() => {
+        if (!pendingOpenOrderTable) return;
+
+        const live = visibleTables.find(
+            (t) => String(t.id) === String(pendingOpenOrderTable.id),
+        );
+        const tableForOrder = live
+            ? {
+                  ...live,
+                  currentOperationId:
+                      pendingOpenOrderTable.currentOperationId ??
+                      live.currentOperationId,
+                  floorName:
+                      pendingOpenOrderTable.floorName ?? live.floorName,
+              }
+            : pendingOpenOrderTable;
+
+        const floorId =
+            (tableForOrder as Table & { floorId?: string }).floorId ??
+            (pendingOpenOrderTable as Table & { floorId?: string }).floorId;
+        if (floorId) {
+            setSelectedFloorId(String(floorId));
+        }
+
+        setSelectedTable(tableForOrder);
+        setShowStatusModal(false);
+        setShowOrder(true);
+        onPendingOpenOrderConsumed?.();
+    }, [pendingOpenOrderTable, onPendingOpenOrderConsumed, visibleTables]);
 
     const fetchAllFloorTableStats = useCallback(async () => {
         if (activeFloors.length === 0) {

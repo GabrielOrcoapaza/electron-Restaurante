@@ -72,6 +72,8 @@ import { filterPersonsForCustomerSearch } from "../../utils/clientSearchUtils";
 type CashPayProps = {
     table: Table | null;
     onBack: () => void;
+    /** Atajo a order.tsx con los productos de la orden activa (inverso del botón Caja). */
+    onOpenOrder?: (table: Table) => void;
     onPaymentSuccess?: () => void;
     onTableChange?: (newTable: Table) => void;
 };
@@ -137,6 +139,7 @@ const paymentMethodSendsReference = (method: string): boolean =>
 const CashPay: React.FC<CashPayProps> = ({
     table,
     onBack,
+    onOpenOrder,
     onPaymentSuccess,
     onTableChange,
 }) => {
@@ -2551,6 +2554,51 @@ const CashPay: React.FC<CashPayProps> = ({
         return null;
     }, [table, companyData?.branch?.floors]);
 
+    const canOpenOrderShortcut = Boolean(
+        (operation?.id ?? table?.currentOperationId) &&
+            operation?.status !== "COMPLETED",
+    );
+
+    const handleOpenOrderFromCash = () => {
+        if (!table || !onOpenOrder) return;
+
+        const operationId = operation?.id ?? table.currentOperationId;
+        if (operationId == null || operationId === "") {
+            showToast(
+                "Esta mesa no tiene una orden activa para editar.",
+                "error",
+            );
+            return;
+        }
+
+        const coercedId =
+            typeof operationId === "string" ? Number(operationId) : operationId;
+
+        let floorId: string | undefined;
+        let floorName = resolvedFloorName ?? table.floorName;
+        const floors = companyData?.branch?.floors ?? [];
+        for (const floor of floors) {
+            if (
+                floor.tables?.some(
+                    (t) => String(t.id) === String(table.id),
+                )
+            ) {
+                floorId = String(floor.id);
+                floorName = floor.name;
+                break;
+            }
+        }
+
+        onOpenOrder({
+            ...table,
+            ...(floorId ? { floorId } : {}),
+            floorName,
+            currentOperationId: Number.isFinite(coercedId as number)
+                ? (coercedId as number)
+                : table.currentOperationId,
+        });
+    };
+
     /** Mozo asignado a la operación (API) o nombre en contexto de mesa (floor). */
     const resolvedWaiterName = useMemo(() => {
         const u = operation?.user as
@@ -2727,6 +2775,35 @@ const CashPay: React.FC<CashPayProps> = ({
                     >
                         Mozo
                     </button>
+                    {onOpenOrder && (
+                        <button
+                            type="button"
+                            onClick={handleOpenOrderFromCash}
+                            disabled={!canOpenOrderShortcut}
+                            title="Ir a editar la orden de esta mesa"
+                            className="rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/45"
+                            style={{
+                                padding: isNarrow
+                                    ? "0.5rem 0.35rem"
+                                    : "0.45rem 0.6rem",
+                                fontSize: isNarrow ? "0.65rem" : "0.7rem",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                width: isNarrow ? "auto" : "150px",
+                                fontWeight: 600,
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                lineHeight: 1.15,
+                                textAlign: "center",
+                                opacity: canOpenOrderShortcut ? 1 : 0.6,
+                            }}
+                        >
+                            <span>Dirigirse</span>
+                            <span>a la Orden</span>
+                        </button>
+                    )}
                     <button
                         onClick={handlePrecuenta}
                         disabled={
