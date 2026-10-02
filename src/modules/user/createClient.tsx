@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
-import { useResponsive } from '../../hooks/useResponsive';
 import { CREATE_PERSON } from '../../graphql/mutations';
 import { SEARCH_PERSON_BY_DOCUMENT } from '../../graphql/queries';
 
@@ -10,25 +9,14 @@ type CreateClientProps = {
   onClose: () => void;
 };
 
+const inputClassName =
+  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 sm:px-3.5 sm:py-2.5';
+
+const labelClassName =
+  'mb-2 block text-xs font-semibold text-slate-700 dark:text-slate-300 sm:text-sm';
+
 const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
   const { companyData } = useAuth();
-  const { breakpoint } = useResponsive();
-
-  // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
-  const isSmall = breakpoint === 'sm'; // 640px - 767px
-  const isMedium = breakpoint === 'md'; // 768px - 1023px
-  const isSmallDesktop = breakpoint === 'lg'; // 1024px - 1279px
-  const isMediumDesktop = breakpoint === 'xl'; // 1280px - 1535px
-
-  // Tamaños adaptativos
-  const modalPadding = isSmall ? '1rem' : isMedium ? '1.25rem' : isSmallDesktop ? '1.5rem' : isMediumDesktop ? '1.75rem' : '2rem';
-  const modalMaxWidth = isSmall ? '95%' : isMedium ? '450px' : isSmallDesktop ? '500px' : isMediumDesktop ? '550px' : '600px';
-  const titleFontSize = isSmall ? '1.25rem' : isMedium ? '1.375rem' : isSmallDesktop ? '1.375rem' : isMediumDesktop ? '1.5rem' : '1.5rem';
-  const labelFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const inputFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
-  const inputPadding = isSmall ? '0.5rem 0.625rem' : isMedium ? '0.5625rem 0.75rem' : isSmallDesktop ? '0.5625rem 0.75rem' : isMediumDesktop ? '0.625rem 0.875rem' : '0.75rem';
-  const buttonPadding = isSmall ? '0.5625rem 1rem' : isMedium ? '0.625rem 1.25rem' : isSmallDesktop ? '0.625rem 1.25rem' : isMediumDesktop ? '0.75rem 1.5rem' : '0.75rem 1.5rem';
-  const buttonFontSize = isSmall ? '0.75rem' : isMedium ? '0.8125rem' : isSmallDesktop ? '0.8125rem' : isMediumDesktop ? '0.875rem' : '0.875rem';
 
   const [formData, setFormData] = useState<{
     name: string;
@@ -78,7 +66,6 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
     }
   });
 
-  // Función para buscar manualmente
   const handleSearchPerson = () => {
     const docNum = formData.documentNumber.trim();
     const docType = formData.documentType;
@@ -88,7 +75,6 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
       return;
     }
 
-    // Validar longitud del documento
     if (docType === 'DNI' && docNum.length !== 8) {
       setMessage({ type: 'error', text: 'El DNI debe tener 8 dígitos' });
       return;
@@ -113,7 +99,6 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
     });
   };
 
-
   const [createPerson, { loading }] = useMutation(CREATE_PERSON, {
     onCompleted: (data) => {
       if (data.createPerson.success) {
@@ -136,7 +121,6 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
 
-    // Si cambia el documento, limpiar mensaje
     if (name === 'documentNumber' || name === 'documentType') {
       setMessage(null);
     }
@@ -148,7 +132,6 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
     e.preventDefault();
     setMessage(null);
 
-    // Validaciones básicas
     if (!formData.name.trim()) {
       setMessage({ type: 'error', text: 'El nombre es requerido' });
       return;
@@ -173,8 +156,8 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
           email: formData.email.trim() || null,
           phone: formData.phone.trim() || null,
           address: formData.address.trim() || null,
-          isCustomer: true, // Los clientes son clientes
-          isSupplier: false // Los clientes no son proveedores por defecto
+          isCustomer: true,
+          isSupplier: false
         }
       });
     } catch (error: any) {
@@ -184,19 +167,7 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: '1rem'
-      }}
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -204,36 +175,17 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
       }}
     >
       <div
-        style={{
-          backgroundColor: 'white',
-          borderRadius: '12px',
-          padding: modalPadding,
-          maxWidth: modalMaxWidth,
-          width: '100%',
-          maxHeight: '90vh',
-          overflow: 'auto',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-        }}
+        className="w-full max-w-[95%] overflow-auto rounded-xl bg-white shadow-2xl dark:border dark:border-slate-700 dark:bg-slate-900 sm:max-w-[450px] md:max-w-[500px] lg:max-w-[550px] xl:max-w-[600px] max-h-[90vh] p-4 sm:p-5 md:p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem' }}>
-          <h2 style={{ margin: 0, fontSize: titleFontSize, fontWeight: 700, color: '#1e293b' }}>
+        <div className="mb-4 flex items-center justify-between sm:mb-5 md:mb-6">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 sm:text-[1.375rem] md:text-2xl">
             Nuevo Cliente
           </h2>
           <button
+            type="button"
             onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '1.5rem',
-              cursor: 'pointer',
-              color: '#64748b',
-              padding: '0.25rem 0.5rem',
-              borderRadius: '4px',
-              transition: 'background 0.2s'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            className="rounded-md px-2 py-1 text-2xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
           >
             ×
           </button>
@@ -241,31 +193,19 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
 
         {message && (
           <div
-            style={{
-              padding: '0.75rem',
-              borderRadius: '8px',
-              marginBottom: '1rem',
-              backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-              color: message.type === 'success' ? '#166534' : '#991b1b',
-              border: `1px solid ${message.type === 'success' ? '#86efac' : '#fecaca'}`,
-              fontSize: isSmall ? '0.75rem' : isMedium ? '0.8125rem' : '0.875rem'
-            }}
+            className={`mb-4 rounded-lg border px-3 py-2.5 text-xs sm:text-sm ${
+              message.type === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+                : 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-300'
+            }`}
           >
             {message.text}
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: labelFontSize,
-                fontWeight: 600,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}
-            >
+          <div className="mb-4">
+            <label className={labelClassName}>
               Tipo de Documento *
             </label>
             <select
@@ -273,15 +213,7 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               value={formData.documentType}
               onChange={handleChange}
               required
-              style={{
-                width: '100%',
-                padding: inputPadding,
-                borderRadius: '8px',
-                border: '1px solid #d1d5db',
-                fontSize: inputFontSize,
-                backgroundColor: 'white',
-                boxSizing: 'border-box'
-              }}
+              className={inputClassName}
             >
               <option value="DNI">DNI</option>
               <option value="RUC">RUC</option>
@@ -290,80 +222,32 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
             </select>
           </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: labelFontSize,
-                fontWeight: 600,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}
-            >
+          <div className="mb-4">
+            <label className={labelClassName}>
               Número de Documento *
             </label>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
-              <div style={{ flex: 1, position: 'relative' }}>
-                <input
-                  type="text"
-                  name="documentNumber"
-                  value={formData.documentNumber}
-                  onChange={handleChange}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: inputPadding,
-                    borderRadius: '8px',
-                    border: `1px solid ${searchLoading ? '#667eea' : '#d1d5db'}`,
-                    fontSize: inputFontSize,
-                    boxSizing: 'border-box',
-                    transition: 'border-color 0.2s'
-                  }}
-                />
-              </div>
+            <div className="flex items-stretch gap-2">
+              <input
+                type="text"
+                name="documentNumber"
+                value={formData.documentNumber}
+                onChange={handleChange}
+                required
+                className={`${inputClassName} flex-1 ${searchLoading ? 'border-indigo-500 dark:border-indigo-400' : ''}`}
+              />
               <button
                 type="button"
                 onClick={handleSearchPerson}
                 disabled={searchLoading || !formData.documentNumber.trim()}
-                style={{
-                  padding: inputPadding,
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: searchLoading || !formData.documentNumber.trim() ? '#9ca3af' : '#667eea',
-                  color: 'white',
-                  fontSize: inputFontSize,
-                  fontWeight: 600,
-                  cursor: searchLoading || !formData.documentNumber.trim() ? 'not-allowed' : 'pointer',
-                  whiteSpace: 'nowrap',
-                  minWidth: '80px',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  if (!searchLoading && formData.documentNumber.trim()) {
-                    e.currentTarget.style.backgroundColor = '#5568d3';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!searchLoading && formData.documentNumber.trim()) {
-                    e.currentTarget.style.backgroundColor = '#667eea';
-                  }
-                }}
+                className="min-w-[80px] whitespace-nowrap rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400 dark:disabled:bg-slate-600 sm:text-sm"
               >
                 {searchLoading ? '🔍...' : '🔍 Buscar'}
               </button>
             </div>
           </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: labelFontSize,
-                fontWeight: 600,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}
-            >
+          <div className="mb-4">
+            <label className={labelClassName}>
               Nombre Completo *
             </label>
             <input
@@ -372,27 +256,12 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               value={formData.name}
               onChange={handleChange}
               required
-              style={{
-                width: '100%',
-                padding: inputPadding,
-                borderRadius: '8px',
-                border: '1px solid #d1d5db',
-                fontSize: inputFontSize,
-                boxSizing: 'border-box'
-              }}
+              className={inputClassName}
             />
           </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: labelFontSize,
-                fontWeight: 600,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}
-            >
+          <div className="mb-4">
+            <label className={labelClassName}>
               Email
             </label>
             <input
@@ -400,27 +269,12 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              style={{
-                width: '100%',
-                padding: inputPadding,
-                borderRadius: '8px',
-                border: '1px solid #d1d5db',
-                fontSize: inputFontSize,
-                boxSizing: 'border-box'
-              }}
+              className={inputClassName}
             />
           </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: labelFontSize,
-                fontWeight: 600,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}
-            >
+          <div className="mb-4">
+            <label className={labelClassName}>
               Teléfono
             </label>
             <input
@@ -428,27 +282,12 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
-              style={{
-                width: '100%',
-                padding: inputPadding,
-                borderRadius: '8px',
-                border: '1px solid #d1d5db',
-                fontSize: inputFontSize,
-                boxSizing: 'border-box'
-              }}
+              className={inputClassName}
             />
           </div>
 
-          <div style={{ marginBottom: isSmall ? '1rem' : isMedium ? '1.25rem' : '1.5rem' }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: labelFontSize,
-                fontWeight: 600,
-                color: '#374151',
-                marginBottom: '0.5rem'
-              }}
-            >
+          <div className="mb-5 sm:mb-6">
+            <label className={labelClassName}>
               Dirección
             </label>
             <input
@@ -456,57 +295,23 @@ const CreateClient: React.FC<CreateClientProps> = ({ onSuccess, onClose }) => {
               name="address"
               value={formData.address}
               onChange={handleChange}
-              style={{
-                width: '100%',
-                padding: inputPadding,
-                borderRadius: '8px',
-                border: '1px solid #d1d5db',
-                fontSize: inputFontSize,
-                boxSizing: 'border-box'
-              }}
+              className={inputClassName}
             />
           </div>
 
-          <div style={{
-            display: 'flex',
-            flexDirection: isSmall ? 'column' : 'row',
-            gap: '1rem',
-            justifyContent: 'flex-end'
-          }}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              style={{
-                padding: buttonPadding,
-                borderRadius: '8px',
-                border: '1px solid #d1d5db',
-                backgroundColor: 'white',
-                color: '#374151',
-                fontSize: buttonFontSize,
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.6 : 1,
-                width: isSmall ? '100%' : 'auto'
-              }}
+              className="w-full rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:w-auto"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={loading}
-              style={{
-                padding: buttonPadding,
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: loading ? '#9ca3af' : '#667eea',
-                color: 'white',
-                fontSize: buttonFontSize,
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                transition: 'background 0.2s',
-                width: isSmall ? '100%' : 'auto'
-              }}
+              className="w-full rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400 dark:disabled:bg-slate-600 sm:w-auto"
             >
               {loading ? 'Creando...' : 'Crear Cliente'}
             </button>

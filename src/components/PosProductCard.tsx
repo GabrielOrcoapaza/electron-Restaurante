@@ -31,10 +31,10 @@ export const PosProductCard: React.FC<PosProductCardProps> = ({
 
     return (
         <div
-            className={`relative flex flex-col overflow-hidden rounded-lg border bg-white ${
+            className={`relative flex flex-col overflow-hidden rounded-lg border bg-white dark:bg-slate-800 ${
                 hasQty
-                    ? "border-[#3b82f6] shadow-md shadow-blue-100"
-                    : "border-slate-200"
+                    ? "border-[#3b82f6] shadow-md shadow-blue-100 dark:shadow-blue-900/30"
+                    : "border-slate-200 dark:border-slate-700"
             } ${disabled ? "opacity-50" : ""}`}
         >
             {badge && (
@@ -84,17 +84,17 @@ export const PosProductCard: React.FC<PosProductCardProps> = ({
                         loading="lazy"
                     />
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-slate-50 text-3xl">
+                    <div className="flex h-full w-full items-center justify-center bg-slate-50 text-3xl dark:bg-slate-700/50">
                         🍽️
                     </div>
                 )}
             </button>
 
             <div className="flex flex-1 flex-col gap-1 p-2.5">
-                <p className="line-clamp-2 text-[10px] font-semibold uppercase leading-tight text-slate-800">
+                <p className="line-clamp-2 text-[10px] font-semibold uppercase leading-tight text-slate-800 dark:text-slate-100">
                     {name}
                 </p>
-                <p className="mt-auto text-sm font-bold text-slate-900">
+                <p className="mt-auto text-sm font-bold text-slate-900 dark:text-slate-100">
                     {currencyFormatter.format(price)}
                 </p>
             </div>

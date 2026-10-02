@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation } from '@apollo/client';
+import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import {
   GET_SUPPLIERS_BY_BRANCH,
   GET_PRODUCTS_WITH_STOCK,
   GET_CASH_REGISTERS,
   SEARCH_PRODUCTS,
-  GET_PRODUCTS_BY_BRANCH
+  GET_PRODUCTS_BY_BRANCH,
+  SEARCH_PERSON_BY_DOCUMENT,
 } from '../../graphql/queries';
-import { CREATE_PURCHASE_OPERATION } from '../../graphql/mutations';
+import { CREATE_PURCHASE_OPERATION, CREATE_PERSON } from '../../graphql/mutations';
 import CreateSupplierModal from './createSupplier';
 import PurchaseList from './purchaseList';
 import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
@@ -62,6 +63,9 @@ const Purchase: React.FC = () => {
 
   const [view, setView] = useState<'list' | 'create'>('list');
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
+  const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
+  const [selectedSupplierSnapshot, setSelectedSupplierSnapshot] =
+    useState<Supplier | null>(null);
   const [operationDate, setOperationDate] = useState<string>(formatLocalDateYYYYMMDD());
   const [notes, setNotes] = useState<string>('');
   const [purchaseDetails, setPurchaseDetails] = useState<PurchaseDetail[]>([]);
@@ -79,7 +83,7 @@ const Purchase: React.FC = () => {
   const [referenceNumber, setReferenceNumber] = useState<string>('');
 
   // Queries
-  const { data: personsData, loading: suppliersLoading, refetch: refetchSuppliers } = useQuery(GET_SUPPLIERS_BY_BRANCH, {
+  const { data: personsData, refetch: refetchSuppliers } = useQuery(GET_SUPPLIERS_BY_BRANCH, {
     variables: { branchId: branchId! },
     skip: !branchId,
     fetchPolicy: 'network-only'
@@ -123,6 +127,10 @@ const Purchase: React.FC = () => {
   }, [cashRegisters, cashRegisterId]);
 
   // Mutations
+  const [searchPersonByDocument, { loading: supplierSearchLoading }] =
+    useLazyQuery(SEARCH_PERSON_BY_DOCUMENT, { fetchPolicy: 'network-only' });
+  const [createPersonMutation] = useMutation(CREATE_PERSON);
+
   const [createPurchaseOperation, { loading: creatingPurchase }] = useMutation(
     CREATE_PURCHASE_OPERATION,
     {
@@ -154,6 +162,161 @@ const Purchase: React.FC = () => {
 
   const allPersons = personsData?.personsByBranch || [];
   const suppliers: Supplier[] = allPersons.filter((person: any) => person.isSupplier === true);
+
+  const selectedSupplier =
+    suppliers.find((s) => s.id === selectedSupplierId) ??
+    (selectedSupplierSnapshot?.id === selectedSupplierId
+      ? selectedSupplierSnapshot
+      : undefined);
+
+  const selectSupplier = (supplier: {
+    id: string;
+    name?: string | null;
+    documentType?: string | null;
+    documentNumber?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    isSupplier?: boolean;
+    isActive?: boolean;
+  }) => {
+    setSelectedSupplierId(supplier.id);
+    setSupplierSearchTerm(supplier.name || '');
+    setSelectedSupplierSnapshot({
+      id: supplier.id,
+      name: supplier.name || '',
+      documentType: supplier.documentType || 'DNI',
+      documentNumber: supplier.documentNumber || '',
+      email: supplier.email || undefined,
+      phone: supplier.phone || undefined,
+      address: supplier.address || undefined,
+      isSupplier: supplier.isSupplier !== false,
+      isActive: supplier.isActive !== false,
+    });
+  };
+
+  const clearSupplierSelection = () => {
+    setSelectedSupplierId('');
+    setSupplierSearchTerm('');
+    setSelectedSupplierSnapshot(null);
+  };
+
+  const handleSearchSupplierDocument = async () => {
+    const term = (supplierSearchTerm || '').trim().replace(/\s/g, '');
+    if (!/^\d+$/.test(term) || !branchId) {
+      setMessage({
+        type: 'error',
+        text: 'Ingrese DNI (8 dígitos) o RUC (11 dígitos) y pulse la lupa.',
+      });
+      setTimeout(() => setMessage(null), 4000);
+      return;
+    }
+    const isRuc = term.length === 11;
+    const isDni = term.length === 8;
+    if (!isRuc && !isDni) {
+      setMessage({
+        type: 'error',
+        text: 'Ingrese DNI (8 dígitos) o RUC (11 dígitos).',
+      });
+      setTimeout(() => setMessage(null), 4000);
+      return;
+    }
+    const documentType = isRuc ? 'RUC' : 'DNI';
+    try {
+      const { data } = await searchPersonByDocument({
+        variables: { documentType, documentNumber: term, branchId },
+      });
+      const result = data?.searchPersonByDocument;
+      if (!result?.person) {
+        setMessage({
+          type: 'error',
+          text: 'No se encontró el documento en el sistema.',
+        });
+        setTimeout(() => setMessage(null), 4000);
+        return;
+      }
+      const person = result.person;
+      const applyPerson = (p: typeof person) => {
+        selectSupplier({
+          id: p.id,
+          name: p.name,
+          documentType: p.documentType || documentType,
+          documentNumber: p.documentNumber || term,
+          email: p.email,
+          phone: p.phone,
+          address: p.address,
+          isSupplier: true,
+          isActive: p.isActive !== false,
+        });
+      };
+
+      if (person.id && (result.foundLocally || result.foundInSunat)) {
+        if (person.isSupplier) {
+          applyPerson(person);
+          void refetchSuppliers();
+          return;
+        }
+        const { data: createData } = await createPersonMutation({
+          variables: {
+            branchId,
+            documentType: person.documentType || documentType,
+            documentNumber: person.documentNumber || term,
+            name: person.name || 'Proveedor',
+            address: person.address || undefined,
+            phone: person.phone || undefined,
+            email: person.email || undefined,
+            isCustomer: person.isCustomer !== false,
+            isSupplier: true,
+          },
+        });
+        if (createData?.createPerson?.success && createData.createPerson.person) {
+          applyPerson(createData.createPerson.person);
+          void refetchSuppliers();
+        } else {
+          setMessage({
+            type: 'error',
+            text:
+              createData?.createPerson?.message ||
+              'Error al registrar el proveedor.',
+          });
+          setTimeout(() => setMessage(null), 5000);
+        }
+        return;
+      }
+
+      const { data: createData } = await createPersonMutation({
+        variables: {
+          branchId,
+          documentType: person.documentType || documentType,
+          documentNumber: person.documentNumber || term,
+          name: person.name || 'Proveedor',
+          address: person.address || undefined,
+          phone: person.phone || undefined,
+          email: person.email || undefined,
+          isCustomer: false,
+          isSupplier: true,
+        },
+      });
+      if (createData?.createPerson?.success && createData.createPerson.person) {
+        applyPerson(createData.createPerson.person);
+        void refetchSuppliers();
+      } else {
+        setMessage({
+          type: 'error',
+          text:
+            createData?.createPerson?.message || 'Error al registrar el proveedor.',
+        });
+        setTimeout(() => setMessage(null), 5000);
+      }
+    } catch (err: unknown) {
+      setMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Error al buscar proveedor.',
+      });
+      setTimeout(() => setMessage(null), 5000);
+    }
+  };
+
   const allProducts: Product[] = productsData?.productsByBranch || [];
   const allProductsByBranch = productsByBranchData?.productsByBranch || [];
   const baseProducts = allProducts.filter(
@@ -184,7 +347,7 @@ const Purchase: React.FC = () => {
   const availableProducts = baseProducts;
 
   const resetForm = () => {
-    setSelectedSupplierId('');
+    clearSupplierSelection();
     setOperationDate(formatLocalDateYYYYMMDD());
     setNotes('');
     setPurchaseDetails([]);
@@ -291,7 +454,7 @@ const Purchase: React.FC = () => {
       totalAmount: total,
       paymentDate: operationDateTime,
       referenceNumber: referenceNumber || null,
-      notes: `Pago de compra - Proveedor: ${suppliers.find(s => s.id === selectedSupplierId)?.name || 'Sin proveedor'}`
+      notes: `Pago de compra - Proveedor: ${selectedSupplier?.name || 'Sin proveedor'}`
     }];
 
     try {
@@ -406,38 +569,72 @@ const Purchase: React.FC = () => {
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
                   <label className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                    Seleccionar Proveedor
+                    Buscar Proveedor
                   </label>
-                  {suppliersLoading ? (
-                    <div className="h-11 w-full animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
-                  ) : (
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                      <select
-                        value={selectedSupplierId}
-                        onChange={(e) => setSelectedSupplierId(e.target.value)}
-                        className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                      >
-                        <option value="">Consumidor Final / Sin Proveedor</option>
-                        {suppliers
-                          .filter(s => s.isActive)
-                          .map((supplier) => (
-                            <option key={supplier.id} value={supplier.id}>
-                              {supplier.name} {supplier.documentNumber ? `(${supplier.documentNumber})` : ''}
-                            </option>
-                          ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => setShowCreateSupplierModal(true)}
-                        className="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-600 transition-all hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                        </svg>
-                        Nuevo Proveedor
-                      </button>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                    <div className="flex-1">
+                      {selectedSupplier ? (
+                        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 dark:border-emerald-800/60 dark:bg-emerald-900/20">
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                              {selectedSupplier.name}
+                            </div>
+                            <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                              {selectedSupplier.documentType}:{' '}
+                              {selectedSupplier.documentNumber || '—'}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={clearSupplierSelection}
+                            className="shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:bg-white/70 dark:hover:bg-slate-800/60"
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+                            <input
+                              type="text"
+                              value={supplierSearchTerm}
+                              onChange={(e) => setSupplierSearchTerm(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  void handleSearchSupplierDocument();
+                                }
+                              }}
+                              placeholder="DNI (8) o RUC (11)..."
+                              className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleSearchSupplierDocument()}
+                              disabled={supplierSearchLoading}
+                              title="Buscar proveedor"
+                              className="flex shrink-0 items-center justify-center border-l border-slate-200 bg-sky-50 px-4 text-sky-700 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-sky-900/30 dark:text-sky-300"
+                            >
+                              {supplierSearchLoading ? '…' : '🔍'}
+                            </button>
+                          </div>
+                          <p className="mt-1 px-1 text-[10px] text-slate-500 dark:text-slate-400">
+                            Ingrese DNI o RUC y pulse la lupa. Opcional: sin proveedor.
+                          </p>
+                        </>
+                      )}
                     </div>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateSupplierModal(true)}
+                      className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-600 transition-all hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                      </svg>
+                      Nuevo Proveedor
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -482,7 +679,11 @@ const Purchase: React.FC = () => {
               suppliers={suppliers}
               refetchSuppliers={refetchSuppliers}
               onSuccess={(supplier) => {
-                setSelectedSupplierId(supplier.id);
+                selectSupplier({
+                  ...supplier,
+                  isSupplier: true,
+                  isActive: true,
+                });
                 setShowCreateSupplierModal(false);
               }}
               showToast={(msg, type) => {

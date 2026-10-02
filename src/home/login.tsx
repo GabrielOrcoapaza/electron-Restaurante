@@ -173,10 +173,6 @@ const Login: React.FC = () => {
                     data.userLogin.userPhotoBase64,
                     data.userLogin.branch ?? undefined,
                 );
-                showToast(
-                    `¡Bienvenido, ${loggedUser.firstName || "usuario"}!`,
-                    "success",
-                );
                 try {
                     sessionStorage.setItem("postLoginOpenFloors", "1");
                     localStorage.setItem("currentDashboardView", "floors");

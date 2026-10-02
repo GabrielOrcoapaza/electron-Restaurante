@@ -67,7 +67,10 @@ import {
 } from "../../utils/localPrinterPreference";
 import { normalizeGraphQLId } from "../../utils/sanitizeGraphQLVariables";
 import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
-import { filterPersonsForCustomerSearch } from "../../utils/clientSearchUtils";
+import {
+    filterPersonsForCustomerSearch,
+    logPersonSearchResult,
+} from "../../utils/clientSearchUtils";
 
 type CashPayProps = {
     table: Table | null;
@@ -254,6 +257,8 @@ const CashPay: React.FC<CashPayProps> = ({
     const [itemAssignments, setItemAssignments] = useState<
         Record<string, boolean>
     >({});
+    /** IDs de detalle ya vistos en la operación actual (para marcar solo ítems nuevos). */
+    const knownDetailIdsRef = useRef<Set<string>>(new Set());
     const [modifiedDetails, setModifiedDetails] = useState<any[]>([]);
     const [showChangeTableModal, setShowChangeTableModal] = useState(false);
     const [selectedFloorId, setSelectedFloorId] = useState<string>("");
@@ -849,6 +854,7 @@ const CashPay: React.FC<CashPayProps> = ({
                 },
             });
             const result = data?.searchPersonByDocument;
+            logPersonSearchResult("Caja", documentType, term, result);
             if (!result?.person) {
                 showToast("No se encontró el documento.", "error");
                 return;
@@ -911,6 +917,7 @@ const CashPay: React.FC<CashPayProps> = ({
         if (table?.id) {
             setItemAssignments({});
             setModifiedDetails([]);
+            knownDetailIdsRef.current = new Set();
         }
     }, [table?.id, table?.currentOperationId]);
 
@@ -921,13 +928,35 @@ const CashPay: React.FC<CashPayProps> = ({
                 operation.id,
             );
             setModifiedDetails([...nonCanceledDetails]);
-            if (Object.keys(itemAssignments).length === 0) {
-                const initialAssignments: Record<string, boolean> = {};
+            setItemAssignments((prev) => {
+                const isInitialSelection = Object.keys(prev).length === 0;
+                if (isInitialSelection) {
+                    const initialAssignments: Record<string, boolean> = {};
+                    nonCanceledDetails.forEach((detail: any) => {
+                        if (detail.id)
+                            initialAssignments[String(detail.id)] = true;
+                    });
+                    knownDetailIdsRef.current = new Set(
+                        nonCanceledDetails
+                            .filter((detail: any) => detail.id)
+                            .map((detail: any) => String(detail.id)),
+                    );
+                    return initialAssignments;
+                }
+
+                const next = { ...prev };
+                let changed = false;
                 nonCanceledDetails.forEach((detail: any) => {
-                    if (detail.id) initialAssignments[String(detail.id)] = true;
+                    if (!detail.id) return;
+                    const key = String(detail.id);
+                    if (!knownDetailIdsRef.current.has(key)) {
+                        knownDetailIdsRef.current.add(key);
+                        next[key] = true;
+                        changed = true;
+                    }
                 });
-                setItemAssignments(initialAssignments);
-            }
+                return changed ? next : prev;
+            });
         }
     }, [operation?.details, operation?.id]);
 

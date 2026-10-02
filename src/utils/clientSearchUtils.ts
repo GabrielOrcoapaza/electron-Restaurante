@@ -48,3 +48,56 @@ export function filterPersonsForCustomerSearch<T extends PersonLike>(
         )
         .slice(0, limit);
 }
+
+export type PersonSearchLogPayload = {
+    person?: {
+        id?: string | null;
+        name?: string | null;
+        documentType?: string | null;
+        documentNumber?: string | null;
+    } | null;
+    foundLocally?: boolean | null;
+    foundInSunat?: boolean | null;
+};
+
+/** Log en consola del navegador para rastrear BD vs RENIEC/SUNAT. */
+export function logPersonSearchResult(
+    screen: string,
+    documentType: string,
+    documentNumber: string,
+    result: PersonSearchLogPayload | null | undefined,
+): void {
+    const prefix = `[Cliente/${screen}]`;
+    const doc = `${documentType} ${documentNumber}`;
+
+    if (!result?.person) {
+        console.info(
+            `${prefix} ${doc} → no encontrado (ni BD ni RENIEC/SUNAT)`,
+        );
+        return;
+    }
+
+    const { person } = result;
+    const id = person.id ?? "sin-id";
+    const name = person.name ?? "";
+
+    if (result.foundLocally) {
+        console.info(
+            `${prefix} ${doc} → BD local (id=${id}, nombre="${name}") — sin consulta RENIEC/SUNAT`,
+        );
+        return;
+    }
+
+    if (result.foundInSunat) {
+        const source =
+            documentType.toUpperCase() === "DNI" ? "RENIEC" : "SUNAT";
+        console.info(
+            `${prefix} ${doc} → ${source} (id=${id}, nombre="${name}") — guardado en BD`,
+        );
+        return;
+    }
+
+    console.info(
+        `${prefix} ${doc} → respuesta parcial (id=${id}, foundLocally=${result.foundLocally}, foundInSunat=${result.foundInSunat})`,
+    );
+}

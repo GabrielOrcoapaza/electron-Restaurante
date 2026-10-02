@@ -112,10 +112,6 @@ const LoginWeb: React.FC = () => {
                     localStorage.removeItem("remember_pass");
                 }
 
-                showToast(
-                    `¡Bienvenido, ${user.fullName || user.firstName || "usuario"}!`,
-                    "success",
-                );
                 // Pre-establecer la vista en Mesas al iniciar sesión
                 localStorage.setItem("currentDashboardView", "floors");
                 navigate("/dashboard");
