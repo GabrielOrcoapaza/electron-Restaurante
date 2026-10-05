@@ -13,7 +13,7 @@ export function prefetchOperationForCash(
         .query({
             query: GET_OPERATION_BY_ID_FOR_CASH,
             variables: { operationId: id },
-            fetchPolicy: "cache-first",
+            fetchPolicy: "network-only",
         })
         .catch(() => {
             /* prefetch best-effort */

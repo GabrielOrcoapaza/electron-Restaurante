@@ -259,6 +259,11 @@ const CashPay: React.FC<CashPayProps> = ({
     >({});
     /** IDs de detalle ya vistos en la operación actual (para marcar solo ítems nuevos). */
     const knownDetailIdsRef = useRef<Set<string>>(new Set());
+    /** Sesión mesa+operación ya aplicada en checkboxes (evita reset espurio 5 vs "5"). */
+    const lastAppliedCashSessionKeyRef = useRef<string | null>(null);
+    const operationWsRefetchDebounceRef = useRef<ReturnType<
+        typeof setTimeout
+    > | null>(null);
     const [modifiedDetails, setModifiedDetails] = useState<any[]>([]);
     const [showChangeTableModal, setShowChangeTableModal] = useState(false);
     const [selectedFloorId, setSelectedFloorId] = useState<string>("");
@@ -327,6 +332,14 @@ const CashPay: React.FC<CashPayProps> = ({
 
     const operationIdFromTable = normalizeGraphQLId(table?.currentOperationId);
 
+    const tableSessionKey = useMemo(() => {
+        if (table?.id == null) return null;
+        const tableId = String(table.id);
+        return operationIdFromTable
+            ? `${tableId}:${operationIdFromTable}`
+            : tableId;
+    }, [table?.id, operationIdFromTable]);
+
     const {
         data: dataOperation,
         loading: operationLoading,
@@ -336,7 +349,7 @@ const CashPay: React.FC<CashPayProps> = ({
             operationId: operationIdFromTable as string,
         },
         skip: !operationIdFromTable,
-        fetchPolicy: "cache-and-network",
+        fetchPolicy: "network-only",
     });
 
     const operation = dataOperation?.operationById;
@@ -496,23 +509,107 @@ const CashPay: React.FC<CashPayProps> = ({
         Boolean(operationIdFromTable) && !operation && operationLoading;
 
     useEffect(() => {
+        const currentTableId =
+            table?.id != null ? String(table.id) : null;
+        const currentOperationId = normalizeGraphQLId(
+            operation?.id ?? operationIdFromTable,
+        );
+
+        const wsOperationIdFromMessage = (
+            message: Record<string, unknown>,
+        ): string | null => {
+            const fromRoot = message.operation_id ?? message.operationId;
+            if (fromRoot != null && String(fromRoot).trim() !== "") {
+                return String(fromRoot);
+            }
+            const op = message.operation;
+            if (op && typeof op === "object") {
+                const nested = (op as Record<string, unknown>).id;
+                if (nested != null && String(nested).trim() !== "") {
+                    return String(nested);
+                }
+            }
+            return null;
+        };
+
+        const matchesCurrentOperation = (
+            message: Record<string, unknown>,
+        ): boolean => {
+            if (!currentOperationId) return false;
+            const wsOpId = normalizeGraphQLId(wsOperationIdFromMessage(message));
+            return (
+                wsOpId != null &&
+                String(wsOpId) === String(currentOperationId)
+            );
+        };
+
+        const scheduleOperationRefetch = () => {
+            if (!currentOperationId) return;
+            if (operationWsRefetchDebounceRef.current) {
+                clearTimeout(operationWsRefetchDebounceRef.current);
+            }
+            operationWsRefetchDebounceRef.current = setTimeout(() => {
+                operationWsRefetchDebounceRef.current = null;
+                void refetch({ fetchPolicy: "network-only" });
+            }, 400);
+        };
+
         const unsubscribeOperationCancelled = subscribe(
             "operation_cancelled",
             (message: any) => {
-                if (message.operation_id === operation?.id) refetch();
+                if (matchesCurrentOperation(message)) scheduleOperationRefetch();
             },
         );
         const unsubscribeOperationStatusUpdate = subscribe(
             "operation_status_update",
             (message: any) => {
-                if (message.operation_id === operation?.id) refetch();
+                if (matchesCurrentOperation(message)) scheduleOperationRefetch();
             },
         );
+        const unsubscribeOperationUpdate = subscribe(
+            "operation_update",
+            (message: any) => {
+                if (matchesCurrentOperation(message)) scheduleOperationRefetch();
+            },
+        );
+        const unsubscribeTableUpdate = subscribe(
+            "table_update",
+            (message: any) => {
+                const wsTableId = message.table_id ?? message.tableId;
+                if (
+                    currentTableId &&
+                    wsTableId != null &&
+                    String(wsTableId) === currentTableId
+                ) {
+                    scheduleOperationRefetch();
+                }
+            },
+        );
+        const unsubscribeKitchenItemUpdate = subscribe(
+            "kitchen_item_update",
+            (message: any) => {
+                if (matchesCurrentOperation(message)) scheduleOperationRefetch();
+            },
+        );
+
         return () => {
+            if (operationWsRefetchDebounceRef.current) {
+                clearTimeout(operationWsRefetchDebounceRef.current);
+                operationWsRefetchDebounceRef.current = null;
+            }
             unsubscribeOperationCancelled();
             unsubscribeOperationStatusUpdate();
+            unsubscribeOperationUpdate();
+            unsubscribeTableUpdate();
+            unsubscribeKitchenItemUpdate();
         };
-    }, [subscribe, operation?.id, refetch]);
+    }, [
+        subscribe,
+        operation?.id,
+        operationIdFromTable,
+        table?.id,
+        refetch,
+    ]);
 
     const documents = (documentsData?.documentsByBranch || []).filter(
         (doc: any) => doc.isActive !== false,
@@ -912,53 +1009,87 @@ const CashPay: React.FC<CashPayProps> = ({
         }
     };
 
-    /** Reset filas locales al cambiar mesa u operación (debe ir ANTES del efecto que marca checkboxes). */
+    /**
+     * Al entrar a una mesa: marcar todos los productos.
+     * Si llegan ítems nuevos (p. ej. desde el celular), marcar solo los nuevos.
+     * Usa clave normalizada mesa+operación para no borrar selección por 5 vs "5".
+     */
     useEffect(() => {
-        if (table?.id) {
-            setItemAssignments({});
-            setModifiedDetails([]);
-            knownDetailIdsRef.current = new Set();
+        if (!tableSessionKey) return;
+
+        const sessionChanged =
+            lastAppliedCashSessionKeyRef.current !== tableSessionKey;
+
+        const operationIdMatches =
+            operation?.id != null &&
+            operationIdFromTable != null &&
+            normalizeGraphQLId(operation.id) === operationIdFromTable;
+
+        if (!operation?.details || !operation?.id || !operationIdMatches) {
+            if (sessionChanged) {
+                setItemAssignments({});
+                setModifiedDetails([]);
+                knownDetailIdsRef.current = new Set();
+            }
+            return;
         }
-    }, [table?.id, table?.currentOperationId]);
 
-    useEffect(() => {
-        if (operation?.details && operation?.id) {
-            const nonCanceledDetails = filterCanceledDetails(
-                operation.details,
-                operation.id,
-            );
-            setModifiedDetails([...nonCanceledDetails]);
-            setItemAssignments((prev) => {
-                const isInitialSelection = Object.keys(prev).length === 0;
-                if (isInitialSelection) {
-                    const initialAssignments: Record<string, boolean> = {};
-                    nonCanceledDetails.forEach((detail: any) => {
-                        if (detail.id)
-                            initialAssignments[String(detail.id)] = true;
-                    });
-                    knownDetailIdsRef.current = new Set(
-                        nonCanceledDetails
-                            .filter((detail: any) => detail.id)
-                            .map((detail: any) => String(detail.id)),
-                    );
-                    return initialAssignments;
-                }
+        const nonCanceledDetails = filterCanceledDetails(
+            operation.details,
+            operation.id,
+        );
+        setModifiedDetails([...nonCanceledDetails]);
 
-                const next = { ...prev };
-                let changed = false;
-                nonCanceledDetails.forEach((detail: any) => {
-                    if (!detail.id) return;
-                    const key = String(detail.id);
-                    if (!knownDetailIdsRef.current.has(key)) {
-                        knownDetailIdsRef.current.add(key);
-                        next[key] = true;
-                        changed = true;
-                    }
-                });
-                return changed ? next : prev;
+        if (sessionChanged) {
+            const initialAssignments: Record<string, boolean> = {};
+            nonCanceledDetails.forEach((detail: any) => {
+                if (detail.id) initialAssignments[String(detail.id)] = true;
             });
+            knownDetailIdsRef.current = new Set(
+                nonCanceledDetails
+                    .filter((detail: any) => detail.id)
+                    .map((detail: any) => String(detail.id)),
+            );
+            lastAppliedCashSessionKeyRef.current = tableSessionKey;
+            setItemAssignments(initialAssignments);
+            return;
         }
-    }, [operation?.details, operation?.id]);
+
+        setItemAssignments((prev) => {
+            const isInitialSelection = Object.keys(prev).length === 0;
+            if (isInitialSelection) {
+                const initialAssignments: Record<string, boolean> = {};
+                nonCanceledDetails.forEach((detail: any) => {
+                    if (detail.id) initialAssignments[String(detail.id)] = true;
+                });
+                knownDetailIdsRef.current = new Set(
+                    nonCanceledDetails
+                        .filter((detail: any) => detail.id)
+                        .map((detail: any) => String(detail.id)),
+                );
+                lastAppliedCashSessionKeyRef.current = tableSessionKey;
+                return initialAssignments;
+            }
+
+            const next = { ...prev };
+            let changed = false;
+            nonCanceledDetails.forEach((detail: any) => {
+                if (!detail.id) return;
+                const key = String(detail.id);
+                if (!knownDetailIdsRef.current.has(key)) {
+                    knownDetailIdsRef.current.add(key);
+                    next[key] = true;
+                    changed = true;
+                }
+            });
+            return changed ? next : prev;
+        });
+    }, [
+        tableSessionKey,
+        operation?.details,
+        operation?.id,
+        operationIdFromTable,
+    ]);
 
     const handleSplitItem = (detailId: string) => {
         const idx = modifiedDetails.findIndex(
