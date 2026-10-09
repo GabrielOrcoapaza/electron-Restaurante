@@ -26,6 +26,7 @@ type BranchFormState = {
     separateRepeatedItems: boolean;
     allowCloseWithOccupiedTables: boolean;
     allowCashOpenings: boolean;
+    allowCashClosureSheet: boolean;
     taxAffectationType: string;
 };
 
@@ -51,6 +52,7 @@ const emptyForm = (): BranchFormState => ({
     separateRepeatedItems: false,
     allowCloseWithOccupiedTables: false,
     allowCashOpenings: false,
+    allowCashClosureSheet: false,
     taxAffectationType: "10",
 });
 
@@ -79,6 +81,9 @@ function branchToForm(branch: Record<string, unknown>): BranchFormState {
         ),
         allowCashOpenings: Boolean(
             branch.allowCashOpenings ?? false,
+        ),
+        allowCashClosureSheet: Boolean(
+            branch.allowCashClosureSheet ?? false,
         ),
         taxAffectationType: normalizeTaxAffectationType(
             branch.taxAffectationType as string | null | undefined,
@@ -245,6 +250,7 @@ const BranchSettings: React.FC = () => {
             separateRepeatedItems: form.separateRepeatedItems,
             allowCloseWithOccupiedTables: form.allowCloseWithOccupiedTables,
             allowCashOpenings: form.allowCashOpenings,
+            allowCashClosureSheet: form.allowCashClosureSheet,
             taxAffectationType: form.taxAffectationType,
         };
 
@@ -457,6 +463,14 @@ const BranchSettings: React.FC = () => {
                             checked={form.allowCashOpenings}
                             onChange={(v) =>
                                 handleToggle("allowCashOpenings", v)
+                            }
+                        />
+                        <ToggleField
+                            label="Informe de caja"
+                            description="Muestra la hoja de liquidación al cerrar caja y permite consultarla en el historial."
+                            checked={form.allowCashClosureSheet}
+                            onChange={(v) =>
+                                handleToggle("allowCashClosureSheet", v)
                             }
                         />
                         <ToggleField

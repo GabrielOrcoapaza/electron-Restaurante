@@ -766,6 +766,7 @@ export const GET_BRANCH_FULL = gql`
             separateRepeatedItems
             allowCloseWithOccupiedTables
             allowCashOpenings
+            allowCashClosureSheet
             isKitchenPrint
             isKitchenDisplay
             requireWaiterPassword
@@ -847,6 +848,7 @@ export const GET_BRANCH_BY_ID = gql`
             separateRepeatedItems
             allowCloseWithOccupiedTables
             allowCashOpenings
+            allowCashClosureSheet
             isKitchenPrint
             isKitchenDisplay
             requireWaiterPassword
@@ -1055,6 +1057,40 @@ export const GET_CASH_CLOSURES = gql`
             branch {
                 id
                 name
+            }
+        }
+    }
+`;
+
+// Hoja de liquidación manual de un cierre
+export const GET_CASH_CLOSURE_SHEET = gql`
+    query GetCashClosureSheet($closureId: ID!) {
+        cashClosureSheet(closureId: $closureId) {
+            id
+            sheetDate
+            cashierName
+            cardSales
+            cashSales
+            yapeSales
+            totalSales
+            totalExpenses
+            netSales
+            paymentsTotal
+            purchaseExpensesTotal
+            observations
+            staffRows {
+                id
+                rowNumber
+                position
+                staffName
+                shiftTime
+                payments
+                purchaseExpense
+                total
+                user {
+                    id
+                    fullName
+                }
             }
         }
     }

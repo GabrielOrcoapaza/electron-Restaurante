@@ -39,6 +39,7 @@ export const COMPANY_LOGIN = gql`
                 separateRepeatedItems
                 allowCloseWithOccupiedTables
                 allowCashOpenings
+                allowCashClosureSheet
                 isKitchenPrint
                 isKitchenDisplay
                 requireWaiterPassword
@@ -166,6 +167,7 @@ export const USER_LOGIN = gql`
                 separateRepeatedItems
                 allowCloseWithOccupiedTables
                 allowCashOpenings
+                allowCashClosureSheet
                 isKitchenPrint
                 isKitchenDisplay
                 printCancellations
@@ -1051,12 +1053,14 @@ export const CLOSE_CASH = gql`
         $branchId: ID!
         $deviceId: ID!
         $cashRegisterId: ID!
+        $sheet: CashClosureSheetInput
     ) {
         closeCash(
             userId: $userId
             branchId: $branchId
             deviceId: $deviceId
             cashRegisterId: $cashRegisterId
+            sheet: $sheet
         ) {
             success
             message
@@ -1083,6 +1087,48 @@ export const CLOSE_CASH = gql`
                     id
                     name
                 }
+                sheet {
+                    id
+                    sheetDate
+                    cashierName
+                    cardSales
+                    cashSales
+                    yapeSales
+                    totalSales
+                    totalExpenses
+                    netSales
+                    paymentsTotal
+                    purchaseExpensesTotal
+                    observations
+                    staffRows {
+                        id
+                        rowNumber
+                        position
+                        staffName
+                        shiftTime
+                        payments
+                        purchaseExpense
+                        total
+                        user {
+                            id
+                            fullName
+                        }
+                    }
+                }
+            }
+            sheet {
+                id
+                sheetDate
+                cashierName
+                cardSales
+                cashSales
+                yapeSales
+                totalSales
+                totalExpenses
+                netSales
+                paymentsTotal
+                purchaseExpensesTotal
+                observations
             }
             summary
         }
@@ -2573,6 +2619,7 @@ export const UPDATE_BRANCH = gql`
         $separateRepeatedItems: Boolean
         $allowCloseWithOccupiedTables: Boolean
         $allowCashOpenings: Boolean
+        $allowCashClosureSheet: Boolean
     ) {
         updateBranch(
             id: $id
@@ -2600,6 +2647,7 @@ export const UPDATE_BRANCH = gql`
             separateRepeatedItems: $separateRepeatedItems
             allowCloseWithOccupiedTables: $allowCloseWithOccupiedTables
             allowCashOpenings: $allowCashOpenings
+            allowCashClosureSheet: $allowCashClosureSheet
         ) {
             success
             message
@@ -2625,6 +2673,7 @@ export const UPDATE_BRANCH = gql`
                 separateRepeatedItems
                 allowCloseWithOccupiedTables
                 allowCashOpenings
+                allowCashClosureSheet
                 isKitchenPrint
                 isKitchenDisplay
                 requireWaiterPassword

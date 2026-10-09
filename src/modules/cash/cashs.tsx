@@ -7,6 +7,7 @@ import {
     GET_CASH_CLOSURES,
     GET_PAYMENTS_PENDING_CLOSURE,
     GET_CASH_CLOSURE_DETAIL,
+    GET_CASH_CLOSURE_SHEET,
 } from "../../graphql/queries";
 import { downloadCashClosureReportPdf } from "../../utils/downloadCashClosureReportPdf";
 import type { CashClosureDetailData } from "../../utils/cashClosureReportHtml";
@@ -22,6 +23,12 @@ import ManualTransactionModal from "./manualTransactionModal";
 import CashDetailModal from "./cashDetailModal";
 import CashClosureReportModal from "./cashClosureReportModal";
 import CashOpeningModal from "./cashOpeningModal";
+import CashClosureSheetModal, {
+    type CashClosureSheetSubmitInput,
+} from "./cashClosureSheetModal";
+import CashClosureSheetViewModal, {
+    type CashClosureSheetViewData,
+} from "./cashClosureSheetViewModal";
 import ConfirmModal from "../../components/ConfirmModal";
 import { useToast } from "../../context/ToastContext";
 import { isElectronRenderer } from "../../utils/electronPrint";
@@ -96,9 +103,18 @@ interface PaymentMovement {
     issuedDocument?: { id: string; serial?: string; number?: string };
 }
 
-type PendingConfirmAction =
-    | { type: "close_register"; registerId: string; registerName: string }
-    | { type: "cancel_payment"; paymentId: string };
+type PendingConfirmAction = { type: "cancel_payment"; paymentId: string };
+
+interface ClosureSheetRegister {
+    id: string;
+    name: string;
+}
+
+interface ClosureSheetViewContext {
+    closureId: string;
+    closureNumber: number;
+    registerName: string;
+}
 
 const currencyFormatter = new Intl.NumberFormat("es-PE", {
     style: "currency",
@@ -155,6 +171,9 @@ const Cashs: React.FC = () => {
     const branchId = companyData?.branch?.id || "";
     const userId = user?.id || "";
     const allowCashOpenings = Boolean(companyData?.branch?.allowCashOpenings);
+    const allowCashClosureSheet = Boolean(
+        companyData?.branch?.allowCashClosureSheet,
+    );
 
     const [isManualModalOpen, setIsManualModalOpen] = useState(false);
     const [registerToOpen, setRegisterToOpen] =
@@ -182,6 +201,13 @@ const Cashs: React.FC = () => {
     const [pendingConfirm, setPendingConfirm] =
         useState<PendingConfirmAction | null>(null);
     const [confirmLoading, setConfirmLoading] = useState(false);
+    const [closureSheetRegister, setClosureSheetRegister] =
+        useState<ClosureSheetRegister | null>(null);
+    const [closureSheetLoading, setClosureSheetLoading] = useState(false);
+    const [sheetViewContext, setSheetViewContext] =
+        useState<ClosureSheetViewContext | null>(null);
+    const [viewedClosureSheet, setViewedClosureSheet] =
+        useState<CashClosureSheetViewData | null>(null);
     const [locallyCancelledMovements, setLocallyCancelledMovements] = useState<
         PaymentMovement[]
     >([]);
@@ -241,6 +267,10 @@ const Cashs: React.FC = () => {
     const [fetchClosureDetail] = useLazyQuery(GET_CASH_CLOSURE_DETAIL, {
         fetchPolicy: "network-only",
     });
+    const [fetchClosureSheet, { loading: loadingClosureSheet }] = useLazyQuery(
+        GET_CASH_CLOSURE_SHEET,
+        { fetchPolicy: "network-only" },
+    );
 
     useEffect(() => {
         setLocallyCancelledMovements([]);
@@ -327,8 +357,12 @@ const Cashs: React.FC = () => {
         }
     };
 
-    const handleCloseRegister = async (registerId: string) => {
+    const handleCloseRegister = async (
+        registerId: string,
+        sheet?: CashClosureSheetSubmitInput,
+    ) => {
         try {
+            setClosureSheetLoading(true);
             setConfirmLoading(true);
             const deviceId = await getMacAddress();
             const localPrinterName =
@@ -347,6 +381,7 @@ const Cashs: React.FC = () => {
                     userId,
                     branchId,
                     deviceId,
+                    sheet: sheet ?? null,
                 },
             });
 
@@ -407,7 +442,7 @@ const Cashs: React.FC = () => {
                 refetchRegisters();
                 refetchHistory();
                 setSelectedRegister(null);
-                setPendingConfirm(null);
+                setClosureSheetRegister(null);
             } else {
                 logCashPrint("cierre fallido", {
                     message: result.data?.closeCash?.message,
@@ -422,7 +457,46 @@ const Cashs: React.FC = () => {
             logCashPrint("error en cierre de caja", error);
             showToast(error.message || "Error al cerrar la caja", "error");
         } finally {
+            setClosureSheetLoading(false);
             setConfirmLoading(false);
+        }
+    };
+
+    const handleOpenClosureSheet = (register: CashRegister) => {
+        setClosureSheetRegister({
+            id: register.id,
+            name: register.name,
+        });
+    };
+
+    const handleViewClosureSheet = async (closure: CashClosure) => {
+        if (!allowCashClosureSheet) return;
+
+        setSheetViewContext({
+            closureId: closure.id,
+            closureNumber: closure.closureNumber,
+            registerName: closure.cashRegister?.name ?? "",
+        });
+        setViewedClosureSheet(null);
+
+        try {
+            const result = await fetchClosureSheet({
+                variables: { closureId: closure.id },
+            });
+            const sheet =
+                result.data?.cashClosureSheet ??
+                result.data?.cash_closure_sheet ??
+                null;
+            setViewedClosureSheet(sheet);
+            if (!sheet) {
+                showToast("Este cierre no tiene hoja registrada", "warning");
+            }
+        } catch (error: any) {
+            showToast(
+                error.message || "Error al cargar la hoja de cierre",
+                "error",
+            );
+            setSheetViewContext(null);
         }
     };
 
@@ -623,30 +697,18 @@ const Cashs: React.FC = () => {
 
     const handleConfirmAction = async () => {
         if (!pendingConfirm) return;
-        if (pendingConfirm.type === "close_register") {
-            await handleCloseRegister(pendingConfirm.registerId);
-        } else {
-            await handleCancelPayment(pendingConfirm.paymentId);
-        }
+        await handleCancelPayment(pendingConfirm.paymentId);
     };
 
-    const confirmModalConfig =
-        pendingConfirm?.type === "close_register"
-            ? {
-                  title: "Cerrar caja",
-                  message: `¿Está seguro de que desea cerrar la caja "${pendingConfirm.registerName}"? Esta acción generará el cierre del turno actual.`,
-                  confirmLabel: "Cerrar caja",
-                  variant: "danger" as const,
-              }
-            : pendingConfirm?.type === "cancel_payment"
-              ? {
-                    title: "Anular movimiento",
-                    message:
-                        "¿Está seguro de que desea anular este movimiento? Esta acción no se puede deshacer.",
-                    confirmLabel: "Anular movimiento",
-                    variant: "danger" as const,
-                }
-              : null;
+    const confirmModalConfig = pendingConfirm
+        ? {
+              title: "Anular movimiento",
+              message:
+                  "¿Está seguro de que desea anular este movimiento? Esta acción no se puede deshacer.",
+              confirmLabel: "Anular movimiento",
+              variant: "danger" as const,
+          }
+        : null;
 
     const handleUpdatePaymentMethod = async (
         paymentId: string,
@@ -913,15 +975,17 @@ const Cashs: React.FC = () => {
                                                               e.stopPropagation();
                                                               if (!isElectron)
                                                                   return;
-                                                              setPendingConfirm(
-                                                                  {
-                                                                      type: "close_register",
-                                                                      registerId:
-                                                                          register.id,
-                                                                      registerName:
-                                                                          register.name,
-                                                                  },
-                                                              );
+                                                              if (
+                                                                  allowCashClosureSheet
+                                                              ) {
+                                                                  handleOpenClosureSheet(
+                                                                      register,
+                                                                  );
+                                                              } else {
+                                                                  void handleCloseRegister(
+                                                                      register.id,
+                                                                  );
+                                                              }
                                                           }}
                                                           disabled={!isElectron}
                                                           className={`flex flex-1 items-center justify-center gap-2 rounded-2xl py-3 text-xs font-black text-white shadow-lg transition-all ${
@@ -1955,6 +2019,45 @@ const Cashs: React.FC = () => {
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center gap-2">
+                                                            {allowCashClosureSheet && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        void handleViewClosureSheet(
+                                                                            closure,
+                                                                        );
+                                                                    }}
+                                                                    disabled={
+                                                                        loadingClosureSheet &&
+                                                                        sheetViewContext?.closureId ===
+                                                                            closure.id
+                                                                    }
+                                                                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-all hover:bg-amber-50 hover:text-amber-600 dark:bg-slate-800 dark:hover:bg-slate-700"
+                                                                    title="Ver hoja de cierre"
+                                                                >
+                                                                    {loadingClosureSheet &&
+                                                                    sheetViewContext?.closureId ===
+                                                                        closure.id ? (
+                                                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-500/30 border-t-amber-500" />
+                                                                    ) : (
+                                                                        <svg
+                                                                            xmlns="http://www.w3.org/2000/svg"
+                                                                            className="h-4 w-4"
+                                                                            fill="none"
+                                                                            viewBox="0 0 24 24"
+                                                                            stroke="currentColor"
+                                                                        >
+                                                                            <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                strokeWidth={
+                                                                                    2
+                                                                                }
+                                                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                                                            />
+                                                                        </svg>
+                                                                    )}
+                                                                </button>
+                                                            )}
                                                             <button
                                                                 onClick={() =>
                                                                     handleReprint(
@@ -2119,6 +2222,39 @@ const Cashs: React.FC = () => {
                     setRegisterToOpen(null);
                 }}
             />
+
+            {allowCashClosureSheet && (
+                <CashClosureSheetModal
+                    isOpen={closureSheetRegister !== null}
+                    registerName={closureSheetRegister?.name ?? ""}
+                    loading={closureSheetLoading}
+                    onConfirm={(sheet) => {
+                        if (!closureSheetRegister) return;
+                        void handleCloseRegister(
+                            closureSheetRegister.id,
+                            sheet,
+                        );
+                    }}
+                    onClose={() => {
+                        if (closureSheetLoading) return;
+                        setClosureSheetRegister(null);
+                    }}
+                />
+            )}
+
+            {allowCashClosureSheet && (
+                <CashClosureSheetViewModal
+                isOpen={sheetViewContext !== null}
+                closureNumber={sheetViewContext?.closureNumber ?? 0}
+                registerName={sheetViewContext?.registerName ?? ""}
+                loading={loadingClosureSheet}
+                sheet={viewedClosureSheet}
+                onClose={() => {
+                    setSheetViewContext(null);
+                    setViewedClosureSheet(null);
+                }}
+            />
+            )}
 
             <ConfirmModal
                 isOpen={pendingConfirm !== null}

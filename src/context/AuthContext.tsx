@@ -90,6 +90,7 @@ export interface CompanyData {
         separateRepeatedItems?: boolean;
         allowCloseWithOccupiedTables?: boolean;
         allowCashOpenings?: boolean;
+        allowCashClosureSheet?: boolean;
         isKitchenPrint?: boolean;
         isKitchenDisplay?: boolean;
         requireWaiterPassword?: boolean;
