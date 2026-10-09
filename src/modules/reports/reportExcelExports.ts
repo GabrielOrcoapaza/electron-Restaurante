@@ -4,7 +4,7 @@ import { getPaymentMethodLabel } from "../../utils/paymentMethodLabels";
 import type { SoldProductItem, SoldProductsSummary } from "./reportsProductsSold";
 import type { CategorySalesGroup, CategorySalesSummary } from "./reportCategorySalesList";
 import type { ExpensePayment, ExpenseReportSummary } from "./reportExpense";
-import type { EmployeeDishLine, UserSaleOperation } from "./reportEmployee";
+import type { EmployeeDishLine, EmployeeSalesRankItem, UserSaleOperation } from "./reportEmployee";
 import type { CancellationItem } from "./reportCancel";
 import {
     getUsedSalesReportPaymentMethods,
@@ -192,6 +192,35 @@ export async function downloadEmployeeOrdersReport(
     return exportToExcel({
         filename: `empleado-ordenes_${employeeName.replace(/\s+/g, "-")}_${range.startDate}_${range.endDate}`,
         sheets: [{ name: "Operaciones", rows }],
+    });
+}
+
+export async function downloadEmployeeRankingReport(
+    employees: EmployeeSalesRankItem[],
+    range: DateRange,
+): Promise<ExportToExcelResult> {
+    const rows: ExcelRow[] = employees.map((employee, index) => ({
+        Ranking: index + 1,
+        Empleado: employee.fullName,
+        Rol: employee.role || "",
+        "Órdenes gestionadas": employee.totalOperations,
+        Recaudación: roundMoney(employee.grandTotal),
+    }));
+
+    const grandTotal = employees.reduce((sum, employee) => sum + employee.grandTotal, 0);
+    const totalOperations = employees.reduce((sum, employee) => sum + employee.totalOperations, 0);
+
+    rows.push({
+        Ranking: "",
+        Empleado: "TOTAL",
+        Rol: "",
+        "Órdenes gestionadas": totalOperations,
+        Recaudación: roundMoney(grandTotal),
+    });
+
+    return exportToExcel({
+        filename: `empleados-top-vendedores_${range.startDate}_${range.endDate}`,
+        sheets: [{ name: "Top vendedores", rows }],
     });
 }
 

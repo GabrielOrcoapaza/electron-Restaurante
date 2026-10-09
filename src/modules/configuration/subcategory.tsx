@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { useMutation, useQuery } from '@apollo/client';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useMutation, useQuery, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
-import { GET_CATEGORIES_BY_BRANCH } from '../../graphql/queries';
+import { GET_CATEGORIES_BY_BRANCH, SEARCH_SUBCATEGORIES } from '../../graphql/queries';
 import { CREATE_SUBCATEGORY, UPDATE_SUBCATEGORY } from '../../graphql/mutations';
 import { SUBCATEGORY_ICONS } from '../../constants/categoryIcons';
 import CategoryIcon from '../../components/CategoryIcon';
@@ -11,6 +11,8 @@ interface Subcategory {
   id: string;
   name: string;
   description?: string;
+  icon?: string;
+  color?: string;
   order?: number;
   isActive: boolean;
 }
@@ -36,6 +38,7 @@ const Subcategory: React.FC = () => {
     isActive: true,
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [editingRow, setEditingRow] = useState<{ id: string; categoryId: string; categoryName: string; name: string; description?: string; icon?: string; color?: string; order?: number; isActive: boolean } | null>(null);
   const [editFormData, setEditFormData] = useState({ name: '', description: '', icon: 'category', color: '#3b82f6', order: 0, isActive: true });
 
@@ -44,6 +47,27 @@ const Subcategory: React.FC = () => {
     skip: !branchId,
     fetchPolicy: 'network-only',
   });
+
+  const [searchSubcategories, { data: searchData, loading: searching }] = useLazyQuery(
+    SEARCH_SUBCATEGORIES,
+    { fetchPolicy: 'network-only' },
+  );
+
+  useEffect(() => {
+    const term = searchTerm.trim();
+    if (!branchId || term.length < 2) return;
+    const timer = setTimeout(() => {
+      void searchSubcategories({
+        variables: {
+          branchId,
+          search: term,
+          limit: 50,
+          includeInactive: true,
+        },
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm, branchId, searchSubcategories]);
 
   const [createSubcategory, { loading: creating }] = useMutation(CREATE_SUBCATEGORY, {
     onCompleted: (res) => {
@@ -87,6 +111,46 @@ const Subcategory: React.FC = () => {
 
   const categories: Category[] = data?.categoriesByBranch || [];
   const activeCategories = categories.filter((category) => category.isActive);
+
+  const isSearchActive = searchTerm.trim().length >= 2;
+
+  const categoriesForList: Category[] = useMemo(() => {
+    if (!isSearchActive) return categories;
+    const hits = searchData?.searchSubcategories || [];
+    const grouped = new Map<string, Category>();
+    for (const sub of hits) {
+      const cat = sub.category;
+      if (!cat?.id) continue;
+      const catId = String(cat.id);
+      if (!grouped.has(catId)) {
+        grouped.set(catId, {
+          id: catId,
+          name: cat.name,
+          isActive: true,
+          subcategories: [],
+        });
+      }
+      grouped.get(catId)!.subcategories!.push({
+        id: sub.id,
+        name: sub.name,
+        description: sub.description,
+        icon: sub.icon,
+        color: sub.color,
+        order: sub.order,
+        isActive: sub.isActive,
+      });
+    }
+    return Array.from(grouped.values());
+  }, [isSearchActive, categories, searchData?.searchSubcategories]);
+
+  const searchResultCount = useMemo(
+    () =>
+      categoriesForList.reduce(
+        (total, category) => total + (category.subcategories?.length || 0),
+        0,
+      ),
+    [categoriesForList],
+  );
 
   const duplicateActiveCategoryNames = useMemo(() => {
     const counts = new Map<string, number>();
@@ -273,8 +337,44 @@ const Subcategory: React.FC = () => {
       </div>
 
       {/* Lista de Subcategorías */}
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-4 dark:border-slate-800 dark:bg-slate-800/30">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
+              Buscar subcategorías
+            </h3>
+            <div className="relative w-full sm:max-w-xs">
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar por nombre…"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-4 pr-10 text-sm text-slate-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  aria-label="Limpiar búsqueda"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
+          {isSearchActive && (
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              {searching
+                ? 'Buscando…'
+                : `${searchResultCount} resultado${searchResultCount === 1 ? '' : 's'}`}
+            </p>
+          )}
+        </div>
+      </div>
+
       <SubcategoryList
-        categories={categories}
+        categories={categoriesForList}
         onEdit={(row) => {
           setEditingRow({ 
             id: row.id, 

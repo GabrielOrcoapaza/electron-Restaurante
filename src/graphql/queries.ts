@@ -403,6 +403,62 @@ export const GET_CATEGORIES_BY_BRANCH = gql`
     }
 `;
 
+export const SEARCH_CATEGORIES = gql`
+    query SearchCategories(
+        $branchId: ID!
+        $search: String!
+        $limit: Int
+        $includeInactive: Boolean
+    ) {
+        searchCategories(
+            branchId: $branchId
+            search: $search
+            limit: $limit
+            includeInactive: $includeInactive
+        ) {
+            id
+            name
+            description
+            icon
+            color
+            order
+            isActive
+            alias
+            showInMenu
+        }
+    }
+`;
+
+export const SEARCH_SUBCATEGORIES = gql`
+    query SearchSubcategories(
+        $branchId: ID!
+        $search: String!
+        $categoryId: ID
+        $limit: Int
+        $includeInactive: Boolean
+    ) {
+        searchSubcategories(
+            branchId: $branchId
+            search: $search
+            categoryId: $categoryId
+            limit: $limit
+            includeInactive: $includeInactive
+        ) {
+            id
+            name
+            description
+            icon
+            color
+            order
+            isActive
+            category {
+                id
+                name
+            }
+        }
+    }
+`;
+
 /** Solo categorías (sin subcategorías anidadas): menos peso al abrir mesa / pedido. */
 export const GET_CATEGORIES_BY_BRANCH_LIGHT = gql`
     query GetCategoriesByBranchLight($branchId: ID!) {
@@ -1559,6 +1615,28 @@ export const GET_CATEGORY_SALES_REPORT = gql`
             summary {
                 grandTotalQuantity
                 grandTotalAmount
+            }
+        }
+    }
+`;
+
+// Resumen de ventas por empleado (sin detalle de operaciones) — para ranking
+export const GET_USER_SALES_SUMMARY = gql`
+    query GetUserSalesSummary(
+        $branchId: ID!
+        $userId: ID!
+        $startDate: Date!
+        $endDate: Date!
+    ) {
+        userSalesReport(
+            branchId: $branchId
+            userId: $userId
+            startDate: $startDate
+            endDate: $endDate
+        ) {
+            summary {
+                totalOperations
+                grandTotal
             }
         }
     }

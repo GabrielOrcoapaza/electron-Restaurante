@@ -135,6 +135,142 @@ const MAIN_WINDOW_ABS_MIN_HEIGHT = 600;
 /** Ventana principal: para IPC que necesita webContents (p. ej. listar impresoras del SO). */
 let mainWindowRef: BrowserWindow | null = null;
 
+/** Actualización obligatoria en curso (descarga / instalación). */
+let mandatoryUpdateActive = false;
+let mandatoryUpdateReady = false;
+
+function notifyMandatoryUpdateStatus(payload: Record<string, unknown>): void {
+    const win = mainWindowRef;
+    if (!win || win.isDestroyed()) return;
+    win.webContents.send("mandatory-update-status", payload);
+}
+
+function setMainWindowBlockedForUpdate(blocked: boolean): void {
+    const win = mainWindowRef;
+    if (!win || win.isDestroyed()) return;
+    win.setEnabled(!blocked);
+}
+
+function attachMandatoryUpdateCloseGuard(mainWindow: BrowserWindow): void {
+    mainWindow.on("close", (event) => {
+        if (mandatoryUpdateActive && !mandatoryUpdateReady) {
+            event.preventDefault();
+            void dialog.showMessageBox(mainWindow, {
+                type: "warning",
+                title: "Actualización obligatoria",
+                message:
+                    "Hay una actualización en descarga. Debe completarla antes de cerrar SumApp.",
+                buttons: ["Entendido"],
+                defaultId: 0,
+            });
+        }
+    });
+}
+
+function setupMandatoryAutoUpdater(): void {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.autoRunAppAfterInstall = true;
+
+    autoUpdater.on("update-available", (info) => {
+        mandatoryUpdateActive = true;
+        mandatoryUpdateReady = false;
+        setMainWindowBlockedForUpdate(true);
+        notifyMandatoryUpdateStatus({
+            phase: "downloading",
+            version: info.version,
+        });
+        void dialog.showMessageBox({
+            type: "info",
+            title: "Actualización obligatoria",
+            message: "Hay una nueva versión de SumApp disponible que es obligatoria, luego no quiero quejas por que no funciona el sistema.",
+            detail: `Versión ${info.version}. La descarga comenzó automáticamente. Debe instalar la actualización para continuar.`,
+            buttons: ["Entendido"],
+            defaultId: 0,
+        });
+    });
+
+    autoUpdater.on("download-progress", (progress) => {
+        notifyMandatoryUpdateStatus({
+            phase: "downloading",
+            percent: progress.percent,
+            transferred: progress.transferred,
+            total: progress.total,
+        });
+    });
+
+    autoUpdater.on("update-downloaded", (info) => {
+        mandatoryUpdateReady = true;
+        notifyMandatoryUpdateStatus({
+            phase: "ready",
+            version: info.version,
+        });
+        void dialog
+            .showMessageBox({
+                type: "info",
+                title: "Actualización obligatoria",
+                message:
+                    "La actualización está lista. SumApp se reiniciará ahora para instalarla.",
+                detail: `Versión ${info.version}`,
+                buttons: ["Reiniciar ahora"],
+                defaultId: 0,
+                cancelId: 0,
+            })
+            .then(() => {
+                autoUpdater.quitAndInstall(false, true);
+            });
+    });
+
+    autoUpdater.on("update-not-available", () => {
+        mandatoryUpdateActive = false;
+        mandatoryUpdateReady = false;
+        setMainWindowBlockedForUpdate(false);
+        notifyMandatoryUpdateStatus({ phase: "idle" });
+    });
+
+    autoUpdater.on("error", (err) => {
+        log.error("Error en autoUpdater:", err);
+        const errorMessage = String((err as Error)?.message || err);
+        const failedDuringMandatoryDownload =
+            mandatoryUpdateActive && !mandatoryUpdateReady;
+
+        mandatoryUpdateActive = false;
+        mandatoryUpdateReady = false;
+        setMainWindowBlockedForUpdate(false);
+
+        if (!failedDuringMandatoryDownload) return;
+
+        notifyMandatoryUpdateStatus({
+            phase: "error",
+            message: errorMessage,
+        });
+
+        const win = mainWindowRef;
+        const errorDialogOptions = {
+            type: "error" as const,
+            title: "Error al descargar la actualización",
+            message:
+                "No se pudo completar la descarga de la actualización obligatoria.",
+            detail: `${errorMessage}\n\nPuede continuar con la versión actual. Verifique su conexión a internet e intente de nuevo al reiniciar SumApp.`,
+            buttons: ["Entendido"],
+            defaultId: 0,
+        };
+
+        const showErrorDialog =
+            win && !win.isDestroyed()
+                ? dialog.showMessageBox(win, errorDialogOptions)
+                : dialog.showMessageBox(errorDialogOptions);
+
+        void showErrorDialog.then(() => {
+            notifyMandatoryUpdateStatus({ phase: "idle" });
+        });
+    });
+
+    app.on("ready", () => {
+        void autoUpdater.checkForUpdates();
+    });
+}
+
 function getPrimaryWorkArea(): Rectangle {
     return screen.getPrimaryDisplay().workArea;
 }
@@ -217,11 +353,9 @@ function startApplication(): void {
 autoUpdater.logger = log as any;
 (autoUpdater.logger as any).transports.file.level = "info";
 
-// SOLO BUSCAR ACTUALIZACIONES EN PRODUCCIÓN
+// Actualizaciones obligatorias en producción (descarga automática + reinicio forzado).
 if (!isDev) {
-    app.on("ready", () => {
-        autoUpdater.checkForUpdatesAndNotify();
-    });
+    setupMandatoryAutoUpdater();
 }
 
 // Capturar todas las solicitudes de red
@@ -298,6 +432,8 @@ function createWindow() {
     screen.removeListener("display-metrics-changed", onDisplayMetricsChanged);
     screen.on("display-metrics-changed", onDisplayMetricsChanged);
 
+    attachMandatoryUpdateCloseGuard(mainWindow);
+
     mainWindow.on("closed", () => {
         mainWindowRef = null;
         screen.removeListener("display-metrics-changed", onDisplayMetricsChanged);
@@ -319,32 +455,6 @@ function createWindow() {
         });
     }
 }
-
-autoUpdater.on("update-available", () => {
-    dialog.showMessageBox({
-        type: "info",
-        title: "Actualización disponible",
-        message: "Se está descargando una nueva versión del sistema...",
-    });
-});
-
-autoUpdater.on("update-downloaded", () => {
-    dialog
-        .showMessageBox({
-            type: "info",
-            title: "Actualización lista",
-            message:
-                "La actualización se instalará al reiniciar la aplicación.",
-            buttons: ["Reiniciar ahora"],
-        })
-        .then(() => {
-            autoUpdater.quitAndInstall();
-        });
-});
-
-autoUpdater.on("error", (err) => {
-    log.error("Error en autoUpdater:", err);
-});
 
 function normalizePrinterKey(s: string): string {
     return s

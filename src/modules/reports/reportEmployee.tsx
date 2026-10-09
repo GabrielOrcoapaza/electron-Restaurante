@@ -1,20 +1,36 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useQuery } from '@apollo/client';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useApolloClient, useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
-import { GET_USER_SALES_REPORT, SEARCH_USERS } from '../../graphql/queries';
+import {
+  GET_USER_SALES_REPORT,
+  GET_USER_SALES_SUMMARY,
+  GET_USERS_BY_BRANCH_LIGHT,
+  SEARCH_USERS,
+} from '../../graphql/queries';
 import ReportEmployeeList from './reportEmployeeList';
 import ReportEmployeeDishesList from './reportEmployeeDishesList';
+import ReportEmployeeRankingList from './reportEmployeeRankingList';
 import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
 import ReportExportExcelButton from '../../components/ReportExportExcelButton';
 import { useToast } from '../../context/ToastContext';
 import {
   downloadEmployeeDishesReport,
   downloadEmployeeOrdersReport,
+  downloadEmployeeRankingReport,
 } from './reportExcelExports';
 
 const SEARCH_DEBOUNCE_MS = 300;
+const RANKING_START_DATE = '2000-01-01';
 
 type ReportViewMode = 'orders' | 'dishes';
+
+export interface EmployeeSalesRankItem {
+  userId: string;
+  fullName: string;
+  role?: string;
+  totalOperations: number;
+  grandTotal: number;
+}
 
 export interface UserSaleOperationDetail {
   id: string;
@@ -147,6 +163,7 @@ const currencyFormatter = new Intl.NumberFormat('es-PE', {
 const ReportEmployee: React.FC = () => {
   const { companyData } = useAuth();
   const { showToast } = useToast();
+  const apolloClient = useApolloClient();
   const branchId = companyData?.branch?.id;
 
   const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
@@ -157,6 +174,9 @@ const ReportEmployee: React.FC = () => {
   const [debouncedQuery, setDebouncedQuery] = useState<string>('');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [viewMode, setViewMode] = useState<ReportViewMode>('orders');
+  const [rankingItems, setRankingItems] = useState<EmployeeSalesRankItem[]>([]);
+  const [rankingLoading, setRankingLoading] = useState(false);
+  const [rankingError, setRankingError] = useState<string | null>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -195,6 +215,84 @@ const ReportEmployee: React.FC = () => {
     setSearchInput('');
   };
 
+  const { data: usersData } = useQuery(GET_USERS_BY_BRANCH_LIGHT, {
+    variables: { branchId: branchId!, includeInactive: false },
+    skip: !branchId,
+    fetchPolicy: 'cache-first',
+  });
+
+  const branchUsers = useMemo(
+    () =>
+      (usersData?.usersByBranch ?? []).filter(
+        (user: { isActive?: boolean }) => user.isActive !== false,
+      ),
+    [usersData?.usersByBranch],
+  );
+
+  const fetchRanking = useCallback(async () => {
+    if (!branchId) return;
+
+    if (!branchUsers.length) {
+      setRankingItems([]);
+      setRankingError(null);
+      return;
+    }
+
+    const rankingEndDate = formatLocalDateYYYYMMDD();
+
+    setRankingLoading(true);
+    setRankingError(null);
+
+    try {
+      const results = await Promise.all(
+        branchUsers.map(
+          (user: { id: string; fullName: string; role?: string }) =>
+            apolloClient
+              .query({
+                query: GET_USER_SALES_SUMMARY,
+                variables: {
+                  branchId,
+                  userId: user.id,
+                  startDate: RANKING_START_DATE,
+                  endDate: rankingEndDate,
+                },
+                fetchPolicy: 'network-only',
+              })
+              .then((response) => ({
+                userId: user.id,
+                fullName: user.fullName,
+                role: user.role,
+                totalOperations:
+                  response.data?.userSalesReport?.summary?.totalOperations ?? 0,
+                grandTotal: response.data?.userSalesReport?.summary?.grandTotal ?? 0,
+              })),
+        ),
+      );
+
+      const sorted = results
+        .filter((item) => item.grandTotal > 0 || item.totalOperations > 0)
+        .sort(
+          (a, b) =>
+            b.grandTotal - a.grandTotal || b.totalOperations - a.totalOperations,
+        );
+
+      setRankingItems(sorted);
+    } catch (fetchError) {
+      const message =
+        fetchError instanceof Error
+          ? fetchError.message
+          : 'No se pudo cargar el ranking de empleados.';
+      setRankingError(message);
+      setRankingItems([]);
+    } finally {
+      setRankingLoading(false);
+    }
+  }, [apolloClient, branchId, branchUsers]);
+
+  useEffect(() => {
+    void fetchRanking();
+  }, [fetchRanking]);
+
   const { data, loading, error, refetch } = useQuery(GET_USER_SALES_REPORT, {
     variables: {
       branchId: branchId!,
@@ -231,16 +329,33 @@ const ReportEmployee: React.FC = () => {
     refetch();
   };
 
-  const handleExportExcel = async () => {
-    if (!userId) {
-      showToast('Selecciona un empleado para exportar el reporte.', 'warning');
-      return;
+  const handleRefreshAll = () => {
+    void fetchRanking();
+    if (userId) {
+      refetch();
     }
+  };
 
-    const employeeName = selectedUserLabel || 'empleado';
+  const handleExportExcel = async () => {
     const range = { startDate, endDate };
+    const rankingRange = {
+      startDate: RANKING_START_DATE,
+      endDate: formatLocalDateYYYYMMDD(),
+    };
 
     try {
+      if (!userId) {
+        if (!rankingItems.length) {
+          showToast('No hay datos de ranking para exportar.', 'warning');
+          return;
+        }
+        const result = await downloadEmployeeRankingReport(rankingItems, rankingRange);
+        showToast(result.message || 'Reporte descargado en Excel.', 'success');
+        return;
+      }
+
+      const employeeName = selectedUserLabel || 'empleado';
+
       if (viewMode === 'orders') {
         if (!operations.length) {
           showToast('No hay operaciones para exportar en este periodo.', 'warning');
@@ -295,20 +410,23 @@ const ReportEmployee: React.FC = () => {
                 <ReportExportExcelButton
                     onClick={handleExportExcel}
                     disabled={
-                        loading ||
-                        !userId ||
-                        (viewMode === 'orders' ? operations.length === 0 : dishLines.length === 0)
+                        userId
+                          ? loading ||
+                            (viewMode === 'orders'
+                              ? operations.length === 0
+                              : dishLines.length === 0)
+                          : rankingLoading || rankingItems.length === 0
                     }
                 />
                 <button
-                    onClick={() => refetch()}
-                    disabled={loading}
+                    onClick={handleRefreshAll}
+                    disabled={rankingLoading || loading}
                     className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${rankingLoading || loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    {loading ? "Actualizando" : "Refrescar"}
+                    {rankingLoading || loading ? "Actualizando" : "Refrescar"}
                 </button>
             </div>
         </div>
@@ -401,8 +519,8 @@ const ReportEmployee: React.FC = () => {
             </div>
         </div>
 
-        {/* Summary Cards */}
-        {summary && (
+        {/* Summary Cards - Detalle empleado */}
+        {userId && summary && (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="relative overflow-hidden rounded-[32px] bg-amber-500 p-6 text-white shadow-lg shadow-amber-200 dark:shadow-none">
                     <div className="relative z-10">
@@ -442,7 +560,7 @@ const ReportEmployee: React.FC = () => {
             <div className="flex flex-col gap-4 border-b border-slate-50 p-6 dark:border-slate-800/50 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-col gap-3">
                     <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
-                        {viewMode === 'orders' ? 'Desglose de Operaciones' : 'Desglose por Platos'}
+                        Desglose de Operaciones
                     </h2>
                     <div className="flex flex-wrap gap-2">
                         <button
@@ -470,14 +588,36 @@ const ReportEmployee: React.FC = () => {
                     </div>
                 </div>
                 <span className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800">
-                    {viewMode === 'orders'
-                        ? `${operations.length} órdenes encontradas`
-                        : `${dishTotals.count} platos · ${dishTotals.quantity} und`}
+                    {!userId
+                        ? rankingLoading
+                          ? 'Cargando...'
+                          : `${rankingItems.length} empleados en ranking`
+                        : viewMode === 'orders'
+                          ? `${operations.length} órdenes encontradas`
+                          : `${dishTotals.count} platos · ${dishTotals.quantity} und`}
                 </span>
             </div>
 
             <div className="p-4 sm:p-6">
-                {loading ? (
+                {!userId ? (
+                    rankingLoading ? (
+                        <div className="flex min-h-[300px] flex-col gap-4">
+                            {Array(5).fill(0).map((_, i) => (
+                                <div key={i} className="h-20 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50" />
+                            ))}
+                        </div>
+                    ) : rankingError ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-center">
+                            <p className="text-sm font-bold text-rose-500">{rankingError}</p>
+                        </div>
+                    ) : (
+                        <ReportEmployeeRankingList
+                            employees={rankingItems}
+                            loading={rankingLoading}
+                            error={rankingError}
+                        />
+                    )
+                ) : loading ? (
                     <div className="flex min-h-[300px] flex-col gap-4">
                         {Array(5).fill(0).map((_, i) => (
                             <div key={i} className="h-20 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50" />
@@ -500,7 +640,13 @@ const ReportEmployee: React.FC = () => {
             </div>
         </div>
 
-        {error && (
+        {rankingError && !userId && (
+            <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600 dark:border-rose-900/30 dark:bg-rose-900/10">
+                Error al cargar el ranking: {rankingError}
+            </div>
+        )}
+
+        {error && userId && (
             <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600 dark:border-rose-900/30 dark:bg-rose-900/10">
                 Error al cargar el reporte: {error.message}
             </div>

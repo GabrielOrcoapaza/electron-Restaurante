@@ -16,6 +16,7 @@ import AppShell from "./components/AppShell";
 import LoginKitchen from "./modules/kitchen/LoginKitchen";
 import KitchenScreen from "./modules/kitchen/KitchenScreen";
 import PromotionsScreen from "./modules/kitchen/PromotionsScreen";
+import MandatoryUpdateOverlay from "./components/MandatoryUpdateOverlay";
 import "./App.css";
 
 const isElectron = navigator.userAgent.toLowerCase().includes("electron");
@@ -133,6 +134,7 @@ const AppRoutes = () => {
 function App() {
     return (
         <Router>
+            <MandatoryUpdateOverlay />
             <AppRoutes />
         </Router>
     );

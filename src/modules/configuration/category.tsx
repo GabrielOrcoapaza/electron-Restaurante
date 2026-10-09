@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { useMutation, useQuery } from '@apollo/client';
+import React, { useState, useEffect } from 'react';
+import { useMutation, useQuery, useLazyQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
-import { GET_CATEGORIES_BY_BRANCH } from '../../graphql/queries';
+import { GET_CATEGORIES_BY_BRANCH, SEARCH_CATEGORIES } from '../../graphql/queries';
 import { CREATE_CATEGORY, UPDATE_CATEGORY } from '../../graphql/mutations';
 import { CATEGORY_ICONS } from '../../constants/categoryIcons';
 import CategoryIcon from '../../components/CategoryIcon';
@@ -30,6 +30,7 @@ const CategoryModule: React.FC = () => {
     isActive: true,
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editFormData, setEditFormData] = useState({ name: '', description: '', icon: 'category', color: '#6366f1', order: 0, isActive: true });
 
@@ -38,6 +39,27 @@ const CategoryModule: React.FC = () => {
     skip: !branchId,
     fetchPolicy: 'network-only',
   });
+
+  const [searchCategories, { data: searchData, loading: searching }] = useLazyQuery(
+    SEARCH_CATEGORIES,
+    { fetchPolicy: 'network-only' },
+  );
+
+  useEffect(() => {
+    const term = searchTerm.trim();
+    if (!branchId || term.length < 2) return;
+    const timer = setTimeout(() => {
+      void searchCategories({
+        variables: {
+          branchId,
+          search: term,
+          limit: 50,
+          includeInactive: true,
+        },
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm, branchId, searchCategories]);
 
   const [createCategory, { loading: creating }] = useMutation(CREATE_CATEGORY, {
     onCompleted: (res) => {
@@ -78,7 +100,10 @@ const CategoryModule: React.FC = () => {
     },
   });
 
-  const categories: Category[] = data?.categoriesByBranch || [];
+  const isSearchActive = searchTerm.trim().length >= 2;
+  const categories: Category[] = isSearchActive
+    ? searchData?.searchCategories || []
+    : data?.categoriesByBranch || [];
 
   return (
     <div className="flex flex-col gap-6 p-1 transition-colors duration-200 md:p-0">
@@ -232,6 +257,42 @@ const CategoryModule: React.FC = () => {
       </div>
 
       {/* Lista de Categorías */}
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-4 dark:border-slate-800 dark:bg-slate-800/30">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
+              Buscar categorías
+            </h3>
+            <div className="relative w-full sm:max-w-xs">
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar por nombre…"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-4 pr-10 text-sm text-slate-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  aria-label="Limpiar búsqueda"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
+          {isSearchActive && (
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              {searching
+                ? 'Buscando…'
+                : `${categories.length} resultado${categories.length === 1 ? '' : 's'}`}
+            </p>
+          )}
+        </div>
+      </div>
+
       <CategoryList 
         categories={categories} 
         onEdit={(cat) => { 
