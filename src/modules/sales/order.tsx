@@ -2218,20 +2218,21 @@ const Order: React.FC<OrderProps> = ({
                     );
                 }
 
-                // Llamar callback de éxito si existe
-                if (onSuccess) {
-                    onSuccess();
-                }
-
-                // Mostrar mensaje de éxito (sin mencionar liberación de mesa)
-                // El mensaje del backend podría decir que liberó la mesa, pero no es correcto para precuenta
                 showToast(
                     "Precuenta enviada a imprimir exitosamente. Estado de mesa actualizado a TO_PAY",
                     "success",
                 );
-                setTimeout(() => {
-                    onClose();
-                }, 500);
+
+                if (isMozo) {
+                    await completeOrderSave();
+                } else {
+                    if (onSuccess) {
+                        onSuccess();
+                    }
+                    setTimeout(() => {
+                        onClose();
+                    }, 500);
+                }
             } else {
                 showToast(
                     result.data?.printAccount?.message ||
