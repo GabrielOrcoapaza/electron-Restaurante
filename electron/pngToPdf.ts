@@ -2,8 +2,7 @@
  * PDF de una página con imagen JPEG embebida (captura del ticket).
  */
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const sharp = require("sharp") as typeof import("sharp");
+import sharp from "sharp";
 
 /** Convierte PNG capturado a PDF de una sola página. */
 export async function pngBufferToPdfBuffer(pngBuffer: Buffer): Promise<Buffer> {

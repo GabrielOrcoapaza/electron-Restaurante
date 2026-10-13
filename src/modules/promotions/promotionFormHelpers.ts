@@ -96,6 +96,9 @@ export function promotionToFormData(promo: IPromotion & Record<string, any>): Pr
         appliesTo: promo.appliesTo || 'ALL',
         priority: promo.priority != null ? String(promo.priority) : '0',
         scopes,
+        // Edición: el precio del producto-combo se sigue manejando desde el módulo
+        // Productos (esta fusión solo aplica al crear). No se precarga aquí.
+        salePrice: '',
         existingPhoto: promo.photoUrl || null,
     };
 }

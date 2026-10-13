@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useMutation } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
 import {
+    CREATE_COMBO,
     CREATE_PROMOTION,
     SET_PROMOTION_SCOPES,
 } from '../../graphql/mutations';
@@ -31,6 +32,7 @@ const CreatePromotion: React.FC<CreatePromotionProps> = ({
 
     const [createPromotion] = useMutation(CREATE_PROMOTION);
     const [setPromotionScopes] = useMutation(SET_PROMOTION_SCOPES);
+    const [createCombo] = useMutation(CREATE_COMBO);
 
     const handleSubmit = async (formData: PromotionFormData) => {
         if (!branchId) throw new Error('No se encontró la sucursal.');
@@ -40,6 +42,47 @@ const CreatePromotion: React.FC<CreatePromotionProps> = ({
 
         setSaving(true);
         try {
+            // ✅ COMBO: una sola mutación crea la promoción + el producto vendible +
+            // los scopes, ya vinculados. Evita el viaje aparte al módulo Productos.
+            if (formData.promotionType === 'COMBO') {
+                const salePrice = parseFloat(formData.salePrice);
+                if (!salePrice || salePrice <= 0) {
+                    throw new Error('Ingresa el precio de venta del combo.');
+                }
+
+                const { data } = await createCombo({
+                    variables: {
+                        branchId,
+                        name: formData.name.trim(),
+                        description: formData.description.trim() || '',
+                        salePrice,
+                        validFrom: formData.validFrom,
+                        validTo: formData.validTo || null,
+                        daysOfWeek: formData.daysOfWeek
+                            .slice()
+                            .sort((a, b) => a - b)
+                            .join(','),
+                        timeFrom: formData.timeFrom || null,
+                        timeTo: formData.timeTo || null,
+                        priority: formData.priority ? parseInt(formData.priority, 10) : 0,
+                        isActive: formData.isActive,
+                        photoBase64: formData.photoBase64 || null,
+                        scopes: buildScopeInputs(formData),
+                    },
+                    refetchQueries: [
+                        { query: GET_PROMOTIONS_BY_BRANCH, variables: { branchId } },
+                    ],
+                });
+
+                const comboResult = data?.createCombo;
+                if (!comboResult?.success) {
+                    throw new Error(comboResult?.message || 'No se pudo crear el combo.');
+                }
+
+                onSuccess();
+                return;
+            }
+
             const { data } = await createPromotion({
                 variables: buildPromotionVariables(formData, branchId),
             });

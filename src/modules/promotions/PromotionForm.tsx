@@ -576,6 +576,29 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
                 </div>
             )}
 
+            {formData.promotionType === 'COMBO' && !initialData && (
+                <div className="grid gap-4 md:grid-cols-2">
+                    <label className="block text-sm">
+                        <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
+                            Precio de venta (S/) *
+                        </span>
+                        <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={formData.salePrice}
+                            onChange={(e) => patch({ salePrice: e.target.value })}
+                            className={fieldClass}
+                            placeholder="Precio del combo, con IGV"
+                        />
+                        <p className="mt-1 text-xs text-slate-400">
+                            Crea de una vez el producto vendible del combo (ya no hace
+                            falta crearlo aparte en el módulo Productos).
+                        </p>
+                    </label>
+                </div>
+            )}
+
             {showScopes && branchId && (
                 <ScopeEditor
                     branchId={branchId}
