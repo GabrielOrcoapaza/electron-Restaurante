@@ -61,6 +61,10 @@ export interface PromotionFormData {
     appliesTo: 'ALL' | 'CATEGORY' | 'SUBCATEGORY' | 'PRODUCT';
     priority: string;
     scopes: ScopeFormItem[];
+    /** Solo para promotionType==='COMBO': precio de venta del producto-combo que se
+     * crea junto con la promoción (fusiona los dos pasos que antes requerían ir al
+     * módulo Productos por separado). */
+    salePrice: string;
     /** Base64 de foto nueva a subir (sin prefijo data:). */
     photoBase64?: string | null;
     /** URL de foto existente del servidor (solo edición / vista previa). */
@@ -128,6 +132,7 @@ export function emptyPromotionForm(
         appliesTo: 'ALL',
         priority: '0',
         scopes: [],
+        salePrice: '',
     };
 }
 

@@ -2438,6 +2438,57 @@ export const CREATE_PROMOTION = gql`
     }
 `;
 
+// ── CREAR COMBO (promoción + producto vendible + scopes, en una sola llamada) ──
+export const CREATE_COMBO = gql`
+    mutation CreateCombo(
+        $branchId: ID!
+        $name: String!
+        $description: String
+        $salePrice: Float!
+        $validFrom: String!
+        $validTo: String
+        $daysOfWeek: String
+        $timeFrom: String
+        $timeTo: String
+        $priority: Int
+        $isActive: Boolean
+        $photoBase64: String
+        $scopes: [ScopeInput!]!
+    ) {
+        createCombo(
+            branchId: $branchId
+            name: $name
+            description: $description
+            salePrice: $salePrice
+            validFrom: $validFrom
+            validTo: $validTo
+            daysOfWeek: $daysOfWeek
+            timeFrom: $timeFrom
+            timeTo: $timeTo
+            priority: $priority
+            isActive: $isActive
+            photoBase64: $photoBase64
+            scopes: $scopes
+        ) {
+            success
+            message
+            promotion {
+                id
+                name
+                promotionType
+                isActive
+                photoUrl
+            }
+            product {
+                id
+                code
+                name
+                salePrice
+            }
+        }
+    }
+`;
+
 // ── EDITAR PROMOCIÓN ──
 export const UPDATE_PROMOTION = gql`
     mutation UpdatePromotion(
