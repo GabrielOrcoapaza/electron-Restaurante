@@ -2,12 +2,13 @@
  * Vista previa / descarga PDF del comprobante (document_data).
  */
 
-import { ipcMain, shell } from "electron";
+import { BrowserWindow, dialog, ipcMain, shell } from "electron";
 import * as fs from "fs";
 import * as path from "path";
 import log from "electron-log";
 import {
     formatSavedInDownloadsMessage,
+    getUserDownloadsDir,
     resolveUniqueDownloadFilePath,
 } from "./downloadPaths";
 import {
@@ -30,6 +31,15 @@ function resolveDownloadPath(filename: string): string {
     return resolveUniqueDownloadFilePath(filename, sanitizePdfFilename);
 }
 
+async function buildHtmlA4PdfBuffer(html: string): Promise<Buffer | null> {
+    if (!html?.trim()) return null;
+
+    const pdfBuffer = await htmlToA4PdfBuffer(html);
+    if (!pdfBuffer?.length || pdfBuffer.length < 128) return null;
+
+    return pdfBuffer;
+}
+
 async function saveHtmlA4PdfToDownloads(
     html: string,
     filename: string,
@@ -38,8 +48,8 @@ async function saveHtmlA4PdfToDownloads(
         return { ok: false, message: "HTML vacío." };
     }
 
-    const pdfBuffer = await htmlToA4PdfBuffer(html);
-    if (!pdfBuffer?.length || pdfBuffer.length < 128) {
+    const pdfBuffer = await buildHtmlA4PdfBuffer(html);
+    if (!pdfBuffer) {
         return { ok: false, message: "El PDF generado es inválido." };
     }
 
@@ -54,6 +64,57 @@ async function saveHtmlA4PdfToDownloads(
     }
 
     return { ok: true, path: filePath };
+}
+
+async function saveHtmlA4PdfWithDialog(
+    html: string,
+    filename: string,
+    parentWindow?: BrowserWindow | null,
+): Promise<{
+    ok: boolean;
+    path?: string;
+    message?: string;
+    cancelled?: boolean;
+}> {
+    if (!html?.trim()) {
+        return { ok: false, message: "HTML vacío." };
+    }
+
+    const safeName = sanitizePdfFilename(filename);
+    const dialogOptions = {
+        title: "Guardar PDF",
+        defaultPath: path.join(getUserDownloadsDir(), safeName),
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+    };
+    const { canceled, filePath } =
+        parentWindow && !parentWindow.isDestroyed()
+            ? await dialog.showSaveDialog(parentWindow, dialogOptions)
+            : await dialog.showSaveDialog(dialogOptions);
+
+    if (canceled || !filePath?.trim()) {
+        return { ok: false, cancelled: true, message: "Guardado cancelado." };
+    }
+
+    const pdfBuffer = await buildHtmlA4PdfBuffer(html);
+    if (!pdfBuffer) {
+        return { ok: false, message: "El PDF generado es inválido." };
+    }
+
+    let targetPath = filePath.trim();
+    if (!targetPath.toLowerCase().endsWith(".pdf")) {
+        targetPath = `${targetPath}.pdf`;
+    }
+
+    fs.writeFileSync(targetPath, pdfBuffer);
+    log.info(
+        `[preview] PDF A4 guardado en ${targetPath} (${pdfBuffer.length} bytes)`,
+    );
+
+    return {
+        ok: true,
+        path: targetPath,
+        message: `PDF guardado: ${path.basename(targetPath)}`,
+    };
 }
 
 async function saveDocumentPdfToDownloads(
@@ -156,6 +217,32 @@ export function registerDocumentPreviewHandler(): void {
         },
     );
 
+    ipcMain.removeHandler("save-html-a4-pdf-dialog");
+    ipcMain.handle(
+        "save-html-a4-pdf-dialog",
+        async (
+            event,
+            payload: { html: string; filename: string },
+        ) => {
+            const { html, filename } = payload;
+            try {
+                log.info("[preview] Guardar PDF A4 con diálogo del sistema…");
+                const parentWindow = BrowserWindow.fromWebContents(
+                    event.sender,
+                );
+                return await saveHtmlA4PdfWithDialog(
+                    html,
+                    filename || "reporte.pdf",
+                    parentWindow,
+                );
+            } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : String(e);
+                log.error("[preview] Error guardando PDF A4:", msg);
+                return { ok: false, message: msg };
+            }
+        },
+    );
+
     ipcMain.removeHandler("download-document-pdf");
     ipcMain.handle(
         "download-document-pdf",
@@ -189,6 +276,6 @@ export function registerDocumentPreviewHandler(): void {
     );
 
     log.info(
-        "[main] Handlers de vista previa: document-json-to-pdf, document-json-to-html, download-html-a4-pdf, download-document-pdf",
+        "[main] Handlers de vista previa: document-json-to-pdf, document-json-to-html, download-html-a4-pdf, save-html-a4-pdf-dialog, download-document-pdf",
     );
 }

@@ -10,6 +10,8 @@ export const DOCUMENT_JSON_TO_PDF_CHANNEL = "document-json-to-pdf" as const;
 export const DOCUMENT_JSON_TO_HTML_CHANNEL = "document-json-to-html" as const;
 export const DOWNLOAD_DOCUMENT_PDF_CHANNEL = "download-document-pdf" as const;
 export const DOWNLOAD_HTML_A4_PDF_CHANNEL = "download-html-a4-pdf" as const;
+export const SAVE_HTML_A4_PDF_DIALOG_CHANNEL =
+	"save-html-a4-pdf-dialog" as const;
 export const OPEN_EXTERNAL_URL_CHANNEL = "open-external-url" as const;
 export const DOWNLOAD_OFFICIAL_DOCUMENT_PDF_CHANNEL =
 	"download-official-document-pdf" as const;
@@ -42,6 +44,7 @@ export type DownloadHtmlA4PdfResult = {
 	ok: boolean;
 	path?: string;
 	message?: string;
+	cancelled?: boolean;
 };
 export type OpenExternalUrlResult = {
 	ok: boolean;
@@ -173,6 +176,21 @@ export async function invokeElectronDownloadHtmlA4Pdf(
 		return { ok: false, message: "No es entorno Electron." };
 	}
 	return ipc.invoke(DOWNLOAD_HTML_A4_PDF_CHANNEL, {
+		html,
+		filename,
+	}) as Promise<DownloadHtmlA4PdfResult>;
+}
+
+/** Abre el diálogo del sistema para elegir dónde guardar el PDF A4. */
+export async function invokeElectronSaveHtmlA4PdfDialog(
+	html: string,
+	filename: string,
+): Promise<DownloadHtmlA4PdfResult> {
+	const ipc = getElectronIpcRenderer();
+	if (!ipc) {
+		return { ok: false, message: "No es entorno Electron." };
+	}
+	return ipc.invoke(SAVE_HTML_A4_PDF_DIALOG_CHANNEL, {
 		html,
 		filename,
 	}) as Promise<DownloadHtmlA4PdfResult>;

@@ -2244,16 +2244,16 @@ const Cashs: React.FC = () => {
 
             {allowCashClosureSheet && (
                 <CashClosureSheetViewModal
-                isOpen={sheetViewContext !== null}
-                closureNumber={sheetViewContext?.closureNumber ?? 0}
-                registerName={sheetViewContext?.registerName ?? ""}
-                loading={loadingClosureSheet}
-                sheet={viewedClosureSheet}
-                onClose={() => {
-                    setSheetViewContext(null);
-                    setViewedClosureSheet(null);
-                }}
-            />
+                    isOpen={sheetViewContext !== null}
+                    closureNumber={sheetViewContext?.closureNumber ?? 0}
+                    registerName={sheetViewContext?.registerName ?? ""}
+                    loading={loadingClosureSheet}
+                    sheet={viewedClosureSheet}
+                    onClose={() => {
+                        setSheetViewContext(null);
+                        setViewedClosureSheet(null);
+                    }}
+                />
             )}
 
             <ConfirmModal

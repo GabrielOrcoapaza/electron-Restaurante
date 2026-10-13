@@ -1,32 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
+import { useToast } from "../../context/ToastContext";
+import { downloadCashClosureSheetPdf } from "../../utils/downloadCashClosureSheetPdf";
+import type {
+    CashClosureSheetStaffRowData,
+    CashClosureSheetViewData,
+} from "../../utils/cashClosureSheetHtml";
 
-export interface CashClosureSheetStaffRowData {
-    id?: string;
-    rowNumber: number;
-    position?: string;
-    staffName?: string;
-    shiftTime?: string;
-    payments?: number;
-    purchaseExpense?: string;
-    total?: number;
-    user?: { id: string; fullName: string } | null;
-}
-
-export interface CashClosureSheetViewData {
-    id?: string;
-    sheetDate?: string | null;
-    cashierName?: string;
-    cardSales?: number;
-    cashSales?: number;
-    yapeSales?: number;
-    totalSales?: number;
-    totalExpenses?: number;
-    netSales?: number;
-    paymentsTotal?: number;
-    purchaseExpensesTotal?: number;
-    observations?: string;
-    staffRows?: CashClosureSheetStaffRowData[];
-}
+export type { CashClosureSheetStaffRowData, CashClosureSheetViewData };
 
 interface CashClosureSheetViewModalProps {
     isOpen: boolean;
@@ -84,12 +64,53 @@ const CashClosureSheetViewModal: React.FC<CashClosureSheetViewModalProps> = ({
     sheet,
     onClose,
 }) => {
+    const { showToast } = useToast();
+    const [downloading, setDownloading] = useState(false);
+
     if (!isOpen) return null;
 
     const staffRows = [...(sheet?.staffRows ?? [])].sort(
         (a, b) => a.rowNumber - b.rowNumber,
     );
     const visibleStaffRows = staffRows.filter(hasStaffRowContent);
+    const canDownload = Boolean(sheet) && !loading;
+
+    const handleDownload = async () => {
+        if (!sheet || downloading) return;
+
+        setDownloading(true);
+        try {
+            const result = await downloadCashClosureSheetPdf({
+                ...sheet,
+                closureNumber,
+                registerName,
+            });
+            if (result.cancelled) {
+                return;
+            }
+            if (result.ok) {
+                showToast(
+                    result.message || "PDF guardado correctamente",
+                    "success",
+                );
+            } else {
+                showToast(
+                    result.message ||
+                        "No se pudo guardar la hoja de cierre",
+                    "warning",
+                );
+            }
+        } catch (error: unknown) {
+            showToast(
+                error instanceof Error
+                    ? error.message
+                    : "Error al generar el PDF",
+                "error",
+            );
+        } finally {
+            setDownloading(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-[11000] flex items-center justify-center bg-slate-900/50 p-2 backdrop-blur-sm sm:p-4">
@@ -104,27 +125,63 @@ const CashClosureSheetViewModal: React.FC<CashClosureSheetViewModalProps> = ({
                                 {registerName}
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
-                            aria-label="Cerrar"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-5 w-5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
+                        <div className="flex shrink-0 items-center gap-2">
+                            {canDownload && (
+                                <button
+                                    type="button"
+                                    onClick={() => void handleDownload()}
+                                    disabled={downloading}
+                                    className="flex h-9 items-center gap-2 rounded-xl bg-indigo-600 px-3 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                    title="Guardar PDF"
+                                >
+                                    {downloading ? (
+                                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                    ) : (
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            className="h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                            />
+                                        </svg>
+                                    )}
+                                    <span className="hidden sm:inline">
+                                        {downloading
+                                            ? "Guardando..."
+                                            : "Guardar PDF"}
+                                    </span>
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                disabled={downloading}
+                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-60 dark:hover:bg-slate-800"
+                                aria-label="Cerrar"
                             >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M6 18L18 6M6 6l12 12"
-                                />
-                            </svg>
-                        </button>
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-5 w-5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -347,14 +404,52 @@ const CashClosureSheetViewModal: React.FC<CashClosureSheetViewModalProps> = ({
                     )}
                 </div>
 
-                <div className="border-t border-slate-100 bg-slate-50/30 p-4 dark:border-slate-800/50 dark:bg-slate-800/10 sm:p-6">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="w-full rounded-2xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
-                    >
-                        Cerrar
-                    </button>
+                <div className="shrink-0 border-t border-slate-100 bg-slate-50/30 p-4 dark:border-slate-800/50 dark:bg-slate-800/10 sm:p-6">
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                        {canDownload && (
+                            <button
+                                type="button"
+                                onClick={() => void handleDownload()}
+                                disabled={downloading}
+                                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-3 text-sm font-bold text-white transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {downloading ? (
+                                    <>
+                                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                        Guardando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            className="h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                            />
+                                        </svg>
+                                        Guardar PDF
+                                    </>
+                                )}
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            disabled={downloading}
+                            className={`rounded-2xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 ${
+                                canDownload ? "flex-1" : "w-full"
+                            }`}
+                        >
+                            Cerrar
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
