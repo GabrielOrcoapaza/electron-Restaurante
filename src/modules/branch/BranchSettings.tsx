@@ -5,10 +5,14 @@ import { UPDATE_BRANCH } from "../../graphql/mutations";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../context/ToastContext";
 import { normalizeTaxAffectationType } from "../../utils/getBranchIgvPercentage";
-import { saveBranchLoginLogoCache } from "../../utils/resolveLogoSrc";
+import {
+    resolveLogoSrc,
+    saveBranchLoginLogoCache,
+} from "../../utils/resolveLogoSrc";
 import {
     LOGO_IMAGE_SIZE,
-    resizeLogoImageFile,
+    LOGO_MAX_FILE_BYTES,
+    validateAndPrepareLogoImageFile,
 } from "../../utils/resizeLogoImage";
 
 type BranchFormState = {
@@ -136,6 +140,10 @@ const BranchSettings: React.FC = () => {
     const [form, setForm] = useState<BranchFormState>(emptyForm);
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [logoBase64, setLogoBase64] = useState<string | null>(null);
+    const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+    const [logoValidationError, setLogoValidationError] = useState<
+        string | null
+    >(null);
 
     const { data, loading, error, refetch } = useQuery(GET_BRANCH_BY_ID, {
         variables: { id: branchId! },
@@ -149,12 +157,16 @@ const BranchSettings: React.FC = () => {
         if (!branch) return;
         setForm(branchToForm(branch));
         setLogoPreview(
-            branch.logo ||
-                companyData?.branchLogo ||
-                companyData?.branch?.logo ||
-                null,
+            resolveLogoSrc(
+                branch.logo ||
+                    companyData?.branchLogo ||
+                    companyData?.branch?.logo ||
+                    null,
+            ),
         );
         setLogoBase64(null);
+        setLogoLoadFailed(false);
+        setLogoValidationError(null);
     }, [branch, companyData?.branchLogo, companyData?.branch?.logo]);
 
     const [updateBranch, { loading: saving }] = useMutation(UPDATE_BRANCH, {
@@ -215,19 +227,19 @@ const BranchSettings: React.FC = () => {
     ) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        if (!file.type.startsWith("image/")) {
-            showToast("El archivo debe ser una imagen", "error");
+
+        const result = await validateAndPrepareLogoImageFile(file);
+        if (!result.ok) {
+            setLogoValidationError(result.message);
+            showToast(result.message, "error");
             e.target.value = "";
             return;
         }
-        try {
-            const { dataUrl, base64 } = await resizeLogoImageFile(file);
-            setLogoPreview(dataUrl);
-            setLogoBase64(base64);
-        } catch {
-            showToast("No se pudo procesar el logo", "error");
-            e.target.value = "";
-        }
+
+        setLogoValidationError(null);
+        setLogoPreview(resolveLogoSrc(result.dataUrl));
+        setLogoBase64(result.base64);
+        setLogoLoadFailed(false);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -308,11 +320,12 @@ const BranchSettings: React.FC = () => {
                                     : ""}
                             </p>
                         </div>
-                        {logoPreview && (
+                        {logoPreview && !logoLoadFailed && (
                             <img
                                 src={logoPreview}
                                 alt="Logo de la sede"
-                                className="h-16 w-16 rounded-xl border border-slate-200 object-contain dark:border-slate-700"
+                                className="h-16 w-16 rounded-xl border border-slate-200 bg-white object-contain p-1 dark:border-slate-700 dark:bg-slate-900"
+                                onError={() => setLogoLoadFailed(true)}
                             />
                         )}
                     </div>
@@ -348,16 +361,47 @@ const BranchSettings: React.FC = () => {
                         </div>
                         <div className="md:col-span-2">
                             <label className={labelClass}>Logo</label>
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleLogoChange}
-                                className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-slate-300 dark:file:bg-indigo-900/30 dark:file:text-indigo-300"
-                            />
-                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                Se ajusta a {LOGO_IMAGE_SIZE}×{LOGO_IMAGE_SIZE}{" "}
-                                px para los login.
-                            </p>
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                                <div className="flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/50">
+                                    {logoPreview && !logoLoadFailed ? (
+                                        <img
+                                            src={logoPreview}
+                                            alt="Vista previa del logo"
+                                            className="max-h-full max-w-full object-contain p-2"
+                                            onError={() =>
+                                                setLogoLoadFailed(true)
+                                            }
+                                        />
+                                    ) : (
+                                        <span className="px-3 text-center text-xs font-medium text-slate-400">
+                                            {logoLoadFailed
+                                                ? "No se pudo cargar el logo guardado"
+                                                : "Sin logo"}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleLogoChange}
+                                        className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-slate-300 dark:file:bg-indigo-900/30 dark:file:text-indigo-300"
+                                    />
+                                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                        Requisitos: imagen de{" "}
+                                        {LOGO_IMAGE_SIZE}×{LOGO_IMAGE_SIZE} px y
+                                        máximo{" "}
+                                        {Math.round(LOGO_MAX_FILE_BYTES / 1024)}{" "}
+                                        KB. Guarde los cambios después de elegir
+                                        el archivo.
+                                    </p>
+                                    {logoValidationError && (
+                                        <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+                                            {logoValidationError}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -5,6 +5,7 @@ import { getFullImageUrl, isLikelyImagePath } from "./getFullImageUrl";
 export function resolveLogoSrc(raw?: string | null): string | null {
     if (!raw?.trim()) return null;
     const value = raw.trim();
+    if (value === "NULL" || value === "null") return null;
     if (value.startsWith("data:")) return value;
     if (isLikelyImagePath(value)) return getFullImageUrl(value);
     return `data:image/png;base64,${value}`;

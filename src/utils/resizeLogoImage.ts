@@ -3,6 +3,13 @@ import { getFullImageUrl, isLikelyImagePath } from "./getFullImageUrl";
 /** Tamaño cuadrado estándar para logos en login de empresa y empleados. */
 export const LOGO_IMAGE_SIZE = 300;
 
+/** Peso máximo del archivo de logo (60 KB). */
+export const LOGO_MAX_FILE_BYTES = 60 * 1024;
+
+export type LogoImageValidationResult =
+    | { ok: true; dataUrl: string; base64: string }
+    | { ok: false; message: string };
+
 export type ResizedLogoImage = {
     dataUrl: string;
     base64: string;
@@ -77,6 +84,46 @@ export async function resizeLogoImageFile(
 ): Promise<ResizedLogoImage> {
     const img = await loadImageFromFile(file);
     return drawLogoContain(img, size);
+}
+
+/** Valida logo (300×300 px, máx. 60 KB) sin redimensionar. */
+export async function validateAndPrepareLogoImageFile(
+    file: File,
+): Promise<LogoImageValidationResult> {
+    if (!file.type.startsWith("image/")) {
+        return {
+            ok: false,
+            message: "El archivo debe ser una imagen (PNG, JPG, etc.).",
+        };
+    }
+
+    if (file.size > LOGO_MAX_FILE_BYTES) {
+        const sizeKb = (file.size / 1024).toFixed(1);
+        return {
+            ok: false,
+            message: `La imagen pesa ${sizeKb} KB. El máximo permitido es 60 KB.`,
+        };
+    }
+
+    let img: HTMLImageElement;
+    try {
+        img = await loadImageFromFile(file);
+    } catch {
+        return {
+            ok: false,
+            message: "No se pudo leer la imagen seleccionada.",
+        };
+    }
+
+    if (img.width !== LOGO_IMAGE_SIZE || img.height !== LOGO_IMAGE_SIZE) {
+        return {
+            ok: false,
+            message: `La imagen debe ser exactamente ${LOGO_IMAGE_SIZE}×${LOGO_IMAGE_SIZE} px. La seleccionada mide ${img.width}×${img.height} px.`,
+        };
+    }
+
+    const prepared = drawLogoContain(img, LOGO_IMAGE_SIZE);
+    return { ok: true, ...prepared };
 }
 
 /** Normaliza logo remoto/base64 para caché de login; rutas URL no se modifican. */
