@@ -134,6 +134,8 @@ export interface UpdatedTable {
     currentOperationId?: number | null;
     occupiedById?: number | null;
     userName?: string | null;
+    /** Observación de la operación activa (Operation.notes). */
+    operationNotes?: string | null;
 }
 
 // Tipo del contexto de autenticación
@@ -471,6 +473,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         console.log("🪑 Actualizando mesa en contexto:", updatedTable);
 
+        const applyTablePatch = (table: Table): Table => {
+            if (table.id !== updatedTable.id) return table;
+
+            const next: Table = {
+                ...table,
+                status: updatedTable.status as Table["status"],
+                statusColors:
+                    updatedTable.statusColors !== undefined
+                        ? updatedTable.statusColors
+                        : table.statusColors,
+                currentOperationId:
+                    updatedTable.currentOperationId !== undefined
+                        ? (updatedTable.currentOperationId ?? undefined)
+                        : table.currentOperationId,
+                occupiedById:
+                    updatedTable.occupiedById !== undefined
+                        ? (updatedTable.occupiedById ?? undefined)
+                        : table.occupiedById,
+                userName:
+                    updatedTable.userName !== undefined
+                        ? (updatedTable.userName ?? undefined)
+                        : table.userName,
+            };
+
+            if (updatedTable.operationNotes !== undefined) {
+                next.currentOperation = {
+                    ...(table.currentOperation ?? {}),
+                    id:
+                        table.currentOperation?.id ??
+                        (table.currentOperationId != null
+                            ? String(table.currentOperationId)
+                            : undefined),
+                    notes: updatedTable.operationNotes ?? undefined,
+                };
+            }
+
+            return next;
+        };
+
         const newCompanyData: CompanyData = {
             ...companyData,
             branch: {
@@ -478,60 +519,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 // Actualizar en floors
                 floors: companyData.branch.floors?.map((floor) => ({
                     ...floor,
-                    tables: floor.tables?.map((table) =>
-                        table.id === updatedTable.id
-                            ? {
-                                  ...table,
-                                  status: updatedTable.status as Table["status"],
-                                  statusColors:
-                                      updatedTable.statusColors !== undefined
-                                          ? updatedTable.statusColors
-                                          : table.statusColors,
-                                  currentOperationId:
-                                      updatedTable.currentOperationId !==
-                                      undefined
-                                          ? (updatedTable.currentOperationId ??
-                                            undefined)
-                                          : table.currentOperationId,
-                                  occupiedById:
-                                      updatedTable.occupiedById !== undefined
-                                          ? (updatedTable.occupiedById ??
-                                            undefined)
-                                          : table.occupiedById,
-                                  userName:
-                                      updatedTable.userName !== undefined
-                                          ? (updatedTable.userName ?? undefined)
-                                          : table.userName,
-                              }
-                            : table,
-                    ),
+                    tables: floor.tables?.map(applyTablePatch),
                 })),
                 // Actualizar en tables (lista plana)
-                tables: companyData.branch.tables?.map((table) =>
-                    table.id === updatedTable.id
-                        ? {
-                              ...table,
-                              status: updatedTable.status as Table["status"],
-                              statusColors:
-                                  updatedTable.statusColors !== undefined
-                                      ? updatedTable.statusColors
-                                      : table.statusColors,
-                              currentOperationId:
-                                  updatedTable.currentOperationId !== undefined
-                                      ? (updatedTable.currentOperationId ??
-                                        undefined)
-                                      : table.currentOperationId,
-                              occupiedById:
-                                  updatedTable.occupiedById !== undefined
-                                      ? (updatedTable.occupiedById ?? undefined)
-                                      : table.occupiedById,
-                              userName:
-                                  updatedTable.userName !== undefined
-                                      ? (updatedTable.userName ?? undefined)
-                                      : table.userName,
-                          }
-                        : table,
-                ),
+                tables: companyData.branch.tables?.map(applyTablePatch),
             },
         };
 

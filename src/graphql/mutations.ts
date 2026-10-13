@@ -698,6 +698,34 @@ export const CHANGE_OPERATION_TABLE = gql`
     }
 `;
 
+// Mutación para actualizar la observación general de una operación (mesa)
+export const UPDATE_OPERATION_NOTES = gql`
+    mutation UpdateOperationNotes(
+        $operationId: ID!
+        $branchId: ID!
+        $notes: String!
+    ) {
+        updateOperationNotes(
+            operationId: $operationId
+            branchId: $branchId
+            notes: $notes
+        ) {
+            success
+            message
+            operation {
+                id
+                notes
+            }
+            table {
+                id
+                name
+                status
+                currentOperationId
+            }
+        }
+    }
+`;
+
 // Mutación para cambiar el mozo de una operación
 export const CHANGE_OPERATION_USER = gql`
     mutation ChangeOperationUser(

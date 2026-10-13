@@ -29,6 +29,7 @@ import { getFullImageUrl } from "../../utils/getFullImageUrl";
 import {
     CREATE_OPERATION,
     ADD_ITEMS_TO_OPERATION,
+    UPDATE_OPERATION_NOTES,
     UPDATE_TABLE_STATUS,
     PRINT_PRECUENTA,
     RELEASE_TABLE_SESSION_LOCK,
@@ -452,6 +453,8 @@ const Order: React.FC<OrderProps> = ({
     // Observación general de la orden (opcional) — ej. nombre del cliente en la mesa.
     // Se ve en la tarjeta de la mesa (floor.tsx) una vez creada la orden.
     const [orderObservation, setOrderObservation] = useState<string>("");
+    const savedOrderObservationRef = useRef<string>("");
+    const [isSavingObservation, setIsSavingObservation] = useState(false);
     const [initializedFromExistingOrder, setInitializedFromExistingOrder] =
         useState(false);
     const [productObservations, setProductObservations] = useState<
@@ -499,6 +502,7 @@ const Order: React.FC<OrderProps> = ({
     // Mutación para crear la operación
     const [createOperationMutation] = useMutation(CREATE_OPERATION);
     const [addItemsToOperationMutation] = useMutation(ADD_ITEMS_TO_OPERATION);
+    const [updateOperationNotesMutation] = useMutation(UPDATE_OPERATION_NOTES);
     const [updateTableStatusMutation] = useMutation(UPDATE_TABLE_STATUS);
     const [printPrecuentaMutation] = useMutation(PRINT_PRECUENTA);
     const [releaseTableSessionLockMutation] = useMutation(
@@ -830,9 +834,15 @@ const Order: React.FC<OrderProps> = ({
             setProductObservations({});
             setSelectedObservations({});
             setHideObservationsSection({});
+            const initialNotes =
+                typeof table.currentOperation?.notes === "string"
+                    ? table.currentOperation.notes
+                    : "";
+            setOrderObservation(initialNotes);
+            savedOrderObservationRef.current = initialNotes;
             lastTableIdRef.current = table.id;
         }
-    }, [table?.id]);
+    }, [table?.id, table?.currentOperation?.notes]);
 
     // Efecto adicional para resetear cuando se abre la orden de nuevo (cuando cambia currentOperationId)
     useEffect(() => {
@@ -1105,6 +1115,10 @@ const Order: React.FC<OrderProps> = ({
         const finalItems = [...mappedItems, ...newItems];
 
         commitOrderItems(finalItems);
+        const loadedNotes =
+            typeof operation.notes === "string" ? operation.notes : "";
+        setOrderObservation(loadedNotes);
+        savedOrderObservationRef.current = loadedNotes;
         setInitializedFromExistingOrder(true);
         // Ocultar las observaciones por defecto cuando se carga una orden existente
         const hideObservations: Record<string, boolean> = {};
@@ -1157,6 +1171,82 @@ const Order: React.FC<OrderProps> = ({
         (isExistingOrder
             ? waiterDisplayName
             : user?.fullName || table.userName || null) ?? null;
+
+    const persistOrderObservation = useCallback(
+        async (options?: { silent?: boolean }) => {
+            if (!isExistingOrder) return true;
+
+            const operationId =
+                existingOperation?.id || table?.currentOperationId;
+            const branchId = companyData?.branch?.id;
+            if (!operationId || !branchId || !table?.id) return false;
+
+            const trimmed = orderObservation.trim();
+            if (trimmed === savedOrderObservationRef.current) return true;
+
+            setIsSavingObservation(true);
+            try {
+                const result = await updateOperationNotesMutation({
+                    variables: {
+                        operationId: String(operationId),
+                        branchId: String(branchId),
+                        notes: trimmed,
+                    },
+                });
+
+                if (result.data?.updateOperationNotes?.success) {
+                    savedOrderObservationRef.current = trimmed;
+                    updateTableInContext({
+                        id: table.id,
+                        status: table.status,
+                        operationNotes: trimmed || null,
+                    });
+                    if (!options?.silent) {
+                        showToast("Observación guardada", "success");
+                    }
+                    return true;
+                }
+
+                showToast(
+                    result.data?.updateOperationNotes?.message ||
+                        "Error al guardar la observación",
+                    "error",
+                );
+                return false;
+            } catch (error: any) {
+                console.error("Error al guardar observación:", error);
+                showToast(
+                    error.message || "Error al guardar la observación",
+                    "error",
+                );
+                return false;
+            } finally {
+                setIsSavingObservation(false);
+            }
+        },
+        [
+            isExistingOrder,
+            existingOperation?.id,
+            table?.currentOperationId,
+            table?.id,
+            table?.status,
+            companyData?.branch?.id,
+            orderObservation,
+            updateOperationNotesMutation,
+            updateTableInContext,
+            showToast,
+        ],
+    );
+
+    const handleObservationBlur = () => {
+        if (isExistingOrder) {
+            void persistOrderObservation({ silent: true });
+        }
+    };
+
+    const observationDirty =
+        isExistingOrder &&
+        orderObservation.trim() !== savedOrderObservationRef.current;
 
     // Función para agregar producto a la orden
     const handleAddProduct = (productIdToAdd?: string, qtyToAdd?: number) => {
@@ -1690,6 +1780,8 @@ const Order: React.FC<OrderProps> = ({
                     ),
                 });
 
+                await persistOrderObservation({ silent: true });
+
                 const result = await addItemsToOperationMutation({
                     variables: addItemsVariables,
                 });
@@ -1993,12 +2085,15 @@ const Order: React.FC<OrderProps> = ({
                         const occupiedById = updatedTable.occupiedById;
                         const userName = updatedTable.userName;
 
+                        const createdNotes = orderObservation.trim();
+                        savedOrderObservationRef.current = createdNotes;
                         updateTableInContext({
                             id: updatedTable.id,
                             status: updatedTable.status,
                             currentOperationId: currentOperationId,
                             occupiedById: occupiedById,
                             userName: userName,
+                            operationNotes: createdNotes || null,
                         });
 
                         // Enviar notificación WebSocket para actualizar en tiempo real
@@ -3845,24 +3940,31 @@ const Order: React.FC<OrderProps> = ({
                                 )}
                             </div>
 
-                            {!isExistingOrder && (
-                                <div className="flex flex-col gap-1">
-                                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                                        Observación (opcional)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={orderObservation}
-                                        onChange={(e) =>
-                                            setOrderObservation(
-                                                e.target.value,
-                                            )
-                                        }
-                                        placeholder="Ej: nombre del cliente, referencia..."
-                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-indigo-500"
-                                    />
-                                </div>
-                            )}
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                    Observación (opcional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={orderObservation}
+                                    onChange={(e) =>
+                                        setOrderObservation(e.target.value)
+                                    }
+                                    onBlur={handleObservationBlur}
+                                    disabled={isSavingObservation}
+                                    placeholder="Ej: nombre del cliente, referencia..."
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-400 disabled:cursor-wait disabled:opacity-70 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-indigo-500"
+                                />
+                                {isExistingOrder && (
+                                    <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                                        {isSavingObservation
+                                            ? "Guardando observación..."
+                                            : observationDirty
+                                              ? "Cambios pendientes — se guardan al salir del campo"
+                                              : "Editable en cualquier momento"}
+                                    </span>
+                                )}
+                            </div>
 
                             <div
                                 className="border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
