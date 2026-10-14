@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@apollo/client";
+import { useAuth } from "../../hooks/useAuth";
+import { GET_CLOSURE_STAFF_POSITIONS_BY_BRANCH } from "../../graphql/queries";
 
 interface StaffRow {
     num: number;
+    cargoPositionId: string;
     cargo: string;
     nombre: string;
     hora: string;
@@ -12,6 +16,7 @@ interface StaffRow {
 
 export interface CashClosureStaffRowInput {
     rowNumber: number;
+    staffPositionId?: string;
     position: string;
     staffName: string;
     shiftTime: string;
@@ -45,6 +50,7 @@ export interface CashClosureSheetModalProps {
 
 const createEmptyStaffRow = (num: number): StaffRow => ({
     num,
+    cargoPositionId: "",
     cargo: "",
     nombre: "",
     hora: "",
@@ -52,6 +58,13 @@ const createEmptyStaffRow = (num: number): StaffRow => ({
     gastoCompra: "",
     total: "",
 });
+
+/** Solo dígitos; formatea como HH:MM (máx. 4 números). */
+const sanitizeShiftTimeInput = (raw: string): string => {
+    const digits = raw.replace(/\D/g, "").slice(0, 4);
+    if (digits.length <= 2) return digits;
+    return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+};
 
 const createEmptyStaffRows = (): StaffRow[] => [createEmptyStaffRow(1)];
 
@@ -97,6 +110,9 @@ const buildSheetSubmitInput = (
     observations: observaciones.trim(),
     staffRows: staffRows.map((row) => ({
         rowNumber: row.num,
+        ...(row.cargoPositionId
+            ? { staffPositionId: row.cargoPositionId }
+            : {}),
         position: row.cargo.trim(),
         staffName: row.nombre.trim(),
         shiftTime: row.hora.trim(),
@@ -153,6 +169,23 @@ const CashClosureSheetModal: React.FC<CashClosureSheetModalProps> = ({
     onConfirm,
     onClose,
 }) => {
+    const { companyData } = useAuth();
+    const branchId = companyData?.branch?.id;
+
+    const { data: positionsData } = useQuery(
+        GET_CLOSURE_STAFF_POSITIONS_BY_BRANCH,
+        {
+            variables: { branchId: branchId!, includeInactive: false },
+            skip: !isOpen || !branchId,
+            fetchPolicy: "cache-and-network",
+        },
+    );
+
+    const staffPositions = useMemo(
+        () => positionsData?.closureStaffPositionsByBranch ?? [],
+        [positionsData],
+    );
+
     const wasOpenRef = useRef(false);
     const [fecha, setFecha] = useState(formatDateLabel());
     const [caja, setCaja] = useState("");
@@ -199,8 +232,29 @@ const CashClosureSheetModal: React.FC<CashClosureSheetModalProps> = ({
         value: string,
     ) => {
         setStaffRows((prev) =>
+            prev.map((row, i) => {
+                if (i !== index) return row;
+                if (field === "hora") {
+                    return { ...row, hora: sanitizeShiftTimeInput(value) };
+                }
+                return { ...row, [field]: value };
+            }),
+        );
+    };
+
+    const updateStaffRowCargo = (index: number, positionId: string) => {
+        const selected = staffPositions.find(
+            (p: { id: string; name: string }) => p.id === positionId,
+        );
+        setStaffRows((prev) =>
             prev.map((row, i) =>
-                i === index ? { ...row, [field]: value } : row,
+                i === index
+                    ? {
+                          ...row,
+                          cargoPositionId: positionId,
+                          cargo: selected?.name ?? "",
+                      }
+                    : row,
             ),
         );
     };
@@ -329,20 +383,47 @@ const CashClosureSheetModal: React.FC<CashClosureSheetModalProps> = ({
                                                         {row.num}
                                                     </td>
                                                     <td className="border border-slate-200 p-1 dark:border-slate-700">
-                                                        <input
-                                                            type="text"
-                                                            value={row.cargo}
+                                                        <select
+                                                            value={
+                                                                row.cargoPositionId
+                                                            }
                                                             onChange={(e) =>
-                                                                updateStaffRow(
+                                                                updateStaffRowCargo(
                                                                     index,
-                                                                    "cargo",
-                                                                    e.target.value,
+                                                                    e.target
+                                                                        .value,
                                                                 )
                                                             }
                                                             className={
                                                                 inputClass
                                                             }
-                                                        />
+                                                        >
+                                                            <option value="">
+                                                                {staffPositions.length >
+                                                                0
+                                                                    ? "Seleccionar cargo…"
+                                                                    : "Sin cargos (configúrelos)"}
+                                                            </option>
+                                                            {staffPositions.map(
+                                                                (p: {
+                                                                    id: string;
+                                                                    name: string;
+                                                                }) => (
+                                                                    <option
+                                                                        key={
+                                                                            p.id
+                                                                        }
+                                                                        value={
+                                                                            p.id
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            p.name
+                                                                        }
+                                                                    </option>
+                                                                ),
+                                                            )}
+                                                        </select>
                                                     </td>
                                                     <td className="border border-slate-200 p-1 dark:border-slate-700">
                                                         <input
@@ -363,6 +444,8 @@ const CashClosureSheetModal: React.FC<CashClosureSheetModalProps> = ({
                                                     <td className="border border-slate-200 p-1 dark:border-slate-700">
                                                         <input
                                                             type="text"
+                                                            inputMode="numeric"
+                                                            autoComplete="off"
                                                             value={row.hora}
                                                             onChange={(e) =>
                                                                 updateStaffRow(
@@ -374,7 +457,8 @@ const CashClosureSheetModal: React.FC<CashClosureSheetModalProps> = ({
                                                             className={
                                                                 inputClass
                                                             }
-                                                            placeholder="HH:MM"
+                                                            placeholder="HHMM"
+                                                            maxLength={5}
                                                         />
                                                     </td>
                                                     <td className="border border-slate-200 p-1 dark:border-slate-700">

@@ -1074,6 +1074,66 @@ export const SET_USER_PERMISSIONS = gql`
     }
 `;
 
+// Cargos de la hoja de cierre de caja
+export const CREATE_CLOSURE_STAFF_POSITION = gql`
+    mutation CreateClosureStaffPosition(
+        $branchId: ID!
+        $name: String!
+        $sortOrder: Int
+        $isActive: Boolean
+    ) {
+        createClosureStaffPosition(
+            branchId: $branchId
+            name: $name
+            sortOrder: $sortOrder
+            isActive: $isActive
+        ) {
+            success
+            message
+            position {
+                id
+                name
+                sortOrder
+                isActive
+            }
+        }
+    }
+`;
+
+export const UPDATE_CLOSURE_STAFF_POSITION = gql`
+    mutation UpdateClosureStaffPosition(
+        $positionId: ID!
+        $name: String
+        $sortOrder: Int
+        $isActive: Boolean
+    ) {
+        updateClosureStaffPosition(
+            positionId: $positionId
+            name: $name
+            sortOrder: $sortOrder
+            isActive: $isActive
+        ) {
+            success
+            message
+            position {
+                id
+                name
+                sortOrder
+                isActive
+            }
+        }
+    }
+`;
+
+export const DELETE_CLOSURE_STAFF_POSITION = gql`
+    mutation DeleteClosureStaffPosition($positionId: ID!) {
+        deleteClosureStaffPosition(positionId: $positionId) {
+            success
+            message
+        }
+    }
+`;
+
 // Mutación para cerrar caja
 export const CLOSE_CASH = gql`
     mutation CloseCash(

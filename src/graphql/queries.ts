@@ -1062,6 +1062,24 @@ export const GET_CASH_CLOSURES = gql`
     }
 `;
 
+// Cargos operativos para la hoja de cierre de caja (por sucursal)
+export const GET_CLOSURE_STAFF_POSITIONS_BY_BRANCH = gql`
+    query GetClosureStaffPositionsByBranch(
+        $branchId: ID!
+        $includeInactive: Boolean
+    ) {
+        closureStaffPositionsByBranch(
+            branchId: $branchId
+            includeInactive: $includeInactive
+        ) {
+            id
+            name
+            sortOrder
+            isActive
+        }
+    }
+`;
+
 // Hoja de liquidación manual de un cierre
 export const GET_CASH_CLOSURE_SHEET = gql`
     query GetCashClosureSheet($closureId: ID!) {

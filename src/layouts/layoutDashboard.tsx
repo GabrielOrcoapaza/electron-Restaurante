@@ -49,6 +49,7 @@ import LocalPrinters from "../modules/configuration/localPrinters";
 import DevicePrintConfigs from "../modules/configuration/devicePrintConfigs";
 import FloorModule from "../modules/configuration/floor";
 import TableModule from "../modules/configuration/table";
+import PositionModule from "../modules/configuration/position";
 import Delivery from "../modules/sales/delivery";
 import BranchSettings from "../modules/branch/BranchSettings";
 import { GET_MY_UNREAD_MESSAGES } from "../graphql/queries";
@@ -280,6 +281,7 @@ const LayoutDashboardContent: React.FC = () => {
         | "local_printers"
         | "devices"
         | "floors_tables"
+        | "closure_positions"
     >("category");
     const [floorsTablesSubTab, setFloorsTablesSubTab] = useState<
         "floors" | "tables"
@@ -867,6 +869,9 @@ const LayoutDashboardContent: React.FC = () => {
     const canSeeDelivery = isAdmin || hasPermission("point_of_sale");
     const canSeeConfiguration = isAdmin || hasPermission("config.manage");
     const canSeeBranch = isAdmin || hasPermission("config.manage");
+    const allowCashClosureSheet = Boolean(
+        companyData?.branch?.allowCashClosureSheet,
+    );
     const canSeeMessages = isAdmin || hasPermission("messages.view");
     const canSeeEmployees = isAdmin || hasPermission("users.manage");
     const canSeePermissions = isAdmin || hasPermission("users.manage");
@@ -1968,6 +1973,24 @@ const LayoutDashboardContent: React.FC = () => {
                                     <span>📱</span>
                                     Dispositivos
                                 </button>
+                                {allowCashClosureSheet && (
+                                    <button
+                                        onClick={() =>
+                                            setConfigurationTab(
+                                                "closure_positions",
+                                            )
+                                        }
+                                        className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                            configurationTab ===
+                                            "closure_positions"
+                                                ? "bg-rose-600 text-white dark:bg-rose-500"
+                                                : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                        }`}
+                                    >
+                                        <span>👤</span>
+                                        Cargos (cierre)
+                                    </button>
+                                )}
                             </div>
 
                             {configurationTab === "floors_tables" && (
@@ -2024,6 +2047,8 @@ const LayoutDashboardContent: React.FC = () => {
                             {configurationTab === "devices" && (
                                 <DevicePrintConfigs />
                             )}
+                            {configurationTab === "closure_positions" &&
+                                allowCashClosureSheet && <PositionModule />}
                         </div>
                     )}
                     {currentView === "delivery" && (
