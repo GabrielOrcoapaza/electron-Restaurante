@@ -4,6 +4,8 @@ import {
     GET_PRODUCTS_WITH_STOCK,
     GET_CATEGORIES_BY_BRANCH,
     GET_PRODUCTS,
+    GET_WAREHOUSES_BY_BRANCH,
+    GET_STOCKS_BY_WAREHOUSE,
 } from "../../graphql/queries";
 import { useAuth } from "../../hooks/useAuth";
 import { normalizeProductUnitMeasure } from "../../constants/productUnitMeasures";
@@ -70,10 +72,12 @@ const Inventories: React.FC = () => {
     const { companyData, user } = useAuth();
     const branchId = companyData?.branch?.id;
     const isAdmin = (user?.role || "").toUpperCase() === "ADMIN";
+    const usesWarehouses = !!companyData?.company?.usesWarehouses;
     const [selectedCategory, setSelectedCategory] = useState<string>("");
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [currentPage, setCurrentPage] = useState<number>(1);
     const [showImportModal, setShowImportModal] = useState(false);
+    const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>("");
 
     useEffect(() => {
         setCurrentPage(1);
@@ -94,6 +98,40 @@ const Inventories: React.FC = () => {
         skip: !branchId,
         fetchPolicy: "network-only",
     });
+
+    const { data: warehousesData } = useQuery(GET_WAREHOUSES_BY_BRANCH, {
+        variables: { branchId: branchId!, includeInactive: false },
+        skip: !branchId || !usesWarehouses,
+        fetchPolicy: "network-only",
+    });
+    const warehouses: { id: string; name: string }[] =
+        warehousesData?.warehousesByBranch || [];
+    const showWarehouseFilter = usesWarehouses && warehouses.length > 1;
+
+    const { data: warehouseStocksData, loading: warehouseStocksLoading } =
+        useQuery(GET_STOCKS_BY_WAREHOUSE, {
+            variables: { warehouseId: selectedWarehouseId! },
+            skip: !selectedWarehouseId,
+            fetchPolicy: "network-only",
+        });
+    const warehouseStockMap: Record<
+        string,
+        { currentQuantity: number; isLowStock: boolean }
+    > = {};
+    if (selectedWarehouseId) {
+        (warehouseStocksData?.stocksByWarehouse || []).forEach(
+            (s: {
+                product: { id: string };
+                currentQuantity: number;
+                isLowStock: boolean;
+            }) => {
+                warehouseStockMap[s.product.id] = {
+                    currentQuantity: Number(s.currentQuantity),
+                    isLowStock: s.isLowStock,
+                };
+            },
+        );
+    }
 
     const { data: productsByCategoryData, loading: productsByCategoryLoading } =
         useQuery(GET_PRODUCTS, {
@@ -165,8 +203,18 @@ const Inventories: React.FC = () => {
         startIndex + PAGE_SIZE,
     );
 
-    const getStockStatus = (product: Product) => {
-        const currentStock = getSafeNumber(product.currentStock, 0);
+    // Si hay un almacén específico seleccionado, usa su stock real en vez del
+    // agregado de Product.currentStock (que solo refleja el almacén principal).
+    const getDisplayStock = (product: Product): number => {
+        if (selectedWarehouseId) {
+            return warehouseStockMap[product.id]?.currentQuantity ?? 0;
+        }
+        return getSafeNumber(product.currentStock, 0);
+    };
+
+    const getStockStatus = (product: Product, currentStockOverride?: number) => {
+        const currentStock =
+            currentStockOverride ?? getSafeNumber(product.currentStock, 0);
         const stockMin = getSafeNumber(product.stockMin, 0);
         const stockMax = getSafeNumber(product.stockMax, 0);
 
@@ -316,7 +364,11 @@ const Inventories: React.FC = () => {
 
             {/* Filters Section */}
             <div className="rounded-[28px] border border-slate-100 bg-white p-2 shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 lg:gap-0">
+                <div
+                    className={`grid grid-cols-1 gap-2 sm:grid-cols-2 lg:gap-0 ${
+                        showWarehouseFilter ? "lg:grid-cols-4" : "lg:grid-cols-3"
+                    }`}
+                >
                     <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                             Buscar Producto
@@ -377,6 +429,28 @@ const Inventories: React.FC = () => {
                         </select>
                     </div>
 
+                    {showWarehouseFilter && (
+                        <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Almacén
+                            </label>
+                            <select
+                                value={selectedWarehouseId}
+                                onChange={(e) =>
+                                    setSelectedWarehouseId(e.target.value)
+                                }
+                                className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-bold text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                            >
+                                <option value="">Todos (agregado)</option>
+                                {warehouses.map((w) => (
+                                    <option key={w.id} value={w.id}>
+                                        {w.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
                     <div className="hidden lg:flex flex-col justify-center px-6 py-3 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-r-[22px]">
                         <label className="text-[10px] font-black uppercase tracking-widest text-indigo-400">
                             Resumen General
@@ -407,7 +481,8 @@ const Inventories: React.FC = () => {
 
                 <div className="flex-1 overflow-hidden">
                     {productsLoading ||
-                    (selectedCategory && productsByCategoryLoading) ? (
+                    (selectedCategory && productsByCategoryLoading) ||
+                    (selectedWarehouseId && warehouseStocksLoading) ? (
                         <div className="flex min-h-[300px] flex-col gap-4 p-6">
                             {Array(5)
                                 .fill(0)
@@ -461,7 +536,11 @@ const Inventories: React.FC = () => {
                                 </thead>
                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
                                     {paginatedProducts.map((p) => {
-                                        const status = getStockStatus(p);
+                                        const displayStock = getDisplayStock(p);
+                                        const status = getStockStatus(
+                                            p,
+                                            displayStock,
+                                        );
                                         const productImageSrc = getFullImageUrl(
                                             p.image,
                                         );
@@ -526,7 +605,7 @@ const Inventories: React.FC = () => {
                                                         className={`text-base font-black ${status.color}`}
                                                     >
                                                         {formatNumber(
-                                                            p.currentStock,
+                                                            displayStock,
                                                         )}
                                                     </span>
                                                 </td>

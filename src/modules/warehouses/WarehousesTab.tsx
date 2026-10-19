@@ -16,7 +16,8 @@ interface Warehouse {
     id: string;
     name: string;
     isActive: boolean;
-    isDefault: boolean;
+    isDefaultPurchase: boolean;
+    isDefaultSale: boolean;
     createdAt: string;
 }
 
@@ -188,17 +189,17 @@ const WarehousesTab: React.FC<{ branchId: string }> = ({ branchId }) => {
         }
     };
 
-    const handleSetDefault = async (w: Warehouse) => {
+    const handleSetDefault = async (w: Warehouse, role: "PURCHASE" | "SALE") => {
         try {
             const { data } = await setDefaultWarehouse({
-                variables: { warehouseId: w.id },
+                variables: { warehouseId: w.id, role },
             });
             if (data?.setDefaultWarehouse?.success) {
                 await refetchWarehouses();
             } else {
                 alert(
                     data?.setDefaultWarehouse?.message ||
-                        "No se pudo marcar como principal",
+                        "No se pudo actualizar el rol del almacén",
                 );
             }
         } catch (err: unknown) {
@@ -265,9 +266,14 @@ const WarehousesTab: React.FC<{ branchId: string }> = ({ branchId }) => {
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    {w.isDefault && (
+                                    {w.isDefaultPurchase && (
                                         <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
-                                            Por defecto
+                                            Entrada
+                                        </span>
+                                    )}
+                                    {w.isDefaultSale && (
+                                        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-600 dark:bg-violet-900/40 dark:text-violet-300">
+                                            Salida
                                         </span>
                                     )}
                                     <span
@@ -297,28 +303,50 @@ const WarehousesTab: React.FC<{ branchId: string }> = ({ branchId }) => {
                         </h2>
                         {selectedWarehouse && (
                             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                {selectedWarehouse.isDefault
-                                    ? "Almacén por defecto: lo usan ventas, compras y ajustes"
-                                    : "Almacén secundario: solo se actualiza por transferencias manuales"}
+                                {selectedWarehouse.isDefaultPurchase &&
+                                selectedWarehouse.isDefaultSale
+                                    ? "Entrada y salida: lo usan compras, ventas y ajustes"
+                                    : selectedWarehouse.isDefaultPurchase
+                                      ? "Almacén de entrada: lo usan las compras"
+                                      : selectedWarehouse.isDefaultSale
+                                        ? "Almacén de salida: lo usan ventas, delivery y ajustes"
+                                        : "Almacén secundario: solo se actualiza por transferencias manuales"}
                             </p>
                         )}
                     </div>
                     <div className="flex items-center gap-2">
                         {selectedWarehouse && (
                             <>
-                                {!selectedWarehouse.isDefault &&
+                                {!selectedWarehouse.isDefaultPurchase &&
                                     selectedWarehouse.isActive && (
                                         <button
                                             onClick={() =>
                                                 handleSetDefault(
                                                     selectedWarehouse,
+                                                    "PURCHASE",
                                                 )
                                             }
                                             disabled={settingDefault}
-                                            title="Las ventas, compras y ajustes empezarán a descontar de este almacén"
+                                            title="Las compras empezarán a entrar por este almacén"
                                             className="flex h-9 items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 text-xs font-black uppercase tracking-wider text-indigo-600 transition-all hover:bg-indigo-100 disabled:opacity-40 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300"
                                         >
-                                            Marcar como principal
+                                            Marcar como entrada
+                                        </button>
+                                    )}
+                                {!selectedWarehouse.isDefaultSale &&
+                                    selectedWarehouse.isActive && (
+                                        <button
+                                            onClick={() =>
+                                                handleSetDefault(
+                                                    selectedWarehouse,
+                                                    "SALE",
+                                                )
+                                            }
+                                            disabled={settingDefault}
+                                            title="Las ventas, delivery y pedidos de piso empezarán a descontar de este almacén"
+                                            className="flex h-9 items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-black uppercase tracking-wider text-violet-600 transition-all hover:bg-violet-100 disabled:opacity-40 dark:border-violet-800 dark:bg-violet-900/20 dark:text-violet-300"
+                                        >
+                                            Marcar como salida
                                         </button>
                                     )}
                                 <button

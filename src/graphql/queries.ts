@@ -1337,12 +1337,14 @@ export const GET_STOCK_MOVEMENTS_REPORT = gql`
     query GetStockMovementsReport(
         $branchId: ID!
         $productId: ID
+        $warehouseId: ID
         $startDate: DateTime!
         $endDate: DateTime!
     ) {
         stockMovementsReport(
             branchId: $branchId
             productId: $productId
+            warehouseId: $warehouseId
             startDate: $startDate
             endDate: $endDate
         ) {
@@ -2393,6 +2395,18 @@ export const KITCHEN_LOGIN = gql`
     }
 `;
 
+// Lista en vivo de sucursales activas de una empresa (no depende de
+// companyData.availableBranches, que solo se carga una vez en el login de
+// empresa y no se refresca con un simple logout/login de usuario).
+export const GET_BRANCHES_BY_COMPANY = gql`
+    query GetBranchesByCompany($companyId: ID!) {
+        branchesByCompany(companyId: $companyId) {
+            id
+            name
+        }
+    }
+`;
+
 // ==============================================
 // ALMACENES (Warehouse) — requiere Company.usesWarehouses
 // ==============================================
@@ -2402,7 +2416,8 @@ export const GET_WAREHOUSES_BY_BRANCH = gql`
             id
             name
             isActive
-            isDefault
+            isDefaultPurchase
+            isDefaultSale
             createdAt
         }
     }

@@ -6,6 +6,7 @@ import {
     GET_STOCKS_BY_BRANCH,
     SEARCH_PRODUCTS,
     GET_PRODUCTS,
+    GET_WAREHOUSES_BY_BRANCH,
 } from "../../graphql/queries";
 import { formatLocalDateYYYYMMDD } from "../../utils/localDateTime";
 import { useLazyQuery } from "@apollo/client";
@@ -62,6 +63,7 @@ const dateFormatter = new Intl.DateTimeFormat("es-PE", {
 const Kardex: React.FC = () => {
     const { companyData } = useAuth();
     const branchId = companyData?.branch?.id;
+    const usesWarehouses = !!companyData?.company?.usesWarehouses;
 
     const [startDate, setStartDate] = useState<string>(() => {
         const date = new Date();
@@ -74,6 +76,16 @@ const Kardex: React.FC = () => {
     const [selectedProductId, setSelectedProductId] = useState<string>("");
     const [productSearchTerm, setProductSearchTerm] = useState<string>("");
     const [searchFocused, setSearchFocused] = useState(false);
+    const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>("");
+
+    const { data: warehousesData } = useQuery(GET_WAREHOUSES_BY_BRANCH, {
+        variables: { branchId: branchId!, includeInactive: false },
+        skip: !branchId || !usesWarehouses,
+        fetchPolicy: "network-only",
+    });
+    const warehouses: { id: string; name: string }[] =
+        warehousesData?.warehousesByBranch || [];
+    const showWarehouseFilter = usesWarehouses && warehouses.length > 1;
 
     const { data: searchData, loading: searchLoading } = useQuery(
         SEARCH_PRODUCTS,
@@ -155,6 +167,7 @@ const Kardex: React.FC = () => {
             variables: {
                 branchId: branchId,
                 productId: selectedProductId || null,
+                warehouseId: selectedWarehouseId || null,
                 startDate: `${startDate}T00:00:00`,
                 endDate: `${endDate}T23:59:59`,
             },
@@ -322,7 +335,11 @@ const Kardex: React.FC = () => {
 
             {/* Filters Section */}
             <div className="rounded-[28px] border border-slate-100 bg-white p-2 shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0">
+                <div
+                    className={`grid grid-cols-1 gap-2 sm:grid-cols-2 lg:gap-0 ${
+                        showWarehouseFilter ? "lg:grid-cols-5" : "lg:grid-cols-4"
+                    }`}
+                >
                     <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                             Desde
@@ -432,6 +449,28 @@ const Kardex: React.FC = () => {
                             </div>
                         )}
                     </div>
+
+                    {showWarehouseFilter && (
+                        <div className="flex flex-col justify-center px-6 py-3 lg:border-r lg:border-slate-100 dark:lg:border-slate-800">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Almacén
+                            </label>
+                            <select
+                                value={selectedWarehouseId}
+                                onChange={(e) =>
+                                    setSelectedWarehouseId(e.target.value)
+                                }
+                                className="w-full cursor-pointer bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                            >
+                                <option value="">Todos</option>
+                                {warehouses.map((w) => (
+                                    <option key={w.id} value={w.id}>
+                                        {w.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     <div className="flex items-center p-2">
                         <button

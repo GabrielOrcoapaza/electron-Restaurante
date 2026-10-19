@@ -2858,7 +2858,8 @@ export const CREATE_WAREHOUSE = gql`
                 id
                 name
                 isActive
-                isDefault
+                isDefaultPurchase
+                isDefaultSale
                 createdAt
             }
         }
@@ -2874,25 +2875,28 @@ export const UPDATE_WAREHOUSE = gql`
                 id
                 name
                 isActive
-                isDefault
+                isDefaultPurchase
+                isDefaultSale
                 createdAt
             }
         }
     }
 `;
 
-// Marca un almacén como "principal" de su sucursal (desmarca el anterior). Las
-// ventas/compras/ajustes siempre descuentan del principal; esto NO mueve stock.
+// Marca un almacén como "de entrada" (compras) o "de salida" (ventas) de su sucursal
+// (desmarca el que tenía ese rol antes). Un almacén puede tener ambos roles a la vez.
+// Esto NO mueve stock, solo cambia de/hacia cuál se descuenta o acredita en adelante.
 export const SET_DEFAULT_WAREHOUSE = gql`
-    mutation SetDefaultWarehouse($warehouseId: ID!) {
-        setDefaultWarehouse(warehouseId: $warehouseId) {
+    mutation SetDefaultWarehouse($warehouseId: ID!, $role: String!) {
+        setDefaultWarehouse(warehouseId: $warehouseId, role: $role) {
             success
             message
             warehouse {
                 id
                 name
                 isActive
-                isDefault
+                isDefaultPurchase
+                isDefaultSale
                 createdAt
             }
         }
