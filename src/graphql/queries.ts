@@ -2392,3 +2392,149 @@ export const KITCHEN_LOGIN = gql`
         }
     }
 `;
+
+// ==============================================
+// ALMACENES (Warehouse) — requiere Company.usesWarehouses
+// ==============================================
+export const GET_WAREHOUSES_BY_BRANCH = gql`
+    query GetWarehousesByBranch($branchId: ID!, $includeInactive: Boolean) {
+        warehousesByBranch(branchId: $branchId, includeInactive: $includeInactive) {
+            id
+            name
+            isActive
+            isDefault
+            createdAt
+        }
+    }
+`;
+
+export const GET_STOCKS_BY_WAREHOUSE = gql`
+    query GetStocksByWarehouse($warehouseId: ID!) {
+        stocksByWarehouse(warehouseId: $warehouseId) {
+            id
+            currentQuantity
+            averageCost
+            reservedQuantity
+            availableQuantity
+            isLowStock
+            product {
+                id
+                code
+                name
+                unitMeasure
+                productType
+                stockMin
+                stockMax
+            }
+        }
+    }
+`;
+
+// ==============================================
+// INGREDIENTES MAESTROS (MasterIngredient) — requiere Company.usesMasterIngredients
+// ==============================================
+export const GET_MASTER_INGREDIENTS_BY_COMPANY = gql`
+    query GetMasterIngredientsByCompany($includeInactive: Boolean) {
+        masterIngredientsByCompany(includeInactive: $includeInactive) {
+            id
+            name
+            unitMeasure
+            isActive
+        }
+    }
+`;
+
+// Productos de una sucursal candidatos a vincular a un MasterIngredient (INGREDIENT/BEVERAGE).
+// Query acotada y separada de GET_PRODUCTS (muy reusada en otras pantallas) para no tocarla.
+export const GET_PRODUCTS_FOR_MASTER_INGREDIENT_LINK = gql`
+    query GetProductsForMasterIngredientLink($branchId: ID!) {
+        products(branchId: $branchId) {
+            id
+            code
+            name
+            productType
+            unitMeasure
+            isActive
+            masterIngredient {
+                id
+                name
+            }
+        }
+    }
+`;
+
+// ==============================================
+// TRANSFERENCIAS ENTRE SUCURSALES (WarehouseTransfer) — requiere Company.usesMasterIngredients
+// ==============================================
+const WAREHOUSE_TRANSFER_FIELDS = `
+    id
+    status
+    quantitySent
+    quantityReceived
+    unitCost
+    notesSent
+    notesReceived
+    notesCancelled
+    sentAt
+    receivedAt
+    cancelledAt
+    masterIngredient {
+        id
+        name
+        unitMeasure
+    }
+    fromWarehouse {
+        id
+        name
+        branch {
+            id
+            name
+        }
+    }
+    toWarehouse {
+        id
+        name
+        branch {
+            id
+            name
+        }
+    }
+    fromProduct {
+        id
+        code
+        name
+    }
+    toProduct {
+        id
+        code
+        name
+    }
+    sentBy {
+        id
+        fullName
+    }
+    receivedBy {
+        id
+        fullName
+    }
+    cancelledBy {
+        id
+        fullName
+    }
+`;
+
+export const GET_PENDING_WAREHOUSE_TRANSFERS_BY_BRANCH = gql`
+    query GetPendingWarehouseTransfersByBranch($branchId: ID!) {
+        pendingWarehouseTransfersByBranch(branchId: $branchId) {
+            ${WAREHOUSE_TRANSFER_FIELDS}
+        }
+    }
+`;
+
+export const GET_WAREHOUSE_TRANSFERS_BY_BRANCH = gql`
+    query GetWarehouseTransfersByBranch($branchId: ID!) {
+        warehouseTransfersByBranch(branchId: $branchId) {
+            ${WAREHOUSE_TRANSFER_FIELDS}
+        }
+    }
+`;

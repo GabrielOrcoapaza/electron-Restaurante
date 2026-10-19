@@ -16,6 +16,8 @@ export const COMPANY_LOGIN = gql`
                 email
                 logo
                 isActive
+                usesWarehouses
+                usesMasterIngredients
             }
             branch {
                 id
@@ -2839,6 +2841,215 @@ export const BULK_IMPORT_STOCK = gql`
                 newQuantity
                 oldSalePrice
                 newSalePrice
+            }
+        }
+    }
+`;
+
+// ==============================================
+// ALMACENES (Warehouse) — requiere Company.usesWarehouses + permiso warehouses.manage
+// ==============================================
+export const CREATE_WAREHOUSE = gql`
+    mutation CreateWarehouse($branchId: ID!, $name: String!) {
+        createWarehouse(branchId: $branchId, name: $name) {
+            success
+            message
+            warehouse {
+                id
+                name
+                isActive
+                isDefault
+                createdAt
+            }
+        }
+    }
+`;
+
+export const UPDATE_WAREHOUSE = gql`
+    mutation UpdateWarehouse($warehouseId: ID!, $name: String, $isActive: Boolean) {
+        updateWarehouse(warehouseId: $warehouseId, name: $name, isActive: $isActive) {
+            success
+            message
+            warehouse {
+                id
+                name
+                isActive
+                isDefault
+                createdAt
+            }
+        }
+    }
+`;
+
+// Marca un almacén como "principal" de su sucursal (desmarca el anterior). Las
+// ventas/compras/ajustes siempre descuentan del principal; esto NO mueve stock.
+export const SET_DEFAULT_WAREHOUSE = gql`
+    mutation SetDefaultWarehouse($warehouseId: ID!) {
+        setDefaultWarehouse(warehouseId: $warehouseId) {
+            success
+            message
+            warehouse {
+                id
+                name
+                isActive
+                isDefault
+                createdAt
+            }
+        }
+    }
+`;
+
+// Transferencia de stock entre 2 almacenes de la MISMA sucursal.
+export const TRANSFER_WAREHOUSE_STOCK = gql`
+    mutation TransferWarehouseStock(
+        $fromWarehouseId: ID!
+        $toWarehouseId: ID!
+        $productId: ID!
+        $quantity: Float!
+        $reason: String
+    ) {
+        transferWarehouseStock(
+            fromWarehouseId: $fromWarehouseId
+            toWarehouseId: $toWarehouseId
+            productId: $productId
+            quantity: $quantity
+            reason: $reason
+        ) {
+            success
+            message
+            fromStock {
+                id
+                currentQuantity
+            }
+            toStock {
+                id
+                currentQuantity
+            }
+        }
+    }
+`;
+
+// ==============================================
+// INGREDIENTES MAESTROS (MasterIngredient) — requiere Company.usesMasterIngredients
+// ==============================================
+export const CREATE_MASTER_INGREDIENT = gql`
+    mutation CreateMasterIngredient($name: String!, $unitMeasure: String) {
+        createMasterIngredient(name: $name, unitMeasure: $unitMeasure) {
+            success
+            message
+            masterIngredient {
+                id
+                name
+                unitMeasure
+                isActive
+            }
+        }
+    }
+`;
+
+export const UPDATE_MASTER_INGREDIENT = gql`
+    mutation UpdateMasterIngredient(
+        $masterIngredientId: ID!
+        $name: String
+        $unitMeasure: String
+        $isActive: Boolean
+    ) {
+        updateMasterIngredient(
+            masterIngredientId: $masterIngredientId
+            name: $name
+            unitMeasure: $unitMeasure
+            isActive: $isActive
+        ) {
+            success
+            message
+            masterIngredient {
+                id
+                name
+                unitMeasure
+                isActive
+            }
+        }
+    }
+`;
+
+// masterIngredientId=null desvincula el producto actual.
+export const LINK_PRODUCT_TO_MASTER_INGREDIENT = gql`
+    mutation LinkProductToMasterIngredient($productId: ID!, $masterIngredientId: ID) {
+        linkProductToMasterIngredient(
+            productId: $productId
+            masterIngredientId: $masterIngredientId
+        ) {
+            success
+            message
+            product {
+                id
+                code
+                name
+                masterIngredient {
+                    id
+                    name
+                }
+            }
+        }
+    }
+`;
+
+// ==============================================
+// TRANSFERENCIAS ENTRE SUCURSALES (WarehouseTransfer) — requiere Company.usesMasterIngredients
+// ==============================================
+export const SEND_WAREHOUSE_TRANSFER = gql`
+    mutation SendWarehouseTransfer(
+        $fromWarehouseId: ID!
+        $toWarehouseId: ID!
+        $masterIngredientId: ID!
+        $quantity: Float!
+        $notes: String
+    ) {
+        sendWarehouseTransfer(
+            fromWarehouseId: $fromWarehouseId
+            toWarehouseId: $toWarehouseId
+            masterIngredientId: $masterIngredientId
+            quantity: $quantity
+            notes: $notes
+        ) {
+            success
+            message
+            transfer {
+                id
+                status
+                quantitySent
+            }
+        }
+    }
+`;
+
+export const RECEIVE_WAREHOUSE_TRANSFER = gql`
+    mutation ReceiveWarehouseTransfer($transferId: ID!, $quantityReceived: Float!, $notes: String) {
+        receiveWarehouseTransfer(
+            transferId: $transferId
+            quantityReceived: $quantityReceived
+            notes: $notes
+        ) {
+            success
+            message
+            transfer {
+                id
+                status
+                quantitySent
+                quantityReceived
+            }
+        }
+    }
+`;
+
+export const CANCEL_WAREHOUSE_TRANSFER = gql`
+    mutation CancelWarehouseTransfer($transferId: ID!, $reason: String) {
+        cancelWarehouseTransfer(transferId: $transferId, reason: $reason) {
+            success
+            message
+            transfer {
+                id
+                status
             }
         }
     }

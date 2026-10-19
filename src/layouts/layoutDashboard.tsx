@@ -32,6 +32,7 @@ import Products from "../modules/products/Products";
 import Promotions from "../modules/promotions/Promotions";
 import Inventories from "../modules/inventories/Inventories";
 import Kardex from "../modules/inventories/kardex";
+import Warehouses from "../modules/warehouses/Warehouses";
 import Purchase from "../modules/purchase/Purchase";
 import ReportSale from "../modules/reports/reportSale";
 import ReportCancel from "../modules/reports/reportCancel";
@@ -203,6 +204,7 @@ const LayoutDashboardContent: React.FC = () => {
         | "promotions"
         | "inventory"
         | "kardex"
+        | "warehouses"
         | "purchase"
         | "reports"
         | "configuration"
@@ -221,6 +223,7 @@ const LayoutDashboardContent: React.FC = () => {
             "promotions",
             "inventory",
             "kardex",
+            "warehouses",
             "purchase",
             "reports",
             "configuration",
@@ -659,6 +662,7 @@ const LayoutDashboardContent: React.FC = () => {
             | "promotions"
             | "inventory"
             | "kardex"
+            | "warehouses"
             | "purchase"
             | "reports"
             | "configuration"
@@ -800,7 +804,9 @@ const LayoutDashboardContent: React.FC = () => {
                           ? "Inventario"
                           : currentView === "kardex"
                             ? "Kardex"
-                            : currentView === "purchase"
+                            : currentView === "warehouses"
+                              ? "Almacenes"
+                              : currentView === "purchase"
                               ? "Compras"
                               : currentView === "reports"
                                 ? "Reportes"
@@ -831,7 +837,9 @@ const LayoutDashboardContent: React.FC = () => {
                           ? "Controla el stock de tus productos."
                           : currentView === "kardex"
                             ? "Registro de movimientos de inventario."
-                            : currentView === "purchase"
+                            : currentView === "warehouses"
+                              ? "Almacenes, ingredientes maestros y transferencias entre sucursales."
+                              : currentView === "purchase"
                               ? "Gestiona las compras a proveedores y controla el stock."
                               : currentView === "reports"
                                 ? reportType === "sales"
@@ -882,6 +890,14 @@ const LayoutDashboardContent: React.FC = () => {
         hasPermission("cash.register_movements");
     const canSeeInventory = isAdmin || hasPermission("products.view");
     const canSeeKardex = isAdmin || hasPermission("kardex.view");
+    const canSeeWarehouses =
+        (isAdmin ||
+            hasPermission("warehouses.manage") ||
+            hasPermission("master_ingredients.manage")) &&
+        Boolean(
+            companyData?.company?.usesWarehouses ||
+                companyData?.company?.usesMasterIngredients,
+        );
     const canSeeReports =
         isAdmin ||
         hasPermission("reports.sales") ||
@@ -930,6 +946,7 @@ const LayoutDashboardContent: React.FC = () => {
             (v === "cashs" && canSeeCashs) ||
             (v === "inventory" && canSeeInventory) ||
             (v === "kardex" && canSeeKardex) ||
+            (v === "warehouses" && canSeeWarehouses) ||
             (v === "reports" && canSeeReports);
         if (!allowed(currentView)) {
             if (canSeeFloors) setCurrentView("floors");
@@ -943,6 +960,7 @@ const LayoutDashboardContent: React.FC = () => {
             else if (canSeePurchase) setCurrentView("purchase");
             else if (canSeeInventory) setCurrentView("inventory");
             else if (canSeeKardex) setCurrentView("kardex");
+            else if (canSeeWarehouses) setCurrentView("warehouses");
             else if (canSeeReports) setCurrentView("reports");
             else if (canSeeConfiguration) setCurrentView("configuration");
             else if (canSeeBranch) setCurrentView("branch");
@@ -962,6 +980,7 @@ const LayoutDashboardContent: React.FC = () => {
         canSeeCashs,
         canSeeInventory,
         canSeeKardex,
+        canSeeWarehouses,
         canSeeReports,
     ]);
 
@@ -1148,6 +1167,15 @@ const LayoutDashboardContent: React.FC = () => {
                                 icon="📋"
                                 label="Kardex"
                                 isActive={currentView === "kardex"}
+                            />
+                        )}
+
+                        {canSeeWarehouses && (
+                            <SidebarItem
+                                view="warehouses"
+                                icon="🏬"
+                                label="Almacenes"
+                                isActive={currentView === "warehouses"}
                             />
                         )}
 
@@ -1753,6 +1781,7 @@ const LayoutDashboardContent: React.FC = () => {
                     {currentView === "promotions" && <Promotions />}
                     {currentView === "inventory" && <Inventories />}
                     {currentView === "kardex" && <Kardex />}
+                    {currentView === "warehouses" && <Warehouses />}
                     {currentView === "purchase" && <Purchase />}
                     {currentView === "reports" && (
                         <div className="flex h-full flex-col gap-4">

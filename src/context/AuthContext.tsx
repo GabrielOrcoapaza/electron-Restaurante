@@ -67,6 +67,8 @@ export interface CompanyData {
         email: string;
         logo?: string;
         isActive: boolean;
+        usesWarehouses?: boolean;
+        usesMasterIngredients?: boolean;
     };
     branch: {
         id: string;
