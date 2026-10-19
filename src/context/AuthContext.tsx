@@ -126,6 +126,9 @@ export interface UserData {
     lastName: string;
     fullName: string;
     role: string;
+    /** Sucursal asignada al usuario en backend (multisucursal). */
+    branchId?: string;
+    branchName?: string;
 }
 
 // Tipo para actualizar una mesa
@@ -405,10 +408,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     ) => {
         console.log("👤 Guardando datos de usuario:", userData);
 
+        const storedUser: UserData = {
+            ...userData,
+            branchId:
+                userData.branchId ??
+                (branchFromLogin?.id != null
+                    ? String(branchFromLogin.id)
+                    : undefined),
+            branchName:
+                userData.branchName ?? branchFromLogin?.name ?? undefined,
+        };
+
         // Guardar en localStorage
         localStorage.setItem("token", jwtToken);
         localStorage.setItem("refreshToken", refreshToken);
-        localStorage.setItem("userData", JSON.stringify(userData));
+        localStorage.setItem("userData", JSON.stringify(storedUser));
 
         if (userPhoto) {
             localStorage.setItem("userPhoto", userPhoto);
@@ -432,7 +446,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // Actualizar estado
         setToken(jwtToken);
-        setUser(userData);
+        setUser(storedUser);
         setIsAuthenticated(true);
     };
 
@@ -467,6 +481,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log("🏢 Cambiando sucursal a:", newBranch.name);
         setCompanyData(updated);
         localStorage.setItem("companyData", JSON.stringify(updated));
+
+        setUser((prev) => {
+            if (!prev) return prev;
+            const userUpdated: UserData = {
+                ...prev,
+                branchId: String(newBranch.id),
+                branchName: newBranch.name,
+            };
+            localStorage.setItem("userData", JSON.stringify(userUpdated));
+            return userUpdated;
+        });
     };
 
     // Actualizar el estado de una mesa en el contexto

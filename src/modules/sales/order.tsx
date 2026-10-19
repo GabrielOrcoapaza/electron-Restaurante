@@ -49,6 +49,7 @@ import {
 import ModalObservation from "./modalObservation";
 import CategoryIcon from "../../components/CategoryIcon";
 import { ComboSelectorModal } from "../../components/ComboSelectorModal";
+import ConfirmModal from "../../components/ConfirmModal";
 import VirtualKeyboard from "../../components/VirtualKeyboard";
 import {
     useTableSessionLock,
@@ -484,6 +485,8 @@ const Order: React.FC<OrderProps> = ({
     const [activePromotions, setActivePromotions] = useState<IPromotion[]>([]);
     const [giftMessage, setGiftMessage] = useState<string | null>(null);
     const [showComboModal, setShowComboModal] = useState(false);
+    const [showSendWithoutPrintConfirm, setShowSendWithoutPrintConfirm] =
+        useState(false);
     const [showPlatosPanel, setShowPlatosPanel] = useState(false);
     const [pendingComboProduct, setPendingComboProduct] = useState<any>(null);
 
@@ -4109,7 +4112,7 @@ const Order: React.FC<OrderProps> = ({
                                 </button>
                                 <button
                                     onClick={() =>
-                                        handleSaveOrder("PROCESSING", false)
+                                        setShowSendWithoutPrintConfirm(true)
                                     }
                                     disabled={
                                         isSaving || orderItems.length === 0
@@ -4284,6 +4287,19 @@ const Order: React.FC<OrderProps> = ({
                         </div>
                     </div>
                 )}
+
+                <ConfirmModal
+                    isOpen={showSendWithoutPrintConfirm}
+                    title="Enviar orden sin imprimir"
+                    message="La orden se enviará a cocina, pero no se imprimirá comanda en este paso. Piensalo bien antes de enviar, luego no quiero que te arrepientas."
+                    confirmLabel="Continuar"
+                    cancelLabel="Cancelar"
+                    loading={isSaving}
+                    onClose={() => setShowSendWithoutPrintConfirm(false)}
+                    onConfirm={() => {
+                        void handleSaveOrder("PROCESSING", false);
+                    }}
+                />
 
                 {/* NUEVO: Modal de selección de combos */}
                 {showComboModal && companyData?.branch?.id && (

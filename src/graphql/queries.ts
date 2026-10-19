@@ -740,11 +740,11 @@ export const GET_BRANCHES = gql`
     }
 `;
 
-// Query para obtener datos completos de una sucursal (multisucursal)
-// Nota: Si el backend no tiene branchById, switchBranch usará un fallback con queries existentes
+// Query para obtener datos completos de una sucursal (multisucursal).
+// El esquema expone branchById, no branch.
 export const GET_BRANCH_FULL = gql`
     query GetBranchFull($branchId: ID!) {
-        branch(id: $branchId) {
+        branchById(id: $branchId) {
             id
             serial
             name
@@ -770,6 +770,7 @@ export const GET_BRANCH_FULL = gql`
             isKitchenPrint
             isKitchenDisplay
             requireWaiterPassword
+            printCancellations
             users {
                 id
                 firstName

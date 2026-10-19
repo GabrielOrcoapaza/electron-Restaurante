@@ -1019,6 +1019,27 @@ export const CREATE_USER = gql`
     }
 `;
 
+/** Multisucursal: alinea user.branch en el servidor con la sede seleccionada (ADMIN). */
+export const SWITCH_ACTIVE_BRANCH = gql`
+    mutation SwitchActiveBranch($branchId: ID!) {
+        switchActiveBranch(branchId: $branchId) {
+            success
+            message
+            branch {
+                id
+                name
+            }
+            user {
+                id
+                branch {
+                    id
+                    name
+                }
+            }
+        }
+    }
+`;
+
 // Mutación para actualizar usuario
 export const UPDATE_USER = gql`
     mutation UpdateUser(

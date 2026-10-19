@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react';
-import { useApolloClient } from '@apollo/client';
+import { useApolloClient, useMutation } from '@apollo/client';
 import { useAuth } from './useAuth';
+import { useToast } from '../context/ToastContext';
 import { normalizeTaxAffectationType } from '../utils/getBranchIgvPercentage';
+import { SWITCH_ACTIVE_BRANCH } from '../graphql/mutations';
 import { GET_BRANCH_FULL } from '../graphql/queries';
 import {
   GET_FLOORS_BY_BRANCH,
@@ -12,11 +14,13 @@ import {
 
 /**
  * Hook para cambiar de sucursal (multisucursal).
- * Intenta GET_BRANCH_FULL primero; si falla, usa fallback con queries existentes.
+ * Carga la sucursal con branchById; si falla, arma los datos con queries existentes.
  */
 export const useSwitchBranch = () => {
   const { companyData, switchBranch } = useAuth();
   const client = useApolloClient();
+  const { showToast } = useToast();
+  const [switchActiveBranchMutation] = useMutation(SWITCH_ACTIVE_BRANCH);
   const [loading, setLoading] = useState(false);
 
   const switchToBranch = useCallback(
@@ -24,26 +28,39 @@ export const useSwitchBranch = () => {
       if (!companyData || branchId === companyData.branch.id) return;
       setLoading(true);
       try {
-        const { data } = await client.query({
-          query: GET_BRANCH_FULL,
+        const { data: switchData } = await switchActiveBranchMutation({
           variables: { branchId },
-          fetchPolicy: 'network-only',
         });
-
-        const branch = data?.branch;
-        if (branch) {
-          switchBranch(branch);
-          await client.resetStore();
+        const switchResult = switchData?.switchActiveBranch;
+        if (!switchResult?.success) {
+          showToast(
+            switchResult?.message ?? 'No se pudo actualizar la sucursal del usuario',
+            'error',
+          );
           return;
         }
-      } catch {
-        // Fallback: ensamblar branch con queries existentes
-      }
 
-      const avail = companyData.availableBranches?.find((b: any) => b.id === branchId);
-      if (!avail) return;
+        try {
+          const { data } = await client.query({
+            query: GET_BRANCH_FULL,
+            variables: { branchId },
+            fetchPolicy: 'network-only',
+          });
 
-      try {
+          const branch = data?.branchById;
+          if (branch) {
+            switchBranch(branch);
+            await client.resetStore();
+            showToast(`Sucursal cambiada a ${branch.name}`, 'success');
+            return;
+          }
+        } catch {
+          // Fallback: ensamblar branch con queries existentes
+        }
+
+        const avail = companyData.availableBranches?.find((b: any) => b.id === branchId);
+        if (!avail) return;
+
         const [floorsRes, categoriesRes, usersRes] = await Promise.all([
           client.query({
             query: GET_FLOORS_BY_BRANCH,
@@ -110,14 +127,16 @@ export const useSwitchBranch = () => {
 
         switchBranch(newBranch as any);
         await client.resetStore();
+        showToast(`Sucursal cambiada a ${avail.name}`, 'success');
       } catch (err) {
         console.error('Error al cambiar sucursal:', err);
+        showToast('No se pudo cambiar de sucursal', 'error');
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    [companyData, switchBranch, client]
+    [companyData, switchBranch, client, showToast, switchActiveBranchMutation]
   );
 
   return { switchToBranch, loading };
