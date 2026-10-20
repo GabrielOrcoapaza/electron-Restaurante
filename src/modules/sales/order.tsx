@@ -4291,7 +4291,7 @@ const Order: React.FC<OrderProps> = ({
                 <ConfirmModal
                     isOpen={showSendWithoutPrintConfirm}
                     title="Enviar orden sin imprimir"
-                    message="La orden se enviará a cocina, pero no se imprimirá comanda en este paso. Piensalo bien antes de enviar, luego no quiero que te arrepientas."
+                    message="La orden se enviará a cocina, pero no se imprimirá comanda en este paso. Piensalo bien antes de enviar, luego no quiero que escuchar quejas."
                     confirmLabel="Continuar"
                     cancelLabel="Cancelar"
                     loading={isSaving}
