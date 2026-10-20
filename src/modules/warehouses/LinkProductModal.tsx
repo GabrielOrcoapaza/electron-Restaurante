@@ -1,6 +1,10 @@
 import React, { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@apollo/client";
-import { GET_PRODUCTS_FOR_MASTER_INGREDIENT_LINK } from "../../graphql/queries";
+import { useAuth } from "../../hooks/useAuth";
+import {
+    GET_BRANCHES_BY_COMPANY,
+    GET_PRODUCTS_FOR_MASTER_INGREDIENT_LINK,
+} from "../../graphql/queries";
 import { LINK_PRODUCT_TO_MASTER_INGREDIENT } from "../../graphql/mutations";
 
 interface Product {
@@ -11,6 +15,11 @@ interface Product {
     unitMeasure: string;
     isActive: boolean;
     masterIngredient: { id: string; name: string } | null;
+}
+
+interface BranchOption {
+    id: string;
+    name: string;
 }
 
 interface LinkProductModalProps {
@@ -29,14 +38,35 @@ const LinkProductModal: React.FC<LinkProductModalProps> = ({
     masterIngredient,
     onClose,
 }) => {
+    const { companyData } = useAuth();
+    const companyId = companyData?.company?.id;
+
     const [search, setSearch] = useState("");
     const [error, setError] = useState("");
+    // Sucursal cuyos productos se están listando. Arranca en la sucursal del
+    // usuario logueado y puede cambiarse con los botones de arriba para
+    // vincular hijos en otras sucursales de la misma empresa (la mutación
+    // valida por empresa, no por sucursal).
+    const [activeBranchId, setActiveBranchId] = useState(branchId);
+
+    const { data: branchesData, loading: branchesLoading } = useQuery(
+        GET_BRANCHES_BY_COMPANY,
+        {
+            variables: { companyId: companyId! },
+            skip: !companyId,
+            fetchPolicy: "network-only",
+        },
+    );
+    const branches: BranchOption[] = branchesData?.branchesByCompany || [];
+    const activeBranchName =
+        branches.find((b) => String(b.id) === String(activeBranchId))?.name ||
+        "esta sucursal";
 
     const { data, loading, refetch } = useQuery(
         GET_PRODUCTS_FOR_MASTER_INGREDIENT_LINK,
         {
-            variables: { branchId },
-            skip: !branchId,
+            variables: { branchId: activeBranchId },
+            skip: !activeBranchId,
             fetchPolicy: "network-only",
         },
     );
@@ -109,12 +139,39 @@ const LinkProductModal: React.FC<LinkProductModalProps> = ({
                         Vincular producto a "{masterIngredient.name}"
                     </h2>
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                        Solo puede haber un producto de esta sucursal
-                        vinculado a este ingrediente
+                        Solo puede haber un producto de cada sucursal vinculado
+                        a este ingrediente
                     </p>
+                    {branches.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {branches.map((b) => {
+                                const active =
+                                    String(b.id) === String(activeBranchId);
+                                return (
+                                    <button
+                                        key={b.id}
+                                        onClick={() => {
+                                            setActiveBranchId(b.id);
+                                            setError("");
+                                        }}
+                                        disabled={branchesLoading}
+                                        className={
+                                            active
+                                                ? "rounded-full bg-indigo-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white"
+                                                : "rounded-full border border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
+                                        }
+                                    >
+                                        {b.name}
+                                        {String(b.id) === String(branchId) &&
+                                            " · actual"}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
                     <input
                         type="text"
-                        placeholder="Buscar producto..."
+                        placeholder={`Buscar producto en ${activeBranchName}...`}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"

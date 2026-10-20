@@ -4,9 +4,15 @@ import { useAuth } from "../../hooks/useAuth";
 import {
     GET_BRANCHES_BY_COMPANY,
     GET_MASTER_INGREDIENTS_BY_COMPANY,
+    GET_PRODUCTS_FOR_MASTER_INGREDIENT_LINK,
+    GET_STOCKS_BY_WAREHOUSE,
     GET_WAREHOUSES_BY_BRANCH,
 } from "../../graphql/queries";
-import { SEND_WAREHOUSE_TRANSFER } from "../../graphql/mutations";
+import { SEND_WAREHOUSE_TRANSFER_NOTE } from "../../graphql/mutations";
+import SuggestionInput from "../../components/SuggestionInput";
+import { BRANCH_TRANSFER_NOTE_SUGGESTIONS } from "../../constants/transferReasonSuggestions";
+import { downloadTransferNotePdf } from "../../utils/downloadTransferNotePdf";
+import type { TransferNoteData } from "../../utils/transferNoteHtml";
 
 interface Warehouse {
     id: string;
@@ -16,9 +22,12 @@ interface Warehouse {
     isDefaultSale: boolean;
 }
 
+// Sucursal de la empresa; address/phone se usan para el PDF de la Nota de Transferencia.
 interface BranchOption {
     id: string;
     name: string;
+    address?: string | null;
+    phone?: string | null;
 }
 
 interface MasterIngredient {
@@ -26,6 +35,28 @@ interface MasterIngredient {
     name: string;
     unitMeasure: string;
     isActive: boolean;
+}
+
+// Producto de ESTA sucursal vinculado a un MasterIngredient (hijo). Trae el
+// currentStock para mostrar cuánto hay disponible antes de enviar, y
+// code/unitMeasure para la tabla del PDF de la nota.
+interface LinkedChildProduct {
+    id: string;
+    code?: string | null;
+    name: string;
+    unitMeasure?: string | null;
+    currentStock: number;
+    masterIngredient: { id: string } | null;
+}
+
+// Fila de stocksByWarehouse: mapea el stock real del almacén origen
+// seleccionado por masterIngredient (si el producto no tiene fila, tiene 0).
+interface WarehouseStockRow {
+    currentQuantity: number;
+    product: {
+        id: string;
+        masterIngredient: { id: string } | null;
+    };
 }
 
 interface SendTransferModalProps {
@@ -50,7 +81,7 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
     onClose,
     onSent,
 }) => {
-    const { companyData } = useAuth();
+    const { companyData, user } = useAuth();
     const companyId = companyData?.company?.id;
 
     const { data: branchesData, loading: branchesLoading } = useQuery(
@@ -71,9 +102,20 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
     // masterIngredientId -> cantidad (string). Solo los ingredientes presentes
     // aqui estan "marcados" para enviar.
     const [quantities, setQuantities] = useState<Record<string, string>>({});
+    // Datos de transporte e impresos de la Nota de Transferencia (PDF): motivo,
+    // chofer y placa. Notas = observaciones libres (sección 4 del PDF).
+    const [motive, setMotive] = useState("");
+    const [driverName, setDriverName] = useState("");
+    const [vehiclePlate, setVehiclePlate] = useState("");
     const [notes, setNotes] = useState("");
     const [error, setError] = useState("");
     const [results, setResults] = useState<ItemResult[] | null>(null);
+    // Nota despachada (folio + datos armados) para poder re-descargar el PDF.
+    const [sentNote, setSentNote] = useState<{
+        folio: string;
+        data: TransferNoteData;
+    } | null>(null);
+    const [pdfMessage, setPdfMessage] = useState("");
 
     const { data: fromWarehousesData } = useQuery(GET_WAREHOUSES_BY_BRANCH, {
         variables: { branchId, includeInactive: false },
@@ -104,8 +146,48 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
     const masterIngredients: MasterIngredient[] =
         ingredientsData?.masterIngredientsByCompany || [];
 
-    const [sendWarehouseTransfer, { loading: submitting }] = useMutation(
-        SEND_WAREHOUSE_TRANSFER,
+    // Productos hijos de ESTA sucursal vinculados a un ingrediente maestro
+    // (masterIngredientId -> producto), con su nombre y stock.
+    const {
+        data: childrenData,
+        loading: childrenLoading,
+        refetch: refetchChildren,
+    } = useQuery(GET_PRODUCTS_FOR_MASTER_INGREDIENT_LINK, {
+        variables: { branchId },
+        skip: !branchId,
+        fetchPolicy: "network-only",
+    });
+    const childrenByMaster: Record<string, LinkedChildProduct> = {};
+    ((childrenData?.products || []) as LinkedChildProduct[]).forEach((p) => {
+        if (p.masterIngredient) {
+            childrenByMaster[p.masterIngredient.id] = p;
+        }
+    });
+
+    // Stock real del almacén origen seleccionado (masterIngredientId -> cantidad).
+    // Si el producto no tiene fila de Stock en ese almacén, no aparece en el map
+    // y se asume 0.
+    const {
+        data: fromStocksData,
+        loading: fromStocksLoading,
+        refetch: refetchFromStocks,
+    } = useQuery(GET_STOCKS_BY_WAREHOUSE, {
+        variables: { warehouseId: fromWarehouseId },
+        skip: !fromWarehouseId,
+        fetchPolicy: "network-only",
+    });
+    const warehouseStockByMaster: Record<string, number> = {};
+    ((fromStocksData?.stocksByWarehouse || []) as WarehouseStockRow[]).forEach(
+        (row) => {
+            if (row.product.masterIngredient) {
+                warehouseStockByMaster[row.product.masterIngredient.id] =
+                    Number(row.currentQuantity) || 0;
+            }
+        },
+    );
+
+    const [sendWarehouseTransferNote, { loading: submitting }] = useMutation(
+        SEND_WAREHOUSE_TRANSFER_NOTE,
     );
 
     const toggleItem = (ingredientId: string) => {
@@ -129,6 +211,8 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
     const handleSubmit = async () => {
         setError("");
         setResults(null);
+        setSentNote(null);
+        setPdfMessage("");
         if (!toBranchId) {
             setError("Seleccione la sucursal destino");
             return;
@@ -152,50 +236,156 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
             }
         }
 
-        const itemResults: ItemResult[] = [];
-        for (const [masterIngredientId, qtyStr] of entries) {
-            const mi = masterIngredients.find(
-                (m) => m.id === masterIngredientId,
-            );
-            const ingredientName = mi?.name || masterIngredientId;
-            try {
-                const { data } = await sendWarehouseTransfer({
-                    variables: {
-                        fromWarehouseId,
-                        toWarehouseId,
+        // Un solo despacho batch: la respuesta trae el folio de la nota (TR-XXXX)
+        // y el resultado por ítem (un fallo no aborta a los demás).
+        let payload: {
+            success?: boolean;
+            message?: string;
+            folio?: string | null;
+            note?: { id?: string; sentAt?: string } | null;
+            results?: Array<{
+                masterIngredientId: string;
+                masterIngredientName?: string | null;
+                success: boolean;
+                message?: string | null;
+            }>;
+        } | null = null;
+        try {
+            const { data } = await sendWarehouseTransferNote({
+                variables: {
+                    fromWarehouseId,
+                    toWarehouseId,
+                    items: entries.map(([masterIngredientId, qtyStr]) => ({
                         masterIngredientId,
                         quantity: Number(qtyStr),
-                        notes: notes || undefined,
-                    },
-                });
-                if (data?.sendWarehouseTransfer?.success) {
-                    itemResults.push({
-                        ingredientName,
-                        success: true,
-                        message: "Enviado",
-                    });
-                } else {
-                    itemResults.push({
-                        ingredientName,
-                        success: false,
-                        message:
-                            data?.sendWarehouseTransfer?.message ||
-                            "No se pudo enviar",
-                    });
-                }
-            } catch (err: unknown) {
-                itemResults.push({
-                    ingredientName,
+                    })),
+                    motive: motive.trim() || undefined,
+                    driverName: driverName.trim() || undefined,
+                    vehiclePlate: vehiclePlate.trim() || undefined,
+                    notes: notes.trim() || undefined,
+                },
+            });
+            payload = data?.sendWarehouseTransferNote ?? null;
+        } catch (err: unknown) {
+            setResults([
+                {
+                    ingredientName: "Envío",
                     success: false,
                     message: getErrorMessage(err, "Error al enviar"),
-                });
-            }
+                },
+            ]);
+            return;
         }
 
+        const rowResults = payload?.results || [];
+        const itemResults: ItemResult[] =
+            rowResults.length > 0
+                ? rowResults.map((r) => ({
+                      ingredientName:
+                          r.masterIngredientName || r.masterIngredientId,
+                      success: Boolean(r.success),
+                      message:
+                          r.message || (r.success ? "Enviado" : "No se pudo enviar"),
+                  }))
+                : [
+                      {
+                          ingredientName: "Envío",
+                          success: false,
+                          message: payload?.message || "No se pudo enviar",
+                      },
+                  ];
         setResults(itemResults);
+
+        const anySuccess = itemResults.some((r) => r.success);
+        if (anySuccess) {
+            // Refrescar el nombre/stock de los hijos y el stock del almacén
+            // origen para que la lista refleje lo recién enviado.
+            await refetchChildren();
+            await refetchFromStocks();
+
+            if (payload?.success && payload.folio && payload.note?.sentAt) {
+                // Armar y descargar el PDF de la Nota de Transferencia (folio).
+                const sentAt = payload.note.sentAt;
+                const destBranch = otherBranches.find(
+                    (b) => String(b.id) === String(toBranchId),
+                );
+                const okIds = new Set(
+                    rowResults
+                        .filter((r) => r.success)
+                        .map((r) => r.masterIngredientId),
+                );
+                const noteData: TransferNoteData = {
+                    folio: payload.folio,
+                    companyName:
+                        companyData?.company?.denomination ||
+                        companyData?.company?.commercialName ||
+                        "",
+                    companyRuc: companyData?.company?.ruc || "",
+                    companyLogo:
+                        companyData?.company?.logo ||
+                        companyData?.branch?.logo ||
+                        null,
+                    issuedAt: sentAt,
+                    sentAt,
+                    origin: {
+                        branchName: companyData?.branch?.name || "",
+                        manager: user?.fullName || "",
+                        address: companyData?.branch?.address || "",
+                        phone: companyData?.branch?.phone || "",
+                    },
+                    destination: {
+                        branchName: destBranch?.name || "",
+                        manager: "Pendiente de recepción",
+                        address: destBranch?.address || "",
+                        phone: destBranch?.phone || "",
+                    },
+                    motive: motive.trim(),
+                    driverName: driverName.trim(),
+                    vehiclePlate: vehiclePlate.trim(),
+                    items: entries
+                        .filter(([miId]) => okIds.has(miId))
+                        .map(([miId, qtyStr]) => {
+                            const child = childrenByMaster[miId];
+                            return {
+                                code: child?.code || "",
+                                description:
+                                    child?.name ||
+                                    masterIngredients.find((m) => m.id === miId)
+                                        ?.name ||
+                                    miId,
+                                unit:
+                                    child?.unitMeasure ||
+                                    masterIngredients.find((m) => m.id === miId)
+                                        ?.unitMeasure ||
+                                    "",
+                                quantity: Number(qtyStr) || 0,
+                                status: "Enviada",
+                            };
+                        }),
+                    notes: notes.trim(),
+                };
+                setSentNote({ folio: payload.folio, data: noteData });
+                const pdf = await downloadTransferNotePdf(noteData);
+                setPdfMessage(
+                    pdf.ok
+                        ? pdf.message || ""
+                        : pdf.message || "No se pudo generar el PDF",
+                );
+            }
+        }
         if (itemResults.every((r) => r.success)) {
             onSent();
         }
+    };
+
+    const handleDownloadPdf = async () => {
+        if (!sentNote) return;
+        const pdf = await downloadTransferNotePdf(sentNote.data);
+        setPdfMessage(
+            pdf.ok
+                ? pdf.message || ""
+                : pdf.message || "No se pudo descargar el PDF",
+        );
     };
 
     return (
@@ -304,7 +494,72 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                                 ) : (
                                     <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {masterIngredients.map((mi) => {
-                                            const checked = mi.id in quantities;
+                                            const checked =
+                                                mi.id in quantities;
+                                            const child =
+                                                childrenByMaster[mi.id];
+                                            const originWarehouseName =
+                                                fromWarehouses.find(
+                                                    (w) =>
+                                                        w.id === fromWarehouseId,
+                                                )?.name;
+                                            let childLine: React.ReactNode;
+                                            if (childrenLoading) {
+                                                childLine = (
+                                                    <span>
+                                                        Cargando producto
+                                                        vinculado...
+                                                    </span>
+                                                );
+                                            } else if (!child) {
+                                                childLine = (
+                                                    <span className="text-rose-500">
+                                                        Sin producto hijo
+                                                        vinculado en esta
+                                                        sucursal
+                                                    </span>
+                                                );
+                                            } else if (
+                                                fromWarehouseId &&
+                                                fromStocksLoading
+                                            ) {
+                                                childLine = (
+                                                    <span>
+                                                        {child.name} · Cargando
+                                                        stock del almacén...
+                                                    </span>
+                                                );
+                                            } else if (fromWarehouseId) {
+                                                const qty =
+                                                    warehouseStockByMaster[
+                                                        mi.id
+                                                    ] ?? 0;
+                                                childLine = (
+                                                    <span
+                                                        className={
+                                                            qty > 0
+                                                                ? undefined
+                                                                : "text-amber-500"
+                                                        }
+                                                    >
+                                                        {child.name} · en «
+                                                        {originWarehouseName}
+                                                        »: {qty.toFixed(2)}
+                                                        {qty <= 0
+                                                            ? " (sin stock en este almacén)"
+                                                            : ""}
+                                                    </span>
+                                                );
+                                            } else {
+                                                childLine = (
+                                                    <span>
+                                                        {child.name} · stock:{" "}
+                                                        {Number(
+                                                            child.currentStock,
+                                                        ).toFixed(2)}
+                                                    </span>
+                                                );
+                                            }
                                             return (
                                                 <div
                                                     key={mi.id}
@@ -323,6 +578,9 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                                                         <span className="text-[10px] font-bold text-slate-400">
                                                             ({mi.unitMeasure})
                                                         </span>
+                                                        <div className="text-[10px] font-bold text-slate-400">
+                                                            {childLine}
+                                                        </div>
                                                     </div>
                                                     <input
                                                         type="number"
@@ -356,13 +614,62 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
 
                         <div>
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Motivo del traslado
+                            </label>
+                            <SuggestionInput
+                                value={motive}
+                                onChange={setMotive}
+                                suggestions={
+                                    BRANCH_TRANSFER_NOTE_SUGGESTIONS
+                                }
+                                placeholder="Elija un motivo o escriba uno propio..."
+                                inputClassName="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    Chofer / transportista (opcional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={driverName}
+                                    onChange={(e) =>
+                                        setDriverName(e.target.value)
+                                    }
+                                    placeholder="Nombre completo"
+                                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    Placa del vehículo (opcional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={vehiclePlate}
+                                    onChange={(e) =>
+                                        setVehiclePlate(e.target.value)
+                                    }
+                                    placeholder="Ej. ABC-123"
+                                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                                 Notas (opcional)
                             </label>
-                            <input
-                                type="text"
+                            <SuggestionInput
                                 value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                onChange={setNotes}
+                                suggestions={
+                                    BRANCH_TRANSFER_NOTE_SUGGESTIONS
+                                }
+                                placeholder="Elija un mensaje o escriba uno propio..."
+                                inputClassName="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                             />
                         </div>
 
@@ -374,6 +681,24 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
 
                         {results && (
                             <div className="rounded-xl border border-slate-200 dark:border-slate-700">
+                                {sentNote && (
+                                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-slate-800">
+                                        <span className="text-xs font-black text-slate-700 dark:text-slate-200">
+                                            Nota {sentNote.folio} generada
+                                        </span>
+                                        <button
+                                            onClick={handleDownloadPdf}
+                                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-emerald-700"
+                                        >
+                                            Descargar PDF
+                                        </button>
+                                    </div>
+                                )}
+                                {pdfMessage && (
+                                    <p className="px-3 py-2 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                        {pdfMessage}
+                                    </p>
+                                )}
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {results.map((r, i) => (
                                         <div

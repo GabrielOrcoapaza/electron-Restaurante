@@ -5,6 +5,8 @@ import {
     GET_WAREHOUSES_BY_BRANCH,
 } from "../../graphql/queries";
 import { TRANSFER_WAREHOUSE_STOCK } from "../../graphql/mutations";
+import SuggestionInput from "../../components/SuggestionInput";
+import { WAREHOUSE_TRANSFER_MOTIVE_SUGGESTIONS } from "../../constants/transferReasonSuggestions";
 
 interface Warehouse {
     id: string;
@@ -309,11 +311,14 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                                 Motivo (opcional)
                             </label>
-                            <input
-                                type="text"
+                            <SuggestionInput
                                 value={reason}
-                                onChange={(e) => setReason(e.target.value)}
-                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                onChange={setReason}
+                                suggestions={
+                                    WAREHOUSE_TRANSFER_MOTIVE_SUGGESTIONS
+                                }
+                                placeholder="Elija un motivo o escriba uno propio..."
+                                inputClassName="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                             />
                         </div>
 

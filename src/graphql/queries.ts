@@ -2404,6 +2404,8 @@ export const GET_BRANCHES_BY_COMPANY = gql`
         branchesByCompany(companyId: $companyId) {
             id
             name
+            address
+            phone
         }
     }
 `;
@@ -2441,6 +2443,9 @@ export const GET_STOCKS_BY_WAREHOUSE = gql`
                 productType
                 stockMin
                 stockMax
+                masterIngredient {
+                    id
+                }
             }
         }
     }
@@ -2471,6 +2476,7 @@ export const GET_PRODUCTS_FOR_MASTER_INGREDIENT_LINK = gql`
             productType
             unitMeasure
             isActive
+            currentStock
             masterIngredient {
                 id
                 name

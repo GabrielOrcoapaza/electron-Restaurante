@@ -3048,6 +3048,46 @@ export const SEND_WAREHOUSE_TRANSFER = gql`
     }
 `;
 
+// Despacho batch con folio (Nota de Transferencia): crea la cabecera con folio
+// "TR-XXXX" (correlativo por empresa) y todas las transferencias del envío en una
+// sola mutación. El PDF de la nota se genera y descarga en el cliente con esos datos.
+export const SEND_WAREHOUSE_TRANSFER_NOTE = gql`
+    mutation SendWarehouseTransferNote(
+        $fromWarehouseId: ID!
+        $toWarehouseId: ID!
+        $items: [TransferNoteItemInput!]!
+        $motive: String
+        $driverName: String
+        $vehiclePlate: String
+        $notes: String
+    ) {
+        sendWarehouseTransferNote(
+            fromWarehouseId: $fromWarehouseId
+            toWarehouseId: $toWarehouseId
+            items: $items
+            motive: $motive
+            driverName: $driverName
+            vehiclePlate: $vehiclePlate
+            notes: $notes
+        ) {
+            success
+            message
+            folio
+            note {
+                id
+                folio
+                sentAt
+            }
+            results {
+                masterIngredientId
+                masterIngredientName
+                success
+                message
+            }
+        }
+    }
+`;
+
 export const RECEIVE_WAREHOUSE_TRANSFER = gql`
     mutation ReceiveWarehouseTransfer($transferId: ID!, $quantityReceived: Float!, $notes: String) {
         receiveWarehouseTransfer(
