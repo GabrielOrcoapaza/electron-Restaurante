@@ -16,6 +16,10 @@ import {
     resizeProductImageFile,
 } from "../../utils/resizeProductImage";
 import { getFullImageUrl } from "../../utils/getFullImageUrl";
+import {
+    productTypeHasStockFields,
+    productTypeNeedsCategory,
+} from "../../constants/productTypes";
 
 interface ProductSubcategoryNested {
     id: string;
@@ -255,6 +259,10 @@ const EditProduct: React.FC<EditProductProps> = ({
             }
             if (name === "productType") {
                 setEnableStockEdit(false);
+                if (value === "INGREDIENT" || value === "OTHER") {
+                    newData.categoryId = "";
+                    newData.subcategoryId = "";
+                }
             }
             return newData;
         });
@@ -269,6 +277,17 @@ const EditProduct: React.FC<EditProductProps> = ({
         ) {
             showToast(
                 "Selecciona la promoción COMBO / menú a vincular.",
+                "error",
+            );
+            return;
+        }
+
+        if (
+            productTypeNeedsCategory(formData.productType) &&
+            !formData.subcategoryId
+        ) {
+            showToast(
+                "Los productos preparados y bebidas embotelladas requieren categoría y subcategoría.",
                 "error",
             );
             return;
@@ -293,10 +312,9 @@ const EditProduct: React.FC<EditProductProps> = ({
             isActive: formData.isActive,
         };
 
-        const isStockManagedType =
-            formData.productType === "DISH" ||
-            formData.productType === "BEVERAGE" ||
-            formData.productType === "INGREDIENT";
+        const isStockManagedType = productTypeHasStockFields(
+            formData.productType,
+        );
 
         if (isStockManagedType) {
             variables.managesStock = formData.managesStock;
@@ -318,9 +336,15 @@ const EditProduct: React.FC<EditProductProps> = ({
             }
         }
 
-        // Solo incluir subcategoryId si se seleccionó una
-        if (formData.subcategoryId) {
-            variables.subcategoryId = formData.subcategoryId;
+        if (productTypeNeedsCategory(formData.productType)) {
+            if (formData.subcategoryId) {
+                variables.subcategoryId = formData.subcategoryId;
+            }
+        } else if (
+            formData.productType === "INGREDIENT" ||
+            formData.productType === "OTHER"
+        ) {
+            variables.subcategoryId = null;
         }
 
         let imageMutation: string | null | undefined = undefined;
@@ -432,89 +456,92 @@ const EditProduct: React.FC<EditProductProps> = ({
                             gap: "0.625rem",
                         }}
                     >
-                        {/* Categoría y Subcategoría */}
-                        <div
-                            style={{
-                                display: "grid",
-                                gridTemplateColumns:
-                                    isXs || isSmall ? "1fr" : "1fr 1fr",
-                                gap: gapSize,
-                            }}
-                        >
-                            <div>
-                                <label
-                                    className={labelClass}
-                                    style={{ fontSize: labelFontSize }}
-                                >
-                                    Categoría
-                                </label>
-                                <select
-                                    name="categoryId"
-                                    value={formData.categoryId}
-                                    onChange={handleChange}
-                                    className={fieldClass}
-                                    style={{
-                                        padding: inputPadding,
-                                        fontSize: inputFontSize,
-                                        boxSizing: "border-box",
-                                    }}
-                                >
-                                    <option value="">
-                                        Seleccionar categoría
-                                    </option>
-                                    {categories
-                                        .filter((cat) => cat.isActive)
-                                        .map((category) => (
-                                            <option
-                                                key={category.id}
-                                                value={category.id}
-                                            >
-                                                {category.name}
-                                            </option>
-                                        ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label
-                                    className={labelClass}
-                                    style={{ fontSize: labelFontSize }}
-                                >
-                                    Subcategoría
-                                </label>
-                                <select
-                                    name="subcategoryId"
-                                    value={formData.subcategoryId}
-                                    onChange={handleChange}
-                                    disabled={!formData.categoryId}
-                                    className={`${fieldClass} disabled:cursor-not-allowed disabled:opacity-70 ${
-                                        formData.categoryId
-                                            ? ""
-                                            : "bg-slate-100 dark:bg-slate-900"
-                                    }`}
-                                    style={{
-                                        padding: inputPadding,
-                                        fontSize: inputFontSize,
-                                        boxSizing: "border-box",
-                                    }}
-                                >
-                                    <option value="">
-                                        Seleccionar subcategoría
-                                    </option>
-                                    {subcategoryOptions.map((subcategory) => (
-                                        <option
-                                            key={subcategory.id}
-                                            value={subcategory.id}
-                                        >
-                                            {subcategory.name}
-                                            {!subcategory.isActive
-                                                ? " (inactiva)"
-                                                : ""}
+                        {productTypeNeedsCategory(formData.productType) && (
+                            <div
+                                style={{
+                                    display: "grid",
+                                    gridTemplateColumns:
+                                        isXs || isSmall ? "1fr" : "1fr 1fr",
+                                    gap: gapSize,
+                                }}
+                            >
+                                <div>
+                                    <label
+                                        className={labelClass}
+                                        style={{ fontSize: labelFontSize }}
+                                    >
+                                        Categoría *
+                                    </label>
+                                    <select
+                                        name="categoryId"
+                                        value={formData.categoryId}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                        style={{
+                                            padding: inputPadding,
+                                            fontSize: inputFontSize,
+                                            boxSizing: "border-box",
+                                        }}
+                                    >
+                                        <option value="">
+                                            Seleccionar categoría
                                         </option>
-                                    ))}
-                                </select>
+                                        {categories
+                                            .filter((cat) => cat.isActive)
+                                            .map((category) => (
+                                                <option
+                                                    key={category.id}
+                                                    value={category.id}
+                                                >
+                                                    {category.name}
+                                                </option>
+                                            ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label
+                                        className={labelClass}
+                                        style={{ fontSize: labelFontSize }}
+                                    >
+                                        Subcategoría *
+                                    </label>
+                                    <select
+                                        name="subcategoryId"
+                                        value={formData.subcategoryId}
+                                        onChange={handleChange}
+                                        disabled={!formData.categoryId}
+                                        className={`${fieldClass} disabled:cursor-not-allowed disabled:opacity-70 ${
+                                            formData.categoryId
+                                                ? ""
+                                                : "bg-slate-100 dark:bg-slate-900"
+                                        }`}
+                                        style={{
+                                            padding: inputPadding,
+                                            fontSize: inputFontSize,
+                                            boxSizing: "border-box",
+                                        }}
+                                    >
+                                        <option value="">
+                                            Seleccionar subcategoría
+                                        </option>
+                                        {subcategoryOptions.map(
+                                            (subcategory) => (
+                                                <option
+                                                    key={subcategory.id}
+                                                    value={subcategory.id}
+                                                >
+                                                    {subcategory.name}
+                                                    {!subcategory.isActive
+                                                        ? " (inactiva)"
+                                                        : ""}
+                                                </option>
+                                            ),
+                                        )}
+                                    </select>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Tipo de Producto */}
                         <div>
@@ -536,9 +563,12 @@ const EditProduct: React.FC<EditProductProps> = ({
                                     boxSizing: "border-box",
                                 }}
                             >
-                                <option value="DISH">Plato</option>
-                                <option value="BEVERAGE">Bebida</option>
+                                <option value="DISH">Productos preparados</option>
+                                <option value="BEVERAGE">
+                                    Bebidas embotelladas
+                                </option>
                                 <option value="INGREDIENT">Ingrediente</option>
+                                <option value="OTHER">Otros</option>
                                 <option value="PROMOTION">
                                     Promoción / Combo
                                 </option>
@@ -860,9 +890,7 @@ const EditProduct: React.FC<EditProductProps> = ({
                         </div>
 
                         {/* Stock - Platos, Bebidas e Ingredientes */}
-                        {(formData.productType === "DISH" ||
-                            formData.productType === "BEVERAGE" ||
-                            formData.productType === "INGREDIENT") && (
+                        {productTypeHasStockFields(formData.productType) && (
                             <div
                                 style={{
                                     display: "grid",
@@ -984,9 +1012,7 @@ const EditProduct: React.FC<EditProductProps> = ({
                         )}
 
                         {/* Manejo de Stock - Platos, Bebidas e Ingredientes */}
-                        {(formData.productType === "DISH" ||
-                            formData.productType === "BEVERAGE" ||
-                            formData.productType === "INGREDIENT") && (
+                        {productTypeHasStockFields(formData.productType) && (
                             <div
                                 className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
                                     formData.managesStock

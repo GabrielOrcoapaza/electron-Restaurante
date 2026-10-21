@@ -66,8 +66,24 @@ export function promotionToFormData(promo: IPromotion & Record<string, any>): Pr
             categoryId: scope.category?.id || '',
             productId: scope.product?.id || scope.fixedProduct?.id || '',
             productName: scope.product?.name || scope.fixedProduct?.name || '',
+            discountAmount:
+                scope.discountAmount != null
+                    ? String(scope.discountAmount)
+                    : '',
         };
     });
+
+    if (
+        promo.promotionType === 'DISCOUNT_PER_PRODUCT' &&
+        promo.discountAmount != null
+    ) {
+        const legacy = String(promo.discountAmount);
+        for (const s of scopes) {
+            if (!s.discountAmount?.trim()) {
+                s.discountAmount = legacy;
+            }
+        }
+    }
 
     return {
         name: promo.name || '',
@@ -120,9 +136,12 @@ export function buildPromotionVariables(
         discountPercent: formData.discountPercent
             ? parseFloat(formData.discountPercent)
             : null,
-        discountAmount: formData.discountAmount
-            ? parseFloat(formData.discountAmount)
-            : null,
+        discountAmount:
+            formData.promotionType === 'DISCOUNT_PER_PRODUCT'
+                ? null
+                : formData.discountAmount
+                  ? parseFloat(formData.discountAmount)
+                  : null,
         buyQuantity: formData.buyQuantity
             ? parseInt(formData.buyQuantity, 10)
             : null,
@@ -146,6 +165,11 @@ export function buildPromotionVariables(
         base.photoBase64 = formData.photoBase64;
     }
 
+    if (formData.promotionType === 'DISCOUNT_PER_PRODUCT') {
+        base.appliesTo = 'PRODUCT';
+        base.minPurchaseAmount = 0;
+    }
+
     if (branchId) {
         base.branchId = branchId;
     }
@@ -160,6 +184,7 @@ export type GraphQLScopeInput = {
     subcategoryId: string | null;
     productId: string | null;
     requiredQuantity: number;
+    discountAmount?: number | null;
 };
 
 export function buildScopeInputs(
@@ -168,12 +193,13 @@ export function buildScopeInputs(
     const needsScopes =
         formData.promotionType === 'COMBO' ||
         formData.promotionType === 'NXM' ||
+        formData.promotionType === 'DISCOUNT_PER_PRODUCT' ||
         (formData.appliesTo !== 'ALL' && formData.scopes.length > 0);
 
     if (!needsScopes) return [];
 
-    return formData.scopes.map(
-        (scope): GraphQLScopeInput => ({
+    return formData.scopes.map((scope): GraphQLScopeInput => {
+        const input: GraphQLScopeInput = {
             label: scope.scopeLabel || scope.label || '',
             categoryId:
                 scope.scopeType === 'category' ? scope.categoryId || null : null,
@@ -184,8 +210,14 @@ export function buildScopeInputs(
             productId:
                 scope.scopeType === 'product' ? scope.productId || null : null,
             requiredQuantity: scopeRequiredQuantity(scope.requiredQuantity),
-        }),
-    );
+        };
+        if (formData.promotionType === 'DISCOUNT_PER_PRODUCT') {
+            const amt = parseFloat(scope.discountAmount || '');
+            input.discountAmount =
+                Number.isFinite(amt) && amt > 0 ? amt : null;
+        }
+        return input;
+    });
 }
 
 export function validatePromotionForm(formData: PromotionFormData): string | null {
@@ -218,7 +250,20 @@ export function validatePromotionForm(formData: PromotionFormData): string | nul
         return 'Agrega al menos un scope para el combo.';
     }
 
-    if (
+    if (formData.promotionType === 'DISCOUNT_PER_PRODUCT') {
+        if (formData.scopes.length === 0) {
+            return 'Agrega al menos un producto.';
+        }
+        for (const scope of formData.scopes) {
+            if (!scope.productId) {
+                return 'Selecciona el producto en cada fila.';
+            }
+            const amt = parseFloat(scope.discountAmount || '');
+            if (!amt || amt <= 0) {
+                return 'Ingresa el descuento S/ en cada producto.';
+            }
+        }
+    } else if (
         formData.promotionType !== 'COMBO' &&
         formData.appliesTo !== 'ALL' &&
         formData.scopes.length === 0
@@ -227,6 +272,7 @@ export function validatePromotionForm(formData: PromotionFormData): string | nul
     }
 
     for (const scope of formData.scopes) {
+        if (formData.promotionType === 'DISCOUNT_PER_PRODUCT') continue;
         const qty = Number(scope.requiredQuantity);
         if (!Number.isFinite(qty) || qty < 1) {
             return 'La cantidad de cada scope debe ser al menos 1.';

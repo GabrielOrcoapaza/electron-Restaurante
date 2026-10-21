@@ -13,16 +13,19 @@ interface ScopeEditorProps {
     scopes: ScopeFormItem[];
     onChange: (scopes: ScopeFormItem[]) => void;
     categories: CategoryOption[];
+    /** Solo productos fijos, sin cantidad ni categorías (descuento por producto). */
+    variant?: 'combo' | 'productsOnly';
 }
 
-const emptyScope = (): ScopeFormItem => ({
+const emptyScope = (productOnly = false): ScopeFormItem => ({
     label: '',
     scopeLabel: '',
     requiredQuantity: 1,
-    scopeType: 'subcategory',
+    scopeType: productOnly ? 'product' : 'subcategory',
     subcategoryId: '',
     categoryId: '',
     productId: '',
+    discountAmount: productOnly ? '' : undefined,
 });
 
 const ScopeEditor: React.FC<ScopeEditorProps> = ({
@@ -30,7 +33,9 @@ const ScopeEditor: React.FC<ScopeEditorProps> = ({
     scopes,
     onChange,
     categories,
+    variant = 'combo',
 }) => {
+    const productsOnly = variant === 'productsOnly';
     const updateScope = (index: number, patch: Partial<ScopeFormItem>) => {
         onChange(
             scopes.map((scope, i) => (i === index ? { ...scope, ...patch } : scope)),
@@ -51,20 +56,36 @@ const ScopeEditor: React.FC<ScopeEditorProps> = ({
         <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/40">
             <div className="flex items-center justify-between">
                 <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    Scopes del combo
+                    {productsOnly ? 'Productos con descuento' : 'Scopes del combo'}
                 </h4>
                 <button
                     type="button"
-                    onClick={() => onChange([...scopes, emptyScope()])}
+                    onClick={() =>
+                        onChange([...scopes, emptyScope(productsOnly)])
+                    }
                     className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-500"
                 >
-                    + Agregar scope
+                    {productsOnly ? '+ Agregar producto' : '+ Agregar scope'}
                 </button>
             </div>
 
-            {scopes.length === 0 && (
+            {productsOnly && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                    En cada fila indica el producto y el <strong>Descuento S/</strong>.
+                    Se aplica una sola vez por producto en el pedido, sin importar
+                    la cantidad. No usa monto mínimo de compra.
+                </p>
+            )}
+
+            {scopes.length === 0 && !productsOnly && (
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                     Agrega al menos un scope para definir las opciones del combo.
+                </p>
+            )}
+
+            {scopes.length === 0 && productsOnly && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Agrega al menos un producto con su descuento.
                 </p>
             )}
 
@@ -73,81 +94,150 @@ const ScopeEditor: React.FC<ScopeEditorProps> = ({
                     key={scope.id || `scope-${index}`}
                     className="space-y-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-600 dark:bg-slate-900"
                 >
-                    <div className="grid gap-3 md:grid-cols-2">
-                        <label className="block text-xs">
-                            <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
-                                Etiqueta
-                            </span>
-                            <input
-                                value={scope.label}
-                                onChange={(e) =>
-                                    updateScope(index, { label: e.target.value })
-                                }
-                                placeholder="Ej: Entrada"
-                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
-                            />
-                        </label>
-                        <label className="block text-xs">
-                            <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
-                                Texto de elección
-                            </span>
-                            <input
-                                value={scope.scopeLabel}
-                                onChange={(e) =>
-                                    updateScope(index, { scopeLabel: e.target.value })
-                                }
-                                placeholder="Ej: Elige tu entrada"
-                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
-                            />
-                        </label>
-                    </div>
+                    {!productsOnly && (
+                        <>
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <label className="block text-xs">
+                                    <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
+                                        Etiqueta
+                                    </span>
+                                    <input
+                                        value={scope.label}
+                                        onChange={(e) =>
+                                            updateScope(index, {
+                                                label: e.target.value,
+                                            })
+                                        }
+                                        placeholder="Ej: Entrada"
+                                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                    />
+                                </label>
+                                <label className="block text-xs">
+                                    <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
+                                        Texto de elección
+                                    </span>
+                                    <input
+                                        value={scope.scopeLabel}
+                                        onChange={(e) =>
+                                            updateScope(index, {
+                                                scopeLabel: e.target.value,
+                                            })
+                                        }
+                                        placeholder="Ej: Elige tu entrada"
+                                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                    />
+                                </label>
+                            </div>
 
-                    <div className="grid gap-3 md:grid-cols-3">
-                        <label className="block text-xs">
-                            <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
-                                Cantidad
-                            </span>
-                            <input
-                                type="number"
-                                min={1}
-                                value={scope.requiredQuantity}
-                                onChange={(e) =>
-                                    updateScope(index, {
-                                        requiredQuantity: Math.max(
-                                            1,
-                                            parseInt(e.target.value, 10) || 1,
-                                        ),
-                                    })
-                                }
-                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
-                            />
-                        </label>
-                        <label className="block text-xs md:col-span-2">
-                            <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
-                                Tipo de scope
-                            </span>
-                            <select
-                                value={scope.scopeType}
-                                onChange={(e) =>
-                                    updateScope(index, {
-                                        scopeType: e.target
-                                            .value as ScopeFormItem['scopeType'],
-                                        subcategoryId: '',
-                                        categoryId: '',
-                                        productId: '',
-                                        productName: '',
-                                    })
-                                }
-                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
-                            >
-                                <option value="subcategory">Subcategoría</option>
-                                <option value="category">Categoría</option>
-                                <option value="product">Producto fijo</option>
-                            </select>
-                        </label>
-                    </div>
+                            <div className="grid gap-3 md:grid-cols-3">
+                                <label className="block text-xs">
+                                    <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
+                                        Cantidad
+                                    </span>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={scope.requiredQuantity}
+                                        onChange={(e) =>
+                                            updateScope(index, {
+                                                requiredQuantity: Math.max(
+                                                    1,
+                                                    parseInt(e.target.value, 10) ||
+                                                        1,
+                                                ),
+                                            })
+                                        }
+                                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                    />
+                                </label>
+                                <label className="block text-xs md:col-span-2">
+                                    <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
+                                        Tipo de scope
+                                    </span>
+                                    <select
+                                        value={scope.scopeType}
+                                        onChange={(e) =>
+                                            updateScope(index, {
+                                                scopeType: e.target
+                                                    .value as ScopeFormItem['scopeType'],
+                                                subcategoryId: '',
+                                                categoryId: '',
+                                                productId: '',
+                                                productName: '',
+                                            })
+                                        }
+                                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                    >
+                                        <option value="subcategory">
+                                            Subcategoría
+                                        </option>
+                                        <option value="category">Categoría</option>
+                                        <option value="product">
+                                            Producto fijo
+                                        </option>
+                                    </select>
+                                </label>
+                            </div>
+                        </>
+                    )}
 
-                    {scope.scopeType === 'subcategory' && (
+                    {(productsOnly || scope.scopeType === 'product') && (
+                        <div
+                            className={
+                                productsOnly
+                                    ? 'grid gap-3 md:grid-cols-2'
+                                    : 'block text-xs'
+                            }
+                        >
+                            <div className="block text-xs">
+                                <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
+                                    Producto *
+                                </span>
+                                <ProductSearchInput
+                                    branchId={branchId}
+                                    selectedProductId={scope.productId}
+                                    selectedProductName={scope.productName}
+                                    compact
+                                    placeholder="Buscar producto o escanear código"
+                                    onSelect={(product) =>
+                                        updateScope(index, {
+                                            productId: product.id,
+                                            productName: product.name,
+                                            scopeType: 'product',
+                                        })
+                                    }
+                                    onClear={() =>
+                                        updateScope(index, {
+                                            productId: '',
+                                            productName: '',
+                                        })
+                                    }
+                                />
+                            </div>
+                            {productsOnly && (
+                                <label className="block text-xs">
+                                    <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
+                                        Descuento S/ *
+                                    </span>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step="0.01"
+                                        value={scope.discountAmount ?? ''}
+                                        onChange={(e) =>
+                                            updateScope(index, {
+                                                discountAmount: e.target.value,
+                                            })
+                                        }
+                                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                        placeholder="Ej: 10.00"
+                                    />
+                                </label>
+                            )}
+                        </div>
+                    )}
+
+                    {!productsOnly && scope.scopeType === 'subcategory' && (
                         <label className="block text-xs">
                             <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
                                 Subcategoría
@@ -171,7 +261,7 @@ const ScopeEditor: React.FC<ScopeEditorProps> = ({
                         </label>
                     )}
 
-                    {scope.scopeType === 'category' && (
+                    {!productsOnly && scope.scopeType === 'category' && (
                         <label className="block text-xs">
                             <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
                                 Categoría
@@ -193,40 +283,13 @@ const ScopeEditor: React.FC<ScopeEditorProps> = ({
                         </label>
                     )}
 
-                    {scope.scopeType === 'product' && (
-                        <div className="block text-xs">
-                            <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
-                                Producto fijo
-                            </span>
-                            <ProductSearchInput
-                                branchId={branchId}
-                                selectedProductId={scope.productId}
-                                selectedProductName={scope.productName}
-                                compact
-                                placeholder="Buscar producto o escanear código"
-                                onSelect={(product) =>
-                                    updateScope(index, {
-                                        productId: product.id,
-                                        productName: product.name,
-                                    })
-                                }
-                                onClear={() =>
-                                    updateScope(index, {
-                                        productId: '',
-                                        productName: '',
-                                    })
-                                }
-                            />
-                        </div>
-                    )}
-
                     <div className="flex justify-end">
                         <button
                             type="button"
                             onClick={() => removeScope(index)}
                             className="text-xs font-semibold text-red-500 hover:text-red-400"
                         >
-                            Eliminar scope
+                            {productsOnly ? 'Eliminar producto' : 'Eliminar scope'}
                         </button>
                     </div>
                 </div>

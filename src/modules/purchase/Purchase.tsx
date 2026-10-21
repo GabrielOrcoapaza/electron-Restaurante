@@ -14,6 +14,10 @@ import CreateSupplierModal from './createSupplier';
 import PurchaseList from './purchaseList';
 import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
 import { normalizeProductUnitMeasure } from '../../constants/productUnitMeasures';
+import {
+  getProductTypeLabel,
+  isKardexPurchaseProductType,
+} from '../../constants/productTypes';
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
   style: 'currency',
@@ -320,13 +324,13 @@ const Purchase: React.FC = () => {
   const allProducts: Product[] = productsData?.productsByBranch || [];
   const allProductsByBranch = productsByBranchData?.productsByBranch || [];
   const baseProducts = allProducts.filter(
-    p => (p.productType === 'INGREDIENT' || p.productType === 'BEVERAGE') && p.isActive
+    p => isKardexPurchaseProductType(p.productType) && p.isActive
   );
 
   const productSearchResults = (() => {
     if (productSearchTerm.length < 3) return baseProducts.slice(0, 50);
     const fromSearch = (searchData?.searchProducts || []).filter(
-      (p: any) => (p.productType === 'INGREDIENT' || p.productType === 'BEVERAGE') && p.isActive !== false
+      (p: any) => isKardexPurchaseProductType(p.productType) && p.isActive !== false
     );
     if (fromSearch.length > 0) return fromSearch;
     const lower = productSearchTerm.toLowerCase();
@@ -765,7 +769,7 @@ const Purchase: React.FC = () => {
                             <span className="text-[10px] font-mono font-black text-indigo-500 dark:text-indigo-400">{p.code}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black uppercase text-slate-400">{p.productType}</span>
+                            <span className="text-[10px] font-black uppercase text-slate-400">{getProductTypeLabel(p.productType)}</span>
                             <span className="text-[10px] text-slate-400">•</span>
                             <span className="text-[10px] font-bold text-slate-500">S/ {p.purchasePrice.toFixed(2)}</span>
                           </div>

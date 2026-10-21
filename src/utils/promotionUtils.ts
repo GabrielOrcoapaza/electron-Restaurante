@@ -59,6 +59,33 @@ function getProductCategoryId(
 
     return null;
 }
+/** Monto fijo: promo (DISCOUNT_AMOUNT) o scope (DISCOUNT_PER_PRODUCT). */
+export function fixedDiscountAmountForProduct(
+    promo: IPromotion,
+    productId: string,
+): number {
+    if (promo.promotionType === 'DISCOUNT_AMOUNT') {
+        const amount =
+            typeof promo.discountAmount === 'string'
+                ? parseFloat(promo.discountAmount)
+                : (promo.discountAmount ?? 0);
+        return amount > 0 ? amount : 0;
+    }
+    if (promo.promotionType === 'DISCOUNT_PER_PRODUCT') {
+        const scope = promo.scopes.find(
+            (s) =>
+                s.product?.id != null &&
+                String(s.product.id) === String(productId),
+        );
+        if (!scope) return 0;
+        const raw = scope.discountAmount;
+        const amount =
+            typeof raw === 'string' ? parseFloat(raw) : (raw ?? 0);
+        return amount > 0 ? amount : 0;
+    }
+    return 0;
+}
+
 /** Devuelve true si la promoción aplica al producto (según appliesTo y scopes). */
 export function promotionAppliesToProduct(
     promo: IPromotion,
@@ -122,14 +149,18 @@ export function findBestDiscountPromotion(
     const candidates = promotions.filter(
         (promo) =>
             (promo.promotionType === "DISCOUNT_PERCENT" ||
-                promo.promotionType === "DISCOUNT_AMOUNT") &&
+                promo.promotionType === "DISCOUNT_AMOUNT" ||
+                promo.promotionType === "DISCOUNT_PER_PRODUCT") &&
             promotionAppliesToProduct(
                 promo,
                 product,
                 subcategoriesOfCategory,
                 selectedCategoryId, // ← PASA EL PARÁMETRO
             ) &&
-            cartTotal >= promo.minPurchaseAmount,
+            (promo.promotionType === "DISCOUNT_PER_PRODUCT" ||
+                cartTotal >= (promo.minPurchaseAmount || 0)) &&
+            (promo.promotionType !== "DISCOUNT_PER_PRODUCT" ||
+                fixedDiscountAmountForProduct(promo, String(product.id)) > 0),
     );
     if (candidates.length === 0) return null;
     return candidates.reduce((best, curr) =>
@@ -220,15 +251,18 @@ export function computeDiscountPromotions(
                     ),
                 });
             });
-        } else if (promo.promotionType === "DISCOUNT_AMOUNT") {
+        } else if (
+            promo.promotionType === "DISCOUNT_AMOUNT" ||
+            promo.promotionType === "DISCOUNT_PER_PRODUCT"
+        ) {
             const totalValue = group.reduce(
                 (sum, l) => sum + l.unitPrice * l.quantity,
                 0,
             );
-            const amount =
-                typeof promo.discountAmount === "string"
-                    ? parseFloat(promo.discountAmount)
-                    : (promo.discountAmount ?? 0);
+            const amount = fixedDiscountAmountForProduct(
+                promo,
+                String(anchor.product.id),
+            );
             const discount = Math.min(
                 Math.round(amount * 100) / 100,
                 Math.round(totalValue * 100) / 100,
@@ -256,6 +290,14 @@ export function promotionBadgeLabel(promo: IPromotion): string {
                     ? parseFloat(promo.discountAmount)
                     : (promo.discountAmount ?? 0);
             return `-S/ ${amount.toFixed(2)}`;
+        }
+        case "DISCOUNT_PER_PRODUCT": {
+            const scope = promo.scopes.find((s) => s.product?.id);
+            const raw = scope?.discountAmount;
+            const amount =
+                typeof raw === "string" ? parseFloat(raw) : (raw ?? 0);
+            if (amount > 0) return `-S/ ${amount.toFixed(2)}`;
+            return "DESCUENTO";
         }
         case "NXM":
             return `${promo.buyQuantity}×${promo.getQuantity}`;

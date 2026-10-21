@@ -152,6 +152,20 @@ const PromotionsScreen: React.FC = () => {
                                             -${promotion.discountAmount}
                                         </p>
                                     )}
+                                    {(promotion.promotionType ===
+                                        "DISCOUNT_AMOUNT" ||
+                                        promotion.promotionType ===
+                                            "DISCOUNT_PER_PRODUCT") && (
+                                        <p className="text-3xl font-bold text-[#4CAF50]">
+                                            -S/ {promotion.discountAmount}
+                                        </p>
+                                    )}
+                                    {promotion.promotionType ===
+                                        "DISCOUNT_PERCENT" && (
+                                        <p className="text-3xl font-bold text-[#4CAF50]">
+                                            -{promotion.discountPercent}%
+                                        </p>
+                                    )}
                                     {promotion.promotionType ===
                                         "BUY_X_GET_Y" && (
                                         <p className="text-3xl font-bold text-[#4CAF50]">

@@ -2685,6 +2685,7 @@ export const SET_PROMOTION_SCOPES = gql`
                     label
                     scopeLabel
                     requiredQuantity
+                    discountAmount
                 }
             }
         }

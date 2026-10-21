@@ -9,6 +9,7 @@ import {
     GET_WAREHOUSES_BY_BRANCH,
 } from "../../graphql/queries";
 import { formatLocalDateYYYYMMDD } from "../../utils/localDateTime";
+import { isKardexPurchaseProductType } from "../../constants/productTypes";
 import { useLazyQuery } from "@apollo/client";
 import { useEffect } from "react";
 
@@ -118,15 +119,11 @@ const Kardex: React.FC = () => {
         const lower = productSearchTerm.toLowerCase();
         return allProductsFromBranch.filter(
             (p: Product) =>
-                (p.productType === "INGREDIENT" ||
-                    p.productType === "BEVERAGE") &&
+                isKardexPurchaseProductType(p.productType) &&
                 ((p.name || "").toLowerCase().includes(lower) ||
                     (p.code || "").toLowerCase().includes(lower)),
         );
-    })().filter(
-        (p: Product) =>
-            p.productType === "INGREDIENT" || p.productType === "BEVERAGE",
-    );
+    })().filter((p: Product) => isKardexPurchaseProductType(p.productType));
 
     const selectedProduct = selectedProductId
         ? searchResults.find((p: Product) => p.id === selectedProductId) ||

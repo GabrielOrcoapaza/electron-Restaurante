@@ -457,9 +457,10 @@ const ListProduct: React.FC<ListProductProps> = ({
                         }}
                     >
                         <option value="">Todos los tipos</option>
-                        <option value="DISH">Plato</option>
+                        <option value="DISH">Productos preparados</option>
+                        <option value="BEVERAGE">Bebidas embotelladas</option>
                         <option value="INGREDIENT">Ingrediente</option>
-                        <option value="BEVERAGE">Bebida</option>
+                        <option value="OTHER">Otros</option>
                         <option value="PROMOTION">Promoción / Combo</option>
                     </select>
                 </div>
@@ -661,7 +662,8 @@ const ListProduct: React.FC<ListProductProps> = ({
                                         >
                                             ✏️ Editar
                                         </button>
-                                        {canViewRecipes && (
+                                        {canViewRecipes &&
+                                            product.productType === "DISH" && (
                                         <button
                                             onClick={() =>
                                                 setSelectedProductForRecipe({
@@ -1116,7 +1118,9 @@ const ListProduct: React.FC<ListProductProps> = ({
                                                 >
                                                     ✏️ Editar
                                                 </button>
-                                                {canViewRecipes && (
+                                                {canViewRecipes &&
+                                                    product.productType ===
+                                                        "DISH" && (
                                                 <button
                                                     onClick={() =>
                                                         setSelectedProductForRecipe(

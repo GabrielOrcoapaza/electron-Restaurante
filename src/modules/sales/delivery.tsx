@@ -9,6 +9,7 @@ import {
     getBranchIgvPercentage,
     getBranchTaxAffectationType,
 } from "../../utils/getBranchIgvPercentage";
+import { isSaleCatalogProductType } from "../../constants/productTypes";
 import {
     CREATE_SALE_CARRY_OUT,
     GET_OR_CREATE_DELIVERY_PRODUCT,
@@ -425,9 +426,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
         return all.filter(
             (p: any) =>
                 p.isActive !== false &&
-                (p.productType === "DISH" ||
-                    p.productType === "BEVERAGE" ||
-                    p.productType === "PROMOTION"),
+                isSaleCatalogProductType(p.productType),
         );
     }, [productsByBranchData?.productsByBranch]);
 
@@ -654,9 +653,11 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
             const searchLower = searchTerm.toLowerCase();
             products = allProducts.filter(
                 (p: any) =>
-                    p.name?.toLowerCase().includes(searchLower) ||
-                    p.code?.toLowerCase().includes(searchLower) ||
-                    p.description?.toLowerCase().includes(searchLower),
+                    isSaleCatalogProductType(p.productType) &&
+                    p.isActive !== false &&
+                    (p.name?.toLowerCase().includes(searchLower) ||
+                        p.code?.toLowerCase().includes(searchLower) ||
+                        p.description?.toLowerCase().includes(searchLower)),
             );
         }
     } else if (selectedCategory) {
@@ -672,7 +673,10 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
         productsLoading = productsByBranchLoading;
     }
 
-    let productsList = products || [];
+    let productsList = (products || []).filter(
+        (p: any) =>
+            p.isActive !== false && isSaleCatalogProductType(p.productType),
+    );
 
     /** Al elegir categoría con subs, seleccionar la primera automáticamente */
     useLayoutEffect(() => {

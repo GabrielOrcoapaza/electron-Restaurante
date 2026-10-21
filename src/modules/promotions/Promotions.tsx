@@ -15,6 +15,7 @@ const TAB_TYPES: PromotionTypeValue[] = [
     'COMBO',
     'DISCOUNT_PERCENT',
     'DISCOUNT_AMOUNT',
+    'DISCOUNT_PER_PRODUCT',
     'NXM',
     'GIFT',
 ];
@@ -31,6 +32,7 @@ const typeBadgeClass: Record<PromotionTypeValue, string> = {
     COMBO: 'bg-orange-500',
     DISCOUNT_PERCENT: 'bg-blue-500',
     DISCOUNT_AMOUNT: 'bg-green-600',
+    DISCOUNT_PER_PRODUCT: 'bg-teal-600',
     NXM: 'bg-purple-500',
     GIFT: 'bg-yellow-500 text-black',
 };
@@ -244,6 +246,21 @@ const Promotions: React.FC = () => {
                                 {promo.promotionType === 'DISCOUNT_AMOUNT' && (
                                     <div className="mt-1 text-xs text-green-600 dark:text-green-300">
                                         S/ {Number(promo.discountAmount || 0).toFixed(2)} de descuento
+                                    </div>
+                                )}
+                                {promo.promotionType === 'DISCOUNT_PER_PRODUCT' && (
+                                    <div className="mt-1 text-xs text-teal-600 dark:text-teal-300">
+                                        {(promo.scopes || [])
+                                            .filter(
+                                                (s) =>
+                                                    s.product?.name &&
+                                                    s.discountAmount != null,
+                                            )
+                                            .map(
+                                                (s) =>
+                                                    `${s.product!.name}: S/ ${Number(s.discountAmount).toFixed(2)}`,
+                                            )
+                                            .join(' · ') || '—'}
                                     </div>
                                 )}
                                 {promo.promotionType === 'NXM' && (

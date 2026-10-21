@@ -6,6 +6,7 @@ export interface IPromotionScope {
     label: string | null;
     scopeLabel: string | null;
     requiredQuantity: number;
+    discountAmount?: number | null;
     subcategory?: { id: string; name: string } | null;
     category?: { id: string; name: string } | null;
     product?: {
@@ -31,12 +32,14 @@ export interface ScopeFormItem {
     categoryId?: string;
     productId?: string;
     productName?: string;
+    discountAmount?: string;
 }
 
 export type PromotionTypeValue =
     | 'COMBO'
     | 'DISCOUNT_PERCENT'
     | 'DISCOUNT_AMOUNT'
+    | 'DISCOUNT_PER_PRODUCT'
     | 'NXM'
     | 'GIFT';
 
@@ -77,6 +80,7 @@ export const PROMOTION_TYPE_LABELS: Record<PromotionTypeValue, string> = {
     COMBO: 'Combo / Menú',
     DISCOUNT_PERCENT: 'Descuento %',
     DISCOUNT_AMOUNT: 'Descuento S/',
+    DISCOUNT_PER_PRODUCT: 'Descuento por producto',
     NXM: 'N × M',
     GIFT: 'Regalo',
 };
@@ -141,7 +145,13 @@ export interface IPromotion {
     id: string;
     name: string;
     description?: string | null;
-    promotionType: 'COMBO' | 'DISCOUNT_PERCENT' | 'DISCOUNT_AMOUNT' | 'NXM' | 'GIFT';
+    promotionType:
+        | 'COMBO'
+        | 'DISCOUNT_PERCENT'
+        | 'DISCOUNT_AMOUNT'
+        | 'DISCOUNT_PER_PRODUCT'
+        | 'NXM'
+        | 'GIFT';
     isValidNow: boolean;
     isActive: boolean;
     daysDisplay: string;

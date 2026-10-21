@@ -39,7 +39,7 @@ const TEMPLATE_HEADERS = [
     "precio_venta_nuevo",
 ];
 
-/** Solo INGREDIENT/BEVERAGE con manages_stock activo pueden importarse (igual regla que el backend). */
+/** Productos con kardex (managesStock), excluye platos — alineado con el backend. */
 export function getImportableProducts(
     products: ImportableProduct[],
 ): ImportableProduct[] {

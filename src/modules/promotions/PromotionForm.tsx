@@ -156,7 +156,21 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
     };
 
     const showScopes =
-        formData.promotionType === 'COMBO' || formData.appliesTo !== 'ALL';
+        formData.promotionType === 'COMBO' ||
+        formData.promotionType === 'DISCOUNT_PER_PRODUCT' ||
+        formData.appliesTo !== 'ALL';
+
+    const handlePromotionTypeChange = (nextType: PromotionTypeValue) => {
+        if (nextType === 'DISCOUNT_PER_PRODUCT') {
+            patch({
+                promotionType: nextType,
+                appliesTo: 'PRODUCT',
+                minPurchaseAmount: '0',
+            });
+            return;
+        }
+        patch({ promotionType: nextType });
+    };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -235,9 +249,9 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
                     <select
                         value={formData.promotionType}
                         onChange={(e) =>
-                            patch({
-                                promotionType: e.target.value as PromotionTypeValue,
-                            })
+                            handlePromotionTypeChange(
+                                e.target.value as PromotionTypeValue,
+                            )
                         }
                         className={fieldClass}
                     >
@@ -605,6 +619,11 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
                     scopes={formData.scopes}
                     onChange={(scopes) => patch({ scopes })}
                     categories={categories}
+                    variant={
+                        formData.promotionType === 'DISCOUNT_PER_PRODUCT'
+                            ? 'productsOnly'
+                            : 'combo'
+                    }
                 />
             )}
 

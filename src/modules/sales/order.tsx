@@ -266,14 +266,19 @@ function orderItemsPromoSnapshot(items: OrderItem[]): string {
 const EMPTY_OBSERVATION_OPTIONS: any[] = [];
 const EMPTY_SELECTED_OBSERVATION_IDS = new Set<string>();
 
-/** Solo platos y bebidas activos (venta en salón; coincide con search_products sin ingredientes). */
+/** Productos vendibles en salón (search_products + código). */
 function isOrderSearchProduct(p: {
     productType?: string | null;
     isActive?: boolean | null;
 }) {
     if (p.isActive === false) return false;
     const t = p.productType;
-    return t === "DISH" || t === "BEVERAGE" || t === "PROMOTION";
+    return (
+        t === "DISH" ||
+        t === "BEVERAGE" ||
+        t === "PROMOTION" ||
+        t === "OTHER"
+    );
 }
 
 const Order: React.FC<OrderProps> = ({
@@ -735,7 +740,7 @@ const Order: React.FC<OrderProps> = ({
         products = p && isOrderSearchProduct(p) ? [p] : [];
         productsLoading = productByCodeLoading;
     } else if (searchTerm.length >= 3) {
-        // Prioridad 1: Búsqueda avanzada (del servidor): solo platos/bebidas activos
+        // Prioridad 1: Búsqueda avanzada (del servidor): catálogo vendible activo
         const raw = searchData?.searchProducts;
         products = Array.isArray(raw) ? raw.filter(isOrderSearchProduct) : raw;
         productsLoading = searchLoading;
@@ -755,7 +760,7 @@ const Order: React.FC<OrderProps> = ({
         productsLoading = false;
     }
 
-    // Misma regla que en búsqueda: solo platos/bebidas activos (navegación por categoría antes no filtraba isActive)
+    // Misma regla que en búsqueda: catálogo vendible activo
     let productsList = (products || []).filter(isOrderSearchProduct);
     // Filtrar por subcategoría solo cuando se navega por categorías (NO cuando se busca por código)
     if (

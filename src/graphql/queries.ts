@@ -2109,6 +2109,7 @@ export const GET_ACTIVE_COMBOS = gql`
                     label
                     scopeLabel
                     requiredQuantity
+                    discountAmount
                     subcategory {
                         id
                         name
@@ -2163,6 +2164,7 @@ export const GET_ACTIVE_PROMOTIONS = gql`
             isValidNow
             scopes {
                 id
+                discountAmount
                 category {
                     id
                     name
@@ -2224,6 +2226,7 @@ export const GET_PROMOTIONS_BY_BRANCH = gql`
                 label
                 scopeLabel
                 requiredQuantity
+                discountAmount
                 subcategory {
                     id
                     name
@@ -2280,6 +2283,7 @@ export const GET_PROMOTION_BY_ID = gql`
                 label
                 scopeLabel
                 requiredQuantity
+                discountAmount
                 subcategory {
                     id
                     name
