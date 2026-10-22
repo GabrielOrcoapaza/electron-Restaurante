@@ -9,6 +9,9 @@ import { KitchenProvider } from './context/KitchenContext';
 import { WebSocketProvider } from './context/WebSocketContext';
 import './index.css'; // importa los estilos de Tailwind
 import './styles/responsive.css'; // escalado según resolución de pantalla (debe ir después para sobrescribir base)
+import { installNumberInputWheelGuard } from './utils/numberInputGlobalBehavior';
+
+installNumberInputWheelGuard();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -71,9 +71,9 @@ const ScopeEditor: React.FC<ScopeEditorProps> = ({
 
             {productsOnly && (
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                    En cada fila indica el producto y el <strong>Descuento S/</strong>.
-                    Se aplica una sola vez por producto en el pedido, sin importar
-                    la cantidad. No usa monto mínimo de compra.
+                    En cada fila indica el producto y el <strong>Descuento S/</strong>{' '}
+                    <strong>por unidad</strong> (cantidad 2 con S/ 1 → descuenta S/ 2).
+                    No usa monto mínimo de compra.
                 </p>
             )}
 

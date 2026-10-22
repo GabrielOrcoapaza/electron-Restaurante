@@ -13,7 +13,8 @@ import {
 
 interface Recipe {
   id: string;
-  quantity: number;
+  /** GraphQL puede devolver Decimal como string. */
+  quantity: number | string;
   unitMeasure?: string;
   notes?: string;
   product: {
@@ -34,6 +35,26 @@ interface RecipeModalProps {
   productName: string;
   productType?: string;
   onClose: () => void;
+}
+
+const RECIPE_QUANTITY_MAX_DECIMALS = 4;
+const RECIPE_QUANTITY_STEP = 0.0001;
+
+function recipeQuantityDecimalPlaces(value: string): number {
+  const trimmed = value.trim();
+  const dot = trimmed.indexOf('.');
+  if (dot === -1) return 0;
+  return trimmed.length - dot - 1;
+}
+
+/** Muestra cantidad con hasta 4 decimales, sin ceros finales innecesarios. */
+function formatRecipeQuantity(quantity: number | string): string {
+  const n = typeof quantity === 'number' ? quantity : parseFloat(String(quantity));
+  if (!Number.isFinite(n)) {
+    return String(quantity ?? '');
+  }
+  const fixed = n.toFixed(RECIPE_QUANTITY_MAX_DECIMALS);
+  return fixed.replace(/\.?0+$/, '');
 }
 
 const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, productType, onClose }) => {
@@ -113,6 +134,13 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
     const quantity = parseFloat(formData.quantity);
     if (isNaN(quantity) || quantity <= 0) {
       setMessage({ type: 'error', text: 'La cantidad debe ser un número mayor a 0' });
+      return;
+    }
+    if (recipeQuantityDecimalPlaces(formData.quantity) > RECIPE_QUANTITY_MAX_DECIMALS) {
+      setMessage({
+        type: 'error',
+        text: `La cantidad admite hasta ${RECIPE_QUANTITY_MAX_DECIMALS} decimales`,
+      });
       return;
     }
 
@@ -286,12 +314,12 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
                     </label>
                     <input
                       type="number"
-                      step="0.01"
-                      min="0.01"
+                      step={RECIPE_QUANTITY_STEP}
+                      min={RECIPE_QUANTITY_STEP}
                       value={formData.quantity}
                       onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                       required
-                      placeholder="0.00"
+                      placeholder="0.0000"
                       className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                     />
                   </div>
@@ -411,7 +439,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ productId, productName, produ
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span className="inline-flex items-center rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-black text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400">
-                            {recipe.quantity}{' '}
+                            {formatRecipeQuantity(recipe.quantity)}{' '}
                             {normalizeProductUnitMeasure(
                               recipe.unitMeasure ||
                                 recipe.ingredient.unitMeasure,

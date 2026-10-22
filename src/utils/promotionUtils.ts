@@ -59,7 +59,7 @@ function getProductCategoryId(
 
     return null;
 }
-/** Monto fijo: promo (DISCOUNT_AMOUNT) o scope (DISCOUNT_PER_PRODUCT). */
+/** Monto fijo por unidad (scope) o monto único por producto (DISCOUNT_AMOUNT en promo). */
 export function fixedDiscountAmountForProduct(
     promo: IPromotion,
     productId: string,
@@ -204,13 +204,8 @@ export function calculateLineDiscount(
  * o DISCOUNT_AMOUNT ganadora (mayor priority) y el descuento resultante por línea.
  * - DISCOUNT_PERCENT: se calcula por línea (precio×cantidad×%) — matemáticamente igual
  *   repartido en varias líneas que agrupado en una sola, sin necesidad de agrupar.
- * - DISCOUNT_AMOUNT: el monto fijo se aplica UNA sola vez por producto (capado al valor total
- *   de sus líneas), no una vez por línea. Sin esto, con "Desagrupar productos repetidos"
- *   activo (o cualquier otro motivo por el que el mismo producto quede en varias líneas de
- *   cantidad 1), el monto fijo se duplicaría por cada línea adicional.
- * Solo la primera línea de cada grupo recibe el descuento DISCOUNT_AMOUNT; las demás quedan
- * en 0 para ese producto (el llamador debe asignarles discount=0/promotionName=null si no
- * aparecen en el mapa devuelto).
+ * - DISCOUNT_AMOUNT: monto fijo UNA sola vez por producto (agrupado), capado al subtotal.
+ * - DISCOUNT_PER_PRODUCT: monto del scope × cantidad de cada línea, capado al subtotal de la línea.
  */
 export function computeDiscountPromotions(
     lines: CartLine[],
@@ -251,10 +246,20 @@ export function computeDiscountPromotions(
                     ),
                 });
             });
-        } else if (
-            promo.promotionType === "DISCOUNT_AMOUNT" ||
-            promo.promotionType === "DISCOUNT_PER_PRODUCT"
-        ) {
+        } else if (promo.promotionType === "DISCOUNT_PER_PRODUCT") {
+            const unitDiscount = fixedDiscountAmountForProduct(
+                promo,
+                String(anchor.product.id),
+            );
+            group.forEach((line) => {
+                const lineValue = line.unitPrice * line.quantity;
+                const discount = Math.min(
+                    Math.round(unitDiscount * line.quantity * 100) / 100,
+                    Math.round(lineValue * 100) / 100,
+                );
+                result.set(line.index, { promoName: promo.name, discount });
+            });
+        } else if (promo.promotionType === "DISCOUNT_AMOUNT") {
             const totalValue = group.reduce(
                 (sum, l) => sum + l.unitPrice * l.quantity,
                 0,
