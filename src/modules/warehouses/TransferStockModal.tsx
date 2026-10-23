@@ -4,9 +4,13 @@ import {
     GET_STOCKS_BY_WAREHOUSE,
     GET_WAREHOUSES_BY_BRANCH,
 } from "../../graphql/queries";
-import { TRANSFER_WAREHOUSE_STOCK } from "../../graphql/mutations";
+import { TRANSFER_WAREHOUSE_STOCK_NOTE } from "../../graphql/mutations";
 import SuggestionInput from "../../components/SuggestionInput";
 import { WAREHOUSE_TRANSFER_MOTIVE_SUGGESTIONS } from "../../constants/transferReasonSuggestions";
+import {
+    downloadInternalTransferNotePdf,
+    type InternalTransferNote,
+} from "../../utils/internalTransferNotePdf";
 
 interface Warehouse {
     id: string;
@@ -57,9 +61,13 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
     // productId -> cantidad (string, tal cual lo escribe el usuario). Solo los
     // productos presentes aquí están "marcados" para transferir.
     const [quantities, setQuantities] = useState<Record<string, string>>({});
+    const [productFilter, setProductFilter] = useState("");
     const [reason, setReason] = useState("");
     const [error, setError] = useState("");
     const [results, setResults] = useState<ItemResult[] | null>(null);
+    // Folio de la nota interna creada (TRI-XXXX) y resultado de la descarga del PDF.
+    const [noteFolio, setNoteFolio] = useState("");
+    const [pdfMessage, setPdfMessage] = useState("");
 
     const { data: warehousesData } = useQuery(GET_WAREHOUSES_BY_BRANCH, {
         variables: { branchId, includeInactive: false },
@@ -81,9 +89,15 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
     const availableProducts = stocks.filter(
         (s) => s.product.productType !== "DISH" && s.currentQuantity > 0,
     );
+    const normalizedFilter = productFilter.trim().toLowerCase();
+    const filteredProducts = normalizedFilter
+        ? availableProducts.filter((s) =>
+              s.product.name.toLowerCase().includes(normalizedFilter),
+          )
+        : availableProducts;
 
-    const [transferWarehouseStock, { loading: submitting }] = useMutation(
-        TRANSFER_WAREHOUSE_STOCK,
+    const [transferWarehouseStockNote, { loading: submitting }] = useMutation(
+        TRANSFER_WAREHOUSE_STOCK_NOTE,
     );
 
     const toggleItem = (productId: string, available: number) => {
@@ -107,6 +121,8 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
     const handleSubmit = async () => {
         setError("");
         setResults(null);
+        setNoteFolio("");
+        setPdfMessage("");
         if (!fromWarehouseId || !toWarehouseId) {
             setError("Seleccione almacén de origen y destino");
             return;
@@ -129,51 +145,75 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
         }
 
         const itemResults: ItemResult[] = [];
-        for (const [productId, qtyStr] of entries) {
-            const product = availableProducts.find(
-                (s) => s.product.id === productId,
-            );
-            const productName = product?.product.name || productId;
-            try {
-                const { data } = await transferWarehouseStock({
-                    variables: {
-                        fromWarehouseId,
-                        toWarehouseId,
+        let createdFolio = "";
+        let createdNote: InternalTransferNote | null = null;
+        try {
+            const { data } = await transferWarehouseStockNote({
+                variables: {
+                    fromWarehouseId,
+                    toWarehouseId,
+                    items: entries.map(([productId, qtyStr]) => ({
                         productId,
                         quantity: Number(qtyStr),
-                        reason: reason || undefined,
-                    },
-                });
-                if (data?.transferWarehouseStock?.success) {
-                    itemResults.push({
-                        productName,
-                        success: true,
-                        message: "Transferido",
-                    });
-                } else {
-                    itemResults.push({
-                        productName,
-                        success: false,
-                        message:
-                            data?.transferWarehouseStock?.message ||
-                            "No se pudo transferir",
-                    });
-                }
-            } catch (err: unknown) {
+                    })),
+                    motive: reason || undefined,
+                },
+            });
+            const payload = data?.transferWarehouseStockNote;
+            for (const r of payload?.results || []) {
                 itemResults.push({
-                    productName,
-                    success: false,
-                    message: getErrorMessage(err, "Error al transferir"),
+                    productName: r.productName || r.productId,
+                    success: Boolean(r.success),
+                    message:
+                        r.message ||
+                        (r.success ? "Transferido" : "No se pudo transferir"),
                 });
             }
+            if (!itemResults.length && !payload?.success) {
+                itemResults.push({
+                    productName: "—",
+                    success: false,
+                    message: payload?.message || "No se pudo transferir",
+                });
+            }
+            createdFolio = payload?.folio || "";
+            createdNote = (payload?.note as InternalTransferNote | null) || null;
+        } catch (err: unknown) {
+            itemResults.push({
+                productName: "—",
+                success: false,
+                message: getErrorMessage(err, "Error al transferir"),
+            });
         }
 
         setResults(itemResults);
+        setNoteFolio(createdFolio);
         await refetchStocks();
-        if (itemResults.every((r) => r.success)) {
+
+        // La nota interna nace confirmada (los ítems no tienen estado): si se creó,
+        // se descarga su PDF A4 con el folio TRI-XXXX.
+        if (createdNote) {
+            const pdf = await downloadInternalTransferNotePdf(createdNote);
+            setPdfMessage(pdf.message || "");
+        } else {
+            setPdfMessage("");
+        }
+
+        // No se cierra automáticamente: se muestra el folio y el estado del PDF.
+        // El botón "Cerrar" llama a onTransferred() para refrescar la tabla.
+    };
+
+    const handleClose = () => {
+        if (results) {
             onTransferred();
+        } else {
+            onClose();
         }
     };
+
+    // Si al menos un ítem se movió ya no se permite reenviar desde este modal
+    // (evita mover dos veces lo mismo). Si fallaron todos, se deja reintentar.
+    const hasSuccess = Boolean(results?.some((r) => r.success));
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
@@ -196,6 +236,7 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
                                     onChange={(e) => {
                                         setFromWarehouseId(e.target.value);
                                         setQuantities({});
+                                        setProductFilter("");
                                     }}
                                     className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                 >
@@ -235,7 +276,17 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
                                 Productos a transferir{" "}
                                 {selectedCount > 0 && `(${selectedCount} marcados)`}
                             </label>
-                            <div className="mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                            <input
+                                type="search"
+                                value={productFilter}
+                                onChange={(e) =>
+                                    setProductFilter(e.target.value)
+                                }
+                                placeholder="Filtrar por nombre..."
+                                disabled={!fromWarehouseId || stocksLoading}
+                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none placeholder:font-semibold placeholder:text-slate-400 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                            />
+                            <div className="mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
                                 {!fromWarehouseId ? (
                                     <p className="p-4 text-center text-xs font-bold text-slate-400">
                                         Elija primero el almacén origen
@@ -249,9 +300,13 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
                                         Este almacén no tiene productos con
                                         stock disponible
                                     </p>
+                                ) : filteredProducts.length === 0 ? (
+                                    <p className="p-4 text-center text-xs font-bold text-slate-400">
+                                        Ningún producto coincide con el filtro
+                                    </p>
                                 ) : (
                                     <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {availableProducts.map((s) => {
+                                        {filteredProducts.map((s) => {
                                             const checked =
                                                 s.product.id in quantities;
                                             return (
@@ -262,6 +317,9 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
                                                     <input
                                                         type="checkbox"
                                                         checked={checked}
+                                                        onWheel={(e) =>
+                                                            e.currentTarget.blur()
+                                                        }
                                                         onChange={() =>
                                                             toggleItem(
                                                                 s.product.id,
@@ -286,6 +344,19 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
                                                         min="0"
                                                         step="0.01"
                                                         disabled={!checked}
+                                                        onWheel={(e) =>
+                                                            e.currentTarget.blur()
+                                                        }
+                                                        onKeyDown={(e) => {
+                                                            if (
+                                                                e.key ===
+                                                                    "ArrowUp" ||
+                                                                e.key ===
+                                                                    "ArrowDown"
+                                                            ) {
+                                                                e.preventDefault();
+                                                            }
+                                                        }}
                                                         value={
                                                             quantities[
                                                                 s.product.id
@@ -297,7 +368,7 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
                                                                 e.target.value,
                                                             )
                                                         }
-                                                        className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-right text-xs font-bold text-slate-700 outline-none disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                        className="no-spinner w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-right text-xs font-bold text-slate-700 outline-none disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                                     />
                                                 </div>
                                             );
@@ -326,6 +397,23 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
                             <p className="text-xs font-bold text-rose-500">
                                 {error}
                             </p>
+                        )}
+
+                        {noteFolio && (
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-900/40 dark:bg-emerald-900/20">
+                                <p className="text-xs font-black text-emerald-700 dark:text-emerald-300">
+                                    Nota {noteFolio} registrada
+                                </p>
+                                <p className="mt-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                    El stock se movió en el momento: los ítems no
+                                    requieren aceptación.
+                                </p>
+                                {pdfMessage && (
+                                    <p className="mt-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                                        {pdfMessage}
+                                    </p>
+                                )}
+                            </div>
                         )}
 
                         {results && (
@@ -358,18 +446,21 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
 
                 <div className="flex justify-end gap-3 border-t border-slate-100 p-4 dark:border-slate-800">
                     <button
-                        onClick={onClose}
-                        className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
-                    >
-                        {results ? "Cerrar" : "Cancelar"}
-                    </button>
-                    <button
-                        onClick={handleSubmit}
+                        onClick={handleClose}
                         disabled={submitting}
-                        className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white transition-all hover:bg-indigo-700 disabled:opacity-50"
+                        className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-800"
                     >
-                        {submitting ? "Transfiriendo..." : "Transferir"}
+                        {results ? (hasSuccess ? "Cerrar" : "Cancelar") : "Cancelar"}
                     </button>
+                    {!hasSuccess && (
+                        <button
+                            onClick={handleSubmit}
+                            disabled={submitting}
+                            className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white transition-all hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                            {submitting ? "Transfiriendo..." : "Transferir"}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

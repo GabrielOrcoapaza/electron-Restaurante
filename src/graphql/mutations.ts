@@ -1,4 +1,5 @@
 import { gql } from "@apollo/client";
+import { INTERNAL_TRANSFER_NOTE_FIELDS } from "./queries";
 
 // Mutación para login de empresa (primer paso)
 export const COMPANY_LOGIN = gql`
@@ -18,6 +19,7 @@ export const COMPANY_LOGIN = gql`
                 isActive
                 usesWarehouses
                 usesMasterIngredients
+                usesConglomerateTransfers
             }
             branch {
                 id
@@ -2956,6 +2958,43 @@ export const TRANSFER_WAREHOUSE_STOCK = gql`
 `;
 
 // ==============================================
+// NOTA DE TRANSFERENCIA INTERNA (entre almacenes de la MISMA sucursal) — folio TRI-XXXX
+// ==============================================
+
+// Transferencia interna batch: mueve N productos y crea UNA nota con folio TRI-XXXX.
+// Los ítems no tienen estado: el stock se mueve al confirmar (no hay recepción).
+export const TRANSFER_WAREHOUSE_STOCK_NOTE = gql`
+    mutation TransferWarehouseStockNote(
+        $fromWarehouseId: ID!
+        $toWarehouseId: ID!
+        $items: [InternalTransferItemInput!]!
+        $motive: String
+        $notes: String
+    ) {
+        transferWarehouseStockNote(
+            fromWarehouseId: $fromWarehouseId
+            toWarehouseId: $toWarehouseId
+            items: $items
+            motive: $motive
+            notes: $notes
+        ) {
+            success
+            message
+            folio
+            note {
+                ${INTERNAL_TRANSFER_NOTE_FIELDS}
+            }
+            results {
+                productId
+                productName
+                success
+                message
+            }
+        }
+    }
+`;
+
+// ==============================================
 // INGREDIENTES MAESTROS (MasterIngredient) — requiere Company.usesMasterIngredients
 // ==============================================
 export const CREATE_MASTER_INGREDIENT = gql`
@@ -3116,6 +3155,194 @@ export const CANCEL_WAREHOUSE_TRANSFER = gql`
             transfer {
                 id
                 status
+            }
+        }
+    }
+`;
+
+// ==============================================
+// TRANSFERENCIAS ENTRE EMPRESAS DEL CONGLOMERADO — requiere Company.usesConglomerateTransfers
+// ==============================================
+
+// Despacho batch hacia una sucursal de OTRA empresa del conglomerado. No recibe
+// almacén ni ingrediente maestro destino: eso lo decide la empresa receptora al
+// recibir cada ítem (ver receiveConglomerateTransferItem).
+export const SEND_CONGLOMERATE_TRANSFER = gql`
+    mutation SendConglomerateTransfer(
+        $toBranchId: ID!
+        $items: [ConglomerateTransferItemInput!]!
+        $fromWarehouseId: ID
+        $motive: String
+        $driverName: String
+        $vehiclePlate: String
+        $notes: String
+    ) {
+        sendConglomerateTransfer(
+            toBranchId: $toBranchId
+            items: $items
+            fromWarehouseId: $fromWarehouseId
+            motive: $motive
+            driverName: $driverName
+            vehiclePlate: $vehiclePlate
+            notes: $notes
+        ) {
+            success
+            message
+            folio
+            note {
+                id
+                folio
+                sentAt
+            }
+            results {
+                masterIngredientId
+                masterIngredientName
+                success
+                message
+            }
+        }
+    }
+`;
+
+// La empresa destino resuelve sola cuál de sus productos corresponde, usando la
+// identidad del conglomerado que el ítem guardó al enviarse. Ya NO se mapea ningún
+// ingrediente maestro al recibir (toMasterIngredientId quedó deprecado).
+export const RECEIVE_CONGLOMERATE_TRANSFER_ITEM = gql`
+    mutation ReceiveConglomerateTransferItem(
+        $itemId: ID!
+        $quantityReceived: Float!
+        $warehouseId: ID
+        $notes: String
+    ) {
+        receiveConglomerateTransferItem(
+            itemId: $itemId
+            quantityReceived: $quantityReceived
+            warehouseId: $warehouseId
+            notes: $notes
+        ) {
+            success
+            message
+            item {
+                id
+                status
+                quantitySent
+                quantityReceived
+            }
+        }
+    }
+`;
+
+export const CANCEL_CONGLOMERATE_TRANSFER_ITEM = gql`
+    mutation CancelConglomerateTransferItem($itemId: ID!, $reason: String) {
+        cancelConglomerateTransferItem(itemId: $itemId, reason: $reason) {
+            success
+            message
+            item {
+                id
+                status
+            }
+        }
+    }
+`;
+
+// ==============================================
+// CATÁLOGO DE IDENTIDAD DEL CONGLOMERADO (ConglomerateIngredient)
+// Gobernanza estricta: solo administradores de la empresa master del conglomerado
+// pueden crear/editar identidades y vincular/desvincular los maestros de cualquier
+// empresa. El backend valida todo; estos documentos solo reflejan la UI.
+// ==============================================
+export const CREATE_CONGLOMERATE_INGREDIENT = gql`
+    mutation CreateConglomerateIngredient(
+        $name: String!
+        $unitMeasure: String
+        $masterIngredientIds: [ID]
+    ) {
+        createConglomerateIngredient(
+            name: $name
+            unitMeasure: $unitMeasure
+            masterIngredientIds: $masterIngredientIds
+        ) {
+            success
+            message
+            ingredient {
+                id
+                name
+                unitMeasure
+                isActive
+            }
+        }
+    }
+`;
+
+export const UPDATE_CONGLOMERATE_INGREDIENT = gql`
+    mutation UpdateConglomerateIngredient(
+        $conglomerateIngredientId: ID!
+        $name: String
+        $unitMeasure: String
+        $isActive: Boolean
+    ) {
+        updateConglomerateIngredient(
+            conglomerateIngredientId: $conglomerateIngredientId
+            name: $name
+            unitMeasure: $unitMeasure
+            isActive: $isActive
+        ) {
+            success
+            message
+            ingredient {
+                id
+                name
+                unitMeasure
+                isActive
+            }
+        }
+    }
+`;
+
+export const DELETE_CONGLOMERATE_INGREDIENT = gql`
+    mutation DeleteConglomerateIngredient($conglomerateIngredientId: ID!) {
+        deleteConglomerateIngredient(
+            conglomerateIngredientId: $conglomerateIngredientId
+        ) {
+            success
+            message
+        }
+    }
+`;
+
+export const LINK_MASTER_INGREDIENT_TO_CONGLOMERATE = gql`
+    mutation LinkMasterIngredientToConglomerate(
+        $masterIngredientId: ID!
+        $conglomerateIngredientId: ID!
+    ) {
+        linkMasterIngredientToConglomerate(
+            masterIngredientId: $masterIngredientId
+            conglomerateIngredientId: $conglomerateIngredientId
+        ) {
+            success
+            message
+            masterIngredient {
+                id
+                name
+                conglomerateIngredient {
+                    id
+                    name
+                }
+            }
+        }
+    }
+`;
+
+export const UNLINK_MASTER_INGREDIENT_FROM_CONGLOMERATE = gql`
+    mutation UnlinkMasterIngredientFromConglomerate($masterIngredientId: ID!) {
+        unlinkMasterIngredientFromConglomerate(
+            masterIngredientId: $masterIngredientId
+        ) {
+            success
+            message
+            masterIngredient {
+                id
+                name
             }
         }
     }

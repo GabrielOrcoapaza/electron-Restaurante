@@ -69,6 +69,7 @@ export interface CompanyData {
         isActive: boolean;
         usesWarehouses?: boolean;
         usesMasterIngredients?: boolean;
+        usesConglomerateTransfers?: boolean;
     };
     branch: {
         id: string;

@@ -2547,6 +2547,14 @@ const WAREHOUSE_TRANSFER_FIELDS = `
         id
         fullName
     }
+    note {
+        id
+        folio
+    }
+    inNote {
+        id
+        folio
+    }
 `;
 
 export const GET_PENDING_WAREHOUSE_TRANSFERS_BY_BRANCH = gql`
@@ -2561,6 +2569,407 @@ export const GET_WAREHOUSE_TRANSFERS_BY_BRANCH = gql`
     query GetWarehouseTransfersByBranch($branchId: ID!) {
         warehouseTransfersByBranch(branchId: $branchId) {
             ${WAREHOUSE_TRANSFER_FIELDS}
+        }
+    }
+`;
+
+// Notas de SALIDA (folio TR-XXXX) despachadas desde una sucursal, con sus ítems.
+// Se usan para el historial por documento y para regenerar el PDF de la nota.
+const WAREHOUSE_TRANSFER_OUT_NOTE_FIELDS = `
+    id
+    folio
+    motive
+    driverName
+    vehiclePlate
+    notes
+    sentAt
+    createdAt
+    company {
+        id
+        denomination
+        commercialName
+        ruc
+        logo
+    }
+    fromBranch {
+        id
+        name
+        address
+        phone
+    }
+    toBranch {
+        id
+        name
+        address
+        phone
+    }
+    sentBy {
+        id
+        fullName
+    }
+    inNote {
+        id
+        folio
+        receivedAt
+        receivedBy {
+            id
+            fullName
+        }
+    }
+    transfers {
+        id
+        status
+        quantitySent
+        quantityReceived
+        notesSent
+        notesReceived
+        masterIngredient {
+            id
+            name
+            unitMeasure
+        }
+        fromProduct {
+            id
+            code
+            name
+            unitMeasure
+        }
+        toProduct {
+            id
+            code
+            name
+            unitMeasure
+        }
+        fromWarehouse {
+            id
+            name
+        }
+        toWarehouse {
+            id
+            name
+        }
+        sentBy {
+            id
+            fullName
+        }
+        receivedBy {
+            id
+            fullName
+        }
+    }
+`;
+
+export const GET_WAREHOUSE_TRANSFER_OUT_NOTES_BY_BRANCH = gql`
+    query GetWarehouseTransferOutNotesByBranch($branchId: ID!) {
+        warehouseTransferOutNotesByBranch(branchId: $branchId) {
+            ${WAREHOUSE_TRANSFER_OUT_NOTE_FIELDS}
+        }
+    }
+`;
+
+// Notas de ENTRADA (folio TRE-XXXX) recibidas en una sucursal, con sus ítems y
+// la nota de salida que las originó.
+const WAREHOUSE_TRANSFER_IN_NOTE_FIELDS = `
+    id
+    folio
+    receivedAt
+    notes
+    company {
+        id
+        denomination
+        commercialName
+        ruc
+        logo
+    }
+    receivedBy {
+        id
+        fullName
+    }
+    outNote {
+        id
+        folio
+        motive
+        driverName
+        vehiclePlate
+        notes
+        sentAt
+        company {
+            id
+            denomination
+            commercialName
+            ruc
+            logo
+        }
+        fromBranch {
+            id
+            name
+            address
+            phone
+        }
+        toBranch {
+            id
+            name
+            address
+            phone
+        }
+        sentBy {
+            id
+            fullName
+        }
+    }
+    transfers {
+        id
+        status
+        quantitySent
+        quantityReceived
+        notesReceived
+        masterIngredient {
+            id
+            name
+            unitMeasure
+        }
+        fromProduct {
+            id
+            code
+            name
+            unitMeasure
+        }
+        toProduct {
+            id
+            code
+            name
+            unitMeasure
+        }
+        receivedBy {
+            id
+            fullName
+        }
+    }
+`;
+
+export const GET_WAREHOUSE_TRANSFER_IN_NOTES_BY_BRANCH = gql`
+    query GetWarehouseTransferInNotesByBranch($branchId: ID!) {
+        warehouseTransferInNotesByBranch(branchId: $branchId) {
+            ${WAREHOUSE_TRANSFER_IN_NOTE_FIELDS}
+        }
+    }
+`;
+
+// ==============================================
+// TRANSFERENCIAS INTERNAS (entre almacenes de la MISMA sucursal) — folio TRI-XXXX
+// ==============================================
+
+// Campos de la nota interna: se reutilizan en la mutación y en el historial.
+export const INTERNAL_TRANSFER_NOTE_FIELDS = `
+    id
+    folio
+    motive
+    notes
+    createdAt
+    company {
+        id
+        denomination
+        commercialName
+        ruc
+        logo
+    }
+    branch {
+        id
+        name
+        address
+        phone
+    }
+    fromWarehouse {
+        id
+        name
+    }
+    toWarehouse {
+        id
+        name
+    }
+    createdBy {
+        id
+        fullName
+    }
+    items {
+        id
+        quantity
+        unitCost
+        product {
+            id
+            code
+            name
+            unitMeasure
+        }
+    }
+`;
+
+export const GET_INTERNAL_TRANSFER_NOTES_BY_BRANCH = gql`
+    query GetInternalTransferNotesByBranch($branchId: ID!) {
+        warehouseInternalTransferNotesByBranch(branchId: $branchId) {
+            ${INTERNAL_TRANSFER_NOTE_FIELDS}
+        }
+    }
+`;
+
+// ==============================================
+// TRANSFERENCIAS ENTRE EMPRESAS DEL CONGLOMERADO (ConglomerateTransferItem) —
+// requiere Company.usesConglomerateTransfers + Company.conglomerate
+// ==============================================
+
+// Otras empresas del mismo conglomerado que la propia (para elegir destino al enviar).
+export const GET_COMPANIES_IN_MY_CONGLOMERATE = gql`
+    query GetCompaniesInMyConglomerate {
+        companiesInMyConglomerate {
+            id
+            denomination
+            commercialName
+        }
+    }
+`;
+
+const CONGLOMERATE_TRANSFER_ITEM_FIELDS = `
+    id
+    status
+    quantitySent
+    quantityReceived
+    unitCost
+    notesSent
+    notesReceived
+    notesCancelled
+    sentAt
+    receivedAt
+    cancelledAt
+    fromMasterIngredient {
+        id
+        name
+        unitMeasure
+    }
+    toMasterIngredient {
+        id
+        name
+        unitMeasure
+    }
+    fromProduct {
+        id
+        code
+        name
+    }
+    toProduct {
+        id
+        code
+        name
+    }
+    outNote {
+        id
+        folio
+        motive
+        driverName
+        vehiclePlate
+        notes
+        company {
+            id
+            denomination
+            commercialName
+        }
+        toCompany {
+            id
+            denomination
+            commercialName
+        }
+        fromBranch {
+            id
+            name
+        }
+        toBranch {
+            id
+            name
+        }
+    }
+    sentBy {
+        id
+        fullName
+    }
+    receivedBy {
+        id
+        fullName
+    }
+    cancelledBy {
+        id
+        fullName
+    }
+`;
+
+export const GET_PENDING_CONGLOMERATE_TRANSFERS_BY_BRANCH = gql`
+    query GetPendingConglomerateTransfersByBranch($branchId: ID!) {
+        pendingConglomerateTransfersByBranch(branchId: $branchId) {
+            ${CONGLOMERATE_TRANSFER_ITEM_FIELDS}
+        }
+    }
+`;
+
+export const GET_CONGLOMERATE_TRANSFER_ITEMS_BY_BRANCH = gql`
+    query GetConglomerateTransferItemsByBranch($branchId: ID!) {
+        conglomerateTransferItemsByBranch(branchId: $branchId) {
+            ${CONGLOMERATE_TRANSFER_ITEM_FIELDS}
+        }
+    }
+`;
+
+// ==============================================
+// CATÁLOGO DE IDENTIDAD DEL CONGLOMERADO (ConglomerateIngredient)
+// Solo lo administra la empresa master del conglomerado. Los maestros de TODAS las
+// empresas del grupo se vinculan a una identidad común y con eso se resuelven las
+// transferencias entre empresas (sin mapeos par-a-par).
+// ==============================================
+
+// Query liviana: solo sirve para saber si mostrar la pestaña del catálogo (canManage).
+export const GET_CONGLOMERATE_CATALOG_ACCESS = gql`
+    query GetConglomerateCatalogAccess {
+        conglomerateCatalogAccess {
+            canManage
+            isMasterCompany
+            masterCompanyId
+            masterCompanyName
+            blockedReason
+        }
+    }
+`;
+
+const CONGLOMERATE_CATALOG_MASTER_FIELDS = `
+    id
+    name
+    unitMeasure
+    isActive
+    company {
+        id
+        denomination
+        commercialName
+    }
+`;
+
+export const GET_CONGLOMERATE_CATALOG = gql`
+    query GetConglomerateCatalog {
+        conglomerateCatalog {
+            conglomerateId
+            conglomerateName
+            masterCompanyId
+            masterCompanyName
+            isMasterCompany
+            canManage
+            blockedReason
+            ingredients {
+                id
+                name
+                unitMeasure
+                isActive
+                masterIngredients {
+                    ${CONGLOMERATE_CATALOG_MASTER_FIELDS}
+                }
+            }
+            unlinkedMasters {
+                ${CONGLOMERATE_CATALOG_MASTER_FIELDS}
+            }
         }
     }
 `;

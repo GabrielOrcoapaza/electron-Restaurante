@@ -319,7 +319,9 @@ function onDisplayMetricsChanged(): void {
  * - Si somos la primera: al intentar abrir de nuevo, Electron dispara "second-instance"
  *   aquí (no en el segundo proceso) para traer la ventana ya abierta al frente.
  */
-const gotTheLock = app.requestSingleInstanceLock();
+// En desarrollo se permiten varias instancias (p. ej. para probar dos empresas a la
+// vez). En producción (app empaquetada) sigue siendo instancia única.
+const gotTheLock = isDev || app.requestSingleInstanceLock();
 if (!gotTheLock) {
     // Mostrar aviso en el proceso que no obtuvo el candado (showErrorBox tras ready
     // evita fallos en algunas plataformas si se muestra antes del evento "ready").

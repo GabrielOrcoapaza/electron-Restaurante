@@ -27,6 +27,9 @@ export type TransferNoteBranchSide = {
 
 export type TransferNoteData = {
     folio: string;
+    /** BRANCH = entre sucursales (TR-/TRE-); INTERNAL = entre almacenes de la misma
+     *  sucursal (TRI-). Cambia títulos y etiquetas del documento. */
+    variant?: "BRANCH" | "INTERNAL";
     companyName: string;
     companyRuc: string;
     /** Logo crudo de companyData (ruta /media, URL http o base64); se resuelve aquí. */
@@ -90,10 +93,21 @@ function branchSideBlock(
     title: string,
     side: TransferNoteBranchSide,
     isOrigin: boolean,
+    isInternal: boolean,
 ): string {
+    const siteLabel = isInternal ? "Almacén" : "Sucursal";
+    const managerLabel = isInternal ? "Responsable" : "Encargado";
     const rows: Array<[string, string]> = [
-        [isOrigin ? "Sucursal de origen" : "Sucursal de destino", side.branchName],
-        [isOrigin ? "Encargado (despacha)" : "Encargado (recibe)", side.manager],
+        [
+            isOrigin ? `${siteLabel} de origen` : `${siteLabel} de destino`,
+            side.branchName,
+        ],
+        [
+            isOrigin
+                ? `${managerLabel} (despacha)`
+                : `${managerLabel} (recibe)`,
+            side.manager,
+        ],
         ["Dirección", side.address],
         ["Teléfono", side.phone],
     ];
@@ -116,6 +130,25 @@ function branchSideBlock(
 
 export function buildTransferNoteHtml(d: TransferNoteData): string {
     const logo = resolveLogoSrc(d.companyLogo);
+    const isInternal = d.variant === "INTERNAL";
+    const docTitle = isInternal
+        ? "Transferencia de inventario entre almacenes"
+        : "Transferencia de inventario entre sucursales";
+    const siteLabel = isInternal ? "Almacén" : "Sucursal";
+    const section1Title = isInternal
+        ? "Datos de los almacenes (origen y destino)"
+        : "Datos de origen y destino";
+    const transferInfoHtml = isInternal
+        ? `<div class="transfer-grid">
+        <div class="transfer-field"><b>Motivo de la transferencia</b>${esc(d.motive) || "—"}</div>
+        <div class="transfer-field"><b>Responsable</b>${esc(d.origin.manager) || "—"}</div>
+        <div class="transfer-field"><b>Almacenes</b>${esc(d.origin.branchName)} → ${esc(d.destination.branchName)}</div>
+    </div>`
+        : `<div class="transfer-grid">
+        <div class="transfer-field"><b>Motivo del traslado</b>${esc(d.motive) || "—"}</div>
+        <div class="transfer-field"><b>Chofer / transportista</b>${esc(d.driverName) || "—"}</div>
+        <div class="transfer-field"><b>Placa del vehículo</b>${esc(d.vehiclePlate) || "—"}</div>
+    </div>`;
     const rowsHtml =
         d.items.length === 0
             ? `<tr><td colspan="5" class="empty">Sin productos en esta nota</td></tr>`
@@ -236,26 +269,22 @@ export function buildTransferNoteHtml(d: TransferNoteData): string {
         ${logo ? `<img class="logo" src="${esc(logo)}" alt="Logo" />` : ""}
         <p class="company-name">${esc(d.companyName)}</p>
         <p class="company-ruc">RUC ${esc(d.companyRuc) || "—"}</p>
-        <h1 class="doc-title">Transferencia de inventario entre sucursales</h1>
+        <h1 class="doc-title">${esc(docTitle)}</h1>
         <div class="header-meta">
             <span class="folio"><b>Número de control</b>No. ${esc(d.folio)}</span>
             <span><b>Fecha de emisión</b>${esc(formatDate(d.issuedAt))}</span>
-            <span><b>Fecha de envío real</b>${esc(formatDateTime(d.sentAt))}</span>
+            <span><b>${isInternal ? "Fecha de transferencia" : "Fecha de envío real"}</b>${esc(formatDateTime(d.sentAt))}</span>
         </div>
     </div>
 
-    <h3>1. Datos de origen y destino</h3>
+    <h3>1. ${esc(section1Title)}</h3>
     <div class="branch-grid">
-        ${branchSideBlock("Sucursal de origen (envía)", d.origin, true)}
-        ${branchSideBlock("Sucursal de destino (recibe)", d.destination, false)}
+        ${branchSideBlock(`${siteLabel} de origen (envía)`, d.origin, true, isInternal)}
+        ${branchSideBlock(`${siteLabel} de destino (recibe)`, d.destination, false, isInternal)}
     </div>
 
     <h3>2. Información del traslado</h3>
-    <div class="transfer-grid">
-        <div class="transfer-field"><b>Motivo del traslado</b>${esc(d.motive) || "—"}</div>
-        <div class="transfer-field"><b>Chofer / transportista</b>${esc(d.driverName) || "—"}</div>
-        <div class="transfer-field"><b>Placa del vehículo</b>${esc(d.vehiclePlate) || "—"}</div>
-    </div>
+    ${transferInfoHtml}
 
     <h3>3. Detalle de productos transferidos</h3>
     <table class="items">
@@ -264,8 +293,8 @@ export function buildTransferNoteHtml(d: TransferNoteData): string {
                 <th>Código / SKU</th>
                 <th>Descripción del producto</th>
                 <th class="center">Unidad</th>
-                <th class="num">Cantidad enviada</th>
-                <th>Estado / observaciones</th>
+                <th class="num">${isInternal ? "Cantidad transferida" : "Cantidad enviada"}</th>
+                <th>${isInternal ? "Observaciones" : "Estado / observaciones"}</th>
             </tr>
         </thead>
         <tbody>${rowsHtml}
@@ -277,7 +306,7 @@ export function buildTransferNoteHtml(d: TransferNoteData): string {
     <div class="blank-lines"><div></div><div></div><div></div><div></div></div>
 
     <div class="signatures">
-        <div class="signature">Firma de quien despacha</div>
+        <div class="signature">${isInternal ? "Firma de quien entrega" : "Firma de quien despacha"}</div>
         <div class="signature">Firma de quien recibe</div>
     </div>
 

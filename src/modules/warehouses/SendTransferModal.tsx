@@ -102,6 +102,7 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
     // masterIngredientId -> cantidad (string). Solo los ingredientes presentes
     // aqui estan "marcados" para enviar.
     const [quantities, setQuantities] = useState<Record<string, string>>({});
+    const [ingredientFilter, setIngredientFilter] = useState("");
     // Datos de transporte e impresos de la Nota de Transferencia (PDF): motivo,
     // chofer y placa. Notas = observaciones libres (sección 4 del PDF).
     const [motive, setMotive] = useState("");
@@ -145,6 +146,12 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
     );
     const masterIngredients: MasterIngredient[] =
         ingredientsData?.masterIngredientsByCompany || [];
+    const normalizedFilter = ingredientFilter.trim().toLowerCase();
+    const filteredIngredients = normalizedFilter
+        ? masterIngredients.filter((mi) =>
+              mi.name.toLowerCase().includes(normalizedFilter),
+          )
+        : masterIngredients;
 
     // Productos hijos de ESTA sucursal vinculados a un ingrediente maestro
     // (masterIngredientId -> producto), con su nombre y stock.
@@ -441,9 +448,10 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                                 </label>
                                 <select
                                     value={fromWarehouseId}
-                                    onChange={(e) =>
-                                        setFromWarehouseId(e.target.value)
-                                    }
+                                    onChange={(e) => {
+                                        setFromWarehouseId(e.target.value);
+                                        setIngredientFilter("");
+                                    }}
                                     className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                 >
                                     <option value="">Seleccione...</option>
@@ -486,14 +494,28 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                                 {selectedCount > 0 &&
                                     `(${selectedCount} marcados)`}
                             </label>
-                            <div className="mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                            <input
+                                type="search"
+                                value={ingredientFilter}
+                                onChange={(e) =>
+                                    setIngredientFilter(e.target.value)
+                                }
+                                placeholder="Filtrar por nombre..."
+                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none placeholder:font-semibold placeholder:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                            />
+                            <div className="mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
                                 {masterIngredients.length === 0 ? (
                                     <p className="p-4 text-center text-xs font-bold text-slate-400">
                                         No hay ingredientes maestros activos
                                     </p>
+                                ) : filteredIngredients.length === 0 ? (
+                                    <p className="p-4 text-center text-xs font-bold text-slate-400">
+                                        Ningún ingrediente coincide con el
+                                        filtro
+                                    </p>
                                 ) : (
                                     <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {masterIngredients.map((mi) => {
+                                        {filteredIngredients.map((mi) => {
                                             const checked =
                                                 mi.id in quantities;
                                             const child =
@@ -568,6 +590,9 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                                                     <input
                                                         type="checkbox"
                                                         checked={checked}
+                                                        onWheel={(e) =>
+                                                            e.currentTarget.blur()
+                                                        }
                                                         onChange={() =>
                                                             toggleItem(mi.id)
                                                         }
@@ -587,6 +612,19 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                                                         min="0"
                                                         step="0.01"
                                                         disabled={!checked}
+                                                        onWheel={(e) =>
+                                                            e.currentTarget.blur()
+                                                        }
+                                                        onKeyDown={(e) => {
+                                                            if (
+                                                                e.key ===
+                                                                    "ArrowUp" ||
+                                                                e.key ===
+                                                                    "ArrowDown"
+                                                            ) {
+                                                                e.preventDefault();
+                                                            }
+                                                        }}
                                                         value={
                                                             quantities[mi.id] ??
                                                             ""
@@ -597,7 +635,7 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                                                                 e.target.value,
                                                             )
                                                         }
-                                                        className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-right text-xs font-bold text-slate-700 outline-none disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                        className="no-spinner w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-right text-xs font-bold text-slate-700 outline-none disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                                     />
                                                 </div>
                                             );

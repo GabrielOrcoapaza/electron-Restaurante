@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@apollo/client";
 import {
+    GET_INTERNAL_TRANSFER_NOTES_BY_BRANCH,
     GET_STOCKS_BY_WAREHOUSE,
     GET_WAREHOUSES_BY_BRANCH,
 } from "../../graphql/queries";
@@ -11,6 +12,10 @@ import {
 } from "../../graphql/mutations";
 import { normalizeProductUnitMeasure } from "../../constants/productUnitMeasures";
 import TransferStockModal from "./TransferStockModal";
+import {
+    downloadInternalTransferNotePdf,
+    type InternalTransferNote,
+} from "../../utils/internalTransferNotePdf";
 
 interface Warehouse {
     id: string;
@@ -44,12 +49,24 @@ const getErrorMessage = (err: unknown, fallback: string): string => {
     return fallback;
 };
 
-const formatNumber = (value: any, decimals: number = 2) => {
+const formatNumber = (value: unknown, decimals: number = 2) => {
     const n = Number(value);
     if (isNaN(n)) return "0.00";
     return n.toLocaleString("es-PE", {
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
+    });
+};
+
+const formatDateTime = (value: string) => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleString("es-PE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
     });
 };
 
@@ -63,6 +80,10 @@ const WarehousesTab: React.FC<{ branchId: string }> = ({ branchId }) => {
     const [showTransferModal, setShowTransferModal] = useState(false);
     const [formName, setFormName] = useState("");
     const [formError, setFormError] = useState("");
+    const [pdfMessage, setPdfMessage] = useState("");
+    const [downloadingNoteId, setDownloadingNoteId] = useState<string | null>(
+        null,
+    );
 
     const {
         data: warehousesData,
@@ -100,6 +121,31 @@ const WarehousesTab: React.FC<{ branchId: string }> = ({ branchId }) => {
     });
 
     const stocks: StockRow[] = stocksData?.stocksByWarehouse || [];
+
+    // Historial de notas internas (folio TRI-XXXX) de la sucursal.
+    const {
+        data: notesData,
+        loading: notesLoading,
+        refetch: refetchNotes,
+    } = useQuery(GET_INTERNAL_TRANSFER_NOTES_BY_BRANCH, {
+        variables: { branchId },
+        skip: !branchId,
+        fetchPolicy: "network-only",
+    });
+    const internalNotes: InternalTransferNote[] =
+        notesData?.warehouseInternalTransferNotesByBranch || [];
+
+    const handleDownloadNotePdf = async (note: InternalTransferNote) => {
+        setDownloadingNoteId(note.id);
+        setPdfMessage("");
+        const res = await downloadInternalTransferNotePdf(note);
+        setDownloadingNoteId(null);
+        setPdfMessage(
+            res.ok
+                ? res.message || `PDF de ${note.folio} generado`
+                : res.message || "No se pudo generar el PDF",
+        );
+    };
 
     const [createWarehouse, { loading: creating }] =
         useMutation(CREATE_WAREHOUSE);
@@ -458,6 +504,88 @@ const WarehousesTab: React.FC<{ branchId: string }> = ({ branchId }) => {
                 </div>
             </div>
 
+            {/* Historial de notas de transferencia interna (folio TRI-XXXX) */}
+            <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+                <div className="flex items-center justify-between border-b border-slate-50 p-6 dark:border-slate-800/50">
+                    <div>
+                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                            Notas de transferencia interna
+                        </h3>
+                        <p className="mt-1 text-[10px] font-bold text-slate-400">
+                            Movimientos entre almacenes de esta sucursal (folio
+                            TRI-XXXX). El stock se mueve al confirmar, sin
+                            aceptación por ítem.
+                        </p>
+                    </div>
+                    {internalNotes.length > 0 && (
+                        <span className="rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-300">
+                            {internalNotes.length}
+                        </span>
+                    )}
+                </div>
+
+                {pdfMessage && (
+                    <div className="border-b border-slate-50 px-6 py-2 text-[10px] font-bold text-indigo-600 dark:border-slate-800/50 dark:text-indigo-300">
+                        {pdfMessage}
+                    </div>
+                )}
+
+                <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                    {notesLoading ? (
+                        <div className="flex flex-col gap-3 p-4">
+                            {Array(2)
+                                .fill(0)
+                                .map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className="h-16 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50"
+                                    />
+                                ))}
+                        </div>
+                    ) : internalNotes.length === 0 ? (
+                        <p className="p-6 text-center text-sm font-bold text-slate-400">
+                            Todavía no hay notas de transferencia interna
+                        </p>
+                    ) : (
+                        internalNotes.map((note) => (
+                            <div
+                                key={note.id}
+                                className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                                <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="rounded-lg bg-indigo-50 px-2 py-0.5 text-[10px] font-black text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-300">
+                                            {note.folio}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-slate-400">
+                                            {note.items.length} ítem(s)
+                                        </span>
+                                    </div>
+                                    <div className="mt-1 font-black text-slate-700 dark:text-slate-200">
+                                        {note.fromWarehouse.name} →{" "}
+                                        {note.toWarehouse.name}
+                                    </div>
+                                    <div className="text-[10px] font-bold text-slate-400">
+                                        {formatDateTime(note.createdAt)} ·{" "}
+                                        {note.createdBy?.fullName || "—"}
+                                        {note.motive ? ` · ${note.motive}` : ""}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleDownloadNotePdf(note)}
+                                    disabled={downloadingNoteId === note.id}
+                                    className="whitespace-nowrap rounded-xl border border-indigo-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-indigo-600 transition-all hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-800 dark:hover:bg-indigo-900/20"
+                                >
+                                    {downloadingNoteId === note.id
+                                        ? "Generando..."
+                                        : "PDF"}
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
             {/* Modal crear almacén */}
             {showCreateModal && (
                 <WarehouseFormModal
@@ -492,6 +620,7 @@ const WarehousesTab: React.FC<{ branchId: string }> = ({ branchId }) => {
                     onTransferred={() => {
                         setShowTransferModal(false);
                         refetchStocks();
+                        refetchNotes();
                     }}
                 />
             )}

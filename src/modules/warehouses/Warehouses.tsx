@@ -1,11 +1,20 @@
 import React, { useMemo, useState } from "react";
+import { useQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { useUserPermissions } from "../../hooks/useUserPermissions";
+import { GET_CONGLOMERATE_CATALOG_ACCESS } from "../../graphql/queries";
 import WarehousesTab from "./WarehousesTab";
 import MasterIngredientsTab from "./MasterIngredientsTab";
 import WarehouseTransfersTab from "./WarehouseTransfersTab";
+import ConglomerateTransfersTab from "./ConglomerateTransfersTab";
+import ConglomerateCatalogTab from "./ConglomerateCatalogTab";
 
-type TabKey = "almacenes" | "ingredientes" | "transferencias";
+type TabKey =
+    | "almacenes"
+    | "ingredientes"
+    | "transferencias"
+    | "conglomerado"
+    | "catalogo";
 
 const Warehouses: React.FC = () => {
     const { companyData, user } = useAuth();
@@ -15,11 +24,27 @@ const Warehouses: React.FC = () => {
 
     const usesWarehouses = !!companyData?.company?.usesWarehouses;
     const usesMasterIngredients = !!companyData?.company?.usesMasterIngredients;
+    const usesConglomerateTransfers =
+        !!companyData?.company?.usesConglomerateTransfers;
 
     const canManageWarehouses =
         isAdmin || hasPermission("warehouses.manage");
     const canManageMasterIngredients =
         isAdmin || hasPermission("master_ingredients.manage");
+    const canManageConglomerate =
+        isAdmin || hasPermission("conglomerate_transfers.manage");
+
+    // La pestaña del catálogo solo se muestra a administradores de la empresa master
+    // del conglomerado (gobernanza estricta, validada también en backend).
+    const { data: catalogAccessData } = useQuery(
+        GET_CONGLOMERATE_CATALOG_ACCESS,
+        {
+            skip: !usesConglomerateTransfers || !canManageConglomerate,
+            fetchPolicy: "network-only",
+        },
+    );
+    const canManageConglomerateCatalog =
+        !!catalogAccessData?.conglomerateCatalogAccess?.canManage;
 
     const tabs = useMemo(() => {
         const list: { key: TabKey; label: string; icon: string }[] = [];
@@ -38,12 +63,33 @@ const Warehouses: React.FC = () => {
                 icon: "🔁",
             });
         }
+        if (usesConglomerateTransfers && canManageConglomerate) {
+            list.push({
+                key: "conglomerado",
+                label: "Transferencias entre Empresas",
+                icon: "🤝",
+            });
+        }
+        if (
+            usesConglomerateTransfers &&
+            canManageConglomerate &&
+            canManageConglomerateCatalog
+        ) {
+            list.push({
+                key: "catalogo",
+                label: "Catálogo del conglomerado",
+                icon: "📚",
+            });
+        }
         return list;
     }, [
         usesWarehouses,
         usesMasterIngredients,
+        usesConglomerateTransfers,
         canManageWarehouses,
         canManageMasterIngredients,
+        canManageConglomerate,
+        canManageConglomerateCatalog,
     ]);
 
     const [activeTab, setActiveTab] = useState<TabKey | null>(null);
@@ -122,6 +168,10 @@ const Warehouses: React.FC = () => {
             {currentTab === "transferencias" && (
                 <WarehouseTransfersTab branchId={branchId} />
             )}
+            {currentTab === "conglomerado" && (
+                <ConglomerateTransfersTab branchId={branchId} />
+            )}
+            {currentTab === "catalogo" && <ConglomerateCatalogTab />}
         </div>
     );
 };
