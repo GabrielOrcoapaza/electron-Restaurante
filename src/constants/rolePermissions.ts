@@ -8,7 +8,12 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
         'products.view', 'products.edit_prices', 'products.edit_prices_delivery', 'recipes.manage',
         'reports.sales', 'reports.cancellations', 'reports.sold_products', 'reports.user_sales', 'reports.driver_delivery', 'reports.client_sales',
         'config.manage', 'kitchen.view', 'purchases.manage', 'kardex.view', 'messages.view', 'branch.view',
-        'cash.void', 'cash.register_movements', 'cash.change_payment_method'
+        'cash.void', 'cash.register_movements', 'cash.change_payment_method',
+        // Almacenes, ingredientes maestros y transferencias entre empresas del conglomerado:
+        // implícitos en ADMIN por defecto (igual que en el backend). Si se abre "Editar
+        // permisos" para un ADMIN y se guarda sin tocar nada, deben quedar marcados para
+        // no perder silenciosamente el acceso a estos 3 módulos.
+        'warehouses.manage', 'master_ingredients.manage', 'conglomerate_transfers.manage'
     ],
     'CASHIER': [
         'orders.create', 'point_of_sale', 'sales.pay', 'sales.close', 'products.view',

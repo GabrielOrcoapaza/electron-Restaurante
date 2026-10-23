@@ -4,7 +4,6 @@ import {
     GET_PENDING_WAREHOUSE_TRANSFERS_BY_BRANCH,
     GET_WAREHOUSE_TRANSFER_IN_NOTES_BY_BRANCH,
     GET_WAREHOUSE_TRANSFER_OUT_NOTES_BY_BRANCH,
-    GET_WAREHOUSE_TRANSFERS_BY_BRANCH,
 } from "../../graphql/queries";
 import {
     CANCEL_WAREHOUSE_TRANSFER,
@@ -34,8 +33,25 @@ interface Transfer {
     sentBy?: { id: string; fullName: string } | null;
     receivedBy?: { id: string; fullName: string } | null;
     cancelledBy?: { id: string; fullName: string } | null;
-    note?: { id: string; folio: string } | null;
+    note?: {
+        id: string;
+        folio: string;
+        motive?: string | null;
+        driverName?: string | null;
+        vehiclePlate?: string | null;
+        notes?: string | null;
+        sentAt?: string;
+        sentBy?: { id: string; fullName: string } | null;
+        fromBranch?: { id: string; name: string } | null;
+    } | null;
     inNote?: { id: string; folio: string } | null;
+}
+
+/** Forma mínima que necesita el modal de confirmar cancelación/rechazo de un ítem. */
+interface CancelableItem {
+    id: string;
+    masterIngredient: { id: string; name: string; unitMeasure: string };
+    quantitySent: number;
 }
 
 interface NoteBranchRef {
@@ -142,31 +158,6 @@ const formatQty = (value: unknown) => {
     });
 };
 
-const statusBadge = (status: Transfer["status"]) => {
-    const map: Record<string, { label: string; cls: string }> = {
-        SENT: {
-            label: "Enviado",
-            cls: "bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400",
-        },
-        RECEIVED: {
-            label: "Recibido",
-            cls: "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400",
-        },
-        CANCELLED: {
-            label: "Cancelado",
-            cls: "bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400",
-        },
-    };
-    const s = map[status] || map.SENT;
-    return (
-        <span
-            className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${s.cls}`}
-        >
-            {s.label}
-        </span>
-    );
-};
-
 /** Estado del ítem tal como se imprime en el PDF de la nota. */
 const itemStatusLabel = (status: Transfer["status"]) =>
     status === "RECEIVED"
@@ -203,18 +194,69 @@ const noteStateBadge = (note: OutNote) => {
     );
 };
 
+/** Un envío (nota TR-XXXX, o un ítem suelto sin nota en transferencias muy antiguas)
+ * agrupado con todos sus ítems todavía pendientes de recibir. */
+interface PendingGroup {
+    key: string;
+    folio: string | null;
+    fromBranchName: string;
+    sentAt: string;
+    sentByName: string;
+    motive?: string | null;
+    driverName?: string | null;
+    vehiclePlate?: string | null;
+    notes?: string | null;
+    items: Transfer[];
+}
+
+const groupPendingByShipment = (items: Transfer[]): PendingGroup[] => {
+    const order: string[] = [];
+    const map = new Map<string, PendingGroup>();
+    for (const t of items) {
+        const key = t.note?.id ? `note-${t.note.id}` : `item-${t.id}`;
+        if (!map.has(key)) {
+            order.push(key);
+            map.set(key, {
+                key,
+                folio: t.note?.folio || null,
+                fromBranchName:
+                    t.note?.fromBranch?.name || t.fromWarehouse.branch.name,
+                sentAt: t.note?.sentAt || t.sentAt,
+                sentByName:
+                    t.note?.sentBy?.fullName || t.sentBy?.fullName || "—",
+                motive: t.note?.motive,
+                driverName: t.note?.driverName,
+                vehiclePlate: t.note?.vehiclePlate,
+                notes: t.note?.notes,
+                items: [],
+            });
+        }
+        map.get(key)!.items.push(t);
+    }
+    return order.map((k) => map.get(k)!);
+};
+
 const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
     branchId,
 }) => {
     const [showSendModal, setShowSendModal] = useState(false);
-    const [receivingTransfer, setReceivingTransfer] =
-        useState<Transfer | null>(null);
-    const [cancelingTransfer, setCancelingTransfer] =
-        useState<Transfer | null>(null);
+    const [receivingGroup, setReceivingGroup] = useState<PendingGroup | null>(
+        null,
+    );
+    const [cancelingNoteId, setCancelingNoteId] = useState<string | null>(
+        null,
+    );
+    const [actionItem, setActionItem] = useState<{
+        item: CancelableItem;
+        variant: "cancel" | "reject";
+    } | null>(null);
     const [pdfMessage, setPdfMessage] = useState("");
     const [downloadingNoteId, setDownloadingNoteId] = useState<string | null>(
         null,
     );
+    const [downloadingInNoteId, setDownloadingInNoteId] = useState<
+        string | null
+    >(null);
 
     const {
         data: pendingData,
@@ -227,17 +269,7 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
     });
     const pending: Transfer[] =
         pendingData?.pendingWarehouseTransfersByBranch || [];
-
-    const {
-        data: historyData,
-        loading: historyLoading,
-        refetch: refetchHistory,
-    } = useQuery(GET_WAREHOUSE_TRANSFERS_BY_BRANCH, {
-        variables: { branchId },
-        skip: !branchId,
-        fetchPolicy: "network-only",
-    });
-    const history: Transfer[] = historyData?.warehouseTransfersByBranch || [];
+    const pendingGroups = groupPendingByShipment(pending);
 
     const {
         data: outNotesData,
@@ -262,11 +294,12 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
     });
     const inNotes: InNote[] =
         inNotesData?.warehouseTransferInNotesByBranch || [];
+    const activeCancelNote =
+        outNotes.find((n) => n.id === cancelingNoteId) || null;
 
     const refetchAll = async () => {
         await Promise.all([
             refetchPending(),
-            refetchHistory(),
             refetchOutNotes(),
             refetchInNotes(),
         ]);
@@ -279,6 +312,7 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
         setPdfMessage("");
         const data: TransferNoteData = {
             folio: note.folio,
+            kind: "OUT",
             companyName:
                 note.company?.denomination ||
                 note.company?.commercialName ||
@@ -330,6 +364,60 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
         );
     };
 
+    // Genera el PDF de la nota de ENTRADA (folio TRE-XXXX) — tanto desde el botón
+    // manual de "Notas de entrada" como automáticamente al terminar de recibir
+    // un envío en ReceiveShipmentModal.
+    const handleDownloadInNotePdf = async (note: InNote) => {
+        setDownloadingInNoteId(note.id);
+        setPdfMessage("");
+        const data: TransferNoteData = {
+            folio: note.folio,
+            kind: "IN",
+            companyName:
+                note.company?.denomination ||
+                note.company?.commercialName ||
+                "",
+            companyRuc: note.company?.ruc || "",
+            companyLogo: note.company?.logo || null,
+            issuedAt: note.receivedAt,
+            sentAt: note.outNote.sentAt,
+            origin: {
+                branchName: note.outNote.fromBranch.name,
+                manager: note.outNote.sentBy?.fullName || "",
+                address: note.outNote.fromBranch.address || "",
+                phone: note.outNote.fromBranch.phone || "",
+            },
+            destination: {
+                branchName: note.outNote.toBranch.name,
+                manager: note.receivedBy?.fullName || "",
+                address: note.outNote.toBranch.address || "",
+                phone: note.outNote.toBranch.phone || "",
+            },
+            motive: note.outNote.motive || "",
+            driverName: note.outNote.driverName || "",
+            vehiclePlate: note.outNote.vehiclePlate || "",
+            items: note.transfers.map((t) => ({
+                code: t.toProduct?.code || t.fromProduct?.code || "",
+                description:
+                    t.masterIngredient?.name || t.toProduct?.name || "",
+                unit:
+                    t.masterIngredient?.unitMeasure ||
+                    t.toProduct?.unitMeasure ||
+                    "",
+                quantity: Number(t.quantityReceived ?? t.quantitySent) || 0,
+                status: itemStatusLabel(t.status),
+            })),
+            notes: note.notes || "",
+        };
+        const result = await downloadTransferNotePdf(data);
+        setDownloadingInNoteId(null);
+        setPdfMessage(
+            result.ok
+                ? result.message || `PDF de ${note.folio} generado`
+                : result.message || "No se pudo generar el PDF",
+        );
+    };
+
     return (
         <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
@@ -350,15 +438,15 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
                 </div>
             )}
 
-            {/* Pendientes por recibir */}
+            {/* Pendientes por recibir, agrupadas por envío (nota TR-XXXX) */}
             <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
                 <div className="flex items-center justify-between border-b border-slate-50 p-6 dark:border-slate-800/50">
                     <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
                         Pendientes por recibir
                     </h3>
-                    {pending.length > 0 && (
+                    {pendingGroups.length > 0 && (
                         <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">
-                            {pending.length}
+                            {pendingGroups.length}
                         </span>
                     )}
                 </div>
@@ -374,46 +462,44 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
                                     />
                                 ))}
                         </div>
-                    ) : pending.length === 0 ? (
+                    ) : pendingGroups.length === 0 ? (
                         <p className="p-6 text-center text-sm font-bold text-slate-400">
                             No hay transferencias pendientes de recibir
                         </p>
                     ) : (
-                        pending.map((t) => (
+                        pendingGroups.map((g) => (
                             <div
-                                key={t.id}
+                                key={g.key}
                                 className="flex flex-col gap-2 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
                             >
                                 <div>
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-black text-slate-700 dark:text-slate-200">
-                                            {t.masterIngredient.name} —{" "}
-                                            {formatQty(t.quantitySent)}{" "}
-                                            {t.masterIngredient.unitMeasure}
-                                        </span>
-                                        {t.note?.folio && (
+                                        {g.folio && (
                                             <span className="rounded-lg bg-indigo-50 px-2 py-0.5 text-[9px] font-black text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-300">
-                                                {t.note.folio}
+                                                {g.folio}
                                             </span>
                                         )}
+                                        <span className="font-black text-slate-700 dark:text-slate-200">
+                                            {g.fromBranchName}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-slate-400">
+                                            {g.items.length} ítem(s)
+                                        </span>
                                     </div>
                                     <div className="text-[10px] font-bold text-slate-400">
-                                        Desde {t.fromWarehouse.branch.name} (
-                                        {t.fromWarehouse.name}) ·{" "}
-                                        {formatDate(t.sentAt)} ·{" "}
-                                        {t.sentBy?.fullName || "—"}
+                                        {formatDate(g.sentAt)} ·{" "}
+                                        {g.sentByName}
+                                        {g.motive ? ` · ${g.motive}` : ""}
+                                        {g.vehiclePlate
+                                            ? ` · Placa ${g.vehiclePlate}`
+                                            : ""}
                                     </div>
-                                    {t.notesSent && (
-                                        <div className="text-[10px] italic text-slate-400">
-                                            "{t.notesSent}"
-                                        </div>
-                                    )}
                                 </div>
                                 <button
-                                    onClick={() => setReceivingTransfer(t)}
+                                    onClick={() => setReceivingGroup(g)}
                                     className="whitespace-nowrap rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white transition-all hover:bg-emerald-700"
                                 >
-                                    Recibir
+                                    Ver envío
                                 </button>
                             </div>
                         ))
@@ -492,17 +578,33 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
                                             : ""}
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() =>
-                                        handleDownloadOutNotePdf(note)
-                                    }
-                                    disabled={downloadingNoteId === note.id}
-                                    className="whitespace-nowrap rounded-xl border border-indigo-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-indigo-600 transition-all hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-800 dark:hover:bg-indigo-900/20"
-                                >
-                                    {downloadingNoteId === note.id
-                                        ? "Generando..."
-                                        : "PDF"}
-                                </button>
+                                <div className="flex flex-shrink-0 gap-2">
+                                    <button
+                                        onClick={() =>
+                                            handleDownloadOutNotePdf(note)
+                                        }
+                                        disabled={
+                                            downloadingNoteId === note.id
+                                        }
+                                        className="whitespace-nowrap rounded-xl border border-indigo-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-indigo-600 transition-all hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-800 dark:hover:bg-indigo-900/20"
+                                    >
+                                        {downloadingNoteId === note.id
+                                            ? "Generando..."
+                                            : "PDF"}
+                                    </button>
+                                    {note.transfers.some(
+                                        (it) => it.status === "SENT",
+                                    ) && (
+                                        <button
+                                            onClick={() =>
+                                                setCancelingNoteId(note.id)
+                                            }
+                                            className="whitespace-nowrap rounded-xl border border-rose-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-rose-500 transition-all hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-900/20"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         ))
                     )}
@@ -573,127 +675,21 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
                                             : ""}
                                     </div>
                                 </div>
+                                <button
+                                    onClick={() =>
+                                        handleDownloadInNotePdf(note)
+                                    }
+                                    disabled={
+                                        downloadingInNoteId === note.id
+                                    }
+                                    className="flex-shrink-0 whitespace-nowrap rounded-xl border border-emerald-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-emerald-600 transition-all hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-800 dark:hover:bg-emerald-900/20"
+                                >
+                                    {downloadingInNoteId === note.id
+                                        ? "Generando..."
+                                        : "PDF"}
+                                </button>
                             </div>
                         ))
-                    )}
-                </div>
-            </div>
-
-            {/* Historial */}
-            <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
-                <div className="border-b border-slate-50 p-6 dark:border-slate-800/50">
-                    <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
-                        Historial
-                    </h3>
-                </div>
-                <div className="overflow-x-auto">
-                    {historyLoading ? (
-                        <div className="flex flex-col gap-3 p-4">
-                            {Array(4)
-                                .fill(0)
-                                .map((_, i) => (
-                                    <div
-                                        key={i}
-                                        className="h-12 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50"
-                                    />
-                                ))}
-                        </div>
-                    ) : history.length === 0 ? (
-                        <p className="p-6 text-center text-sm font-bold text-slate-400">
-                            Todavía no hay transferencias registradas
-                        </p>
-                    ) : (
-                        <table className="w-full text-left text-xs">
-                            <thead>
-                                <tr className="border-b border-slate-50 bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:border-slate-800 dark:bg-slate-800/30">
-                                    <th className="px-6 py-4">Ingrediente</th>
-                                    <th className="px-6 py-4">Nota</th>
-                                    <th className="px-6 py-4">Origen → Destino</th>
-                                    <th className="px-6 py-4 text-center">
-                                        Enviado
-                                    </th>
-                                    <th className="px-6 py-4 text-center">
-                                        Recibido
-                                    </th>
-                                    <th className="px-6 py-4 text-center">
-                                        Estado
-                                    </th>
-                                    <th className="px-6 py-4">Fecha</th>
-                                    <th className="px-6 py-4 text-right">
-                                        Acciones
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                                {history.map((t) => {
-                                    const canCancel =
-                                        t.status === "SENT" &&
-                                        t.fromWarehouse.branch.id === branchId;
-                                    return (
-                                        <tr
-                                            key={t.id}
-                                            className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30"
-                                        >
-                                            <td className="px-6 py-4 font-black text-slate-700 dark:text-slate-200">
-                                                {t.masterIngredient.name}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {t.note?.folio ? (
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="w-fit rounded-md bg-indigo-50 px-1.5 py-0.5 text-[9px] font-black text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-300">
-                                                            {t.note.folio}
-                                                        </span>
-                                                        {t.inNote?.folio && (
-                                                            <span className="w-fit rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-300">
-                                                                {t.inNote.folio}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-slate-300">
-                                                        —
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4 font-bold text-slate-500 dark:text-slate-400">
-                                                {t.fromWarehouse.branch.name} →{" "}
-                                                {t.toWarehouse.branch.name}
-                                            </td>
-                                            <td className="px-6 py-4 text-center font-bold text-slate-600 dark:text-slate-300">
-                                                {formatQty(t.quantitySent)}
-                                            </td>
-                                            <td className="px-6 py-4 text-center font-bold text-slate-600 dark:text-slate-300">
-                                                {t.quantityReceived != null
-                                                    ? formatQty(
-                                                          t.quantityReceived,
-                                                      )
-                                                    : "—"}
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                {statusBadge(t.status)}
-                                            </td>
-                                            <td className="px-6 py-4 font-bold text-slate-400">
-                                                {formatDate(t.sentAt)}
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                {canCancel && (
-                                                    <button
-                                                        onClick={() =>
-                                                            setCancelingTransfer(
-                                                                t,
-                                                            )
-                                                        }
-                                                        className="rounded-lg border border-rose-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-rose-500 hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-900/20"
-                                                    >
-                                                        Cancelar
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
                     )}
                 </div>
             </div>
@@ -709,23 +705,36 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
                 />
             )}
 
-            {receivingTransfer && (
-                <ReceiveTransferModal
-                    transfer={receivingTransfer}
-                    onClose={() => setReceivingTransfer(null)}
-                    onReceived={async () => {
-                        setReceivingTransfer(null);
+            {receivingGroup && (
+                <ReceiveShipmentModal
+                    group={receivingGroup}
+                    refetchInNotes={refetchInNotes}
+                    downloadInNotePdf={handleDownloadInNotePdf}
+                    onClose={async () => {
+                        setReceivingGroup(null);
                         await refetchAll();
                     }}
+                    onChanged={refetchAll}
                 />
             )}
 
-            {cancelingTransfer && (
+            {activeCancelNote && (
+                <CancelShipmentModal
+                    note={activeCancelNote}
+                    onClose={() => setCancelingNoteId(null)}
+                    onPickItem={(it) =>
+                        setActionItem({ item: it, variant: "cancel" })
+                    }
+                />
+            )}
+
+            {actionItem && (
                 <CancelTransferModal
-                    transfer={cancelingTransfer}
-                    onClose={() => setCancelingTransfer(null)}
+                    item={actionItem.item}
+                    variant={actionItem.variant}
+                    onClose={() => setActionItem(null)}
                     onCancelled={async () => {
-                        setCancelingTransfer(null);
+                        setActionItem(null);
                         await refetchAll();
                     }}
                 />
@@ -734,104 +743,329 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
     );
 };
 
-const ReceiveTransferModal: React.FC<{
-    transfer: Transfer;
+/** Modal de "Pendientes por recibir": detalla todos los ítems de UN envío, con
+ * un checkbox por ítem (y "seleccionar todos") para recibirlos de una sola vez,
+ * y la opción de Rechazar un ítem puntual. Al terminar de recibir, descarga
+ * automáticamente el PDF de la nota de entrada (folio TRE-XXXX) resultante. */
+const ReceiveShipmentModal: React.FC<{
+    group: PendingGroup;
+    refetchInNotes: () => Promise<{ data?: { warehouseTransferInNotesByBranch?: InNote[] } }>;
+    downloadInNotePdf: (note: InNote) => Promise<void>;
     onClose: () => void;
-    onReceived: () => void;
-}> = ({ transfer, onClose, onReceived }) => {
-    const [quantity, setQuantity] = useState(String(transfer.quantitySent));
-    const [notes, setNotes] = useState("");
-    const [error, setError] = useState("");
-    const [receiveWarehouseTransfer, { loading }] = useMutation(
-        RECEIVE_WAREHOUSE_TRANSFER,
+    onChanged: () => Promise<void>;
+}> = ({ group, refetchInNotes, downloadInNotePdf, onClose, onChanged }) => {
+    const [items, setItems] = useState<Transfer[]>(group.items);
+    const [selected, setSelected] = useState<Record<string, boolean>>(() =>
+        Object.fromEntries(group.items.map((it) => [it.id, true])),
     );
+    const [quantities, setQuantities] = useState<Record<string, string>>(() =>
+        Object.fromEntries(
+            group.items.map((it) => [it.id, String(it.quantitySent)]),
+        ),
+    );
+    const [results, setResults] = useState<
+        Record<string, { success: boolean; message: string }>
+    >({});
+    const [rejectingItem, setRejectingItem] = useState<CancelableItem | null>(
+        null,
+    );
+    const [submitting, setSubmitting] = useState(false);
+    const [statusMessage, setStatusMessage] = useState("");
+    const [error, setError] = useState("");
+    const [receiveWarehouseTransfer] = useMutation(RECEIVE_WAREHOUSE_TRANSFER);
 
-    const handleSubmit = async () => {
-        const qty = Number(quantity);
-        if (!qty || qty <= 0) {
-            setError("Ingrese una cantidad válida");
+    const allSelected =
+        items.length > 0 && items.every((it) => selected[it.id]);
+    const selectedCount = items.filter((it) => selected[it.id]).length;
+
+    const toggleAll = () => {
+        const next = !allSelected;
+        setSelected(Object.fromEntries(items.map((it) => [it.id, next])));
+    };
+
+    const handleReceiveSelected = async () => {
+        setError("");
+        const toProcess = items.filter((it) => selected[it.id]);
+        if (toProcess.length === 0) {
+            setError("Seleccione al menos un ítem para recibir");
             return;
         }
-        try {
-            const { data } = await receiveWarehouseTransfer({
-                variables: {
-                    transferId: transfer.id,
-                    quantityReceived: qty,
-                    notes: notes || undefined,
-                },
-            });
-            if (data?.receiveWarehouseTransfer?.success) {
-                onReceived();
-            } else {
-                setError(
-                    data?.receiveWarehouseTransfer?.message ||
-                        "No se pudo confirmar la recepción",
-                );
+        setSubmitting(true);
+        const newResults: Record<
+            string,
+            { success: boolean; message: string }
+        > = {};
+        let lastInNoteId: string | null = null;
+        for (const it of toProcess) {
+            const qty = Number(quantities[it.id]);
+            if (!qty || qty <= 0) {
+                newResults[it.id] = {
+                    success: false,
+                    message: "Cantidad inválida",
+                };
+                continue;
             }
-        } catch (err: unknown) {
-            setError(getErrorMessage(err, "Error al confirmar la recepción"));
+            try {
+                const { data } = await receiveWarehouseTransfer({
+                    variables: { transferId: it.id, quantityReceived: qty },
+                });
+                const res = data?.receiveWarehouseTransfer;
+                if (res?.success) {
+                    newResults[it.id] = {
+                        success: true,
+                        message: "Recibido",
+                    };
+                    lastInNoteId = res.transfer?.inNote?.id || lastInNoteId;
+                } else {
+                    newResults[it.id] = {
+                        success: false,
+                        message: res?.message || "No se pudo recibir",
+                    };
+                }
+            } catch (err) {
+                newResults[it.id] = {
+                    success: false,
+                    message: getErrorMessage(err, "Error al recibir"),
+                };
+            }
         }
+        const mergedResults = { ...results, ...newResults };
+        setResults(mergedResults);
+        setSubmitting(false);
+
+        if (lastInNoteId) {
+            setStatusMessage("Generando PDF de la nota de entrada...");
+            const { data } = await refetchInNotes();
+            const note = (
+                data?.warehouseTransferInNotesByBranch || []
+            ).find((n) => n.id === lastInNoteId);
+            if (note) {
+                await downloadInNotePdf(note);
+            }
+            setStatusMessage("");
+        }
+
+        // Si ya no queda ningún ítem sin recibir en el envío, se cierra solo
+        // (onClose ya refresca "Pendientes por recibir" en el padre).
+        const allReceived = items.every((it) => mergedResults[it.id]?.success);
+        if (allReceived) {
+            await onClose();
+        } else {
+            await onChanged();
+        }
+    };
+
+    const handleRejected = async () => {
+        if (!rejectingItem) return;
+        setItems((prev) => prev.filter((it) => it.id !== rejectingItem.id));
+        setRejectingItem(null);
+        await onChanged();
     };
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-sm rounded-[28px] bg-white p-6 shadow-2xl dark:bg-slate-900">
+            <div className="w-full max-w-lg rounded-[28px] bg-white p-6 shadow-2xl dark:bg-slate-900">
                 <h2 className="mb-1 text-lg font-black text-slate-800 dark:text-slate-100">
-                    Confirmar recepción
+                    {group.folio || "Envío"} — {group.fromBranchName}
                 </h2>
                 <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    {transfer.masterIngredient.name} — enviado{" "}
-                    {formatQty(transfer.quantitySent)}{" "}
-                    {transfer.masterIngredient.unitMeasure}
+                    Enviado {formatDate(group.sentAt)} por {group.sentByName}
+                    {group.motive ? ` · ${group.motive}` : ""}
+                    {group.vehiclePlate ? ` · Placa ${group.vehiclePlate}` : ""}
                 </p>
-                <div className="flex flex-col gap-4">
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Cantidad recibida
+
+                {items.length === 0 ? (
+                    <p className="p-6 text-center text-sm font-bold text-slate-400">
+                        Ya no quedan ítems pendientes en este envío
+                    </p>
+                ) : (
+                    <>
+                        <label className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            <input
+                                type="checkbox"
+                                checked={allSelected}
+                                onChange={toggleAll}
+                                className="h-4 w-4 rounded border-slate-300"
+                            />
+                            Seleccionar todos
                         </label>
-                        <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={quantity}
-                            onChange={(e) => setQuantity(e.target.value)}
-                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                        />
-                        <p className="mt-1 text-[10px] font-bold text-slate-400">
-                            Si llegó menos de lo enviado, ingrese la cantidad
-                            real: la diferencia queda registrada.
-                        </p>
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Notas (opcional)
-                        </label>
-                        <input
-                            type="text"
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                        />
-                    </div>
-                    {error && (
-                        <p className="text-xs font-bold text-rose-500">
-                            {error}
-                        </p>
-                    )}
-                </div>
+                        <div className="flex max-h-[45vh] flex-col gap-2 overflow-y-auto">
+                            {items.map((it) => {
+                                const result = results[it.id];
+                                return (
+                                    <div
+                                        key={it.id}
+                                        className="flex flex-col gap-2 rounded-2xl border border-slate-100 p-4 dark:border-slate-800/60 sm:flex-row sm:items-center sm:justify-between"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={!!selected[it.id]}
+                                                onChange={(e) =>
+                                                    setSelected((prev) => ({
+                                                        ...prev,
+                                                        [it.id]:
+                                                            e.target.checked,
+                                                    }))
+                                                }
+                                                className="mt-1 h-4 w-4 rounded border-slate-300"
+                                            />
+                                            <div>
+                                                <div className="font-black text-slate-700 dark:text-slate-200">
+                                                    {it.masterIngredient.name}{" "}
+                                                    — enviado{" "}
+                                                    {formatQty(
+                                                        it.quantitySent,
+                                                    )}{" "}
+                                                    {
+                                                        it.masterIngredient
+                                                            .unitMeasure
+                                                    }
+                                                </div>
+                                                {it.notesSent && (
+                                                    <div className="text-[10px] italic text-slate-400">
+                                                        "{it.notesSent}"
+                                                    </div>
+                                                )}
+                                                {result && (
+                                                    <div
+                                                        className={`text-[10px] font-bold ${
+                                                            result.success
+                                                                ? "text-emerald-600"
+                                                                : "text-rose-500"
+                                                        }`}
+                                                    >
+                                                        {result.message}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-shrink-0 items-center gap-2">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={quantities[it.id]}
+                                                onChange={(e) =>
+                                                    setQuantities((prev) => ({
+                                                        ...prev,
+                                                        [it.id]:
+                                                            e.target.value,
+                                                    }))
+                                                }
+                                                disabled={!selected[it.id]}
+                                                className="w-20 rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-sm font-bold text-slate-700 outline-none disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                            />
+                                            <button
+                                                onClick={() =>
+                                                    setRejectingItem(it)
+                                                }
+                                                className="rounded-xl border border-rose-200 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-rose-500 transition-all hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-900/20"
+                                            >
+                                                Rechazar
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        {error && (
+                            <p className="mt-3 text-xs font-bold text-rose-500">
+                                {error}
+                            </p>
+                        )}
+                        {statusMessage && (
+                            <p className="mt-3 text-xs font-bold text-indigo-500">
+                                {statusMessage}
+                            </p>
+                        )}
+                    </>
+                )}
+
                 <div className="mt-6 flex justify-end gap-3">
                     <button
                         onClick={onClose}
                         className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
                     >
-                        Cancelar
+                        Cerrar
                     </button>
+                    {items.length > 0 && (
+                        <button
+                            onClick={handleReceiveSelected}
+                            disabled={submitting || selectedCount === 0}
+                            className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white transition-all hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                            {submitting
+                                ? "Recibiendo..."
+                                : `Confirmar recepción (${selectedCount})`}
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {rejectingItem && (
+                <CancelTransferModal
+                    item={rejectingItem}
+                    variant="reject"
+                    onClose={() => setRejectingItem(null)}
+                    onCancelled={handleRejected}
+                />
+            )}
+        </div>
+    );
+};
+
+/** Modal del lado emisor: lista los ítems todavía SENT de una nota de salida
+ * para elegir cuál cancelar (el resto del envío sigue su curso). */
+const CancelShipmentModal: React.FC<{
+    note: OutNote;
+    onClose: () => void;
+    onPickItem: (it: CancelableItem) => void;
+}> = ({ note, onClose, onPickItem }) => {
+    const pendingItems = note.transfers.filter((t) => t.status === "SENT");
+    return (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-[28px] bg-white p-6 shadow-2xl dark:bg-slate-900">
+                <h2 className="mb-1 text-lg font-black text-slate-800 dark:text-slate-100">
+                    Cancelar ítem de {note.folio}
+                </h2>
+                <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Elija cuál ítem cancelar. El resto del envío sigue
+                    pendiente o recibido como esté.
+                </p>
+                <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
+                    {pendingItems.length === 0 ? (
+                        <p className="p-4 text-center text-sm font-bold text-slate-400">
+                            Ya no quedan ítems pendientes de cancelar en este
+                            envío
+                        </p>
+                    ) : (
+                        pendingItems.map((it) => (
+                            <div
+                                key={it.id}
+                                className="flex flex-col gap-2 rounded-2xl border border-slate-100 p-4 dark:border-slate-800/60 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                                <div className="font-black text-slate-700 dark:text-slate-200">
+                                    {it.masterIngredient.name} —{" "}
+                                    {formatQty(it.quantitySent)}{" "}
+                                    {it.masterIngredient.unitMeasure}
+                                </div>
+                                <button
+                                    onClick={() => onPickItem(it)}
+                                    className="whitespace-nowrap rounded-xl border border-rose-200 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-rose-500 transition-all hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-900/20"
+                                >
+                                    Cancelar este ítem
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+                <div className="mt-6 flex justify-end">
                     <button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white transition-all hover:bg-emerald-700 disabled:opacity-50"
+                        onClick={onClose}
+                        className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
                     >
-                        {loading ? "Confirmando..." : "Confirmar recepción"}
+                        Cerrar
                     </button>
                 </div>
             </div>
@@ -840,31 +1074,38 @@ const ReceiveTransferModal: React.FC<{
 };
 
 const CancelTransferModal: React.FC<{
-    transfer: Transfer;
+    item: CancelableItem;
+    variant?: "cancel" | "reject";
     onClose: () => void;
     onCancelled: () => void;
-}> = ({ transfer, onClose, onCancelled }) => {
+}> = ({ item, variant = "cancel", onClose, onCancelled }) => {
     const [reason, setReason] = useState("");
     const [error, setError] = useState("");
     const [cancelWarehouseTransfer, { loading }] = useMutation(
         CANCEL_WAREHOUSE_TRANSFER,
     );
+    const isReject = variant === "reject";
 
     const handleSubmit = async () => {
         try {
             const { data } = await cancelWarehouseTransfer({
-                variables: { transferId: transfer.id, reason: reason || undefined },
+                variables: { transferId: item.id, reason: reason || undefined },
             });
             if (data?.cancelWarehouseTransfer?.success) {
                 onCancelled();
             } else {
                 setError(
                     data?.cancelWarehouseTransfer?.message ||
-                        "No se pudo cancelar la transferencia",
+                        `No se pudo ${isReject ? "rechazar" : "cancelar"} la transferencia`,
                 );
             }
         } catch (err: unknown) {
-            setError(getErrorMessage(err, "Error al cancelar la transferencia"));
+            setError(
+                getErrorMessage(
+                    err,
+                    `Error al ${isReject ? "rechazar" : "cancelar"} la transferencia`,
+                ),
+            );
         }
     };
 
@@ -872,12 +1113,12 @@ const CancelTransferModal: React.FC<{
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
             <div className="w-full max-w-sm rounded-[28px] bg-white p-6 shadow-2xl dark:bg-slate-900">
                 <h2 className="mb-1 text-lg font-black text-slate-800 dark:text-slate-100">
-                    Cancelar transferencia
+                    {isReject ? "Rechazar envío" : "Cancelar transferencia"}
                 </h2>
                 <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    {transfer.masterIngredient.name} —{" "}
-                    {formatQty(transfer.quantitySent)}{" "}
-                    {transfer.masterIngredient.unitMeasure}. El stock vuelve
+                    {item.masterIngredient.name} —{" "}
+                    {formatQty(item.quantitySent)}{" "}
+                    {item.masterIngredient.unitMeasure}. El stock vuelve
                     al almacén de origen.
                 </p>
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -907,7 +1148,13 @@ const CancelTransferModal: React.FC<{
                         disabled={loading}
                         className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white transition-all hover:bg-rose-700 disabled:opacity-50"
                     >
-                        {loading ? "Cancelando..." : "Confirmar cancelación"}
+                        {loading
+                            ? isReject
+                                ? "Rechazando..."
+                                : "Cancelando..."
+                            : isReject
+                              ? "Confirmar rechazo"
+                              : "Confirmar cancelación"}
                     </button>
                 </div>
             </div>

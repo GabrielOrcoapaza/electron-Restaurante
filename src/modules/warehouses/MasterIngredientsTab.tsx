@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useMutation, useQuery } from "@apollo/client";
-import { GET_MASTER_INGREDIENTS_BY_COMPANY } from "../../graphql/queries";
+import { GET_MASTER_INGREDIENTS_WITH_LINKS } from "../../graphql/queries";
 import {
     CREATE_MASTER_INGREDIENT,
     UPDATE_MASTER_INGREDIENT,
@@ -8,11 +8,27 @@ import {
 import { PRODUCT_UNIT_MEASURE_OPTIONS } from "../../constants/productUnitMeasures";
 import LinkProductModal from "./LinkProductModal";
 
+interface LinkedProduct {
+    id: string;
+    code: string;
+    name: string;
+    isActive: boolean;
+    branch: { id: string; name: string } | null;
+}
+
+interface ConglomerateIdentityRef {
+    id: string;
+    name: string;
+    unitMeasure: string;
+}
+
 interface MasterIngredient {
     id: string;
     name: string;
     unitMeasure: string;
     isActive: boolean;
+    conglomerateIngredient?: ConglomerateIdentityRef | null;
+    branchProducts?: LinkedProduct[];
 }
 
 const getErrorMessage = (err: unknown, fallback: string): string => {
@@ -32,7 +48,7 @@ const MasterIngredientsTab: React.FC<{ branchId: string }> = ({
     const [formError, setFormError] = useState("");
 
     const { data, loading, refetch } = useQuery(
-        GET_MASTER_INGREDIENTS_BY_COMPANY,
+        GET_MASTER_INGREDIENTS_WITH_LINKS,
         {
             variables: { includeInactive: true },
             fetchPolicy: "network-only",
@@ -40,6 +56,14 @@ const MasterIngredientsTab: React.FC<{ branchId: string }> = ({
     );
     const masterIngredients: MasterIngredient[] =
         data?.masterIngredientsByCompany || [];
+
+    const productsOf = (mi: MasterIngredient): LinkedProduct[] =>
+        [...(mi.branchProducts || [])].sort(
+            (a, b) =>
+                (a.branch?.name || "").localeCompare(
+                    b.branch?.name || "",
+                ) || a.name.localeCompare(b.name),
+        );
 
     const [createMasterIngredient, { loading: creating }] = useMutation(
         CREATE_MASTER_INGREDIENT,
@@ -123,69 +147,65 @@ const MasterIngredientsTab: React.FC<{ branchId: string }> = ({
     };
 
     return (
-        <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-50 p-6 dark:border-slate-800/50">
+        <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4 rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800/50 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
                         Ingredientes Maestros
                     </h2>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                        Identidad de insumo a nivel empresa, vincule el
-                        producto de cada sucursal
+                    <p className="mt-1 max-w-2xl text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        Identidad de insumo a nivel empresa. Aquí se ven los
+                        productos de cada sucursal y la identidad del
+                        conglomerado vinculados a cada maestro.
                     </p>
                 </div>
                 <button
                     onClick={openCreate}
-                    className="flex h-11 items-center gap-2 rounded-2xl bg-indigo-600 px-4 text-xs font-black uppercase tracking-wider text-white shadow-sm transition-all hover:bg-indigo-700"
+                    className="flex h-11 items-center gap-2 whitespace-nowrap rounded-2xl bg-indigo-600 px-4 text-xs font-black uppercase tracking-wider text-white shadow-sm transition-all hover:bg-indigo-700"
                 >
                     + Nuevo
                 </button>
             </div>
 
-            <div className="flex-1 overflow-hidden">
-                {loading ? (
-                    <div className="flex flex-col gap-4 p-6">
-                        {Array(4)
-                            .fill(0)
-                            .map((_, i) => (
-                                <div
-                                    key={i}
-                                    className="h-14 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50"
-                                />
-                            ))}
-                    </div>
-                ) : masterIngredients.length === 0 ? (
-                    <div className="flex min-h-[200px] items-center justify-center p-8 text-center text-sm font-bold text-slate-400">
+            {loading ? (
+                <div className="flex flex-col gap-4">
+                    {Array(3)
+                        .fill(0)
+                        .map((_, i) => (
+                            <div
+                                key={i}
+                                className="h-28 animate-pulse rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900"
+                            />
+                        ))}
+                </div>
+            ) : masterIngredients.length === 0 ? (
+                <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[32px] border border-slate-100 bg-white p-8 text-center shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+                    <p className="text-sm font-bold text-slate-400">
                         No hay ingredientes maestros todavía
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs">
-                            <thead>
-                                <tr className="border-b border-slate-50 bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:border-slate-800 dark:bg-slate-800/30">
-                                    <th className="px-6 py-4">Nombre</th>
-                                    <th className="px-6 py-4">Unidad</th>
-                                    <th className="px-6 py-4 text-center">
-                                        Estado
-                                    </th>
-                                    <th className="px-6 py-4 text-right">
-                                        Acciones
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                                {masterIngredients.map((mi) => (
-                                    <tr
-                                        key={mi.id}
-                                        className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30"
-                                    >
-                                        <td className="px-6 py-4 font-black text-slate-700 dark:text-slate-200">
-                                            {mi.name}
-                                        </td>
-                                        <td className="px-6 py-4 font-bold text-slate-500 dark:text-slate-400">
-                                            {mi.unitMeasure}
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
+                    </p>
+                    <p className="max-w-md text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        Cree un ingrediente maestro y vincule el producto
+                        equivalente de cada sucursal.
+                    </p>
+                </div>
+            ) : (
+                <div className="flex flex-col gap-4">
+                    {masterIngredients.map((mi) => {
+                        const products = productsOf(mi);
+                        return (
+                            <div
+                                key={mi.id}
+                                className="flex flex-col gap-4 rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800/50 dark:bg-slate-900"
+                            >
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h3 className="text-base font-black text-slate-800 dark:text-slate-100">
+                                                {mi.name}
+                                            </h3>
+                                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                                                {mi.unitMeasure}
+                                            </span>
                                             <span
                                                 className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
                                                     mi.isActive
@@ -197,47 +217,89 @@ const MasterIngredientsTab: React.FC<{ branchId: string }> = ({
                                                     ? "Activo"
                                                     : "Inactivo"}
                                             </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <button
-                                                    onClick={() =>
-                                                        setLinkingIngredient(
-                                                            mi,
-                                                        )
-                                                    }
-                                                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                            {mi.conglomerateIngredient && (
+                                                <span
+                                                    title="Identidad del conglomerado vinculada"
+                                                    className="rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400"
                                                 >
-                                                    Vincular producto
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        openEdit(mi)
+                                                    Conglomerado ·{" "}
+                                                    {
+                                                        mi
+                                                            .conglomerateIngredient
+                                                            .name
                                                     }
-                                                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                                                >
-                                                    Editar
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        handleToggleActive(mi)
-                                                    }
-                                                    disabled={updating}
-                                                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                                                >
-                                                    {mi.isActive
-                                                        ? "Desactivar"
-                                                        : "Activar"}
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                            {products.length}{" "}
+                                            {products.length === 1
+                                                ? "producto vinculado"
+                                                : "productos vinculados"}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap justify-end gap-2">
+                                        <button
+                                            onClick={() =>
+                                                setLinkingIngredient(mi)
+                                            }
+                                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                        >
+                                            Vincular producto
+                                        </button>
+                                        <button
+                                            onClick={() => openEdit(mi)}
+                                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                        >
+                                            Editar
+                                        </button>
+                                        <button
+                                            onClick={() =>
+                                                handleToggleActive(mi)
+                                            }
+                                            disabled={updating}
+                                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                        >
+                                            {mi.isActive
+                                                ? "Desactivar"
+                                                : "Activar"}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {products.length === 0 ? (
+                                    <p className="rounded-xl bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">
+                                        Sin productos vinculados: este insumo
+                                        todavía no puede usarse en
+                                        transferencias.
+                                    </p>
+                                ) : (
+                                    <div className="flex flex-wrap gap-2">
+                                        {products.map((p) => (
+                                            <span
+                                                key={p.id}
+                                                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-bold ${
+                                                    p.isActive
+                                                        ? "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                                                        : "border-rose-200 text-rose-500 dark:border-rose-800"
+                                                }`}
+                                            >
+                                                <span className="font-black uppercase tracking-wider text-slate-400">
+                                                    {p.branch?.name || "—"}
+                                                </span>
+                                                {p.name}
+                                                <span className="text-slate-400">
+                                                    {p.code}
+                                                </span>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
 
             {showFormModal && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
@@ -315,7 +377,10 @@ const MasterIngredientsTab: React.FC<{ branchId: string }> = ({
                 <LinkProductModal
                     branchId={branchId}
                     masterIngredient={linkingIngredient}
-                    onClose={() => setLinkingIngredient(null)}
+                    onClose={() => {
+                        setLinkingIngredient(null);
+                        void refetch();
+                    }}
                 />
             )}
         </div>

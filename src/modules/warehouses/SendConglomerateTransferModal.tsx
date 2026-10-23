@@ -12,16 +12,21 @@ import {
 import { SEND_CONGLOMERATE_TRANSFER } from "../../graphql/mutations";
 import SuggestionInput from "../../components/SuggestionInput";
 import { BRANCH_TRANSFER_NOTE_SUGGESTIONS } from "../../constants/transferReasonSuggestions";
+import { downloadTransferNotePdf } from "../../utils/downloadTransferNotePdf";
+import type { TransferNoteData } from "../../utils/transferNoteHtml";
 
 interface CompanyOption {
     id: string;
     denomination?: string | null;
     commercialName?: string | null;
+    ruc?: string | null;
 }
 
 interface BranchOption {
     id: string;
     name: string;
+    address?: string | null;
+    phone?: string | null;
 }
 
 interface Warehouse {
@@ -76,7 +81,7 @@ const companyLabel = (c: CompanyOption) =>
 const SendConglomerateTransferModal: React.FC<
     SendConglomerateTransferModalProps
 > = ({ branchId, onClose, onSent }) => {
-    const { companyData } = useAuth();
+    const { companyData, user } = useAuth();
     const usesWarehouses = !!companyData?.company?.usesWarehouses;
 
     const { data: companiesData, loading: companiesLoading } = useQuery(
@@ -92,12 +97,20 @@ const SendConglomerateTransferModal: React.FC<
     const [quantities, setQuantities] = useState<Record<string, string>>({});
     const [ingredientFilter, setIngredientFilter] = useState("");
     const [motive, setMotive] = useState("");
+    const [includeTransportDetails, setIncludeTransportDetails] =
+        useState(false);
     const [driverName, setDriverName] = useState("");
     const [vehiclePlate, setVehiclePlate] = useState("");
     const [notes, setNotes] = useState("");
     const [error, setError] = useState("");
     const [results, setResults] = useState<ItemResult[] | null>(null);
     const [sentFolio, setSentFolio] = useState<string | null>(null);
+    // Nota despachada (folio + datos armados) para poder re-descargar el PDF.
+    const [sentNote, setSentNote] = useState<{
+        folio: string;
+        data: TransferNoteData;
+    } | null>(null);
+    const [pdfMessage, setPdfMessage] = useState("");
 
     const { data: destBranchesData, loading: destBranchesLoading } = useQuery(
         GET_BRANCHES_BY_COMPANY,
@@ -219,6 +232,7 @@ const SendConglomerateTransferModal: React.FC<
             success?: boolean;
             message?: string;
             folio?: string | null;
+            note?: { id: string; folio: string; sentAt: string } | null;
             results?: Array<{
                 masterIngredientId: string;
                 masterIngredientName?: string | null;
@@ -236,8 +250,12 @@ const SendConglomerateTransferModal: React.FC<
                         quantity: Number(qtyStr),
                     })),
                     motive: motive.trim() || undefined,
-                    driverName: driverName.trim() || undefined,
-                    vehiclePlate: vehiclePlate.trim() || undefined,
+                    driverName: includeTransportDetails
+                        ? driverName.trim() || undefined
+                        : undefined,
+                    vehiclePlate: includeTransportDetails
+                        ? vehiclePlate.trim() || undefined
+                        : undefined,
                     notes: notes.trim() || undefined,
                 },
             });
@@ -281,10 +299,112 @@ const SendConglomerateTransferModal: React.FC<
             if (usesWarehouses && fromWarehouseId) {
                 await refetchFromStocks();
             }
+
+            if (payload?.success && payload.folio && payload.note?.sentAt) {
+                // Armar y descargar el PDF de la nota de salida (TRC-XXXX) —
+                // mismo mecanismo que SendTransferModal, pero cada lado trae
+                // su propia empresa (origen y destino son empresas distintas).
+                const sentAt = payload.note.sentAt;
+                const destCompany = companies.find(
+                    (c) => String(c.id) === String(toCompanyId),
+                );
+                const destBranch = destBranches.find(
+                    (b) => String(b.id) === String(toBranchId),
+                );
+                const okIds = new Set(
+                    rowResults
+                        .filter((r) => r.success)
+                        .map((r) => r.masterIngredientId),
+                );
+                const noteData: TransferNoteData = {
+                    folio: payload.folio,
+                    variant: "CONGLOMERATE",
+                    kind: "OUT",
+                    companyName:
+                        companyData?.company?.denomination ||
+                        companyData?.company?.commercialName ||
+                        "",
+                    companyRuc: companyData?.company?.ruc || "",
+                    companyLogo:
+                        companyData?.company?.logo ||
+                        companyData?.branch?.logo ||
+                        null,
+                    issuedAt: sentAt,
+                    sentAt,
+                    origin: {
+                        branchName: companyData?.branch?.name || "",
+                        manager: user?.fullName || "",
+                        address: companyData?.branch?.address || "",
+                        phone: companyData?.branch?.phone || "",
+                        companyName:
+                            companyData?.company?.commercialName ||
+                            companyData?.company?.denomination ||
+                            "",
+                        companyRuc: companyData?.company?.ruc || "",
+                    },
+                    destination: {
+                        branchName: destBranch?.name || "",
+                        manager: "Pendiente de recepción",
+                        address: destBranch?.address || "",
+                        phone: destBranch?.phone || "",
+                        companyName: destCompany
+                            ? companyLabel(destCompany)
+                            : "",
+                        companyRuc: destCompany?.ruc || "",
+                    },
+                    motive: motive.trim(),
+                    driverName: includeTransportDetails
+                        ? driverName.trim()
+                        : "",
+                    vehiclePlate: includeTransportDetails
+                        ? vehiclePlate.trim()
+                        : "",
+                    items: entries
+                        .filter(([miId]) => okIds.has(miId))
+                        .map(([miId, qtyStr]) => {
+                            const child = childrenByMaster[miId];
+                            return {
+                                code: child?.code || "",
+                                description:
+                                    child?.name ||
+                                    masterIngredients.find(
+                                        (m) => m.id === miId,
+                                    )?.name ||
+                                    miId,
+                                unit:
+                                    child?.unitMeasure ||
+                                    masterIngredients.find(
+                                        (m) => m.id === miId,
+                                    )?.unitMeasure ||
+                                    "",
+                                quantity: Number(qtyStr) || 0,
+                                status: "Enviada",
+                            };
+                        }),
+                    notes: notes.trim(),
+                };
+                setSentNote({ folio: payload.folio, data: noteData });
+                const pdf = await downloadTransferNotePdf(noteData);
+                setPdfMessage(
+                    pdf.ok
+                        ? pdf.message || ""
+                        : pdf.message || "No se pudo generar el PDF",
+                );
+            }
         }
         if (itemResults.every((r) => r.success)) {
             onSent();
         }
+    };
+
+    const handleDownloadPdf = async () => {
+        if (!sentNote) return;
+        const pdf = await downloadTransferNotePdf(sentNote.data);
+        setPdfMessage(
+            pdf.ok
+                ? pdf.message || ""
+                : pdf.message || "No se pudo descargar el PDF",
+        );
     };
 
     return (
@@ -480,18 +600,24 @@ const SendConglomerateTransferModal: React.FC<
                                             return (
                                                 <div
                                                     key={mi.id}
-                                                    className="flex items-center gap-3 px-3 py-2"
+                                                    onClick={() =>
+                                                        toggleItem(mi.id)
+                                                    }
+                                                    className="flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40"
                                                 >
                                                     <input
                                                         type="checkbox"
                                                         checked={checked}
+                                                        onClick={(e) =>
+                                                            e.stopPropagation()
+                                                        }
                                                         onWheel={(e) =>
                                                             e.currentTarget.blur()
                                                         }
                                                         onChange={() =>
                                                             toggleItem(mi.id)
                                                         }
-                                                        className="h-4 w-4 shrink-0 accent-indigo-600"
+                                                        className="h-4 w-4 shrink-0 cursor-pointer accent-indigo-600"
                                                     />
                                                     <div className="flex-1 text-xs font-bold text-slate-700 dark:text-slate-200">
                                                         {mi.name}{" "}
@@ -507,6 +633,9 @@ const SendConglomerateTransferModal: React.FC<
                                                         min="0"
                                                         step="0.01"
                                                         disabled={!checked}
+                                                        onClick={(e) =>
+                                                            e.stopPropagation()
+                                                        }
                                                         onWheel={(e) =>
                                                             e.currentTarget.blur()
                                                         }
@@ -558,47 +687,64 @@ const SendConglomerateTransferModal: React.FC<
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    Chofer / transportista (opcional)
-                                </label>
+                        <div>
+                            <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
                                 <input
-                                    type="text"
-                                    value={driverName}
+                                    type="checkbox"
+                                    checked={includeTransportDetails}
                                     onChange={(e) =>
-                                        setDriverName(e.target.value)
+                                        setIncludeTransportDetails(
+                                            e.target.checked,
+                                        )
                                     }
-                                    placeholder="Nombre completo"
-                                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                    className="h-4 w-4 shrink-0 cursor-pointer accent-indigo-600"
                                 />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    Placa del vehículo (opcional)
-                                </label>
-                                <input
-                                    type="text"
-                                    value={vehiclePlate}
-                                    onChange={(e) =>
-                                        setVehiclePlate(e.target.value)
-                                    }
-                                    placeholder="Ej. ABC-123"
-                                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                                />
-                            </div>
+                                Incluir conductor y vehículo (información adicional)
+                            </label>
+                            {includeTransportDetails && (
+                                <div className="mt-3 grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            Conductor (opcional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={driverName}
+                                            onChange={(e) =>
+                                                setDriverName(e.target.value)
+                                            }
+                                            placeholder="Nombre completo"
+                                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            Placa del vehículo (opcional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={vehiclePlate}
+                                            onChange={(e) =>
+                                                setVehiclePlate(e.target.value)
+                                            }
+                                            placeholder="Ej. ABC-123"
+                                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div>
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                Notas (opcional)
+                                Observaciones (opcional)
                             </label>
-                            <SuggestionInput
+                            <textarea
                                 value={notes}
-                                onChange={setNotes}
-                                suggestions={BRANCH_TRANSFER_NOTE_SUGGESTIONS}
-                                placeholder="Elija un mensaje o escriba uno propio..."
-                                inputClassName="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                onChange={(e) => setNotes(e.target.value)}
+                                placeholder="Escriba sus observaciones..."
+                                rows={3}
+                                className="mt-1 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                             />
                         </div>
 
@@ -611,11 +757,24 @@ const SendConglomerateTransferModal: React.FC<
                         {results && (
                             <div className="rounded-xl border border-slate-200 dark:border-slate-700">
                                 {sentFolio && (
-                                    <div className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">
+                                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-slate-800">
                                         <span className="text-xs font-black text-slate-700 dark:text-slate-200">
                                             Nota {sentFolio} enviada
                                         </span>
+                                        {sentNote && (
+                                            <button
+                                                onClick={handleDownloadPdf}
+                                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-emerald-700"
+                                            >
+                                                Descargar PDF
+                                            </button>
+                                        )}
                                     </div>
+                                )}
+                                {pdfMessage && (
+                                    <p className="px-3 py-2 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                        {pdfMessage}
+                                    </p>
                                 )}
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {results.map((r, i) => (

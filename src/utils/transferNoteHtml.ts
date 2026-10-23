@@ -23,13 +23,21 @@ export type TransferNoteBranchSide = {
     manager: string;
     address: string;
     phone: string;
+    /** Solo CONGLOMERATE (empresas distintas): nombre/RUC de la empresa de este lado. */
+    companyName?: string;
+    companyRuc?: string;
 };
 
 export type TransferNoteData = {
     folio: string;
     /** BRANCH = entre sucursales (TR-/TRE-); INTERNAL = entre almacenes de la misma
-     *  sucursal (TRI-). Cambia títulos y etiquetas del documento. */
-    variant?: "BRANCH" | "INTERNAL";
+     *  sucursal (TRI-); CONGLOMERATE = entre empresas distintas de un conglomerado
+     *  (TRC-/TRCE-). Cambia títulos y etiquetas del documento. */
+    variant?: "BRANCH" | "INTERNAL" | "CONGLOMERATE";
+    /** OUT = nota de salida (quien despacha, folio TR-/TRC-); IN = nota de entrada
+     *  (quien recibe, folio TRE-/TRCE-). Por defecto OUT. Cambia el rótulo del
+     *  documento y la columna de cantidad ("Cantidad enviada" vs "recibida"). */
+    kind?: "OUT" | "IN";
     companyName: string;
     companyRuc: string;
     /** Logo crudo de companyData (ruta /media, URL http o base64); se resuelve aquí. */
@@ -98,6 +106,16 @@ function branchSideBlock(
     const siteLabel = isInternal ? "Almacén" : "Sucursal";
     const managerLabel = isInternal ? "Responsable" : "Encargado";
     const rows: Array<[string, string]> = [
+        ...(side.companyName
+            ? ([
+                  [
+                      "Empresa",
+                      side.companyRuc
+                          ? `${side.companyName} (RUC ${side.companyRuc})`
+                          : side.companyName,
+                  ],
+              ] as Array<[string, string]>)
+            : []),
         [
             isOrigin ? `${siteLabel} de origen` : `${siteLabel} de destino`,
             side.branchName,
@@ -131,9 +149,14 @@ function branchSideBlock(
 export function buildTransferNoteHtml(d: TransferNoteData): string {
     const logo = resolveLogoSrc(d.companyLogo);
     const isInternal = d.variant === "INTERNAL";
+    const isConglomerate = d.variant === "CONGLOMERATE";
+    const isIn = d.kind === "IN";
+    const kindLabel = isIn ? "Nota de Entrada" : "Nota de Salida";
     const docTitle = isInternal
         ? "Transferencia de inventario entre almacenes"
-        : "Transferencia de inventario entre sucursales";
+        : isConglomerate
+          ? "Transferencia de inventario entre empresas"
+          : "Transferencia de inventario entre sucursales";
     const siteLabel = isInternal ? "Almacén" : "Sucursal";
     const section1Title = isInternal
         ? "Datos de los almacenes (origen y destino)"
@@ -205,6 +228,18 @@ export function buildTransferNoteHtml(d: TransferNoteData): string {
         color: #1e293b;
     }
     .header-meta b { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; }
+    .kind-badge {
+        display: inline-block;
+        margin: 0 0 8px;
+        padding: 3px 12px;
+        border-radius: 999px;
+        background: #1e293b;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
 
     h3 {
         font-size: 11px;
@@ -270,6 +305,7 @@ export function buildTransferNoteHtml(d: TransferNoteData): string {
         <p class="company-name">${esc(d.companyName)}</p>
         <p class="company-ruc">RUC ${esc(d.companyRuc) || "—"}</p>
         <h1 class="doc-title">${esc(docTitle)}</h1>
+        ${isInternal ? "" : `<div class="kind-badge">${esc(kindLabel)}</div>`}
         <div class="header-meta">
             <span class="folio"><b>Número de control</b>No. ${esc(d.folio)}</span>
             <span><b>Fecha de emisión</b>${esc(formatDate(d.issuedAt))}</span>
@@ -293,7 +329,13 @@ export function buildTransferNoteHtml(d: TransferNoteData): string {
                 <th>Código / SKU</th>
                 <th>Descripción del producto</th>
                 <th class="center">Unidad</th>
-                <th class="num">${isInternal ? "Cantidad transferida" : "Cantidad enviada"}</th>
+                <th class="num">${
+                    isInternal
+                        ? "Cantidad transferida"
+                        : isIn
+                          ? "Cantidad recibida"
+                          : "Cantidad enviada"
+                }</th>
                 <th>${isInternal ? "Observaciones" : "Estado / observaciones"}</th>
             </tr>
         </thead>

@@ -3142,6 +3142,10 @@ export const RECEIVE_WAREHOUSE_TRANSFER = gql`
                 status
                 quantitySent
                 quantityReceived
+                inNote {
+                    id
+                    folio
+                }
             }
         }
     }
@@ -3227,6 +3231,10 @@ export const RECEIVE_CONGLOMERATE_TRANSFER_ITEM = gql`
                 status
                 quantitySent
                 quantityReceived
+                inNote {
+                    id
+                    folio
+                }
             }
         }
     }

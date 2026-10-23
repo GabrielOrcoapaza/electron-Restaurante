@@ -106,6 +106,8 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
     // Datos de transporte e impresos de la Nota de Transferencia (PDF): motivo,
     // chofer y placa. Notas = observaciones libres (sección 4 del PDF).
     const [motive, setMotive] = useState("");
+    const [includeTransportDetails, setIncludeTransportDetails] =
+        useState(false);
     const [driverName, setDriverName] = useState("");
     const [vehiclePlate, setVehiclePlate] = useState("");
     const [notes, setNotes] = useState("");
@@ -267,8 +269,12 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                         quantity: Number(qtyStr),
                     })),
                     motive: motive.trim() || undefined,
-                    driverName: driverName.trim() || undefined,
-                    vehiclePlate: vehiclePlate.trim() || undefined,
+                    driverName: includeTransportDetails
+                        ? driverName.trim() || undefined
+                        : undefined,
+                    vehiclePlate: includeTransportDetails
+                        ? vehiclePlate.trim() || undefined
+                        : undefined,
                     notes: notes.trim() || undefined,
                 },
             });
@@ -323,6 +329,7 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                 );
                 const noteData: TransferNoteData = {
                     folio: payload.folio,
+                    kind: "OUT",
                     companyName:
                         companyData?.company?.denomination ||
                         companyData?.company?.commercialName ||
@@ -347,8 +354,12 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                         phone: destBranch?.phone || "",
                     },
                     motive: motive.trim(),
-                    driverName: driverName.trim(),
-                    vehiclePlate: vehiclePlate.trim(),
+                    driverName: includeTransportDetails
+                        ? driverName.trim()
+                        : "",
+                    vehiclePlate: includeTransportDetails
+                        ? vehiclePlate.trim()
+                        : "",
                     items: entries
                         .filter(([miId]) => okIds.has(miId))
                         .map(([miId, qtyStr]) => {
@@ -585,18 +596,24 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                                             return (
                                                 <div
                                                     key={mi.id}
-                                                    className="flex items-center gap-3 px-3 py-2"
+                                                    onClick={() =>
+                                                        toggleItem(mi.id)
+                                                    }
+                                                    className="flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40"
                                                 >
                                                     <input
                                                         type="checkbox"
                                                         checked={checked}
+                                                        onClick={(e) =>
+                                                            e.stopPropagation()
+                                                        }
                                                         onWheel={(e) =>
                                                             e.currentTarget.blur()
                                                         }
                                                         onChange={() =>
                                                             toggleItem(mi.id)
                                                         }
-                                                        className="h-4 w-4 shrink-0 accent-indigo-600"
+                                                        className="h-4 w-4 shrink-0 cursor-pointer accent-indigo-600"
                                                     />
                                                     <div className="flex-1 text-xs font-bold text-slate-700 dark:text-slate-200">
                                                         {mi.name}{" "}
@@ -612,6 +629,9 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                                                         min="0"
                                                         step="0.01"
                                                         disabled={!checked}
+                                                        onClick={(e) =>
+                                                            e.stopPropagation()
+                                                        }
                                                         onWheel={(e) =>
                                                             e.currentTarget.blur()
                                                         }
@@ -657,57 +677,70 @@ const SendTransferModal: React.FC<SendTransferModalProps> = ({
                             <SuggestionInput
                                 value={motive}
                                 onChange={setMotive}
-                                suggestions={
-                                    BRANCH_TRANSFER_NOTE_SUGGESTIONS
-                                }
+                                suggestions={BRANCH_TRANSFER_NOTE_SUGGESTIONS}
                                 placeholder="Elija un motivo o escriba uno propio..."
                                 inputClassName="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    Chofer / transportista (opcional)
-                                </label>
+                        <div>
+                            <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
                                 <input
-                                    type="text"
-                                    value={driverName}
+                                    type="checkbox"
+                                    checked={includeTransportDetails}
                                     onChange={(e) =>
-                                        setDriverName(e.target.value)
+                                        setIncludeTransportDetails(
+                                            e.target.checked,
+                                        )
                                     }
-                                    placeholder="Nombre completo"
-                                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                    className="h-4 w-4 shrink-0 cursor-pointer accent-indigo-600"
                                 />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    Placa del vehículo (opcional)
-                                </label>
-                                <input
-                                    type="text"
-                                    value={vehiclePlate}
-                                    onChange={(e) =>
-                                        setVehiclePlate(e.target.value)
-                                    }
-                                    placeholder="Ej. ABC-123"
-                                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                                />
-                            </div>
+                                Incluir conductor y vehículo (información adicional)
+                            </label>
+                            {includeTransportDetails && (
+                                <div className="mt-3 grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            Conductor (opcional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={driverName}
+                                            onChange={(e) =>
+                                                setDriverName(e.target.value)
+                                            }
+                                            placeholder="Nombre completo"
+                                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            Placa del vehículo (opcional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={vehiclePlate}
+                                            onChange={(e) =>
+                                                setVehiclePlate(e.target.value)
+                                            }
+                                            placeholder="Ej. ABC-123"
+                                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div>
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                Notas (opcional)
+                                Observaciones (opcional)
                             </label>
-                            <SuggestionInput
+                            <textarea
                                 value={notes}
-                                onChange={setNotes}
-                                suggestions={
-                                    BRANCH_TRANSFER_NOTE_SUGGESTIONS
-                                }
-                                placeholder="Elija un mensaje o escriba uno propio..."
-                                inputClassName="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                onChange={(e) => setNotes(e.target.value)}
+                                placeholder="Escriba sus observaciones..."
+                                rows={3}
+                                className="mt-1 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                             />
                         </div>
 

@@ -312,11 +312,22 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
                                             return (
                                                 <div
                                                     key={s.product.id}
-                                                    className="flex items-center gap-3 px-3 py-2"
+                                                    onClick={() =>
+                                                        toggleItem(
+                                                            s.product.id,
+                                                            Number(
+                                                                s.currentQuantity,
+                                                            ),
+                                                        )
+                                                    }
+                                                    className="flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40"
                                                 >
                                                     <input
                                                         type="checkbox"
                                                         checked={checked}
+                                                        onClick={(e) =>
+                                                            e.stopPropagation()
+                                                        }
                                                         onWheel={(e) =>
                                                             e.currentTarget.blur()
                                                         }
@@ -328,7 +339,7 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
                                                                 ),
                                                             )
                                                         }
-                                                        className="h-4 w-4 shrink-0 accent-indigo-600"
+                                                        className="h-4 w-4 shrink-0 cursor-pointer accent-indigo-600"
                                                     />
                                                     <div className="flex-1 text-xs font-bold text-slate-700 dark:text-slate-200">
                                                         {s.product.name}
@@ -344,6 +355,9 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
                                                         min="0"
                                                         step="0.01"
                                                         disabled={!checked}
+                                                        onClick={(e) =>
+                                                            e.stopPropagation()
+                                                        }
                                                         onWheel={(e) =>
                                                             e.currentTarget.blur()
                                                         }

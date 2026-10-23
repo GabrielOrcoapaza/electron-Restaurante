@@ -2469,6 +2469,36 @@ export const GET_MASTER_INGREDIENTS_BY_COMPANY = gql`
     }
 `;
 
+// Listado de ingredientes maestros con sus vinculaciones (productos de cada
+// sucursal e identidad del conglomerado). Separada de
+// GET_MASTER_INGREDIENTS_BY_COMPANY para no cargar estos datos en los modales de
+// transferencia, que solo necesitan id/nombre/unidad.
+export const GET_MASTER_INGREDIENTS_WITH_LINKS = gql`
+    query GetMasterIngredientsWithLinks($includeInactive: Boolean) {
+        masterIngredientsByCompany(includeInactive: $includeInactive) {
+            id
+            name
+            unitMeasure
+            isActive
+            conglomerateIngredient {
+                id
+                name
+                unitMeasure
+            }
+            branchProducts {
+                id
+                code
+                name
+                isActive
+                branch {
+                    id
+                    name
+                }
+            }
+        }
+    }
+`;
+
 // Productos de una sucursal candidatos a vincular a un MasterIngredient (INGREDIENT/BEVERAGE).
 // Query acotada y separada de GET_PRODUCTS (muy reusada en otras pantallas) para no tocarla.
 export const GET_PRODUCTS_FOR_MASTER_INGREDIENT_LINK = gql`
@@ -2550,6 +2580,19 @@ const WAREHOUSE_TRANSFER_FIELDS = `
     note {
         id
         folio
+        motive
+        driverName
+        vehiclePlate
+        notes
+        sentAt
+        sentBy {
+            id
+            fullName
+        }
+        fromBranch {
+            id
+            name
+        }
     }
     inNote {
         id
@@ -2824,6 +2867,7 @@ export const GET_COMPANIES_IN_MY_CONGLOMERATE = gql`
             id
             denomination
             commercialName
+            ruc
         }
     }
 `;
@@ -2912,6 +2956,205 @@ export const GET_CONGLOMERATE_TRANSFER_ITEMS_BY_BRANCH = gql`
     query GetConglomerateTransferItemsByBranch($branchId: ID!) {
         conglomerateTransferItemsByBranch(branchId: $branchId) {
             ${CONGLOMERATE_TRANSFER_ITEM_FIELDS}
+        }
+    }
+`;
+
+// Notas de SALIDA (folio TRC-XXXX) despachadas desde una sucursal hacia OTRA empresa
+// del conglomerado, con sus ítems. Mismo propósito que WAREHOUSE_TRANSFER_OUT_NOTE_FIELDS
+// pero cruzando dos empresas: cada lado trae su propia razón social/RUC para el PDF.
+const CONGLOMERATE_TRANSFER_OUT_NOTE_FIELDS = `
+    id
+    folio
+    motive
+    driverName
+    vehiclePlate
+    notes
+    sentAt
+    createdAt
+    company {
+        id
+        denomination
+        commercialName
+        ruc
+        logo
+    }
+    toCompany {
+        id
+        denomination
+        commercialName
+        ruc
+        logo
+    }
+    fromBranch {
+        id
+        name
+        address
+        phone
+    }
+    toBranch {
+        id
+        name
+        address
+        phone
+    }
+    sentBy {
+        id
+        fullName
+    }
+    inNote {
+        id
+        folio
+        receivedAt
+        receivedBy {
+            id
+            fullName
+        }
+    }
+    items {
+        id
+        status
+        quantitySent
+        quantityReceived
+        notesSent
+        notesReceived
+        fromMasterIngredient {
+            id
+            name
+            unitMeasure
+        }
+        toMasterIngredient {
+            id
+            name
+            unitMeasure
+        }
+        fromProduct {
+            id
+            code
+            name
+            unitMeasure
+        }
+        toProduct {
+            id
+            code
+            name
+            unitMeasure
+        }
+        sentBy {
+            id
+            fullName
+        }
+        receivedBy {
+            id
+            fullName
+        }
+    }
+`;
+
+export const GET_CONGLOMERATE_TRANSFER_OUT_NOTES_BY_BRANCH = gql`
+    query GetConglomerateTransferOutNotesByBranch($branchId: ID!) {
+        conglomerateTransferOutNotesByBranch(branchId: $branchId) {
+            ${CONGLOMERATE_TRANSFER_OUT_NOTE_FIELDS}
+        }
+    }
+`;
+
+// Notas de ENTRADA (folio TRCE-XXXX) recibidas en una sucursal desde OTRA empresa del
+// conglomerado, con sus ítems y la nota de salida que las originó.
+const CONGLOMERATE_TRANSFER_IN_NOTE_FIELDS = `
+    id
+    folio
+    receivedAt
+    notes
+    company {
+        id
+        denomination
+        commercialName
+        ruc
+        logo
+    }
+    receivedBy {
+        id
+        fullName
+    }
+    outNote {
+        id
+        folio
+        motive
+        driverName
+        vehiclePlate
+        notes
+        sentAt
+        company {
+            id
+            denomination
+            commercialName
+            ruc
+            logo
+        }
+        toCompany {
+            id
+            denomination
+            commercialName
+            ruc
+            logo
+        }
+        fromBranch {
+            id
+            name
+            address
+            phone
+        }
+        toBranch {
+            id
+            name
+            address
+            phone
+        }
+        sentBy {
+            id
+            fullName
+        }
+    }
+    items {
+        id
+        status
+        quantitySent
+        quantityReceived
+        notesReceived
+        fromMasterIngredient {
+            id
+            name
+            unitMeasure
+        }
+        toMasterIngredient {
+            id
+            name
+            unitMeasure
+        }
+        fromProduct {
+            id
+            code
+            name
+            unitMeasure
+        }
+        toProduct {
+            id
+            code
+            name
+            unitMeasure
+        }
+        receivedBy {
+            id
+            fullName
+        }
+    }
+`;
+
+export const GET_CONGLOMERATE_TRANSFER_IN_NOTES_BY_BRANCH = gql`
+    query GetConglomerateTransferInNotesByBranch($branchId: ID!) {
+        conglomerateTransferInNotesByBranch(branchId: $branchId) {
+            ${CONGLOMERATE_TRANSFER_IN_NOTE_FIELDS}
         }
     }
 `;
