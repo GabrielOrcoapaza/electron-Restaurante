@@ -2666,6 +2666,7 @@ const WAREHOUSE_TRANSFER_OUT_NOTE_FIELDS = `
         quantityReceived
         notesSent
         notesReceived
+        notesCancelled
         masterIngredient {
             id
             name
@@ -2759,6 +2760,30 @@ const WAREHOUSE_TRANSFER_IN_NOTE_FIELDS = `
             id
             fullName
         }
+        transfers {
+            id
+            status
+            quantitySent
+            quantityReceived
+            notesCancelled
+            masterIngredient {
+                id
+                name
+                unitMeasure
+            }
+            fromProduct {
+                id
+                code
+                name
+                unitMeasure
+            }
+            toProduct {
+                id
+                code
+                name
+                unitMeasure
+            }
+        }
     }
     transfers {
         id
@@ -2766,6 +2791,7 @@ const WAREHOUSE_TRANSFER_IN_NOTE_FIELDS = `
         quantitySent
         quantityReceived
         notesReceived
+        notesCancelled
         masterIngredient {
             id
             name
@@ -3018,6 +3044,7 @@ const CONGLOMERATE_TRANSFER_OUT_NOTE_FIELDS = `
         quantityReceived
         notesSent
         notesReceived
+        notesCancelled
         fromMasterIngredient {
             id
             name
@@ -3115,6 +3142,35 @@ const CONGLOMERATE_TRANSFER_IN_NOTE_FIELDS = `
             id
             fullName
         }
+        items {
+            id
+            status
+            quantitySent
+            quantityReceived
+            notesCancelled
+            fromMasterIngredient {
+                id
+                name
+                unitMeasure
+            }
+            toMasterIngredient {
+                id
+                name
+                unitMeasure
+            }
+            fromProduct {
+                id
+                code
+                name
+                unitMeasure
+            }
+            toProduct {
+                id
+                code
+                name
+                unitMeasure
+            }
+        }
     }
     items {
         id
@@ -3122,6 +3178,7 @@ const CONGLOMERATE_TRANSFER_IN_NOTE_FIELDS = `
         quantitySent
         quantityReceived
         notesReceived
+        notesCancelled
         fromMasterIngredient {
             id
             name

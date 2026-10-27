@@ -76,6 +76,7 @@ interface NoteItem {
     quantityReceived?: number | null;
     notesSent?: string | null;
     notesReceived?: string | null;
+    notesCancelled?: string | null;
     masterIngredient: { id: string; name: string; unitMeasure: string };
     fromProduct?: { id: string; code: string; name: string; unitMeasure?: string | null } | null;
     toProduct?: { id: string; code: string; name: string; unitMeasure?: string | null } | null;
@@ -128,6 +129,7 @@ interface InNote {
         fromBranch: NoteBranchRef;
         toBranch: NoteBranchRef;
         sentBy?: { id: string; fullName: string } | null;
+        transfers: NoteItem[];
     };
     transfers: NoteItem[];
 }
@@ -159,12 +161,26 @@ const formatQty = (value: unknown) => {
 };
 
 /** Estado del ítem tal como se imprime en el PDF de la nota. */
-const itemStatusLabel = (status: Transfer["status"]) =>
-    status === "RECEIVED"
-        ? "Recibida"
-        : status === "CANCELLED"
-          ? "Cancelada"
-          : "Enviada";
+const itemStatusLabel = (
+    status: Transfer["status"],
+    notesCancelled?: string | null,
+) => {
+    const base =
+        status === "RECEIVED"
+            ? "Recibida"
+            : status === "CANCELLED"
+              ? "Cancelada"
+              : "Enviada";
+    const reason = (notesCancelled || "").trim();
+    return reason ? `${base} — Motivo: ${reason}` : base;
+};
+
+/** Ítems que imprime la nota de entrada: todo lo que el destino ya procesó
+ *  (recibido o rechazado). Los rechazados no quedan ligados a la nota de
+ *  entrada, por eso se toman del despacho completo (outNote) y se excluyen
+ *  los que todavía siguen pendientes (SENT). */
+const inNoteDispatchItems = (note: InNote): NoteItem[] =>
+    note.outNote.transfers.filter((t) => t.status !== "SENT");
 
 /** Estado global de una nota de salida a partir de sus ítems. */
 const noteStateBadge = (note: OutNote) => {
@@ -343,15 +359,11 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
             driverName: note.driverName || "",
             vehiclePlate: note.vehiclePlate || "",
             items: note.transfers.map((t) => ({
-                code: t.fromProduct?.code || t.toProduct?.code || "",
-                description:
-                    t.masterIngredient?.name || t.fromProduct?.name || "",
-                unit:
-                    t.masterIngredient?.unitMeasure ||
-                    t.fromProduct?.unitMeasure ||
-                    "",
+                code: t.fromProduct?.code || "",
+                description: t.fromProduct?.name || "",
+                unit: t.fromProduct?.unitMeasure || "",
                 quantity: Number(t.quantitySent) || 0,
-                status: itemStatusLabel(t.status),
+                status: itemStatusLabel(t.status, t.notesCancelled),
             })),
             notes: note.notes || "",
         };
@@ -396,16 +408,15 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
             motive: note.outNote.motive || "",
             driverName: note.outNote.driverName || "",
             vehiclePlate: note.outNote.vehiclePlate || "",
-            items: note.transfers.map((t) => ({
+            items: inNoteDispatchItems(note).map((t) => ({
                 code: t.toProduct?.code || t.fromProduct?.code || "",
-                description:
-                    t.masterIngredient?.name || t.toProduct?.name || "",
+                description: t.toProduct?.name || t.fromProduct?.name || "",
                 unit:
-                    t.masterIngredient?.unitMeasure ||
                     t.toProduct?.unitMeasure ||
+                    t.fromProduct?.unitMeasure ||
                     "",
                 quantity: Number(t.quantityReceived ?? t.quantitySent) || 0,
-                status: itemStatusLabel(t.status),
+                status: itemStatusLabel(t.status, t.notesCancelled),
             })),
             notes: note.notes || "",
         };
@@ -620,7 +631,8 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
                         </h3>
                         <p className="mt-1 text-[10px] font-bold text-slate-400">
                             Documentos de recepción (folio TRE-XXXX) que
-                            respaldan lo recibido en esta sucursal.
+                            respaldan lo recibido y lo rechazado en esta
+                            sucursal.
                         </p>
                     </div>
                     {inNotes.length > 0 && (
@@ -646,7 +658,12 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
                             Todavía no se han recibido notas en esta sucursal
                         </p>
                     ) : (
-                        inNotes.map((note) => (
+                        inNotes.map((note) => {
+                            const items = inNoteDispatchItems(note);
+                            const cancelled = items.filter(
+                                (it) => it.status === "CANCELLED",
+                            ).length;
+                            return (
                             <div
                                 key={note.id}
                                 className="flex flex-col gap-2 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
@@ -660,7 +677,10 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
                                             de {note.outNote.folio}
                                         </span>
                                         <span className="text-[10px] font-bold text-slate-400">
-                                            {note.transfers.length} ítem(s)
+                                            {items.length} ítem(s)
+                                            {cancelled > 0
+                                                ? ` · ${cancelled} cancelado(s)`
+                                                : ""}
                                         </span>
                                     </div>
                                     <div className="mt-1 font-black text-slate-700 dark:text-slate-200">
@@ -689,7 +709,8 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
                                         : "PDF"}
                                 </button>
                             </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </div>

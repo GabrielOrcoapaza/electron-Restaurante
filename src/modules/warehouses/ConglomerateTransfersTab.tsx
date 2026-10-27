@@ -84,6 +84,7 @@ interface NoteItem {
     quantityReceived?: number | null;
     notesSent?: string | null;
     notesReceived?: string | null;
+    notesCancelled?: string | null;
     fromMasterIngredient: { id: string; name: string; unitMeasure: string };
     toMasterIngredient?: { id: string; name: string; unitMeasure: string } | null;
     fromProduct?: { id: string; code: string; name: string; unitMeasure?: string | null } | null;
@@ -137,6 +138,7 @@ interface InNote {
         fromBranch: BranchRef;
         toBranch: BranchRef;
         sentBy?: { id: string; fullName: string } | null;
+        items: NoteItem[];
     };
     items: NoteItem[];
 }
@@ -171,12 +173,26 @@ const companyLabel = (c?: CompanyRef | null) =>
     c ? c.commercialName || c.denomination || `Empresa ${c.id}` : "—";
 
 /** Estado del ítem tal como se imprime en el PDF de la nota. */
-const itemStatusLabel = (status: Item["status"]) =>
-    status === "RECEIVED"
-        ? "Recibida"
-        : status === "CANCELLED"
-          ? "Cancelada"
-          : "Enviada";
+const itemStatusLabel = (
+    status: Item["status"],
+    notesCancelled?: string | null,
+) => {
+    const base =
+        status === "RECEIVED"
+            ? "Recibida"
+            : status === "CANCELLED"
+              ? "Cancelada"
+              : "Enviada";
+    const reason = (notesCancelled || "").trim();
+    return reason ? `${base} — Motivo: ${reason}` : base;
+};
+
+/** Ítems que imprime la nota de entrada: todo lo que la empresa destino ya
+ *  procesó (recibido o rechazado). Los rechazados no quedan ligados a la nota
+ *  de entrada, por eso se toman del despacho completo (outNote) y se excluyen
+ *  los que todavía siguen pendientes (SENT). */
+const inNoteDispatchItems = (note: InNote): NoteItem[] =>
+    note.outNote.items.filter((t) => t.status !== "SENT");
 
 /** Estado global de una nota de salida a partir de sus ítems. */
 const noteStateBadge = (note: OutNote) => {
@@ -356,15 +372,14 @@ const ConglomerateTransfersTab: React.FC<{ branchId: string }> = ({
             driverName: note.driverName || "",
             vehiclePlate: note.vehiclePlate || "",
             items: note.items.map((t) => ({
-                code: t.fromProduct?.code || t.toProduct?.code || "",
-                description:
-                    t.fromMasterIngredient?.name || t.fromProduct?.name || "",
+                code: t.fromProduct?.code || "",
+                description: t.fromProduct?.name || "",
                 unit:
-                    t.fromMasterIngredient?.unitMeasure ||
                     t.fromProduct?.unitMeasure ||
+                    t.fromMasterIngredient?.unitMeasure ||
                     "",
                 quantity: Number(t.quantitySent) || 0,
-                status: itemStatusLabel(t.status),
+                status: itemStatusLabel(t.status, t.notesCancelled),
             })),
             notes: note.notes || "",
         };
@@ -411,16 +426,16 @@ const ConglomerateTransfersTab: React.FC<{ branchId: string }> = ({
             motive: note.outNote.motive || "",
             driverName: note.outNote.driverName || "",
             vehiclePlate: note.outNote.vehiclePlate || "",
-            items: note.items.map((t) => ({
+            items: inNoteDispatchItems(note).map((t) => ({
                 code: t.toProduct?.code || t.fromProduct?.code || "",
-                description:
-                    t.fromMasterIngredient?.name || t.toProduct?.name || "",
+                description: t.toProduct?.name || t.fromProduct?.name || "",
                 unit:
-                    t.fromMasterIngredient?.unitMeasure ||
                     t.toProduct?.unitMeasure ||
+                    t.fromProduct?.unitMeasure ||
+                    t.toMasterIngredient?.unitMeasure ||
                     "",
                 quantity: Number(t.quantityReceived ?? t.quantitySent) || 0,
-                status: itemStatusLabel(t.status),
+                status: itemStatusLabel(t.status, t.notesCancelled),
             })),
             notes: note.notes || "",
         };
@@ -636,7 +651,8 @@ const ConglomerateTransfersTab: React.FC<{ branchId: string }> = ({
                         </h3>
                         <p className="mt-1 text-[10px] font-bold text-slate-400">
                             Documentos de recepción (folio TRCE-XXXX) que
-                            respaldan lo recibido desde otra empresa.
+                            respaldan lo recibido y lo rechazado desde otra
+                            empresa.
                         </p>
                     </div>
                     {inNotes.length > 0 && (
@@ -662,7 +678,12 @@ const ConglomerateTransfersTab: React.FC<{ branchId: string }> = ({
                             Todavía no se han recibido notas en esta sucursal
                         </p>
                     ) : (
-                        inNotes.map((note) => (
+                        inNotes.map((note) => {
+                            const items = inNoteDispatchItems(note);
+                            const cancelled = items.filter(
+                                (it) => it.status === "CANCELLED",
+                            ).length;
+                            return (
                             <div
                                 key={note.id}
                                 className="flex flex-col gap-2 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
@@ -676,7 +697,10 @@ const ConglomerateTransfersTab: React.FC<{ branchId: string }> = ({
                                             de {note.outNote.folio}
                                         </span>
                                         <span className="text-[10px] font-bold text-slate-400">
-                                            {note.items.length} ítem(s)
+                                            {items.length} ítem(s)
+                                            {cancelled > 0
+                                                ? ` · ${cancelled} cancelado(s)`
+                                                : ""}
                                         </span>
                                     </div>
                                     <div className="mt-1 font-black text-slate-700 dark:text-slate-200">
@@ -707,7 +731,8 @@ const ConglomerateTransfersTab: React.FC<{ branchId: string }> = ({
                                         : "PDF"}
                                 </button>
                             </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </div>
