@@ -3801,9 +3801,14 @@ const Order: React.FC<OrderProps> = ({
                                                                 }}
                                                             >
                                                                 S/{" "}
-                                                                {item.total.toFixed(
-                                                                    2,
-                                                                )}
+                                                                {(
+                                                                    (Number(
+                                                                        item.total,
+                                                                    ) || 0) -
+                                                                    (Number(
+                                                                        item.discount,
+                                                                    ) || 0)
+                                                                ).toFixed(2)}
                                                             </div>
                                                         </div>
 
