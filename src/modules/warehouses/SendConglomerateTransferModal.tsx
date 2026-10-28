@@ -4,7 +4,7 @@ import { useAuth } from "../../hooks/useAuth";
 import {
     GET_BRANCHES_BY_COMPANY,
     GET_COMPANIES_IN_MY_CONGLOMERATE,
-    GET_MASTER_INGREDIENTS_BY_COMPANY,
+    GET_CONGLOMERATE_CATALOG,
     GET_PRODUCTS_FOR_MASTER_INGREDIENT_LINK,
     GET_STOCKS_BY_WAREHOUSE,
     GET_WAREHOUSES_BY_BRANCH,
@@ -37,11 +37,26 @@ interface Warehouse {
     isDefaultSale: boolean;
 }
 
-interface MasterIngredient {
+interface CompanyRef {
+    id: string;
+    denomination?: string | null;
+    commercialName?: string | null;
+}
+
+interface CatalogMaster {
     id: string;
     name: string;
     unitMeasure: string;
     isActive: boolean;
+    company: CompanyRef;
+}
+
+interface ConglomerateIdentity {
+    id: string;
+    name: string;
+    unitMeasure: string;
+    isActive: boolean;
+    masterIngredients: CatalogMaster[];
 }
 
 interface LinkedChildProduct {
@@ -83,6 +98,7 @@ const SendConglomerateTransferModal: React.FC<
 > = ({ branchId, onClose, onSent }) => {
     const { companyData, user } = useAuth();
     const usesWarehouses = !!companyData?.company?.usesWarehouses;
+    const myCompanyId = companyData?.company?.id;
 
     const { data: companiesData, loading: companiesLoading } = useQuery(
         GET_COMPANIES_IN_MY_CONGLOMERATE,
@@ -131,18 +147,30 @@ const SendConglomerateTransferModal: React.FC<
     const ownWarehouses: Warehouse[] =
         ownWarehousesData?.warehousesByBranch || [];
 
-    const { data: ingredientsData } = useQuery(
-        GET_MASTER_INGREDIENTS_BY_COMPANY,
-        { variables: { includeInactive: false }, fetchPolicy: "network-only" },
-    );
-    const masterIngredients: MasterIngredient[] =
-        ingredientsData?.masterIngredientsByCompany || [];
+    // Catálogo global del conglomerado: se listan las IDENTIDADES (mismo nombre
+    // en todas las empresas), no los ingredientes maestros propios de cada una.
+    const { data: catalogData } = useQuery(GET_CONGLOMERATE_CATALOG, {
+        fetchPolicy: "network-only",
+    });
+    const identities: ConglomerateIdentity[] = (
+        catalogData?.conglomerateCatalog?.ingredients || []
+    ).filter((i: ConglomerateIdentity) => i.isActive);
+    // Maestro propio vinculado a cada identidad (lo que realmente se envía).
+    const myMasterByIdentity: Record<string, CatalogMaster | undefined> = {};
+    const identityIdByMasterId: Record<string, string> = {};
+    identities.forEach((identity) => {
+        const myMaster = identity.masterIngredients.find(
+            (m) => String(m.company?.id) === String(myCompanyId),
+        );
+        myMasterByIdentity[identity.id] = myMaster;
+        if (myMaster) identityIdByMasterId[myMaster.id] = identity.id;
+    });
     const normalizedFilter = ingredientFilter.trim().toLowerCase();
     const filteredIngredients = normalizedFilter
-        ? masterIngredients.filter((mi) =>
-              mi.name.toLowerCase().includes(normalizedFilter),
+        ? identities.filter((i) =>
+              i.name.toLowerCase().includes(normalizedFilter),
           )
-        : masterIngredients;
+        : identities;
 
     const {
         data: childrenData,
@@ -218,11 +246,17 @@ const SendConglomerateTransferModal: React.FC<
             setError("Seleccione al menos un ingrediente");
             return;
         }
-        for (const [, qtyStr] of entries) {
+        for (const [identityId, qtyStr] of entries) {
             const qty = Number(qtyStr);
             if (!qty || qty <= 0) {
                 setError(
                     "Ingrese una cantidad válida en todos los ingredientes marcados",
+                );
+                return;
+            }
+            if (!myMasterByIdentity[identityId]) {
+                setError(
+                    "Hay ingredientes marcados sin maestro propio vinculado a esa identidad del conglomerado",
                 );
                 return;
             }
@@ -245,8 +279,9 @@ const SendConglomerateTransferModal: React.FC<
                 variables: {
                     toBranchId,
                     fromWarehouseId: fromWarehouseId || undefined,
-                    items: entries.map(([masterIngredientId, qtyStr]) => ({
-                        masterIngredientId,
+                    items: entries.map(([identityId, qtyStr]) => ({
+                        masterIngredientId:
+                            myMasterByIdentity[identityId]!.id,
                         quantity: Number(qtyStr),
                     })),
                     motive: motive.trim() || undefined,
@@ -311,10 +346,16 @@ const SendConglomerateTransferModal: React.FC<
                 const destBranch = destBranches.find(
                     (b) => String(b.id) === String(toBranchId),
                 );
+                // rowResults viene en espacio de masterIngredientId (mío); se
+                // convierte a espacio de identityId para cruzar con `entries`.
                 const okIds = new Set(
                     rowResults
                         .filter((r) => r.success)
-                        .map((r) => r.masterIngredientId),
+                        .map(
+                            (r) =>
+                                identityIdByMasterId[r.masterIngredientId] ||
+                                r.masterIngredientId,
+                        ),
                 );
                 const noteData: TransferNoteData = {
                     folio: payload.folio,
@@ -360,22 +401,25 @@ const SendConglomerateTransferModal: React.FC<
                         ? vehiclePlate.trim()
                         : "",
                     items: entries
-                        .filter(([miId]) => okIds.has(miId))
-                        .map(([miId, qtyStr]) => {
-                            const child = childrenByMaster[miId];
+                        .filter(([identityId]) => okIds.has(identityId))
+                        .map(([identityId, qtyStr]) => {
+                            const identity = identities.find(
+                                (i) => i.id === identityId,
+                            );
+                            const myMaster =
+                                myMasterByIdentity[identityId];
+                            const child = myMaster
+                                ? childrenByMaster[myMaster.id]
+                                : undefined;
                             return {
                                 code: child?.code || "",
                                 description:
+                                    identity?.name ||
                                     child?.name ||
-                                    masterIngredients.find(
-                                        (m) => m.id === miId,
-                                    )?.name ||
-                                    miId,
+                                    identityId,
                                 unit:
+                                    identity?.unitMeasure ||
                                     child?.unitMeasure ||
-                                    masterIngredients.find(
-                                        (m) => m.id === miId,
-                                    )?.unitMeasure ||
                                     "",
                                 quantity: Number(qtyStr) || 0,
                                 status: "Enviada",
@@ -521,9 +565,10 @@ const SendConglomerateTransferModal: React.FC<
                                 className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none placeholder:font-semibold placeholder:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                             />
                             <div className="mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                                {masterIngredients.length === 0 ? (
+                                {identities.length === 0 ? (
                                     <p className="p-4 text-center text-xs font-bold text-slate-400">
-                                        No hay ingredientes maestros activos
+                                        No hay identidades activas en el
+                                        catálogo del conglomerado
                                     </p>
                                 ) : filteredIngredients.length === 0 ? (
                                     <p className="p-4 text-center text-xs font-bold text-slate-400">
@@ -533,12 +578,25 @@ const SendConglomerateTransferModal: React.FC<
                                 ) : (
                                     <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {filteredIngredients.map((mi) => {
+                                            const myMaster =
+                                                myMasterByIdentity[mi.id];
                                             const checked =
                                                 mi.id in quantities;
-                                            const child =
-                                                childrenByMaster[mi.id];
+                                            const child = myMaster
+                                                ? childrenByMaster[
+                                                      myMaster.id
+                                                  ]
+                                                : undefined;
                                             let childLine: React.ReactNode;
-                                            if (childrenLoading) {
+                                            if (!myMaster) {
+                                                childLine = (
+                                                    <span className="text-rose-500">
+                                                        Sin ingrediente propio
+                                                        vinculado a esta
+                                                        identidad
+                                                    </span>
+                                                );
+                                            } else if (childrenLoading) {
                                                 childLine = (
                                                     <span>
                                                         Cargando producto
@@ -570,7 +628,7 @@ const SendConglomerateTransferModal: React.FC<
                                             ) {
                                                 const qty =
                                                     warehouseStockByMaster[
-                                                        mi.id
+                                                        myMaster.id
                                                     ] ?? 0;
                                                 childLine = (
                                                     <span
@@ -601,13 +659,19 @@ const SendConglomerateTransferModal: React.FC<
                                                 <div
                                                     key={mi.id}
                                                     onClick={() =>
+                                                        myMaster &&
                                                         toggleItem(mi.id)
                                                     }
-                                                    className="flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                                                    className={`flex items-center gap-3 px-3 py-2 transition-colors ${
+                                                        myMaster
+                                                            ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                                                            : "cursor-not-allowed opacity-60"
+                                                    }`}
                                                 >
                                                     <input
                                                         type="checkbox"
                                                         checked={checked}
+                                                        disabled={!myMaster}
                                                         onClick={(e) =>
                                                             e.stopPropagation()
                                                         }
@@ -617,7 +681,7 @@ const SendConglomerateTransferModal: React.FC<
                                                         onChange={() =>
                                                             toggleItem(mi.id)
                                                         }
-                                                        className="h-4 w-4 shrink-0 cursor-pointer accent-indigo-600"
+                                                        className="h-4 w-4 shrink-0 cursor-pointer accent-indigo-600 disabled:cursor-not-allowed"
                                                     />
                                                     <div className="flex-1 text-xs font-bold text-slate-700 dark:text-slate-200">
                                                         {mi.name}{" "}
@@ -632,7 +696,10 @@ const SendConglomerateTransferModal: React.FC<
                                                         type="number"
                                                         min="0"
                                                         step="0.01"
-                                                        disabled={!checked}
+                                                        disabled={
+                                                            !checked ||
+                                                            !myMaster
+                                                        }
                                                         onClick={(e) =>
                                                             e.stopPropagation()
                                                         }
