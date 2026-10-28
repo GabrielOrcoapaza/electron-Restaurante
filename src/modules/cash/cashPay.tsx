@@ -130,6 +130,10 @@ const PAYMENT_METHODS: { value: string; label: string }[] = [
     { value: "RAPPI", label: "Rappi" },
     { value: "PEDIDO_YA", label: "Pedido Ya" },
     { value: "LLAMA_FOOD", label: "LlamaFood" },
+    {
+        value: "CREDITO",
+        label: "Crédito",
+    },
     { value: "OTROS", label: "Otros" },
 ];
 
