@@ -330,7 +330,17 @@ async function renderThermalDocumentStyle(doc: Record<string, unknown>): Promise
 
     parts.push(`<div class="t-sep2">------------------------------------------------</div>`);
 
+    // Mismo orden que websocket_client.py: Descuento, OP. Gravadas, IGV
     const amounts = (doc.amounts ?? {}) as Record<string, unknown>;
+    const disc = amounts.discount;
+    if (disc != null && Number(disc) > 0) {
+        const pct = amounts.discount_percent;
+        const dLabel =
+            pct != null && Number(pct) > 0 ? `Descuento (${Number(pct).toFixed(0)}%)` : "Descuento";
+        parts.push(
+            `<div class="t-totrow"><span>${n(dLabel)}</span><span class="n">S/ -${num2(disc)}</span></div>`
+        );
+    }
     const base = amounts.total_taxable ?? amounts.subtotal;
     if (base != null && Number(base) > 0) {
         parts.push(
@@ -344,15 +354,6 @@ async function renderThermalDocumentStyle(doc: Record<string, unknown>): Promise
                 ? `IGV (${Number(igvPct).toFixed(1)}%)`
                 : "IGV";
         parts.push(`<div class="t-totrow"><span>${n(label)}</span><span class="n">S/ ${num2(amounts.igv)}</span></div>`);
-    }
-    const disc = amounts.discount;
-    if (disc != null && Number(disc) > 0) {
-        const pct = amounts.discount_percent;
-        const dLabel =
-            pct != null && Number(pct) > 0 ? `Descuento (${Number(pct).toFixed(0)}%)` : "Descuento";
-        parts.push(
-            `<div class="t-totrow"><span>${n(dLabel)}</span><span class="n">S/ -${num2(disc)}</span></div>`
-        );
     }
     parts.push(`<div class="t-sep">================================================</div>`);
     const totalAmt = amounts.total;

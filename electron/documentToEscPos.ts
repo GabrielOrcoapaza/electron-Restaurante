@@ -470,13 +470,8 @@ export async function documentJsonToEscPos(jsonString: string, paperWidthMm = 80
 
     e.separator2("-");
 
-    // TOTALES
+    // TOTALES (mismo orden que websocket_client.py: Descuento, OP. Gravadas, IGV)
     const amounts = (doc.amounts ?? {}) as Record<string, unknown>;
-    const base = amounts.total_taxable ?? amounts.subtotal;
-    if (base != null && Number(base) > 0) e.amountLine("OP. Gravadas", Number(base));
-
-    const igvPct = Number(amounts.igv_percent ?? 10.5);
-    if (amounts.igv != null) e.amountLine(`IGV (${igvPct.toFixed(1)}%)`, Number(amounts.igv));
 
     const disc = Number(amounts.discount ?? 0);
     if (disc > 0) {
@@ -484,6 +479,12 @@ export async function documentJsonToEscPos(jsonString: string, paperWidthMm = 80
         const dLabel = pct > 0 ? `Descuento (${pct.toFixed(0)}%)` : "Descuento";
         e.amountLine(dLabel, disc, true);
     }
+
+    const base = amounts.total_taxable ?? amounts.subtotal;
+    if (base != null && Number(base) > 0) e.amountLine("OP. Gravadas", Number(base));
+
+    const igvPct = Number(amounts.igv_percent ?? 10.5);
+    if (amounts.igv != null) e.amountLine(`IGV (${igvPct.toFixed(1)}%)`, Number(amounts.igv));
 
     e.separator("=");
 
