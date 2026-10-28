@@ -689,6 +689,26 @@ const LinkMasterModal: React.FC<{
 
     const master = unlinkedMasters.find((m) => m.id === masterId);
 
+    // Pestaña por empresa (igual que LinkProductModal con sucursales): arranca en
+    // la empresa del maestro preseleccionado, o en la primera con pendientes.
+    const [activeCompanyId, setActiveCompanyId] = useState(
+        () => master?.company?.id || mastersByCompany[0]?.company?.id || "",
+    );
+    const [masterSearch, setMasterSearch] = useState("");
+
+    const filteredActiveMasters = useMemo(() => {
+        const activeMasters =
+            mastersByCompany.find(
+                (g) =>
+                    String(g.company?.id || "—") === String(activeCompanyId),
+            )?.masters || [];
+        const term = masterSearch.trim().toLowerCase();
+        if (!term) return activeMasters;
+        return activeMasters.filter((m) =>
+            m.name.toLowerCase().includes(term),
+        );
+    }, [mastersByCompany, activeCompanyId, masterSearch]);
+
     const handleSubmit = async () => {
         setError("");
         if (!identityId) {
@@ -754,31 +774,96 @@ const LinkMasterModal: React.FC<{
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                             Ingrediente maestro
                         </label>
-                        <select
-                            value={masterId}
-                            onChange={(e) => setMasterId(e.target.value)}
-                            disabled={!!initialMasterId}
-                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                        >
-                            <option value="">Seleccione...</option>
-                            {mastersByCompany.map((group) => (
-                                <optgroup
-                                    key={group.company?.id || "—"}
-                                    label={companyLabel(group.company)}
-                                >
-                                    {group.masters.map((m) => (
-                                        <option key={m.id} value={m.id}>
-                                            {m.name} ({m.unitMeasure})
-                                        </option>
-                                    ))}
-                                </optgroup>
-                            ))}
-                        </select>
-                        {unlinkedMasters.length === 0 && (
+                        {initialMasterId ? (
+                            <p className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                {master
+                                    ? `${companyLabel(master.company)} — ${master.name} (${master.unitMeasure})`
+                                    : "—"}
+                            </p>
+                        ) : unlinkedMasters.length === 0 ? (
                             <p className="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
                                 No hay maestros sin identidad en el
                                 conglomerado.
                             </p>
+                        ) : (
+                            <>
+                                <div className="mt-1 flex flex-wrap gap-2">
+                                    {mastersByCompany.map((group) => {
+                                        const key = group.company?.id || "—";
+                                        const active =
+                                            String(key) ===
+                                            String(activeCompanyId);
+                                        return (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() => {
+                                                    setActiveCompanyId(key);
+                                                    setMasterId("");
+                                                    setMasterSearch("");
+                                                }}
+                                                className={
+                                                    active
+                                                        ? "rounded-full bg-indigo-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white"
+                                                        : "rounded-full border border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
+                                                }
+                                            >
+                                                {companyLabel(group.company)}{" "}
+                                                ({group.masters.length})
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <input
+                                    type="text"
+                                    value={masterSearch}
+                                    onChange={(e) =>
+                                        setMasterSearch(e.target.value)
+                                    }
+                                    placeholder="Buscar ingrediente..."
+                                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                />
+                                <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                                    {filteredActiveMasters.length === 0 ? (
+                                        <p className="p-4 text-center text-xs font-bold text-slate-400">
+                                            Ningún ingrediente coincide
+                                        </p>
+                                    ) : (
+                                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {filteredActiveMasters.map(
+                                                (m) => {
+                                                    const selected =
+                                                        masterId === m.id;
+                                                    return (
+                                                        <div
+                                                            key={m.id}
+                                                            onClick={() =>
+                                                                setMasterId(
+                                                                    m.id,
+                                                                )
+                                                            }
+                                                            className={`cursor-pointer px-3 py-2 text-xs font-bold transition-colors ${
+                                                                selected
+                                                                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300"
+                                                                    : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/40"
+                                                            }`}
+                                                        >
+                                                            {m.name}{" "}
+                                                            <span className="text-slate-400">
+                                                                (
+                                                                {
+                                                                    m.unitMeasure
+                                                                }
+                                                                )
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                },
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
                         )}
                     </div>
                     {error && (
