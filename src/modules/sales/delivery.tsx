@@ -1049,6 +1049,15 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
         0,
         pct > 0 ? (cartItemsTotal * pct) / 100 : Number(discountAmount) || 0,
     );
+    // Si se usó el campo de monto (S/), el % no quedó escrito en ningún
+    // input — se calcula a partir del monto realmente aplicado para que el
+    // comprobante/SUNAT no reciban 0% con un descuento en soles real.
+    const effectiveDiscountPercent =
+        pct > 0
+            ? pct
+            : cartItemsTotal > 0
+              ? (manualDiscount / cartItemsTotal) * 100
+              : 0;
     const cartTotal = Math.max(0, cartItemsTotal - manualDiscount);
     const totalDiscount =
         manualDiscount +
@@ -1374,7 +1383,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                 itemsTotalDiscount: 0,
                 globalDiscount: globalDiscountOnBase,
                 globalDiscountPercent: parseFloat(
-                    (Number(discountPercent) || 0).toFixed(2),
+                    effectiveDiscountPercent.toFixed(2),
                 ),
                 totalDiscount: cleanTotalDiscount,
                 globalDiscountOnTotal: cleanTotalDiscount,

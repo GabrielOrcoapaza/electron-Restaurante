@@ -1692,6 +1692,17 @@ const CashPay: React.FC<CashPayProps> = ({
                     ? roundMoney2((paymentAfterItemDiscount * payPct) / 100)
                     : Number(discountAmount) || 0,
             );
+            // Si el cajero usó el campo de monto (S/), el % no quedó escrito en
+            // ningún input — se calcula aquí a partir del monto realmente
+            // aplicado para que el comprobante/SUNAT no reciban 0% con un
+            // descuento en soles real.
+            const effectiveDiscountPercent =
+                payPct > 0
+                    ? payPct
+                    : paymentAfterItemDiscount > 0
+                      ? (paymentGlobalDiscount / paymentAfterItemDiscount) *
+                        100
+                      : 0;
             const paymentTotalDiscount = roundMoney2(
                 paymentItemsDiscount + paymentGlobalDiscount,
             );
@@ -1860,7 +1871,9 @@ const CashPay: React.FC<CashPayProps> = ({
                 exchangeRate: 1.0,
                 itemsTotalDiscount: paymentItemsDiscount,
                 globalDiscount: paymentGlobalDiscountOnBase,
-                globalDiscountPercent: Number(discountPercent) || 0,
+                globalDiscountPercent: parseFloat(
+                    effectiveDiscountPercent.toFixed(2),
+                ),
                 totalDiscount: paymentTotalDiscount,
                 globalDiscountOnTotal: paymentGlobalDiscount,
                 igvPercent: igvPercentage,
