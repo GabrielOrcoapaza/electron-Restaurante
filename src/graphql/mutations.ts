@@ -1711,6 +1711,7 @@ export const UPDATE_CATEGORY = gql`
 export const UPDATE_SUBCATEGORY = gql`
     mutation UpdateSubcategory(
         $subcategoryId: ID!
+        $categoryId: ID
         $name: String
         $description: String
         $icon: String
@@ -1720,6 +1721,7 @@ export const UPDATE_SUBCATEGORY = gql`
     ) {
         updateSubcategory(
             subcategoryId: $subcategoryId
+            categoryId: $categoryId
             name: $name
             description: $description
             icon: $icon

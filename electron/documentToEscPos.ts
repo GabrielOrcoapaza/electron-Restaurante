@@ -48,6 +48,31 @@ function num2(v: unknown): string {
     return Number.isFinite(x) ? x.toFixed(2) : String(v ?? "");
 }
 
+/** Pulso de gaveta (mismos bytes que PrintServer open_cash_drawer). */
+function cashDrawerKickEscPos(): Buffer {
+    return Buffer.concat([
+        Buffer.from([ESC, 0x70, 0x00, 0x19, 0x7d]),
+        Buffer.from([0x10, 0x14, 0x01, 0x00, 0x08]),
+        Buffer.from([ESC, 0x70, 0x00, 0x32, 0xfa]),
+    ]);
+}
+
+function shouldOpenCashDrawer(doc: Record<string, unknown>): boolean {
+    return doc.open_drawer === true || doc.openDrawer === true;
+}
+
+/** Título del comprobante en ticket (misma regla que PrintServer websocket_client.py). */
+function resolveThermalDocumentTitle(
+    doc: Record<string, unknown>,
+    docInfo: Record<string, unknown>,
+): string {
+    const code = String(docInfo.code ?? "").trim();
+    if (code === "03") return "BOLETA ELECTRÓNICA";
+    if (code === "01") return "FACTURA ELECTRÓNICA";
+    const raw = String(doc.type ?? "DOCUMENTO").trim();
+    return raw || "DOCUMENTO";
+}
+
 class EscPos {
     private chunks: Buffer[] = [];
 
@@ -420,10 +445,9 @@ export async function documentJsonToEscPos(jsonString: string, paperWidthMm = 80
     e.separator("=");
 
     // TIPO DOCUMENTO
-    const docType = cleanText(String(doc.type ?? "DOCUMENTO"));
-    e.cmd(CMD.MODE_2H2W).cmd(CMD.ALIGN_CENTER).text(docType).cmd(CMD.MODE_NORMAL);
-
     const d = (doc.document ?? {}) as Record<string, unknown>;
+    const docType = cleanText(resolveThermalDocumentTitle(doc, d));
+    e.cmd(CMD.MODE_2H2W).cmd(CMD.ALIGN_CENTER).text(docType).cmd(CMD.MODE_NORMAL);
     if (d.invoice) e.cmd(CMD.MODE_BOLD).cmd(CMD.ALIGN_CENTER).text(cleanText(String(d.invoice))).cmd(CMD.MODE_NORMAL);
     if (d.number)  e.cmd(CMD.MODE_BOLD).cmd(CMD.ALIGN_CENTER).text(cleanText(String(d.number))).cmd(CMD.MODE_NORMAL);
 
@@ -511,5 +535,10 @@ export async function documentJsonToEscPos(jsonString: string, paperWidthMm = 80
     // CORTE
     e.cmd(CMD.FEED5).cmd(CMD.CUT_PARTIAL).cmd(CMD.BEEP);
 
-    return e.toBuffer();
+    let out = e.toBuffer();
+    if (shouldOpenCashDrawer(doc)) {
+        console.log("[ESC/POS] Abrir gaveta de efectivo (open_drawer=true)");
+        out = Buffer.concat([out, cashDrawerKickEscPos()]);
+    }
+    return out;
 }

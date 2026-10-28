@@ -2073,6 +2073,11 @@ const CashPay: React.FC<CashPayProps> = ({
                         issuedDocResult?.printLocally === true ||
                         issuedDocResult?.print_locally === true;
 
+                    const openCashDrawer = paymentsToSend.some(
+                        (p) =>
+                            p.paymentMethod === "CASH" &&
+                            Number(p.paidAmount) > 0,
+                    );
                     const localPrintOk = await invokeLocalIssuedDocumentPrint(
                         {
                             printLocally:
@@ -2096,6 +2101,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                 getLocalTicketPrinterStorage().trim() ||
                                 selectedLocalPrinterName.trim() ||
                                 null,
+                            openCashDrawer,
                         },
                     );
 
