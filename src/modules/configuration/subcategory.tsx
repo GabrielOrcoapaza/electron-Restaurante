@@ -40,7 +40,15 @@ const Subcategory: React.FC = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingRow, setEditingRow] = useState<{ id: string; categoryId: string; categoryName: string; name: string; description?: string; icon?: string; color?: string; order?: number; isActive: boolean } | null>(null);
-  const [editFormData, setEditFormData] = useState({ name: '', description: '', icon: 'category', color: '#3b82f6', order: 0, isActive: true });
+  const [editFormData, setEditFormData] = useState({
+    categoryId: '',
+    name: '',
+    description: '',
+    icon: 'category',
+    color: '#3b82f6',
+    order: 0,
+    isActive: true,
+  });
 
   const { data, refetch } = useQuery(GET_CATEGORIES_BY_BRANCH, {
     variables: { branchId: branchId!, includeInactive: true },
@@ -170,6 +178,16 @@ const Subcategory: React.FC = () => {
       ? `${c.name} · ${String(c.id).slice(-6)}`
       : c.name;
 
+  const categoriesForEditSelect = useMemo(() => {
+    const list = [...activeCategories];
+    const currentId = editFormData.categoryId || editingRow?.categoryId;
+    if (currentId && !list.some((c) => c.id === currentId)) {
+      const current = categories.find((c) => c.id === currentId);
+      if (current) list.unshift(current);
+    }
+    return list;
+  }, [activeCategories, categories, editFormData.categoryId, editingRow?.categoryId]);
+
   return (
     <div className="flex flex-col gap-6 p-1 transition-colors duration-200 md:p-0">
       {/* Crear Subcategoría Card */}
@@ -210,9 +228,9 @@ const Subcategory: React.FC = () => {
             }}
             className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
           >
-            {/* Categoría Padre */}
+            {/* Categoría */}
             <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Categoría Padre *</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Categoría *</label>
               <select
                 value={formData.categoryId}
                 onChange={(e) => setFormData((prev) => ({ ...prev, categoryId: e.target.value }))}
@@ -387,13 +405,14 @@ const Subcategory: React.FC = () => {
             order: row.order ?? 0, 
             isActive: row.isActive 
           });
-          setEditFormData({ 
-            name: row.name, 
-            description: row.description || '', 
-            icon: row.icon || 'category', 
-            color: row.color || '#3b82f6', 
-            order: row.order ?? 0, 
-            isActive: row.isActive 
+          setEditFormData({
+            categoryId: row.categoryId,
+            name: row.name,
+            description: row.description || '',
+            icon: row.icon || 'category',
+            color: row.color || '#3b82f6',
+            order: row.order ?? 0,
+            isActive: row.isActive,
           });
           setMessage(null);
         }}
@@ -413,7 +432,6 @@ const Subcategory: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
               <div className="flex flex-col">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Editar Subcategoría</h3>
-                <span className="text-[10px] font-bold uppercase text-slate-400">Padre: {editingRow.categoryName}</span>
               </div>
               <button
                 type="button"
@@ -434,6 +452,7 @@ const Subcategory: React.FC = () => {
                   updateSubcategory({
                     variables: {
                       subcategoryId: editingRow.id,
+                      categoryId: editFormData.categoryId || null,
                       name: editFormData.name.trim(),
                       description: editFormData.description.trim() || null,
                       icon: editFormData.icon || null,
@@ -445,6 +464,29 @@ const Subcategory: React.FC = () => {
                 }}
                 className="flex flex-col gap-6"
               >
+                {/* Categoría */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Categoría *
+                  </label>
+                  <select
+                    value={editFormData.categoryId}
+                    onChange={(e) =>
+                      setEditFormData((p) => ({ ...p, categoryId: e.target.value }))
+                    }
+                    required
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    <option value="">Seleccionar categoría</option>
+                    {categoriesForEditSelect.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {formatCategoryOptionLabel(category)}
+                        {!category.isActive ? ' (inactiva)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Nombre */}
                 <div className="flex flex-col gap-2">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Nombre</label>
@@ -534,9 +576,15 @@ const Subcategory: React.FC = () => {
                   </button>
                   <button 
                     type="submit" 
-                    disabled={updating || !editFormData.name.trim()} 
+                    disabled={
+                      updating ||
+                      !editFormData.name.trim() ||
+                      !editFormData.categoryId
+                    }
                     className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-black uppercase tracking-widest text-white transition-all shadow-lg ${
-                      updating || !editFormData.name.trim()
+                      updating ||
+                      !editFormData.name.trim() ||
+                      !editFormData.categoryId
                       ? 'bg-slate-300 dark:bg-slate-800 cursor-not-allowed shadow-none' 
                       : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-indigo-600/30 active:translate-y-0'
                     }`}

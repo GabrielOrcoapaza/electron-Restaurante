@@ -1431,6 +1431,11 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                         carryOutResult?.printLocally === true ||
                         carryOutResult?.print_locally === true;
 
+                    const openCashDrawer = paymentsPayload.some(
+                        (p) =>
+                            p.paymentMethod === "CASH" &&
+                            Number(p.paidAmount) > 0,
+                    );
                     const localPrintOk = await invokeLocalIssuedDocumentPrint(
                         {
                             printLocally:
@@ -1451,6 +1456,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                             deviceId: resolvedDeviceId ?? null,
                             localPrinterName:
                                 getLocalTicketPrinterStorage().trim() || null,
+                            openCashDrawer,
                         },
                     );
 

@@ -130,6 +130,10 @@ const PAYMENT_METHODS: { value: string; label: string }[] = [
     { value: "RAPPI", label: "Rappi" },
     { value: "PEDIDO_YA", label: "Pedido Ya" },
     { value: "LLAMA_FOOD", label: "LlamaFood" },
+    {
+        value: "CREDITO",
+        label: "Crédito",
+    },
     { value: "OTROS", label: "Otros" },
 ];
 
@@ -2086,6 +2090,11 @@ const CashPay: React.FC<CashPayProps> = ({
                         issuedDocResult?.printLocally === true ||
                         issuedDocResult?.print_locally === true;
 
+                    const openCashDrawer = paymentsToSend.some(
+                        (p) =>
+                            p.paymentMethod === "CASH" &&
+                            Number(p.paidAmount) > 0,
+                    );
                     const localPrintOk = await invokeLocalIssuedDocumentPrint(
                         {
                             printLocally:
@@ -2109,6 +2118,7 @@ const CashPay: React.FC<CashPayProps> = ({
                                 getLocalTicketPrinterStorage().trim() ||
                                 selectedLocalPrinterName.trim() ||
                                 null,
+                            openCashDrawer,
                         },
                     );
 
