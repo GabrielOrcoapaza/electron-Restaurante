@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
+import { useUserPermissions } from "../../hooks/useUserPermissions";
 import {
     GET_CASH_REGISTERS,
     GET_CASH_CLOSURE_PREVIEW,
@@ -167,6 +168,8 @@ const toPaymentAmount = (value: unknown): number => {
 
 const Cashs: React.FC = () => {
     const { companyData, user, getMacAddress } = useAuth();
+    const { hasPermission } = useUserPermissions();
+    const canViewCashSummary = hasPermission("cash.view_summary");
     const { showToast } = useToast();
     const branchId = companyData?.branch?.id || "";
     const userId = user?.id || "";
@@ -1103,6 +1106,7 @@ const Cashs: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="flex flex-col gap-8">
+                                        {canViewCashSummary && (
                                         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
                                             {/* Ingresos por ventas */}
                                             <div className="flex flex-col gap-3 rounded-3xl bg-emerald-50/50 p-6 dark:bg-emerald-900/10">
@@ -1232,6 +1236,7 @@ const Cashs: React.FC = () => {
                                                 </span>
                                             </div>
                                         </div>
+                                        )}
 
                                         {/* Resumen por método de pago */}
                                         <div className="flex flex-col gap-4">

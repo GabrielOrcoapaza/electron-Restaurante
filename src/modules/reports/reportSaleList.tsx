@@ -78,6 +78,8 @@ interface IssuedDocument {
         status: string;
         operationType?: string;
         serviceType?: string;
+        total?: number;
+        isFullyPaid?: boolean;
         user?: {
             id: string;
             fullName: string;
@@ -1652,6 +1654,22 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                     className={`mb-6 p-4 rounded-2xl border text-sm font-bold ${fullAnnulMessage.type === "success" ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-rose-50 text-rose-600 border-rose-100"}`}
                                 >
                                     {fullAnnulMessage.text}
+                                </div>
+                            )}
+
+                            {documentForFullAnnul.operation?.isFullyPaid ===
+                                false && (
+                                <div className="mb-6 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
+                                    <p className="text-sm font-black text-amber-700 dark:text-amber-300">
+                                        Esta orden aún tiene saldo pendiente
+                                        de pago
+                                    </p>
+                                    <p className="mt-1 text-xs font-bold text-amber-800/90 dark:text-amber-100/80">
+                                        Si este es el único comprobante activo
+                                        de la orden, el servidor rechazará la
+                                        anulación completa hasta que se cobre
+                                        el resto.
+                                    </p>
                                 </div>
                             )}
 

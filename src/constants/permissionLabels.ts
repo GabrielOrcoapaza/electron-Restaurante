@@ -36,7 +36,8 @@ export const ALL_PERMISSION_CODES: string[] = [
   // que "Editar permisos" no se los quite a un ADMIN al guardar sin tocarlos.
   'warehouses.manage',
   'master_ingredients.manage',
-  'conglomerate_transfers.manage'
+  'conglomerate_transfers.manage',
+  'cash.view_summary'
 ];
 
 const LABELS_ES: Record<string, string> = {
@@ -67,7 +68,8 @@ const LABELS_ES: Record<string, string> = {
   'cash.change_payment_method': 'Cambiar método de pago (mov. manual)',
   'warehouses.manage': 'Gestionar almacenes',
   'master_ingredients.manage': 'Gestionar ingredientes maestros',
-  'conglomerate_transfers.manage': 'Transferencias entre empresas (conglomerado)'
+  'conglomerate_transfers.manage': 'Transferencias entre empresas (conglomerado)',
+  'cash.view_summary': 'Ver resúmenes de caja (ingresos, egresos, saldo)'
 };
 
 const DESCRIPTIONS_ES: Record<string, string> = {
@@ -98,7 +100,8 @@ const DESCRIPTIONS_ES: Record<string, string> = {
   'cash.change_payment_method': 'Elegir método de pago en ingresos/egresos manuales (cierre de caja)',
   'warehouses.manage': 'Crear almacenes, transferir stock entre ellos y entre sucursales',
   'master_ingredients.manage': 'Crear/vincular ingredientes maestros y transferirlos entre sucursales',
-  'conglomerate_transfers.manage': 'Enviar y recibir transferencias de productos con otras empresas del conglomerado'
+  'conglomerate_transfers.manage': 'Enviar y recibir transferencias de productos con otras empresas del conglomerado',
+  'cash.view_summary': 'Ver los montos de Ingresos por ventas, Ingresos por movimientos, Egresos y Saldo neto en Gestión de Cajas'
 };
 
 /**
