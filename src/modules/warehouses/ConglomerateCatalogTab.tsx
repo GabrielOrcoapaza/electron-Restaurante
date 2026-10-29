@@ -552,7 +552,7 @@ const ConglomerateCatalogTab: React.FC = () => {
                 </div>
             )}
 
-            {linkModal && (
+            {linkModal && catalog && (
                 <LinkMasterModal
                     key={`${linkModal.identityId || ""}-${linkModal.masterId || ""}`}
                     identities={catalog.ingredients}
@@ -560,15 +560,18 @@ const ConglomerateCatalogTab: React.FC = () => {
                     initialIdentityId={linkModal.identityId}
                     initialMasterId={linkModal.masterId}
                     onClose={() => setLinkModal(null)}
-                    onLinked={async () => {
-                        setLinkModal(null);
+                    onChanged={async () => {
                         await refetch();
+                    }}
+                    onRequestUnlink={(master) => {
+                        setUnlinkError("");
+                        setUnlinking(master);
                     }}
                 />
             )}
 
             {unlinking && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
                     <div className="w-full max-w-sm rounded-[28px] bg-white p-6 shadow-2xl dark:bg-slate-900">
                         <h2 className="mb-1 text-lg font-black text-slate-800 dark:text-slate-100">
                             Desvincular maestro
@@ -656,78 +659,181 @@ const LinkMasterModal: React.FC<{
     initialIdentityId?: string;
     initialMasterId?: string;
     onClose: () => void;
-    onLinked: () => void | Promise<void>;
+    onChanged: () => void | Promise<void>;
+    onRequestUnlink: (master: CatalogMaster) => void;
 }> = ({
     identities,
     unlinkedMasters,
     initialIdentityId,
     initialMasterId,
     onClose,
-    onLinked,
+    onChanged,
+    onRequestUnlink,
 }) => {
     const [identityId, setIdentityId] = useState(initialIdentityId || "");
-    const [masterId, setMasterId] = useState(initialMasterId || "");
     const [error, setError] = useState("");
-    const [linkMaster, { loading }] = useMutation(
+    const [successMessage, setSuccessMessage] = useState("");
+    const [pendingLinkId, setPendingLinkId] = useState<string | null>(null);
+    const [linkMaster, { loading: linking }] = useMutation(
         LINK_MASTER_INGREDIENT_TO_CONGLOMERATE,
     );
+    const busy = linking || pendingLinkId !== null;
+
+    // Todos los maestros del conglomerado: los ya vinculados (que vienen
+    // dentro de cada identidad) y los que todavía no tienen identidad.
+    const masterLinkByIdentity = useMemo(() => {
+        const map = new Map<string, CatalogIdentity>();
+        for (const identity of identities) {
+            for (const master of identity.masterIngredients) {
+                map.set(String(master.id), identity);
+            }
+        }
+        return map;
+    }, [identities]);
+
+    const allMasters = useMemo(() => {
+        const seen = new Set<string>();
+        const result: CatalogMaster[] = [];
+        for (const identity of identities) {
+            for (const master of identity.masterIngredients) {
+                const key = String(master.id);
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    result.push(master);
+                }
+            }
+        }
+        for (const master of unlinkedMasters) {
+            const key = String(master.id);
+            if (!seen.has(key)) {
+                seen.add(key);
+                result.push(master);
+            }
+        }
+        return result;
+    }, [identities, unlinkedMasters]);
 
     const mastersByCompany = useMemo(() => {
         const map = new Map<
             string,
             { company: CompanyRef; masters: CatalogMaster[] }
         >();
-        for (const master of unlinkedMasters) {
-            const key = master.company?.id || "—";
+        for (const master of allMasters) {
+            const key = String(master.company?.id || "—");
             if (!map.has(key)) {
                 map.set(key, { company: master.company, masters: [] });
             }
             map.get(key)!.masters.push(master);
         }
-        return Array.from(map.values());
-    }, [unlinkedMasters]);
+        const groups = Array.from(map.values());
+        for (const group of groups) {
+            group.masters.sort((a, b) =>
+                a.name.localeCompare(b.name, undefined, {
+                    numeric: true,
+                    sensitivity: "base",
+                }),
+            );
+        }
+        return groups;
+    }, [allMasters]);
 
-    const master = unlinkedMasters.find((m) => m.id === masterId);
+    const master = initialMasterId
+        ? allMasters.find((m) => String(m.id) === String(initialMasterId))
+        : undefined;
+    const selectedIdentity = identities.find(
+        (identity) => String(identity.id) === String(identityId),
+    );
+    const identityInactive = !!selectedIdentity && !selectedIdentity.isActive;
 
-    // Pestaña por empresa (igual que LinkProductModal con sucursales): arranca en
-    // la empresa del maestro preseleccionado, o en la primera con pendientes.
+    // Maestro que ya ocupa el cupo de cada empresa en la identidad actual.
+    const identityMasterByCompany = useMemo(() => {
+        const map = new Map<string, CatalogMaster>();
+        for (const linked of selectedIdentity?.masterIngredients || []) {
+            map.set(String(linked.company?.id || "—"), linked);
+        }
+        return map;
+    }, [selectedIdentity]);
+
+    // Pestaña por empresa (igual que LinkProductModal con sucursales): arranca
+    // en la empresa del maestro preseleccionado, o en la primera disponible.
     const [activeCompanyId, setActiveCompanyId] = useState(
         () => master?.company?.id || mastersByCompany[0]?.company?.id || "",
     );
     const [masterSearch, setMasterSearch] = useState("");
 
+    // Si la empresa activa se queda sin maestros, cae en la primera disponible.
+    const activeGroup =
+        mastersByCompany.find(
+            (g) => String(g.company?.id || "—") === String(activeCompanyId),
+        ) || mastersByCompany[0];
+    const effectiveCompanyId = activeGroup
+        ? String(activeGroup.company?.id || "—")
+        : "";
+    const activeCompanyName = activeGroup
+        ? companyLabel(activeGroup.company)
+        : "la empresa";
+
     const filteredActiveMasters = useMemo(() => {
-        const activeMasters =
-            mastersByCompany.find(
-                (g) =>
-                    String(g.company?.id || "—") === String(activeCompanyId),
-            )?.masters || [];
+        const activeMasters = activeGroup?.masters || [];
         const term = masterSearch.trim().toLowerCase();
         if (!term) return activeMasters;
         return activeMasters.filter((m) =>
             m.name.toLowerCase().includes(term),
         );
-    }, [mastersByCompany, activeCompanyId, masterSearch]);
+    }, [activeGroup, masterSearch]);
 
-    const handleSubmit = async () => {
+    const refreshCatalog = async () => {
+        try {
+            await onChanged();
+        } catch (err: unknown) {
+            setError(
+                `El cambio se guardó, pero no se pudo actualizar el catálogo: ${getErrorMessage(err, "error desconocido")}`,
+            );
+        }
+    };
+
+    const handleLink = async (masterToLink: CatalogMaster) => {
         setError("");
+        setSuccessMessage("");
         if (!identityId) {
             setError("Seleccione la identidad del conglomerado");
             return;
         }
-        if (!masterId) {
-            setError("Seleccione el ingrediente maestro a vincular");
+        if (identityInactive) {
+            setError("La identidad del conglomerado está inactiva");
             return;
         }
+        if (masterLinkByIdentity.has(String(masterToLink.id))) {
+            // Los maestros ya vinculados se desvinculan con el botón correspondiente.
+            return;
+        }
+
+        const targetCompanyMaster = identityMasterByCompany.get(
+            String(masterToLink.company?.id || "—"),
+        );
+        if (
+            targetCompanyMaster &&
+            String(targetCompanyMaster.id) !== String(masterToLink.id)
+        ) {
+            setError(
+                `La empresa ya tiene el ingrediente maestro "${targetCompanyMaster.name}" vinculado a esta identidad. Desvincúlelo primero para cambiarlo.`,
+            );
+            return;
+        }
+
+        setPendingLinkId(String(masterToLink.id));
         try {
             const { data } = await linkMaster({
                 variables: {
-                    masterIngredientId: masterId,
+                    masterIngredientId: masterToLink.id,
                     conglomerateIngredientId: identityId,
                 },
             });
             if (data?.linkMasterIngredientToConglomerate?.success) {
-                await onLinked();
+                setSuccessMessage(
+                    `"${masterToLink.name}" quedó vinculado a la identidad.`,
+                );
+                await refreshCatalog();
             } else {
                 setError(
                     data?.linkMasterIngredientToConglomerate?.message ||
@@ -736,28 +842,53 @@ const LinkMasterModal: React.FC<{
             }
         } catch (err: unknown) {
             setError(getErrorMessage(err, "Error al vincular"));
+        } finally {
+            setPendingLinkId(null);
         }
+    };
+
+    /** La desvinculación conserva la confirmación existente, que maneja el padre. */
+    const handleUnlink = (masterToUnlink: CatalogMaster) => {
+        setError("");
+        setSuccessMessage("");
+        onRequestUnlink(masterToUnlink);
     };
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-[28px] bg-white p-6 shadow-2xl dark:bg-slate-900">
-                <h2 className="mb-1 text-lg font-black text-slate-800 dark:text-slate-100">
-                    Vincular ingrediente maestro
-                </h2>
-                <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    {master
-                        ? `${companyLabel(master.company)} — ${master.name}`
-                        : "Elija la identidad y el maestro de cualquier empresa"}
-                </p>
-                <div className="flex flex-col gap-4">
-                    <div>
+            <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl dark:bg-slate-900">
+                <div className="border-b border-slate-100 p-6 dark:border-slate-800">
+                    <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                        Vincular maestros a una identidad
+                    </h2>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        {selectedIdentity
+                            ? `Vincule los maestros de cada empresa a "${selectedIdentity.name}"`
+                            : "Elija la identidad y el maestro de cualquier empresa"}
+                    </p>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        Solo puede haber un maestro de cada empresa vinculado
+                        a esta identidad
+                    </p>
+                    <p className="mt-0.5 text-[10px] font-medium text-slate-400">
+                        Para mover un maestro de otra identidad, desvincúlelo
+                        primero y luego vincúlelo a esta.
+                    </p>
+                    <p className="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                        Desvincular impide futuros envíos/recepciones de este
+                        insumo; las transferencias ya emitidas no cambian.
+                    </p>
+                    <div className="mt-4">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                             Identidad del conglomerado
                         </label>
                         <select
                             value={identityId}
-                            onChange={(e) => setIdentityId(e.target.value)}
+                            onChange={(e) => {
+                                setIdentityId(e.target.value);
+                                setError("");
+                                setSuccessMessage("");
+                            }}
                             disabled={!!initialIdentityId}
                             className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                         >
@@ -770,121 +901,170 @@ const LinkMasterModal: React.FC<{
                             ))}
                         </select>
                     </div>
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Ingrediente maestro
-                        </label>
-                        {initialMasterId ? (
-                            <p className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                {master
-                                    ? `${companyLabel(master.company)} — ${master.name} (${master.unitMeasure})`
-                                    : "—"}
-                            </p>
-                        ) : unlinkedMasters.length === 0 ? (
-                            <p className="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                                No hay maestros sin identidad en el
-                                conglomerado.
-                            </p>
-                        ) : (
-                            <>
-                                <div className="mt-1 flex flex-wrap gap-2">
-                                    {mastersByCompany.map((group) => {
-                                        const key = group.company?.id || "—";
-                                        const active =
-                                            String(key) ===
-                                            String(activeCompanyId);
-                                        return (
-                                            <button
-                                                key={key}
-                                                type="button"
-                                                onClick={() => {
-                                                    setActiveCompanyId(key);
-                                                    setMasterId("");
-                                                    setMasterSearch("");
-                                                }}
-                                                className={
-                                                    active
-                                                        ? "rounded-full bg-indigo-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white"
-                                                        : "rounded-full border border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
-                                                }
-                                            >
-                                                {companyLabel(group.company)}{" "}
-                                                ({group.masters.length})
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                                <input
-                                    type="text"
-                                    value={masterSearch}
-                                    onChange={(e) =>
-                                        setMasterSearch(e.target.value)
-                                    }
-                                    placeholder="Buscar ingrediente..."
-                                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                                />
-                                <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                                    {filteredActiveMasters.length === 0 ? (
-                                        <p className="p-4 text-center text-xs font-bold text-slate-400">
-                                            Ningún ingrediente coincide
-                                        </p>
-                                    ) : (
-                                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {filteredActiveMasters.map(
-                                                (m) => {
-                                                    const selected =
-                                                        masterId === m.id;
-                                                    return (
-                                                        <div
-                                                            key={m.id}
-                                                            onClick={() =>
-                                                                setMasterId(
-                                                                    m.id,
-                                                                )
-                                                            }
-                                                            className={`cursor-pointer px-3 py-2 text-xs font-bold transition-colors ${
-                                                                selected
-                                                                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300"
-                                                                    : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/40"
-                                                            }`}
-                                                        >
-                                                            {m.name}{" "}
-                                                            <span className="text-slate-400">
-                                                                (
-                                                                {
-                                                                    m.unitMeasure
-                                                                }
-                                                                )
-                                                            </span>
-                                                        </div>
-                                                    );
-                                                },
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </>
-                        )}
-                    </div>
+                    {mastersByCompany.length > 0 && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            {mastersByCompany.map((group) => {
+                                const key = String(group.company?.id || "—");
+                                const active = key === effectiveCompanyId;
+                                return (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveCompanyId(key);
+                                            setMasterSearch("");
+                                        }}
+                                        className={
+                                            active
+                                                ? "rounded-full bg-indigo-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white"
+                                                : "rounded-full border border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
+                                        }
+                                    >
+                                        {companyLabel(group.company)}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                    <input
+                        type="text"
+                        value={masterSearch}
+                        onChange={(e) => setMasterSearch(e.target.value)}
+                        placeholder={`Buscar ingrediente en ${activeCompanyName}...`}
+                        className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    />
+
+                    {successMessage && (
+                        <p className="mt-2 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                            {successMessage}
+                        </p>
+                    )}
                     {error && (
-                        <p className="text-xs font-bold text-rose-500">
+                        <p className="mt-2 text-xs font-bold text-rose-500">
                             {error}
                         </p>
                     )}
                 </div>
-                <div className="mt-6 flex justify-end gap-3">
+
+                <div className="flex-1 divide-y divide-slate-50 overflow-y-auto dark:divide-slate-800/50">
+                    {filteredActiveMasters.length === 0 ? (
+                        <p className="p-6 text-center text-sm font-bold text-slate-400">
+                            No se encontraron ingredientes
+                        </p>
+                    ) : (
+                        filteredActiveMasters.map((activeMaster) => {
+                                const linkedIdentity =
+                                    masterLinkByIdentity.get(
+                                        String(activeMaster.id),
+                                    );
+                                const linkedToThis =
+                                    !!linkedIdentity &&
+                                    String(linkedIdentity.id) ===
+                                        String(identityId);
+                                const linkedToOther =
+                                    !!linkedIdentity && !linkedToThis;
+                                const targetCompanyMaster =
+                                    identityMasterByCompany.get(
+                                        String(
+                                            activeMaster.company?.id || "—",
+                                        ),
+                                    );
+                                const companySlotTaken =
+                                    !!targetCompanyMaster &&
+                                    String(targetCompanyMaster.id) !==
+                                        String(activeMaster.id);
+                                const isPending =
+                                    pendingLinkId ===
+                                    String(activeMaster.id);
+                                const linkDisabled =
+                                    busy ||
+                                    !identityId ||
+                                    identityInactive ||
+                                    linkedToOther ||
+                                    companySlotTaken;
+                                const unlinkDisabled = busy;
+                                const rowTitle = linkedToThis
+                                    ? "Desvincular de esta identidad"
+                                    : linkedToOther && linkedIdentity
+                                      ? `Desvincule de "${linkedIdentity.name}" antes de vincular a esta identidad.`
+                                      : !identityId
+                                        ? "Seleccione una identidad del conglomerado"
+                                        : identityInactive
+                                        ? "La identidad del conglomerado está inactiva"
+                                        : companySlotTaken &&
+                                            targetCompanyMaster
+                                          ? `La identidad ya tiene el maestro "${targetCompanyMaster.name}" de esta empresa. Desvincúlelo primero para cambiarlo.`
+                                          : undefined;
+
+                                return (
+                                    <div
+                                        key={activeMaster.id}
+                                        title={rowTitle}
+                                        className="flex items-center justify-between gap-3 px-6 py-3"
+                                    >
+                                        <div className="min-w-0">
+                                            <div className="truncate font-black text-slate-700 dark:text-slate-200">
+                                                {activeMaster.name}
+                                            </div>
+                                            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-400">
+                                                <span>
+                                                    {
+                                                        activeMaster.unitMeasure
+                                                    }
+                                                </span>
+                                                {!activeMaster.isActive && (
+                                                    <span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400">
+                                                        Inactivo
+                                                    </span>
+                                                )}
+                                                {linkedToThis && (
+                                                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
+                                                        Vinculado a este
+                                                    </span>
+                                                )}
+                                                {linkedToOther && (
+                                                    <span className="max-w-full truncate rounded-full bg-amber-50 px-2 py-0.5 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">
+                                                        {`Vinculado a "${linkedIdentity.name}"`}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {linkedToThis ? (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleUnlink(activeMaster)
+                                                }
+                                                disabled={unlinkDisabled}
+                                                className="whitespace-nowrap rounded-lg border border-rose-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-rose-500 hover:bg-rose-50 disabled:opacity-40 dark:border-rose-800 dark:hover:bg-rose-900/20"
+                                            >
+                                                Desvincular
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleLink(activeMaster)
+                                                }
+                                                disabled={linkDisabled}
+                                                className="whitespace-nowrap rounded-lg bg-indigo-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white hover:bg-indigo-700 disabled:opacity-40"
+                                            >
+                                                {isPending
+                                                    ? "Vinculando..."
+                                                    : "Vincular"}
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                        })
+                    )}
+                </div>
+                <div className="flex justify-end gap-3 border-t border-slate-100 p-4 dark:border-slate-800">
                     <button
                         onClick={onClose}
                         className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
                     >
-                        Cancelar
-                    </button>
-                    <button
-                        onClick={handleSubmit}
-                        disabled={loading || unlinkedMasters.length === 0}
-                        className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white transition-all hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                        {loading ? "Vinculando..." : "Vincular"}
+                        Cerrar
                     </button>
                 </div>
             </div>
