@@ -355,8 +355,12 @@ const TransferStockModal: React.FC<TransferStockModalProps> = ({
                                                         min="0"
                                                         step="0.01"
                                                         disabled={!checked}
-                                                        onClick={(e) =>
-                                                            e.stopPropagation()
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            e.currentTarget.select();
+                                                        }}
+                                                        onFocus={(e) =>
+                                                            e.currentTarget.select()
                                                         }
                                                         onWheel={(e) =>
                                                             e.currentTarget.blur()
