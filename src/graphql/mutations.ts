@@ -2872,6 +2872,22 @@ export const BULK_IMPORT_STOCK = gql`
     }
 `;
 
+/** Carga masiva de catálogo (.xlsx), misma lógica que admin Django. Solo ADMIN. */
+export const BULK_IMPORT_CATALOG = gql`
+    mutation BulkImportCatalog($branchId: ID!, $excelBase64: String!) {
+        bulkImportCatalog(branchId: $branchId, excelBase64: $excelBase64) {
+            success
+            message
+            createdCategories
+            createdSubcategories
+            createdModifiers
+            createdProducts
+            updatedProducts
+            errors
+        }
+    }
+`;
+
 // ==============================================
 // ALMACENES (Warehouse) — requiere Company.usesWarehouses + permiso warehouses.manage
 // ==============================================

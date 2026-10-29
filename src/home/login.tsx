@@ -9,6 +9,21 @@ import { useToast } from "../context/ToastContext";
 import VirtualKeyboard from "../components/VirtualKeyboard";
 import { resolveBranchLogoSrc } from "../utils/resolveLogoSrc";
 
+/** Dos filas: resto del nombre arriba; las dos últimas palabras abajo (ej. REST PARRILLA). */
+function splitBranchDisplayName(name: string): {
+    primary: string;
+    secondary?: string;
+} {
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (words.length <= 3) {
+        return { primary: words.join(" ") };
+    }
+    return {
+        primary: words.slice(0, -2).join(" "),
+        secondary: words.slice(-2).join(" "),
+    };
+}
+
 const Login: React.FC = () => {
     const navigate = useNavigate();
     const { loginUser, companyData, getMacAddress, clearCompanyData } =
@@ -36,6 +51,13 @@ const Login: React.FC = () => {
     const [showConfirmExit, setShowConfirmExit] = useState(false);
     const [macAddress, setMacAddress] = useState<string>("");
     const branchLogoSrc = resolveBranchLogoSrc(companyData);
+    const branchDisplayName =
+        companyData?.branch?.name ||
+        companyData?.company?.denomination ||
+        "";
+    const branchNameLines = branchDisplayName
+        ? splitBranchDisplayName(branchDisplayName)
+        : null;
 
     const roleDisplay = (role?: string): string => {
         const r = role?.toUpperCase();
@@ -264,20 +286,37 @@ const Login: React.FC = () => {
                 <div className="card-header">
                     <div className="header-top-row">
                         <div className="header-info">
-                            <div className="user-icon-ring">
-                                {branchLogoSrc ? (
-                                    <img
-                                        src={branchLogoSrc}
-                                        alt={
-                                            companyData?.branch?.name ||
-                                            companyData?.company?.denomination ||
-                                            "Logo de la sede"
-                                        }
-                                        className="branch-logo-img"
-                                    />
-                                ) : (
-                                    <span className="user-icon">👤</span>
-                                )}
+                            <div className="header-brand">
+                                <div className="user-icon-ring">
+                                    {branchLogoSrc ? (
+                                        <img
+                                            src={branchLogoSrc}
+                                            alt={
+                                                companyData?.branch?.name ||
+                                                companyData?.company?.denomination ||
+                                                "Logo de la sede"
+                                            }
+                                            className="branch-logo-img"
+                                        />
+                                    ) : (
+                                        <span className="user-icon">👤</span>
+                                    )}
+                                </div>
+                                {branchNameLines ? (
+                                    <h2
+                                        className="branch-name-label"
+                                        title={branchDisplayName}
+                                    >
+                                        <span className="branch-name-line">
+                                            {branchNameLines.primary}
+                                        </span>
+                                        {branchNameLines.secondary ? (
+                                            <span className="branch-name-line">
+                                                {branchNameLines.secondary}
+                                            </span>
+                                        ) : null}
+                                    </h2>
+                                ) : null}
                             </div>
                             {/* SEARCH BOX integrado al lado del usuario */}
                             <div className="search-container">
@@ -748,9 +787,21 @@ const Login: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 1rem;
+          flex: 1;
+          min-width: 0;
+        }
+
+        .header-brand {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          flex-shrink: 0;
+          max-width: min(22rem, 32vw);
+          min-width: 0;
         }
 
         .user-icon-ring {
+          flex-shrink: 0;
           width: 3.5rem; height: 3.5rem;
           background: linear-gradient(135deg, var(--primary), var(--secondary));
           border-radius: 1rem;
@@ -767,6 +818,24 @@ const Login: React.FC = () => {
           padding: 0.35rem;
           background: white;
           border-radius: 0.75rem;
+        }
+
+        .branch-name-label {
+          margin: 0;
+          font-size: 1.2rem;
+          font-weight: 800;
+          color: var(--text-dark);
+          line-height: 1.25;
+          min-width: 0;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 0.1rem;
+        }
+
+        .branch-name-line {
+          display: block;
+          white-space: nowrap;
         }
 
         .header-actions {
@@ -1154,8 +1223,13 @@ const Login: React.FC = () => {
           }
           .float-kb-icon { font-size: 1.25rem; }
           .header-info { gap: 0.75rem; }
+          .header-brand {
+            gap: 0.75rem;
+            max-width: min(11rem, 42vw);
+          }
           .user-icon-ring { width: 3rem; height: 3rem; border-radius: 0.75rem; }
           .user-icon { font-size: 1.5rem; }
+          .branch-name-label { font-size: 0.95rem; }
         }
 
         @media (max-width: 480px) {

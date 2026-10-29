@@ -4,6 +4,7 @@ import { useResponsive } from "../../hooks/useResponsive";
 import CreateProduct from "./createProduct";
 import EditProduct from "./editProduct";
 import ListProduct from "./listProduct";
+import ImportCatalogModal from "./ImportCatalogModal";
 
 interface Product {
     id: string;
@@ -32,7 +33,8 @@ interface Product {
 }
 
 const Products: React.FC = () => {
-    const { companyData } = useAuth();
+    const { companyData, user } = useAuth();
+    const isAdmin = (user?.role || "").toUpperCase() === "ADMIN";
     const { breakpoint } = useResponsive();
     const branchId = companyData?.branch?.id;
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -40,6 +42,8 @@ const Products: React.FC = () => {
         null,
     );
     const [refreshKey, setRefreshKey] = useState(0);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const branchName = companyData?.branch?.name || "";
 
     // Adaptar según tamaño de pantalla (sm, md, lg, xl, 2xl - excluye xs/móvil)
     const isXs = breakpoint === "xs"; // < 640px
@@ -177,18 +181,41 @@ const Products: React.FC = () => {
                             Administra los productos de tu menú
                         </p>
                     </div>
-                    <button
-                        onClick={() => setShowCreateModal(true)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-600 text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-indigo-500 dark:border-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400"
-                        style={{
-                            padding: buttonPadding,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            fontSize: buttonFontSize,
-                        }}
+                    <div
+                        className="flex flex-wrap items-center gap-2"
+                        style={{ width: isXs || isSmall ? "100%" : "auto" }}
                     >
-                        + Nuevo Producto
-                    </button>
+                        {isAdmin && (
+                            <button
+                                type="button"
+                                onClick={() => setShowImportModal(true)}
+                                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white text-slate-700 transition-all duration-150 hover:-translate-y-0.5 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                                style={{
+                                    padding: buttonPadding,
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    fontSize: buttonFontSize,
+                                    flex: isXs || isSmall ? 1 : undefined,
+                                }}
+                            >
+                                Importar
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => setShowCreateModal(true)}
+                            className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-600 text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-indigo-500 dark:border-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+                            style={{
+                                padding: buttonPadding,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                fontSize: buttonFontSize,
+                                flex: isXs || isSmall ? 1 : undefined,
+                            }}
+                        >
+                            + Nuevo Producto
+                        </button>
+                    </div>
                 </div>
 
                 {/* Lista de productos */}
@@ -209,6 +236,15 @@ const Products: React.FC = () => {
                     product={selectedProduct}
                     onClose={handleCloseEditModal}
                     onSuccess={handleProductUpdated}
+                />
+            )}
+
+            {showImportModal && branchId && (
+                <ImportCatalogModal
+                    branchId={branchId}
+                    branchName={branchName}
+                    onClose={() => setShowImportModal(false)}
+                    onImported={() => setRefreshKey((prev) => prev + 1)}
                 />
             )}
         </div>
