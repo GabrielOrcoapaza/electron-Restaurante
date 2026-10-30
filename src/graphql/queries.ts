@@ -1535,6 +1535,8 @@ export const GET_SALES_REPORT = gql`
                     status
                     operationType
                     serviceType
+                    total
+                    isFullyPaid
                     user {
                         id
                         fullName
