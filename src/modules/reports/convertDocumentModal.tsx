@@ -11,10 +11,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../context/ToastContext";
 import CreateClient from "../user/createClient";
 import EditClient from "../user/editClient";
-import {
-    formatLocalDateYYYYMMDD,
-    formatLocalTimeHHMMSS,
-} from "../../utils/localDateTime";
+import { normalizeLocalTimeHHMMSS } from "../../utils/localDateTime";
 import { filterPersonsForCustomerSearch } from "../../utils/clientSearchUtils";
 import {
     getVoidConvertBlockedMessage,
@@ -33,6 +30,7 @@ interface SourceDocument {
     serial: string;
     number: string | number;
     emissionDate: string;
+    emissionTime?: string;
     document: {
         id: string;
         code: string;
@@ -316,8 +314,10 @@ const ConvertDocumentModal: React.FC<ConvertDocumentModalProps> = ({
                     serial: targetSerial,
                     personId: selectedClient?.id || null,
                     userId: user.id,
-                    emissionDate: formatLocalDateYYYYMMDD(),
-                    emissionTime: formatLocalTimeHHMMSS(),
+                    emissionDate: sourceDocument.emissionDate.trim().slice(0, 10),
+                    emissionTime: normalizeLocalTimeHHMMSS(
+                        sourceDocument.emissionTime,
+                    ),
                 },
             });
 

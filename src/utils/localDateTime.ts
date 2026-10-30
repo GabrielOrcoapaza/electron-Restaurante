@@ -18,6 +18,23 @@ export function formatLocalTimeHHMMSS(date: Date = new Date()): string {
   return `${h}:${min}:${s}`;
 }
 
+/** HH:MM o HH:MM:SS → HH:MM:SS para GraphQL Time */
+export function normalizeLocalTimeHHMMSS(
+  timeStr?: string | null,
+  fallback: string = '00:00:00',
+): string {
+  const t = (timeStr ?? '').trim();
+  if (!t) return fallback;
+  const parts = t.split(':');
+  if (parts.length === 2) {
+    return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}:00`;
+  }
+  if (parts.length >= 3) {
+    return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}:${String(parts[2]).padStart(2, '0').slice(0, 2)}`;
+  }
+  return fallback;
+}
+
 /** Instantáneo en ISO (UTC) para paymentDate; el instante es correcto y al mostrar en local coincide con el momento del pago. */
 export function formatInstantISO(date: Date = new Date()): string {
   return date.toISOString();
