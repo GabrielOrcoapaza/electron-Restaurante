@@ -1106,7 +1106,7 @@ const Cashs: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="flex flex-col gap-8">
-                                        {canViewCashSummary && (
+                                        
                                         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
                                             {/* Ingresos por ventas */}
                                             <div className="flex flex-col gap-3 rounded-3xl bg-emerald-50/50 p-6 dark:bg-emerald-900/10">
@@ -1236,9 +1236,9 @@ const Cashs: React.FC = () => {
                                                 </span>
                                             </div>
                                         </div>
-                                        )}
-
+                                        
                                         {/* Resumen por método de pago */}
+                                        {canViewCashSummary && (
                                         <div className="flex flex-col gap-4">
                                             <h3 className="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
                                                 Resumen por método de pago
@@ -1393,7 +1393,8 @@ const Cashs: React.FC = () => {
                                                 })}
                                             </div>
                                         </div>
-
+                                        )}
+                                        
                                         {/* Movements Table */}
                                         <div className="flex flex-col gap-4">
                                             <div className="flex items-center justify-between">
