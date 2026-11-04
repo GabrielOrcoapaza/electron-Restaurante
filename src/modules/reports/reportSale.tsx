@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
+import { useUserPermissions } from "../../hooks/useUserPermissions";
 import { GET_SALES_REPORT, GET_DOCUMENTS } from "../../graphql/queries";
 import ReportSaleList from "./reportSaleList";
 import ReportSaleCharts from "./reportSaleCharts";
@@ -122,6 +123,8 @@ const currencyFormatter = new Intl.NumberFormat("es-PE", {
 
 const ReportSale: React.FC = () => {
     const { companyData } = useAuth();
+    const { hasPermission } = useUserPermissions();
+    const canViewCashSummary = hasPermission("cash.view_summary");
     const { showToast } = useToast();
     const branchId = companyData?.branch?.id;
 
@@ -361,7 +364,7 @@ const ReportSale: React.FC = () => {
             </div>
 
             {/* Summary Cards */}
-            {summary && (
+            {summary && canViewCashSummary && (
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
                     <div className="flex shrink-0 gap-3">
                         <div className="relative min-w-[132px] overflow-hidden rounded-2xl bg-indigo-600 px-4 py-3 text-white shadow-md shadow-indigo-200 dark:shadow-none">

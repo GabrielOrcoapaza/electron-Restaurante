@@ -1197,7 +1197,8 @@ const Cashs: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="flex flex-col gap-8">
-                                        
+
+                                        {canViewCashSummary && (
                                         <div
                                             className={`grid grid-cols-1 gap-6 sm:grid-cols-2 ${
                                                 movementTotals.tipsIncome > 0.001
@@ -1366,7 +1367,8 @@ const Cashs: React.FC = () => {
                                                 </span>
                                             </div>
                                         </div>
-                                        
+                                        )}
+
                                         {/* Resumen por método de pago */}
                                         {canViewCashSummary && (
                                         <div className="flex flex-col gap-4">
