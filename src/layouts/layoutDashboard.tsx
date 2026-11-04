@@ -42,6 +42,7 @@ import ReportEmployee from "../modules/reports/reportEmployee";
 import ReportDriverDelivery from "../modules/reports/reportDriverDelivery";
 import ReportClientSales from "../modules/reports/reportClientSales";
 import ReportExpense from "../modules/reports/reportExpense";
+import ReportTip from "../modules/reports/reportTip";
 import Observation from "../modules/configuration/observation";
 import Subcategory from "../modules/configuration/subcategory";
 import CategoryModule from "../modules/configuration/category";
@@ -298,6 +299,7 @@ const LayoutDashboardContent: React.FC = () => {
         | "drivers"
         | "clients"
         | "expenses"
+        | "tips"
     >("sales");
     const [selectedCashTable, setSelectedCashTable] = useState<Table | null>(
         null,
@@ -915,6 +917,7 @@ const LayoutDashboardContent: React.FC = () => {
         hasPermission("purchases.manage") ||
         hasPermission("cash.register_movements") ||
         hasPermission("reports.sales");
+    const canSeeTipsReport = canSeeReports;
 
     // Tras login (login.tsx): abrir vista Mesas si el usuario tiene permiso
     useEffect(() => {
@@ -1888,6 +1891,19 @@ const LayoutDashboardContent: React.FC = () => {
                                         Egresos
                                     </button>
                                 )}
+                                {canSeeTipsReport && (
+                                    <button
+                                        onClick={() => setReportType("tips")}
+                                        className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                                            reportType === "tips"
+                                                ? "bg-amber-500 text-white"
+                                                : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                        }`}
+                                    >
+                                        <span>🪙</span>
+                                        Propinas
+                                    </button>
+                                )}
                             </div>
                             {reportType === "sales" ? (
                                 <ReportSale />
@@ -1899,6 +1915,8 @@ const LayoutDashboardContent: React.FC = () => {
                                 <ReportCategorySales />
                             ) : reportType === "expenses" ? (
                                 <ReportExpense />
+                            ) : reportType === "tips" ? (
+                                <ReportTip />
                             ) : reportType === "drivers" ? (
                                 <ReportDriverDelivery />
                             ) : reportType === "clients" ? (

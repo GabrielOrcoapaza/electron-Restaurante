@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import {
@@ -6,45 +6,13 @@ import {
     GET_DEVICE_PRINT_CONFIGS_BY_BRANCH,
     GET_PRINTERS_CONFIG,
 } from "../../graphql/queries";
-import {
-    CREATE_DEVICE_PRINT_CONFIG,
-    DELETE_DEVICE_PRINT_CONFIGS,
-} from "../../graphql/mutations";
-import {
-    DEVICE_PRINT_TYPE_OPTIONS,
-    isCategoryPrintType,
-} from "../../constants/devicePrintTypes";
+import { DELETE_DEVICE_PRINT_CONFIGS } from "../../graphql/mutations";
 import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
 import DevicePrintConfigList, {
     type DevicePrintConfigRow,
 } from "./devicePrintConfigList";
 import DevicePrintConfigUpdate from "./devicePrintConfigUpdate";
-
-type CreateFormState = {
-    deviceId: string;
-    deviceName: string;
-    printType: string;
-    categoryId: string;
-    printerId: string;
-    copies: number;
-    priority: number;
-    useIntegratedPrinter: boolean;
-    useBluetoothPrinter: boolean;
-    isActive: boolean;
-};
-
-const emptyCreateForm = (): CreateFormState => ({
-    deviceId: "",
-    deviceName: "",
-    printType: "PRECUENTA",
-    categoryId: "",
-    printerId: "",
-    copies: 1,
-    priority: 0,
-    useIntegratedPrinter: false,
-    useBluetoothPrinter: false,
-    isActive: true,
-});
+import DevicePrintConfigCreate from "./devicePrintConfigCreate";
 
 const DevicePrintConfigs: React.FC = () => {
     const { companyData, getMacAddress, getDeviceId } = useAuth();
@@ -57,9 +25,6 @@ const DevicePrintConfigs: React.FC = () => {
     const [filterActive, setFilterActive] = useState<boolean | null>(null);
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState<DevicePrintConfigRow | null>(null);
-    const [createForm, setCreateForm] = useState<CreateFormState>(
-        emptyCreateForm,
-    );
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [thisDeviceId, setThisDeviceId] = useState<string | null>(null);
 
@@ -110,31 +75,6 @@ const DevicePrintConfigs: React.FC = () => {
         [configs],
     );
 
-    const [createConfig, { loading: creating }] = useMutation(
-        CREATE_DEVICE_PRINT_CONFIG,
-        {
-            onCompleted: (res) => {
-                const r = res?.createDevicePrintConfig;
-                if (r?.success) {
-                    setMessage({
-                        type: "success",
-                        text: r.message ?? "Configuración creada",
-                    });
-                    setShowCreate(false);
-                    setCreateForm(emptyCreateForm());
-                    refetch();
-                } else {
-                    setMessage({
-                        type: "error",
-                        text: r?.message ?? "No se pudo crear",
-                    });
-                }
-            },
-            onError: (e) =>
-                setMessage({ type: "error", text: e.message }),
-        },
-    );
-
     const [deleteConfigs, { loading: deleting }] = useMutation(
         DELETE_DEVICE_PRINT_CONFIGS,
         {
@@ -158,59 +98,6 @@ const DevicePrintConfigs: React.FC = () => {
                 setMessage({ type: "error", text: e.message }),
         },
     );
-
-    const applyThisDevice = useCallback(() => {
-        if (!thisDeviceId) {
-            setMessage({
-                type: "error",
-                text: "No se pudo obtener el ID de este equipo (MAC o ID local).",
-            });
-            return;
-        }
-        setCreateForm((f) => ({
-            ...f,
-            deviceId: thisDeviceId,
-            deviceName:
-                f.deviceName.trim() || `PC ${thisDeviceId.slice(0, 8)}…`,
-        }));
-    }, [thisDeviceId]);
-
-    const submitCreate = () => {
-        if (!branchId) return;
-        setMessage(null);
-        if (!createForm.deviceId.trim() || !createForm.deviceName.trim()) {
-            setMessage({
-                type: "error",
-                text: "ID y nombre del dispositivo son obligatorios.",
-            });
-            return;
-        }
-        if (
-            isCategoryPrintType(createForm.printType) &&
-            !createForm.categoryId
-        ) {
-            setMessage({
-                type: "error",
-                text: "Debe seleccionar una categoría cuando el tipo es Categoría de Producto.",
-            });
-            return;
-        }
-        createConfig({
-            variables: {
-                branchId,
-                deviceId: createForm.deviceId.trim(),
-                deviceName: createForm.deviceName.trim(),
-                printType: createForm.printType,
-                categoryId: createForm.categoryId || null,
-                printerId: createForm.printerId || null,
-                copies: createForm.copies,
-                priority: createForm.priority,
-                useIntegratedPrinter: createForm.useIntegratedPrinter,
-                useBluetoothPrinter: createForm.useBluetoothPrinter,
-                isActive: createForm.isActive,
-            },
-        });
-    };
 
     const toggleSelect = (id: string) => {
         setSelectedIds((prev) => {
@@ -288,7 +175,6 @@ const DevicePrintConfigs: React.FC = () => {
                     type="button"
                     onClick={() => {
                         setMessage(null);
-                        setCreateForm(emptyCreateForm());
                         setShowCreate(true);
                     }}
                     className="ml-auto rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700"
@@ -330,260 +216,22 @@ const DevicePrintConfigs: React.FC = () => {
                 }
             />
 
-            {showCreate && (
-                <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
-                >
-                    <div
-                        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-950"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <h3 className="mb-4 text-lg font-bold text-slate-800 dark:text-slate-100">
-                            Nueva configuración
-                        </h3>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="sm:col-span-2">
-                                <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
-                                    ID del dispositivo (MAC o identificador)
-                                </label>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={createForm.deviceId}
-                                        onChange={(e) =>
-                                            setCreateForm((f) => ({
-                                                ...f,
-                                                deviceId: e.target.value,
-                                            }))
-                                        }
-                                        className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                                        placeholder="ej. AA:BB:CC:DD:EE:FF"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={applyThisDevice}
-                                        className="shrink-0 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300"
-                                    >
-                                        Este equipo
-                                    </button>
-                                </div>
-                                {thisDeviceId && (
-                                    <p className="mt-1 text-[10px] text-slate-400">
-                                        Este PC: {thisDeviceId}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="sm:col-span-2">
-                                <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
-                                    Nombre del dispositivo
-                                </label>
-                                <input
-                                    type="text"
-                                    value={createForm.deviceName}
-                                    onChange={(e) =>
-                                        setCreateForm((f) => ({
-                                            ...f,
-                                            deviceName: e.target.value,
-                                        }))
-                                    }
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                                />
-                            </div>
-                            <div>
-                                <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
-                                    Tipo de impresión
-                                </label>
-                                <select
-                                    value={createForm.printType}
-                                    onChange={(e) => {
-                                        const printType = e.target.value;
-                                        setCreateForm((f) => ({
-                                            ...f,
-                                            printType,
-                                            categoryId: isCategoryPrintType(
-                                                printType,
-                                            )
-                                                ? f.categoryId
-                                                : "",
-                                        }));
-                                    }}
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                                >
-                                    {DEVICE_PRINT_TYPE_OPTIONS.map((o) => (
-                                        <option key={o.value} value={o.value}>
-                                            {o.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
-                                    Impresora de red (opcional)
-                                </label>
-                                <select
-                                    value={createForm.printerId}
-                                    onChange={(e) =>
-                                        setCreateForm((f) => ({
-                                            ...f,
-                                            printerId: e.target.value,
-                                        }))
-                                    }
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                                >
-                                    <option value="">— Sin asignar —</option>
-                                    {printers.map(
-                                        (p: { id: string; name: string }) => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.name}
-                                            </option>
-                                        ),
-                                    )}
-                                </select>
-                            </div>
-                            {isCategoryPrintType(createForm.printType) && (
-                                <div className="sm:col-span-2">
-                                    <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
-                                        Categoría de producto *
-                                    </label>
-                                    <select
-                                        value={createForm.categoryId}
-                                        onChange={(e) =>
-                                            setCreateForm((f) => ({
-                                                ...f,
-                                                categoryId: e.target.value,
-                                            }))
-                                        }
-                                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                                    >
-                                        <option value="">
-                                            — Seleccione categoría —
-                                        </option>
-                                        {categories.map(
-                                            (c: {
-                                                id: string;
-                                                name: string;
-                                            }) => (
-                                                <option
-                                                    key={c.id}
-                                                    value={c.id}
-                                                >
-                                                    {c.name}
-                                                </option>
-                                            ),
-                                        )}
-                                    </select>
-                                </div>
-                            )}
-                            <div>
-                                <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
-                                    Copias
-                                </label>
-                                <input
-                                    type="number"
-                                    min={1}
-                                    max={10}
-                                    value={createForm.copies}
-                                    onChange={(e) =>
-                                        setCreateForm((f) => ({
-                                            ...f,
-                                            copies: Math.max(
-                                                1,
-                                                Number(e.target.value) || 1,
-                                            ),
-                                        }))
-                                    }
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                                />
-                            </div>
-                            <div>
-                                <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
-                                    Prioridad
-                                </label>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    value={createForm.priority}
-                                    onChange={(e) =>
-                                        setCreateForm((f) => ({
-                                            ...f,
-                                            priority: Math.max(
-                                                0,
-                                                Number(e.target.value) || 0,
-                                            ),
-                                        }))
-                                    }
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2 sm:col-span-2">
-                                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                                    <input
-                                        type="checkbox"
-                                        checked={
-                                            createForm.useIntegratedPrinter
-                                        }
-                                        onChange={(e) =>
-                                            setCreateForm((f) => ({
-                                                ...f,
-                                                useIntegratedPrinter:
-                                                    e.target.checked,
-                                            }))
-                                        }
-                                    />
-                                    Usar impresora integrada / local (USB en
-                                    esta PC)
-                                </label>
-                                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                                    <input
-                                        type="checkbox"
-                                        checked={
-                                            createForm.useBluetoothPrinter
-                                        }
-                                        onChange={(e) =>
-                                            setCreateForm((f) => ({
-                                                ...f,
-                                                useBluetoothPrinter:
-                                                    e.target.checked,
-                                            }))
-                                        }
-                                    />
-                                    Usar impresora Bluetooth
-                                </label>
-                                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                                    <input
-                                        type="checkbox"
-                                        checked={createForm.isActive}
-                                        onChange={(e) =>
-                                            setCreateForm((f) => ({
-                                                ...f,
-                                                isActive: e.target.checked,
-                                            }))
-                                        }
-                                    />
-                                    Activo
-                                </label>
-                            </div>
-                        </div>
-                        <div className="mt-6 flex gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setShowCreate(false)}
-                                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="button"
-                                disabled={creating}
-                                onClick={submitCreate}
-                                className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
-                            >
-                                {creating ? "Guardando…" : "Guardar"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <DevicePrintConfigCreate
+                open={showCreate}
+                branchId={branchId}
+                branchName={companyData?.branch?.name}
+                printers={printers}
+                thisDeviceId={thisDeviceId}
+                onClose={() => setShowCreate(false)}
+                onSuccess={(text) => {
+                    setMessage({ type: "success", text });
+                    refetch();
+                }}
+                onError={(text) => {
+                    setMessage({ type: "error", text });
+                    refetch();
+                }}
+            />
         </div>
     );
 };

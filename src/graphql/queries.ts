@@ -1296,11 +1296,16 @@ export const GET_PAYMENTS_BY_DATE_RANGE = gql`
             totalAmount
             transactionType
             paymentMethod
+            paymentPurpose
             status
             isActive
             notes
             referenceNumber
             user {
+                id
+                fullName
+            }
+            tipWaiter {
                 id
                 fullName
             }

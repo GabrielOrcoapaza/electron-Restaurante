@@ -5,6 +5,10 @@ import { salePaymentsForReport } from "../../utils/salesReportPaymentSummary";
 import type { SoldProductItem, SoldProductsSummary } from "./reportsProductsSold";
 import type { CategorySalesGroup, CategorySalesSummary } from "./reportCategorySalesList";
 import type { ExpensePayment, ExpenseReportSummary } from "./reportExpense";
+import type {
+    TipPayment,
+    WaiterTipsSummaryRow,
+} from "./reportTip";
 import type { EmployeeDishLine, EmployeeSalesRankItem, UserSaleOperation } from "./reportEmployee";
 import type { CancellationItem } from "./reportCancel";
 import {
@@ -150,6 +154,61 @@ export async function downloadExpenseReport(
     return exportToExcel({
         filename: `egresos_${range.startDate}_${range.endDate}`,
         sheets: [{ name: "Egresos", rows }],
+    });
+}
+
+function tipSourceLabel(payment: TipPayment): string {
+    if (payment.issuedDocument) {
+        return `${payment.issuedDocument.serial}-${payment.issuedDocument.number}`;
+    }
+    if (payment.operation?.order != null) {
+        return `Operación #${payment.operation.order}`;
+    }
+    return "";
+}
+
+export async function downloadTipsReport(
+    summaryRows: WaiterTipsSummaryRow[],
+    payments: TipPayment[],
+    totals: { totalAmount: number; totalCount: number },
+    range: DateRange,
+    waiterName?: string,
+): Promise<ExportToExcelResult> {
+    const summarySheet: ExcelRow[] = summaryRows.map((row) => ({
+        Mozo: row.waiterName,
+        "Cant. propinas": row.tipCount,
+        Total: roundMoney(row.totalAmount),
+        "Por método": (row.methods || [])
+            .map(
+                (m) =>
+                    `${m.methodName || m.methodCode}: ${roundMoney(m.totalAmount)}`,
+            )
+            .join("; "),
+    }));
+
+    summarySheet.push({
+        Mozo: waiterName ? `Filtro: ${waiterName}` : "TOTAL",
+        "Cant. propinas": totals.totalCount,
+        Total: roundMoney(totals.totalAmount),
+        "Por método": "",
+    });
+
+    const detailRows: ExcelRow[] = payments.map((payment) => ({
+        Fecha: formatDateTime(payment.paymentDate),
+        Mozo:
+            payment.tipWaiter?.fullName || payment.user?.fullName || "",
+        Origen: tipSourceLabel(payment),
+        "Método de pago": getPaymentMethodLabel(payment.paymentMethod),
+        Caja: payment.cashRegister?.name ?? "",
+        Monto: roundMoney(payment.paidAmount),
+    }));
+
+    return exportToExcel({
+        filename: `propinas_${range.startDate}_${range.endDate}`,
+        sheets: [
+            { name: "Resumen mozos", rows: summarySheet },
+            { name: "Detalle", rows: detailRows },
+        ],
     });
 }
 
