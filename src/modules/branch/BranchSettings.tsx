@@ -31,6 +31,10 @@ type BranchFormState = {
     allowCloseWithOccupiedTables: boolean;
     allowCashOpenings: boolean;
     allowCashClosureSheet: boolean;
+    tipsEnabled: boolean;
+    suggestedTipPercent: string;
+    tipAllowSplit: boolean;
+    tipDefaultRecipientMode: string;
     taxAffectationType: string;
 };
 
@@ -57,6 +61,10 @@ const emptyForm = (): BranchFormState => ({
     allowCloseWithOccupiedTables: false,
     allowCashOpenings: false,
     allowCashClosureSheet: false,
+    tipsEnabled: false,
+    suggestedTipPercent: "",
+    tipAllowSplit: true,
+    tipDefaultRecipientMode: "OPERATION_WAITER",
     taxAffectationType: "10",
 });
 
@@ -89,6 +97,16 @@ function branchToForm(branch: Record<string, unknown>): BranchFormState {
         allowCashClosureSheet: Boolean(
             branch.allowCashClosureSheet ?? false,
         ),
+        tipsEnabled: Boolean(branch.tipsEnabled ?? false),
+        suggestedTipPercent:
+            branch.suggestedTipPercent != null &&
+            branch.suggestedTipPercent !== ""
+                ? String(branch.suggestedTipPercent)
+                : "",
+        tipAllowSplit: branch.tipAllowSplit !== false,
+        tipDefaultRecipientMode:
+            String(branch.tipDefaultRecipientMode ?? "OPERATION_WAITER") ||
+            "OPERATION_WAITER",
         taxAffectationType: normalizeTaxAffectationType(
             branch.taxAffectationType as string | null | undefined,
         ),
@@ -263,8 +281,26 @@ const BranchSettings: React.FC = () => {
             allowCloseWithOccupiedTables: form.allowCloseWithOccupiedTables,
             allowCashOpenings: form.allowCashOpenings,
             allowCashClosureSheet: form.allowCashClosureSheet,
+            tipsEnabled: form.tipsEnabled,
+            tipAllowSplit: form.tipAllowSplit,
+            tipDefaultRecipientMode: form.tipDefaultRecipientMode,
             taxAffectationType: form.taxAffectationType,
         };
+
+        const pct = form.suggestedTipPercent.trim();
+        if (pct !== "") {
+            const n = parseFloat(pct.replace(",", "."));
+            if (!Number.isFinite(n) || n < 0 || n > 100) {
+                showToast(
+                    "El porcentaje sugerido de propina debe estar entre 0 y 100.",
+                    "error",
+                );
+                return;
+            }
+            variables.suggestedTipPercent = n;
+        } else {
+            variables.suggestedTipPercent = null;
+        }
 
         if (logoBase64) {
             variables.logoBase64 = logoBase64;
@@ -430,6 +466,72 @@ const BranchSettings: React.FC = () => {
                             Exonerado/Inafecto: las ventas de esta sede no
                             llevan IGV (ej. sedes bajo Ley de Amazonía).
                         </p>
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                    <h3 className="mb-5 text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                        Propinas
+                    </h3>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <ToggleField
+                            label="Registrar propinas en caja"
+                            description="Permite agregar propina al cobrar (no va al comprobante fiscal)."
+                            checked={form.tipsEnabled}
+                            onChange={(v) => handleToggle("tipsEnabled", v)}
+                        />
+                        <ToggleField
+                            label="Permitir reparto entre mozos"
+                            checked={form.tipAllowSplit}
+                            onChange={(v) => handleToggle("tipAllowSplit", v)}
+                        />
+                    </div>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <label className={labelClass}>
+                                Porcentaje sugerido (%)
+                            </label>
+                            <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step="0.01"
+                                value={form.suggestedTipPercent}
+                                onChange={(e) =>
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        suggestedTipPercent: e.target.value,
+                                    }))
+                                }
+                                placeholder="Ej. 10"
+                                className={inputClass}
+                            />
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                Opcional. Atajo en caja sobre el total a pagar.
+                            </p>
+                        </div>
+                        <div>
+                            <label className={labelClass}>
+                                Mozo por defecto
+                            </label>
+                            <select
+                                value={form.tipDefaultRecipientMode}
+                                onChange={(e) =>
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        tipDefaultRecipientMode: e.target.value,
+                                    }))
+                                }
+                                className={inputClass}
+                            >
+                                <option value="OPERATION_WAITER">
+                                    Mozo de la operación
+                                </option>
+                                <option value="MANUAL_ONLY">
+                                    Elegir siempre en caja
+                                </option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 

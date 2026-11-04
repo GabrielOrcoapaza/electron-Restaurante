@@ -1,3 +1,25 @@
+/** Pagos que cuentan como cobro de venta en informes (excluye propinas TIP). */
+export function isSalePaymentForReport(payment: {
+    paymentPurpose?: string | null;
+    status?: string | null;
+    isActive?: boolean | null;
+}): boolean {
+    if (payment.isActive === false) return false;
+    if ((payment.status || "").toUpperCase() === "CANCELLED") return false;
+    const purpose = (payment.paymentPurpose || "SALE").toUpperCase();
+    return purpose !== "TIP";
+}
+
+export function salePaymentsForReport<
+    T extends {
+        paymentPurpose?: string | null;
+        status?: string | null;
+        isActive?: boolean | null;
+    },
+>(payments: T[] | null | undefined): T[] {
+    return (payments ?? []).filter(isSalePaymentForReport);
+}
+
 /** Totales por método de pago del summary de salesReport (backend Django). */
 export interface SalesReportPaymentSummary {
     totalCash: number;

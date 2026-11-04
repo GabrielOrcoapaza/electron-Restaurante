@@ -767,6 +767,10 @@ export const GET_BRANCH_FULL = gql`
             allowCloseWithOccupiedTables
             allowCashOpenings
             allowCashClosureSheet
+            tipsEnabled
+            suggestedTipPercent
+            tipAllowSplit
+            tipDefaultRecipientMode
             isKitchenPrint
             isKitchenDisplay
             requireWaiterPassword
@@ -850,10 +854,41 @@ export const GET_BRANCH_BY_ID = gql`
             allowCloseWithOccupiedTables
             allowCashOpenings
             allowCashClosureSheet
+            tipsEnabled
+            suggestedTipPercent
+            tipAllowSplit
+            tipDefaultRecipientMode
             isKitchenPrint
             isKitchenDisplay
             requireWaiterPassword
             printCancellations
+        }
+    }
+`;
+
+export const GET_WAITER_TIPS_SUMMARY = gql`
+    query GetWaiterTipsSummary(
+        $branchId: ID!
+        $startDate: DateTime
+        $endDate: DateTime
+        $waiterId: ID
+    ) {
+        waiterTipsSummary(
+            branchId: $branchId
+            startDate: $startDate
+            endDate: $endDate
+            waiterId: $waiterId
+        ) {
+            waiterId
+            waiterName
+            totalAmount
+            tipCount
+            methods {
+                methodCode
+                methodName
+                totalAmount
+                count
+            }
         }
     }
 `;
@@ -1194,6 +1229,7 @@ export const GET_PAYMENTS_PENDING_CLOSURE = gql`
             totalAmount
             transactionType
             paymentMethod
+            paymentPurpose
             status
             user {
                 id
@@ -1571,6 +1607,7 @@ export const GET_SALES_REPORT = gql`
                 payments {
                     id
                     paymentMethod
+                    paymentPurpose
                     paidAmount
                     paymentDate
                     status

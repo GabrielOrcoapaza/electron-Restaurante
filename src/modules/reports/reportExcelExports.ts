@@ -1,6 +1,7 @@
 
 import { exportToExcel, type ExcelRow, type ExportToExcelResult } from "../../utils/exportToExcel";
 import { getPaymentMethodLabel } from "../../utils/paymentMethodLabels";
+import { salePaymentsForReport } from "../../utils/salesReportPaymentSummary";
 import type { SoldProductItem, SoldProductsSummary } from "./reportsProductsSold";
 import type { CategorySalesGroup, CategorySalesSummary } from "./reportCategorySalesList";
 import type { ExpensePayment, ExpenseReportSummary } from "./reportExpense";
@@ -262,7 +263,13 @@ type SalesDocumentForExport = {
         user?: { fullName: string } | null;
         table?: { name: string; floor?: { name: string } | null } | null;
     } | null;
-    payments?: Array<{ paymentMethod: string; paidAmount: number; status?: string }>;
+    payments?: Array<{
+        paymentMethod: string;
+        paidAmount: number;
+        status?: string;
+        paymentPurpose?: string | null;
+        isActive?: boolean;
+    }>;
 };
 
 type SalesSummaryForExport = {
@@ -276,10 +283,7 @@ export async function downloadSalesReport(
     range: DateRange,
 ): Promise<ExportToExcelResult> {
     const documentRows: ExcelRow[] = documents.map((doc) => {
-        const activePayments =
-            doc.payments?.filter(
-                (payment) => (payment.status || "").toUpperCase() !== "CANCELLED",
-            ) ?? [];
+        const activePayments = salePaymentsForReport(doc.payments);
 
         return {
             Comprobante: `${doc.serial}-${doc.number}`,

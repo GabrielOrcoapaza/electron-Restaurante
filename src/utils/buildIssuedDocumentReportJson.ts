@@ -207,9 +207,15 @@ export function buildIssuedDocumentReportJson(
     const statusLabel = billingStatusLabel(doc.billingStatus);
     if (statusLabel) payload.billing_status = statusLabel;
 
-    const activePayments = (doc.payments ?? []).filter(
-        (p) => String(p.status || "COMPLETED").toUpperCase() !== "CANCELLED",
-    );
+    const activePayments = (doc.payments ?? []).filter((p) => {
+        if (String(p.status || "COMPLETED").toUpperCase() === "CANCELLED") {
+            return false;
+        }
+        const purpose = (
+            (p as { paymentPurpose?: string }).paymentPurpose || "SALE"
+        ).toUpperCase();
+        return purpose !== "TIP";
+    });
     if (activePayments.length > 0) {
         payload.payments = activePayments.map((p) => ({
             method: formatPaymentMethodLabel(p.paymentMethod),

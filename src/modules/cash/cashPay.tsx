@@ -71,6 +71,7 @@ import {
     filterPersonsForCustomerSearch,
     logPersonSearchResult,
 } from "../../utils/clientSearchUtils";
+import { buildTipGraphqlPayments } from "../../utils/buildTipGraphqlPayments";
 
 type CashPayProps = {
     table: Table | null;
@@ -247,6 +248,17 @@ const CashPay: React.FC<CashPayProps> = ({
         { id: "1", method: "CASH", amount: 0, referenceNumber: "" },
     ]);
 
+    type TipLine = {
+        id: string;
+        method: string;
+        amount: number;
+        referenceNumber: string;
+    };
+    const [tipLines, setTipLines] = useState<TipLine[]>([
+        { id: "tip-1", method: "CASH", amount: 0, referenceNumber: "" },
+    ]);
+    const [tipWaiterId, setTipWaiterId] = useState("");
+
     const [isProcessing, setIsProcessing] = useState(false);
     const [discountAmount, setDiscountAmount] = useState<number>(0);
     const [discountPercent, setDiscountPercent] = useState<number>(0);
@@ -357,6 +369,14 @@ const CashPay: React.FC<CashPayProps> = ({
     });
 
     const operation = dataOperation?.operationById;
+
+    const branchTipsEnabled = Boolean(companyData?.branch?.tipsEnabled);
+    const branchSuggestedTipPercent =
+        companyData?.branch?.suggestedTipPercent != null
+            ? Number(companyData.branch.suggestedTipPercent)
+            : null;
+    const branchTipDefaultMode =
+        companyData?.branch?.tipDefaultRecipientMode ?? "OPERATION_WAITER";
     /** Como en SumApp: documentos, cajas y promos solo después de tener la operación. */
     const operationReady = Boolean(operation?.id);
 
@@ -412,7 +432,7 @@ const CashPay: React.FC<CashPayProps> = ({
             branchId: branchId as string,
             includeInactive: false,
         },
-        skip: !branchId || !showChangeUserModal,
+        skip: !branchId || (!showChangeUserModal && !branchTipsEnabled),
         fetchPolicy: "network-only",
     });
 
@@ -936,6 +956,64 @@ const CashPay: React.FC<CashPayProps> = ({
         setDiscountAmount(0);
         setDiscountPercent(0);
     }, [operation?.id]);
+
+    useEffect(() => {
+        setTipLines([
+            { id: "tip-1", method: "CASH", amount: 0, referenceNumber: "" },
+        ]);
+        if (!branchTipsEnabled) {
+            setTipWaiterId("");
+            return;
+        }
+        const opUserId =
+            operation?.user?.id ?? operation?.userId ?? null;
+        if (branchTipDefaultMode === "MANUAL_ONLY") {
+            setTipWaiterId("");
+        } else if (opUserId != null) {
+            setTipWaiterId(String(opUserId));
+        } else {
+            setTipWaiterId("");
+        }
+    }, [operation?.id, branchTipsEnabled, branchTipDefaultMode]);
+
+    const tipTotal = tipLines.reduce(
+        (sum, line) => sum + (Number(line.amount) || 0),
+        0,
+    );
+
+    const updateTipLine = (
+        id: string,
+        field: keyof TipLine,
+        value: string | number,
+    ) => {
+        setTipLines((prev) =>
+            prev.map((line) =>
+                line.id === id ? { ...line, [field]: value } : line,
+            ),
+        );
+    };
+
+    const applySuggestedTipPercent = () => {
+        const pct = branchSuggestedTipPercent;
+        if (pct == null || !Number.isFinite(pct) || pct <= 0) return;
+        const amount = roundMoney2((totalToPay * pct) / 100);
+        setTipLines((prev) => {
+            const first = prev[0];
+            if (!first) {
+                return [
+                    {
+                        id: "tip-1",
+                        method: "CASH",
+                        amount,
+                        referenceNumber: "",
+                    },
+                ];
+            }
+            return prev.map((line, i) =>
+                i === 0 ? { ...line, amount } : line,
+            );
+        });
+    };
 
     useEffect(() => {
         if (cashRegisters.length > 0 && !selectedCashRegisterId)
@@ -1849,6 +1927,36 @@ const CashPay: React.FC<CashPayProps> = ({
                 return;
             }
 
+            const tipGraphqlPayments =
+                branchTipsEnabled && tipTotal > 0.001
+                    ? buildTipGraphqlPayments({
+                          lines: tipLines,
+                          tipWaiterId,
+                          cashRegisterId: payCashRegisterId,
+                          paymentDate: formatInstantISO(now),
+                      })
+                    : [];
+
+            if (
+                branchTipsEnabled &&
+                tipTotal > 0.001 &&
+                tipGraphqlPayments.length === 0
+            ) {
+                showToast(
+                    "Seleccione el mozo beneficiario de la propina.",
+                    "error",
+                );
+                return;
+            }
+
+            const allPaymentsToSend = [
+                ...paymentsToSend.map((payment) => ({
+                    ...payment,
+                    cashRegisterId: payCashRegisterId,
+                })),
+                ...tipGraphqlPayments,
+            ];
+
             const sanitizedItems = items.filter((item) =>
                 Boolean(normalizeGraphQLId(item.operationDetailId)),
             );
@@ -1897,10 +2005,7 @@ const CashPay: React.FC<CashPayProps> = ({
                         item.operationDetailId,
                     ) as string,
                 })),
-                payments: paymentsToSend.map((payment) => ({
-                    ...payment,
-                    cashRegisterId: payCashRegisterId,
-                })),
+                payments: allPaymentsToSend,
                 notes: null,
                 tableId: tableIdForPayment,
                 deviceId: resolvedDeviceId,
@@ -2692,6 +2797,15 @@ const CashPay: React.FC<CashPayProps> = ({
             ? serverUsers
             : contextUsers
         : contextUsers;
+
+    const availableWaiters = useMemo(() => {
+        const src =
+            serverUsers.length > 0 ? serverUsers : contextUsers;
+        return src.filter(
+            (u: { role?: string }) =>
+                (u.role || "").toUpperCase() === "WAITER",
+        );
+    }, [serverUsers, contextUsers]);
 
     const activeChangeTableFloors = useMemo(
         () =>
@@ -3868,9 +3982,153 @@ const CashPay: React.FC<CashPayProps> = ({
                                         borderRadius: "6px",
                                     }}
                                 />
+                                {paymentMethodSendsReference(p.method) && (
+                                    <input
+                                        type="text"
+                                        placeholder="Nº operación (opcional)"
+                                        value={p.referenceNumber}
+                                        onChange={(e) =>
+                                            updatePayment(
+                                                p.id,
+                                                "referenceNumber",
+                                                e.target.value,
+                                            )
+                                        }
+                                        className="mt-2 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                                    />
+                                )}
                             </div>
                         ))}
                     </div>
+                    {branchTipsEnabled && (
+                        <div
+                            className="rounded-lg border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-800 dark:bg-amber-950/30"
+                            style={{ marginBottom: "0.5rem" }}
+                        >
+                            <div
+                                style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    marginBottom: "0.35rem",
+                                }}
+                            >
+                                <span
+                                    className="text-amber-900 dark:text-amber-200"
+                                    style={{
+                                        fontSize: "0.75rem",
+                                        fontWeight: 800,
+                                    }}
+                                >
+                                    PROPINA (opcional)
+                                </span>
+                                {branchSuggestedTipPercent != null &&
+                                    branchSuggestedTipPercent > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={applySuggestedTipPercent}
+                                            className="rounded border border-amber-400 bg-white px-2 py-0.5 text-xs font-bold text-amber-800 dark:border-amber-600 dark:bg-slate-900 dark:text-amber-200"
+                                        >
+                                            {branchSuggestedTipPercent}%
+                                        </button>
+                                    )}
+                            </div>
+                            <select
+                                value={tipWaiterId}
+                                onChange={(e) =>
+                                    setTipWaiterId(e.target.value)
+                                }
+                                className="mb-2 w-full rounded-md border border-amber-300 bg-white px-2 py-2 text-sm dark:border-amber-700 dark:bg-slate-900 dark:text-slate-100"
+                            >
+                                <option value="">Mozo beneficiario…</option>
+                                {availableWaiters.map((u: any) => (
+                                    <option key={u.id} value={u.id}>
+                                        {[u.firstName, u.lastName]
+                                            .filter(Boolean)
+                                            .join(" ") || u.dni}
+                                    </option>
+                                ))}
+                            </select>
+                            {tipLines.map((line) => (
+                                <div key={line.id} className="mb-2">
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={line.method}
+                                            onChange={(e) =>
+                                                updateTipLine(
+                                                    line.id,
+                                                    "method",
+                                                    e.target.value,
+                                                )
+                                            }
+                                            className="flex-1 rounded-md border border-amber-300 bg-white px-2 py-2 text-sm dark:border-amber-700 dark:bg-slate-900"
+                                        >
+                                            {PAYMENT_METHODS.filter(
+                                                (m) =>
+                                                    m.value !== "CREDITO",
+                                            ).map(({ value, label }) => (
+                                                <option
+                                                    key={value}
+                                                    value={value}
+                                                >
+                                                    {label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min={0}
+                                            placeholder="0.00"
+                                            value={
+                                                line.amount === 0
+                                                    ? ""
+                                                    : line.amount
+                                            }
+                                            onChange={(e) =>
+                                                updateTipLine(
+                                                    line.id,
+                                                    "amount",
+                                                    Number(e.target.value),
+                                                )
+                                            }
+                                            className="w-28 rounded-md border border-amber-300 bg-white px-2 py-2 text-right text-sm font-bold dark:border-amber-700 dark:bg-slate-900"
+                                        />
+                                    </div>
+                                    {paymentMethodSendsReference(
+                                        line.method,
+                                    ) && (
+                                        <input
+                                            type="text"
+                                            placeholder="Nº operación Yape/Plin"
+                                            value={line.referenceNumber}
+                                            onChange={(e) =>
+                                                updateTipLine(
+                                                    line.id,
+                                                    "referenceNumber",
+                                                    e.target.value,
+                                                )
+                                            }
+                                            className="mt-1 w-full rounded-md border border-amber-300 bg-white px-2 py-1 text-sm dark:border-amber-700 dark:bg-slate-900"
+                                        />
+                                    )}
+                                </div>
+                            ))}
+                            {tipTotal > 0 && (
+                                <div
+                                    className="text-amber-900 dark:text-amber-200"
+                                    style={{
+                                        fontSize: "0.7rem",
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    Propina:{" "}
+                                    {currencyFormatter.format(tipTotal)} (no
+                                    incluida en el comprobante)
+                                </div>
+                            )}
+                        </div>
+                    )}
                     <div
                         className="border-t border-slate-200 pt-2 dark:border-slate-700"
                         style={{

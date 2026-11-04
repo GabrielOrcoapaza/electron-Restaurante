@@ -7,6 +7,7 @@ import {
 } from "../../graphql/mutations";
 import { GET_DOCUMENTS } from "../../graphql/queries";
 import { useAuth } from "../../hooks/useAuth";
+import { salePaymentsForReport } from "../../utils/salesReportPaymentSummary";
 import { useUserPermissions } from "../../hooks/useUserPermissions";
 import { useToast } from "../../context/ToastContext";
 import ConvertDocumentModal from "./convertDocumentModal";
@@ -111,6 +112,7 @@ interface IssuedDocument {
     payments: Array<{
         id: string;
         paymentMethod: string;
+        paymentPurpose?: string | null;
         paidAmount: number;
         paymentDate: string;
         status: string;
@@ -482,9 +484,9 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
         const isRestaurant =
             (doc.operation?.serviceType || "").toUpperCase() === "RESTAURANT";
         const hasTable = Boolean(doc.operation?.table?.id);
-        const noPaymentClosed = doc.payments
-            .filter((p) => p.isActive !== false)
-            .every((p) => !p.cashClosure?.id);
+        const noPaymentClosed = salePaymentsForReport(doc.payments).every(
+            (p) => !p.cashClosure?.id,
+        );
         return isRestaurant && hasTable && noPaymentClosed;
     };
 
@@ -952,7 +954,7 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
     const paymentRegistrarLabel = (doc: IssuedDocument): string => {
         const names = [
             ...new Set(
-                doc.payments
+                salePaymentsForReport(doc.payments)
                     .map((p) => p.user?.fullName)
                     .filter((n): n is string => Boolean(n && String(n).trim())),
             ),
@@ -1533,7 +1535,9 @@ const ReportSaleList: React.FC<ReportSaleListProps> = ({
                                                     Información de Pago
                                                 </h4>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                    {doc.payments.map((p) => {
+                                                    {salePaymentsForReport(
+                                                        doc.payments,
+                                                    ).map((p) => {
                                                         const info =
                                                             getPaymentMethodInfo(
                                                                 p.paymentMethod,

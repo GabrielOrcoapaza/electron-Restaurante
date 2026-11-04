@@ -105,6 +105,9 @@ type Person = {
     documentNumber: string;
 };
 
+const DELIVERY_ITEM_ID = "__delivery_service__";
+const GIFT_ITEM_ID = "gift-item-unique-id";
+
 const getProductQtyInCart = (cartItems: CartItem[], productId: string) =>
     cartItems
         .filter(
@@ -114,6 +117,186 @@ const getProductQtyInCart = (cartItems: CartItem[], productId: string) =>
                 !i.notes,
         )
         .reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
+
+function mergeDeliveryServiceItem(
+    items: CartItem[],
+    deliveryCost: number,
+    deliveryProductId: string | null,
+): CartItem[] {
+    const withoutDelivery = items.filter((i) => i.id !== DELIVERY_ITEM_ID);
+    if (deliveryCost > 0 && deliveryProductId) {
+        return [
+            ...withoutDelivery,
+            {
+                id: DELIVERY_ITEM_ID,
+                productId: deliveryProductId,
+                name: "Delivery",
+                price: deliveryCost,
+                quantity: 1,
+                total: deliveryCost,
+                notes: "",
+                discount: 0,
+            },
+        ];
+    }
+    return withoutDelivery;
+}
+
+function buildGiftCartItem(promo: IPromotion): CartItem | null {
+    const giftProduct = promo.giftProduct;
+    if (!giftProduct) return null;
+    return {
+        id: GIFT_ITEM_ID,
+        productId: String(giftProduct.id),
+        name: giftProduct.name,
+        price: 0,
+        quantity: parseInt(String(promo.giftQuantity || "1"), 10),
+        total: 0,
+        notes: `Regalo: ${promo.name}`,
+        subcategoryId: (giftProduct as { subcategoryId?: string }).subcategoryId,
+        product: giftProduct,
+        discount: 0,
+        promotionName: promo.name,
+    };
+}
+
+function cartItemsPromoSnapshot(items: CartItem[]): string {
+    return items
+        .map(
+            (i) =>
+                `${i.id}:${i.quantity}:${i.price}:${i.discount ?? 0}:${i.promotionName ?? ""}`,
+        )
+        .join("|");
+}
+
+/** Recalcula descuentos NxM, regalo y badges de promoción en el carrito de delivery. */
+function applyPromotionsToDeliveryCart(
+    items: CartItem[],
+    promotions: IPromotion[],
+    subcategoriesOfCategoryParam?: any[],
+    selectedCategoryParam?: string | null,
+): { items: CartItem[]; giftMessage: string | null } {
+    const deliveryItem = items.find((i) => i.id === DELIVERY_ITEM_ID);
+    const sellableItems = items.filter(
+        (i) => i.id !== GIFT_ITEM_ID && i.id !== DELIVERY_ITEM_ID,
+    );
+
+    if (promotions.length === 0) {
+        const base = deliveryItem
+            ? [...sellableItems, deliveryItem]
+            : sellableItems;
+        return { items: base, giftMessage: null };
+    }
+
+    const cartTotal = [...sellableItems, ...(deliveryItem ? [deliveryItem] : [])].reduce(
+        (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
+        0,
+    );
+
+    const isEligibleForDiscount = (item: CartItem) =>
+        !item.manualPriceEdited && !item.isCombo && !!item.product;
+
+    const discountLines: CartLine[] = sellableItems
+        .map((item, idx) =>
+            isEligibleForDiscount(item)
+                ? {
+                      index: idx,
+                      product: item.product,
+                      unitPrice: item.price,
+                      quantity: item.quantity,
+                      isGift: false,
+                  }
+                : null,
+        )
+        .filter(Boolean) as CartLine[];
+
+    const discountResults = computeDiscountPromotions(
+        discountLines,
+        promotions,
+        cartTotal,
+        subcategoriesOfCategoryParam,
+        selectedCategoryParam,
+    );
+
+    let updated = sellableItems.map((item, idx) => {
+        if (item.manualPriceEdited) {
+            return { ...item, discount: 0, promotionName: null };
+        }
+        if (item.isCombo || !item.product) {
+            return { ...item, discount: 0, promotionName: null };
+        }
+        const result = discountResults.get(idx);
+        return result
+            ? {
+                  ...item,
+                  discount: result.discount,
+                  promotionName: result.promoName,
+              }
+            : { ...item, discount: 0, promotionName: null };
+    });
+
+    const nxmPromos = promotions.filter((p) => p.promotionType === "NXM");
+    if (nxmPromos.length > 0) {
+        const lines: CartLine[] = updated
+            .map((item, idx) =>
+                item.product && !item.manualPriceEdited
+                    ? {
+                          index: idx,
+                          product: item.product,
+                          unitPrice: item.price,
+                          quantity: item.quantity,
+                          isGift: false,
+                      }
+                    : null,
+            )
+            .filter(Boolean) as CartLine[];
+        const freeSet = computeNxMFreeSet(
+            lines,
+            nxmPromos,
+            subcategoriesOfCategoryParam,
+            selectedCategoryParam,
+        );
+        freeSet.forEach(({ promoName, freeUnits }, idx) => {
+            if (
+                (updated[idx].discount ?? 0) === 0 &&
+                !updated[idx].manualPriceEdited
+            ) {
+                updated[idx] = {
+                    ...updated[idx],
+                    discount:
+                        Math.round(updated[idx].price * freeUnits * 100) / 100,
+                    promotionName: promoName,
+                };
+            }
+        });
+    }
+
+    const newTotal = [...updated, ...(deliveryItem ? [deliveryItem] : [])].reduce(
+        (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
+        0,
+    );
+    const giftPromo = promotions.find(
+        (p) =>
+            p.promotionType === "GIFT" &&
+            newTotal >= (p.minPurchaseAmount || 0) &&
+            p.giftProduct,
+    );
+    const giftMessage = giftPromo
+        ? `¡Regalo disponible! ${giftPromo.giftProduct?.name} × ${
+              giftPromo.giftQuantity ?? 1
+          } — ${giftPromo.name}`
+        : null;
+
+    let resultItems = deliveryItem ? [...updated, deliveryItem] : updated;
+    if (giftPromo) {
+        const giftItem = buildGiftCartItem(giftPromo);
+        if (giftItem) {
+            resultItems = [...resultItems, giftItem];
+        }
+    }
+
+    return { items: resultItems, giftMessage };
+}
 
 const ChevronLeft = () => (
     <svg
@@ -303,32 +486,6 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
             );
     }, [companyData?.branch?.id, deliveryProductId, getOrCreateDeliveryProduct]);
 
-    // Sincroniza el costo de delivery como un ítem del carrito (detalle de venta)
-    const DELIVERY_ITEM_ID = "__delivery_service__";
-    useEffect(() => {
-        setCartItems((prev) => {
-            const withoutDelivery = prev.filter(
-                (i) => i.id !== DELIVERY_ITEM_ID,
-            );
-            if (deliveryCost > 0 && deliveryProductId) {
-                return [
-                    ...withoutDelivery,
-                    {
-                        id: DELIVERY_ITEM_ID,
-                        productId: deliveryProductId,
-                        name: "Delivery",
-                        price: deliveryCost,
-                        quantity: 1,
-                        total: deliveryCost,
-                        notes: "",
-                        discount: 0,
-                    },
-                ];
-            }
-            return withoutDelivery;
-        });
-    }, [deliveryCost, deliveryProductId]);
-
     // Categorías sin subcategorías anidadas (menos peso al abrir delivery)
     const { data: categoriesData, loading: categoriesLoading } = useQuery(
         GET_CATEGORIES_BY_BRANCH_LIGHT,
@@ -485,141 +642,129 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
         Number(item.total) ||
         (Number(item.price) || 0) * (Number(item.quantity) || 0);
 
-    const recalculatePromotions = useCallback(
-        (items: CartItem[], promotions: IPromotion[]) => {
-            if (promotions.length === 0) return items;
-            const cartTotal = items.reduce(
-                (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
-                0,
+    const promotionRecalcKey = useMemo(
+        () =>
+            [
+                activePromotions.map((p) => p.id).join(","),
+                selectedCategory ?? "",
+                subcategoriesOfCategory.map((s: any) => s.id).join(","),
+                String(deliveryCost),
+                deliveryProductId ?? "",
+            ].join("|"),
+        [
+            activePromotions,
+            selectedCategory,
+            subcategoriesOfCategory,
+            deliveryCost,
+            deliveryProductId,
+        ],
+    );
+
+    const lastPromotionRecalcKeyRef = useRef("");
+
+    const commitCartItems = useCallback(
+        (items: CartItem[]) => {
+            const withDelivery = mergeDeliveryServiceItem(
+                items.filter(
+                    (i) =>
+                        i.id !== DELIVERY_ITEM_ID && i.id !== GIFT_ITEM_ID,
+                ),
+                deliveryCost,
+                deliveryProductId,
             );
 
-            // Elegibles para DISCOUNT_PERCENT/DISCOUNT_AMOUNT: no editados manualmente, sin
-            // descuento previo ya fijado, no combo, con producto.
-            const isEligibleForDiscount = (item: CartItem) =>
-                !item.manualPriceEdited &&
-                (item.discount ?? 0) === 0 &&
-                !item.isCombo &&
-                !!item.product;
-
-            const discountLines: CartLine[] = items
-                .map((item, idx) =>
-                    isEligibleForDiscount(item)
-                        ? {
-                              index: idx,
-                              product: item.product,
-                              unitPrice: item.price,
-                              quantity: item.quantity,
-                              isGift: false,
-                          }
-                        : null,
-                )
-                .filter(Boolean) as CartLine[];
-            // Agrupado por producto: un DISCOUNT_AMOUNT nunca se aplica dos veces al mismo
-            // producto repartido en varias líneas (ver comentario en computeDiscountPromotions).
-            const discountResults = computeDiscountPromotions(
-                discountLines,
-                promotions,
-                cartTotal,
-            );
-
-            let updated = items.map((item, idx) => {
-                if (item.manualPriceEdited) {
-                    return { ...item, discount: 0, promotionName: null };
-                }
-                // ✅ NUEVO: Si ya tiene descuento, mantenerlo
-                if ((item.discount ?? 0) > 0) {
-                    return item;
-                }
-                if (item.isCombo || !item.product)
-                    return { ...item, discount: 0, promotionName: null };
-                const result = discountResults.get(idx);
-                return result
-                    ? { ...item, discount: result.discount, promotionName: result.promoName }
-                    : { ...item, discount: 0, promotionName: null };
-            });
-
-            // NxM - los más baratos del grupo quedan gratis
-            const nxmPromos = promotions.filter(
-                (p) => p.promotionType === "NXM",
-            );
-            if (nxmPromos.length > 0) {
-                const lines: CartLine[] = updated
-                    .map((item, idx) =>
-                        item.product && !item.manualPriceEdited
-                            ? {
-                                  index: idx,
-                                  product: item.product,
-                                  unitPrice: item.price,
-                                  quantity: item.quantity,
-                                  isGift: false,
-                              }
-                            : null,
-                    )
-                    .filter(Boolean) as CartLine[];
-                const freeSet = computeNxMFreeSet(lines, nxmPromos);
-                freeSet.forEach(({ promoName, freeUnits }, idx) => {
+            if (activePromotions.length === 0) {
+                setGiftMessage(null);
+                setCartItems((prev) => {
                     if (
-                        (updated[idx].discount ?? 0) === 0 &&
-                        !updated[idx].manualPriceEdited
+                        cartItemsPromoSnapshot(prev) ===
+                        cartItemsPromoSnapshot(withDelivery)
                     ) {
-                        updated[idx] = {
-                            ...updated[idx],
-                            discount:
-                                Math.round(
-                                    updated[idx].price * freeUnits * 100,
-                                ) / 100,
-                            promotionName: promoName,
-                        };
+                        return prev;
                     }
+                    return withDelivery;
                 });
+                return;
             }
 
-            // GIFT notification
-            const newTotal = updated.reduce(
-                (sum, it) => sum + it.price * it.quantity - (it.discount ?? 0),
-                0,
-            );
-            const giftPromo = promotions.find(
-                (p) =>
-                    p.promotionType === "GIFT" &&
-                    newTotal >= (p.minPurchaseAmount || 0) &&
-                    p.giftProduct,
-            );
-            setGiftMessage(
-                giftPromo
-                    ? `¡Regalo disponible! ${giftPromo.giftProduct?.name} × ${
-                          giftPromo.giftQuantity ?? 1
-                      } — ${giftPromo.name}`
-                    : null,
-            );
-
-            return updated;
+            const { items: nextItems, giftMessage: nextGiftMessage } =
+                applyPromotionsToDeliveryCart(
+                    withDelivery,
+                    activePromotions,
+                    subcategoriesOfCategory,
+                    selectedCategory,
+                );
+            setGiftMessage(nextGiftMessage);
+            setCartItems((prev) => {
+                if (
+                    cartItemsPromoSnapshot(prev) ===
+                    cartItemsPromoSnapshot(nextItems)
+                ) {
+                    return prev;
+                }
+                return nextItems;
+            });
         },
-        [],
+        [
+            activePromotions,
+            subcategoriesOfCategory,
+            selectedCategory,
+            deliveryCost,
+            deliveryProductId,
+        ],
     );
-    useEffect(() => {
-        // Verificar si ya hay items con descuento
-        const hasExistingDiscounts = cartItems.some(
-            (item) => (item.discount ?? 0) > 0,
-        );
 
-        if (
-            activePromotions.length > 0 &&
-            cartItems.length > 0 &&
-            !hasExistingDiscounts
-        ) {
-            console.log(
-                "[Delivery] Recalculando promociones - sin descuentos existentes",
-            );
-            setCartItems((prev) =>
-                recalculatePromotions(prev, activePromotions),
-            );
-        } else if (hasExistingDiscounts) {
-            console.log(
-                "[Delivery] Saltando recálculo - ya hay descuentos existentes",
-            );
+    useEffect(() => {
+        if (lastPromotionRecalcKeyRef.current === promotionRecalcKey) {
+            return;
         }
-    }, [activePromotions, cartItems.length, recalculatePromotions]);
+        lastPromotionRecalcKeyRef.current = promotionRecalcKey;
+
+        if (activePromotions.length === 0) {
+            setGiftMessage(null);
+            setCartItems((prev) => {
+                if (!prev.some((item) => item.id === GIFT_ITEM_ID)) {
+                    return prev;
+                }
+                return prev.filter((item) => item.id !== GIFT_ITEM_ID);
+            });
+            return;
+        }
+
+        setCartItems((prev) => {
+            if (prev.length === 0) return prev;
+            const withDelivery = mergeDeliveryServiceItem(
+                prev.filter(
+                    (i) =>
+                        i.id !== DELIVERY_ITEM_ID && i.id !== GIFT_ITEM_ID,
+                ),
+                deliveryCost,
+                deliveryProductId,
+            );
+            const { items, giftMessage: nextGiftMessage } =
+                applyPromotionsToDeliveryCart(
+                    withDelivery,
+                    activePromotions,
+                    subcategoriesOfCategory,
+                    selectedCategory,
+                );
+            setGiftMessage(nextGiftMessage);
+            if (
+                cartItemsPromoSnapshot(prev) ===
+                cartItemsPromoSnapshot(items)
+            ) {
+                return prev;
+            }
+            return items;
+        });
+    }, [
+        promotionRecalcKey,
+        activePromotions,
+        subcategoriesOfCategory,
+        selectedCategory,
+        deliveryCost,
+        deliveryProductId,
+    ]);
 
     const filteredClients = useMemo(
         () =>
@@ -771,7 +916,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
             const validPrice = Number(existingItem.price) || productPrice;
             updatedItems[existingItemIndex].quantity = validQuantity;
             updatedItems[existingItemIndex].total = validPrice * validQuantity;
-            setCartItems(updatedItems);
+            commitCartItems(updatedItems);
         } else {
             const newItem: CartItem = {
                 id: `${product.id}-${Date.now()}`,
@@ -788,7 +933,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                 promotionName: null,
                 manualPriceEdited: false,
             };
-            setCartItems([...cartItems, newItem]);
+            commitCartItems([...cartItems, newItem]);
         }
 
         setSearchTerm("");
@@ -807,7 +952,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
         if (idx < 0) return;
         const item = cartItems[idx];
         if (item.quantity <= 1) {
-            setCartItems(cartItems.filter((_, i) => i !== idx));
+            commitCartItems(cartItems.filter((_, i) => i !== idx));
         } else {
             const updated = [...cartItems];
             updated[idx] = {
@@ -815,7 +960,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                 quantity: item.quantity - 1,
                 total: item.price * (item.quantity - 1),
             };
-            setCartItems(updated);
+            commitCartItems(updated);
         }
     };
 
@@ -856,7 +1001,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                 quantity: newQuantity,
                 total: price * newQuantity,
             };
-            setCartItems(updatedItems);
+            commitCartItems(updatedItems);
         } else {
             const newItem: CartItem = {
                 id: `combo-${comboProduct.id}-${Date.now()}`,
@@ -874,7 +1019,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                 comboComponents: selections,
                 manualPriceEdited: false,
             };
-            setCartItems([...cartItems, newItem]);
+            commitCartItems([...cartItems, newItem]);
         }
         setShowComboModal(false);
         setPendingComboProduct(null);
@@ -935,7 +1080,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
             }
             return item;
         });
-        setCartItems(updatedItems);
+        commitCartItems(updatedItems);
     };
 
     const handleUpdatePrice = (itemId: string, newPrice: number) => {
@@ -963,12 +1108,12 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                 manualPriceEdited,
             };
         });
-        setCartItems(updatedItems);
+        commitCartItems(updatedItems);
     };
 
     // Función para eliminar ítem
     const handleRemoveItem = (itemId: string) => {
-        setCartItems(cartItems.filter((item) => item.id !== itemId));
+        commitCartItems(cartItems.filter((item) => item.id !== itemId));
     };
 
     const [getObservations] = useLazyQuery(GET_MODIFIERS_BY_SUBCATEGORY, {
@@ -1036,14 +1181,19 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
         setShowObservationModal(null);
     };
 
-    // Calcular totales CON descuentos aplicados por item
+    // Igual que order.tsx: total por ítem ya resta el descuento de promoción
     const cartItemsTotal = cartItems.reduce((sum, item) => {
         const itemTotal = Number(item.total) || 0;
         const itemDiscount = Number(item.discount) || 0;
         return sum + (itemTotal - itemDiscount);
     }, 0);
 
-    // Descuento global (manual) - si existe, aplicarlo sobre el total con descuentos por item
+    const itemsPromoDiscount = cartItems.reduce(
+        (sum, item) => sum + (Number(item.discount) || 0),
+        0,
+    );
+
+    // Descuento manual (solo en checkout); las promos por ítem van en cada línea
     const pct = Number(discountPercent) || 0;
     const manualDiscount = Math.max(
         0,
@@ -1059,16 +1209,17 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
               ? (manualDiscount / cartItemsTotal) * 100
               : 0;
     const cartTotal = Math.max(0, cartItemsTotal - manualDiscount);
-    const totalDiscount =
-        manualDiscount +
-        cartItems.reduce((sum, item) => sum + (item.discount || 0), 0);
+    const totalDiscount = manualDiscount + itemsPromoDiscount;
 
-    // Calcular IGV basado en el total final
     const igvPercentageDecimal = igvPercentageFromBranch / 100;
     const subtotal = parseFloat(
-        (cartTotal / (1 + igvPercentageDecimal)).toFixed(2),
+        (
+            Math.round((cartTotal / (1 + igvPercentageDecimal)) * 100) / 100
+        ).toFixed(2),
     );
-    const igvAmount = parseFloat((cartTotal - subtotal).toFixed(2));
+    const igvAmount = parseFloat(
+        (Math.round((cartTotal - subtotal) * 100) / 100).toFixed(2),
+    );
 
     const totalPaymentsAmount = paymentLines.reduce(
         (sum, p) => sum + (Number(p.amount) || 0),
@@ -2033,6 +2184,13 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                                     const hasObservationContent = Boolean(
                                         item.notes?.trim(),
                                     );
+                                    const lineNetTotal = Math.max(
+                                        0,
+                                        (Number(item.total) || 0) -
+                                            (Number(item.discount) || 0),
+                                    );
+                                    const hasPromoLineDiscount =
+                                        (item.discount ?? 0) > 0;
 
                                     return (
                                         <div
@@ -2235,48 +2393,67 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                                                         >
                                                             {item.name}
                                                         </div>
-                                                        {canEditPrice ? (
-                                                            <div className="inline-flex shrink-0 items-center overflow-hidden rounded-md border border-indigo-200 bg-white dark:border-indigo-700 dark:bg-slate-900">
-                                                                <span className="border-r border-indigo-100 px-1 py-0.5 text-[9px] font-bold leading-none text-slate-400 dark:border-indigo-800">
-                                                                    S/
-                                                                </span>
+                                                        <div className="inline-flex shrink-0 items-center overflow-hidden rounded-md border border-indigo-200 bg-white dark:border-indigo-700 dark:bg-slate-900">
+                                                            <span className="border-r border-indigo-100 px-1 py-0.5 text-[9px] font-bold leading-none text-slate-400 dark:border-indigo-800">
+                                                                S/
+                                                            </span>
+                                                            {canEditPrice &&
+                                                            !hasPromoLineDiscount ? (
                                                                 <input
                                                                     type="number"
                                                                     step="0.01"
                                                                     min={0}
+                                                                    title="Total de línea (con IGV)"
                                                                     value={
-                                                                        item.price === 0
+                                                                        lineNetTotal ===
+                                                                        0
                                                                             ? ""
-                                                                            : item.price
+                                                                            : lineNetTotal
                                                                     }
-                                                                    onFocus={(e) => e.target.select()}
-                                                                    onChange={(e) =>
+                                                                    onFocus={(e) =>
+                                                                        e.target.select()
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) => {
+                                                                        const newLine =
+                                                                            parseFloat(
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            ) ||
+                                                                            0;
+                                                                        const qty =
+                                                                            Math.max(
+                                                                                1,
+                                                                                Number(
+                                                                                    item.quantity,
+                                                                                ) ||
+                                                                                    1,
+                                                                            );
                                                                         handleUpdatePrice(
                                                                             item.id,
-                                                                            parseFloat(
-                                                                                e.target
-                                                                                    .value,
-                                                                            ) || 0,
-                                                                        )
-                                                                    }
-                                                                    className="w-11 border-none bg-transparent py-0.5 pl-1 pr-1 text-right text-[10px] font-bold text-slate-900 outline-none dark:text-slate-100"
+                                                                            newLine /
+                                                                                qty,
+                                                                        );
+                                                                    }}
+                                                                    className="w-14 border-none bg-transparent py-0.5 pl-1 pr-1 text-right text-[10px] font-bold text-slate-900 outline-none dark:text-slate-100"
                                                                 />
-                                                            </div>
-                                                        ) : (
-                                                            <span
-                                                                className="shrink-0 font-bold text-slate-700 dark:text-slate-200"
-                                                                style={{
-                                                                    fontSize: isSmall
-                                                                        ? "0.7rem"
-                                                                        : isCompactPos
-                                                                          ? "0.75rem"
-                                                                          : "0.8125rem",
-                                                                }}
-                                                            >
-                                                                S/{" "}
-                                                                {item.price.toFixed(2)}
-                                                            </span>
-                                                        )}
+                                                            ) : (
+                                                                <span
+                                                                    className="min-w-[3.25rem] py-0.5 pl-1 pr-1 text-right text-[10px] font-bold text-slate-900 dark:text-slate-100"
+                                                                    title={
+                                                                        hasPromoLineDiscount
+                                                                            ? "Total de línea con descuento"
+                                                                            : "Total de línea"
+                                                                    }
+                                                                >
+                                                                    {lineNetTotal.toFixed(
+                                                                        2,
+                                                                    )}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     {item.product &&
                                                         productStockLabel(
@@ -2530,15 +2707,15 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                                 S/ {igvAmount.toFixed(2)}
                             </span>
                         </div>
-                        {totalDiscount > 0 && (
+                        {manualDiscount > 0 && (
                             <div className="flex justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                                <span>Descuento</span>
-                                <span>- S/ {totalDiscount.toFixed(2)}</span>
+                                <span>Descuento manual</span>
+                                <span>- S/ {manualDiscount.toFixed(2)}</span>
                             </div>
                         )}
                         <div className="mt-1 flex justify-between border-t border-slate-200 pt-2 transition-colors duration-200 dark:border-slate-700">
                             <span className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-                                Total a pagar
+                                Total
                             </span>
                             <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">
                                 S/ {cartTotal.toFixed(2)}
@@ -2616,7 +2793,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                             setDiscountAmount={setDiscountAmount}
                             discountPercent={discountPercent}
                             setDiscountPercent={setDiscountPercent}
-                            totalDiscount={totalDiscount}
+                            totalDiscount={manualDiscount}
                             onValidateBeforeConfirm={validateSaleBeforePay}
                             onConfirm={handleProcessSale}
                         />

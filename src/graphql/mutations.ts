@@ -44,6 +44,10 @@ export const COMPANY_LOGIN = gql`
                 allowCloseWithOccupiedTables
                 allowCashOpenings
                 allowCashClosureSheet
+                tipsEnabled
+                suggestedTipPercent
+                tipAllowSplit
+                tipDefaultRecipientMode
                 isKitchenPrint
                 isKitchenDisplay
                 requireWaiterPassword
@@ -172,6 +176,10 @@ export const USER_LOGIN = gql`
                 allowCloseWithOccupiedTables
                 allowCashOpenings
                 allowCashClosureSheet
+                tipsEnabled
+                suggestedTipPercent
+                tipAllowSplit
+                tipDefaultRecipientMode
                 isKitchenPrint
                 isKitchenDisplay
                 printCancellations
@@ -2787,6 +2795,10 @@ export const UPDATE_BRANCH = gql`
         $allowCloseWithOccupiedTables: Boolean
         $allowCashOpenings: Boolean
         $allowCashClosureSheet: Boolean
+        $tipsEnabled: Boolean
+        $suggestedTipPercent: Float
+        $tipAllowSplit: Boolean
+        $tipDefaultRecipientMode: String
     ) {
         updateBranch(
             id: $id
@@ -2815,6 +2827,10 @@ export const UPDATE_BRANCH = gql`
             allowCloseWithOccupiedTables: $allowCloseWithOccupiedTables
             allowCashOpenings: $allowCashOpenings
             allowCashClosureSheet: $allowCashClosureSheet
+            tipsEnabled: $tipsEnabled
+            suggestedTipPercent: $suggestedTipPercent
+            tipAllowSplit: $tipAllowSplit
+            tipDefaultRecipientMode: $tipDefaultRecipientMode
         ) {
             success
             message
@@ -2841,10 +2857,45 @@ export const UPDATE_BRANCH = gql`
                 allowCloseWithOccupiedTables
                 allowCashOpenings
                 allowCashClosureSheet
+                tipsEnabled
+                suggestedTipPercent
+                tipAllowSplit
+                tipDefaultRecipientMode
                 isKitchenPrint
                 isKitchenDisplay
                 requireWaiterPassword
                 printCancellations
+            }
+        }
+    }
+`;
+
+export const REGISTER_OPERATION_TIPS = gql`
+    mutation RegisterOperationTips(
+        $operationId: ID!
+        $branchId: ID!
+        $userId: ID!
+        $issuedDocumentId: ID
+        $tips: [PaymentInput!]!
+    ) {
+        registerOperationTips(
+            operationId: $operationId
+            branchId: $branchId
+            userId: $userId
+            issuedDocumentId: $issuedDocumentId
+            tips: $tips
+        ) {
+            success
+            message
+            payments {
+                id
+                paidAmount
+                paymentMethod
+                paymentPurpose
+                tipWaiter {
+                    id
+                    fullName
+                }
             }
         }
     }

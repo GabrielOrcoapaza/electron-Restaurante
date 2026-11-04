@@ -35,6 +35,7 @@ import { useToast } from "../../context/ToastContext";
 import { isElectronRenderer } from "../../utils/electronPrint";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
 import { getLocalTicketPrinterStorage } from "../../utils/localPrinterPreference";
+import { formatLocalDateYYYYMMDD as getTodayDateInput } from "../../utils/localDateTime";
 
 const isElectron = isElectronRenderer();
 
@@ -97,6 +98,7 @@ interface PaymentMovement {
     totalAmount?: number;
     transactionType: string;
     paymentMethod: string;
+    paymentPurpose?: string | null;
     status: string;
     notes?: string;
     user?: { id: string; fullName: string };
@@ -158,8 +160,13 @@ const isPaymentCancelled = (status?: string | null): boolean => {
     );
 };
 
-const isSaleMovement = (movement: PaymentMovement): boolean =>
-    Boolean(movement.operation?.id || movement.issuedDocument?.id);
+const isTipMovement = (movement: PaymentMovement): boolean =>
+    (movement.paymentPurpose || "").toUpperCase() === "TIP";
+
+const isSaleMovement = (movement: PaymentMovement): boolean => {
+    if (isTipMovement(movement)) return false;
+    return Boolean(movement.operation?.id || movement.issuedDocument?.id);
+};
 
 const toPaymentAmount = (value: unknown): number => {
     const amount = Number(value);
@@ -201,6 +208,12 @@ const Cashs: React.FC = () => {
         useState(false);
     const [showMovements, setShowMovements] = useState(true);
     const [showHistory, setShowHistory] = useState(false);
+    const [historyStartDate, setHistoryStartDate] = useState(() =>
+        getTodayDateInput(),
+    );
+    const [historyEndDate, setHistoryEndDate] = useState(() =>
+        getTodayDateInput(),
+    );
     const [pendingConfirm, setPendingConfirm] =
         useState<PendingConfirmAction | null>(null);
     const [confirmLoading, setConfirmLoading] = useState(false);
@@ -241,8 +254,17 @@ const Cashs: React.FC = () => {
         loading: loadingHistory,
         refetch: refetchHistory,
     } = useQuery(GET_CASH_CLOSURES, {
-        variables: { branchId, limit: 10 },
-        skip: !branchId,
+        variables: {
+            branchId,
+            startDate: historyStartDate,
+            endDate: historyEndDate,
+        },
+        skip:
+            !branchId ||
+            !selectedRegister?.id ||
+            !showHistory ||
+            !historyStartDate ||
+            !historyEndDate,
         fetchPolicy: "network-only",
     });
 
@@ -279,6 +301,12 @@ const Cashs: React.FC = () => {
         setLocallyCancelledMovements([]);
     }, [selectedRegister?.id]);
 
+    useEffect(() => {
+        if (!selectedRegister && showHistory) {
+            setShowHistory(false);
+        }
+    }, [selectedRegister, showHistory]);
+
     const apiMovements: PaymentMovement[] =
         movementsData?.paymentsPendingClosure ||
         movementsData?.payments_pending_closure ||
@@ -294,6 +322,7 @@ const Cashs: React.FC = () => {
 
     const movementTotals = useMemo(() => {
         let salesIncome = 0;
+        let tipsIncome = 0;
         let manualIncome = 0;
         let totalExpense = 0;
 
@@ -302,7 +331,9 @@ const Cashs: React.FC = () => {
 
             const amount = toPaymentAmount(movement.paidAmount);
             if (movement.transactionType === "INCOME") {
-                if (isSaleMovement(movement)) {
+                if (isTipMovement(movement)) {
+                    tipsIncome += amount;
+                } else if (isSaleMovement(movement)) {
                     salesIncome += amount;
                 } else {
                     manualIncome += amount;
@@ -314,17 +345,66 @@ const Cashs: React.FC = () => {
 
         return {
             salesIncome,
+            tipsIncome,
             manualIncome,
             totalExpense,
-            netTotal: salesIncome + manualIncome - totalExpense,
+            netTotal:
+                salesIncome + tipsIncome + manualIncome - totalExpense,
         };
+    }, [movements]);
+
+    /** Ventas / propinas / egresos por método (pendientes de cierre). */
+    const paymentMethodBreakdown = useMemo(() => {
+        const map = new Map<
+            string,
+            { salesIncome: number; tips: number; expense: number }
+        >();
+        const ensure = (code: string) => {
+            const key = code.toUpperCase();
+            if (!map.has(key)) {
+                map.set(key, { salesIncome: 0, tips: 0, expense: 0 });
+            }
+            return map.get(key)!;
+        };
+
+        for (const movement of movements) {
+            if (isPaymentCancelled(movement.status)) continue;
+            const code = (movement.paymentMethod || "OTROS").toUpperCase();
+            const amount = toPaymentAmount(movement.paidAmount);
+            const bucket = ensure(code);
+
+            if (movement.transactionType === "EXPENSE") {
+                bucket.expense += amount;
+            } else if (movement.transactionType === "INCOME") {
+                if (isTipMovement(movement)) {
+                    bucket.tips += amount;
+                } else {
+                    bucket.salesIncome += amount;
+                }
+            }
+        }
+        return map;
     }, [movements]);
 
     const cashRegisters: CashRegister[] =
         registersData?.cashRegistersByBranch || [];
     const preview: CashPreview | null = previewData?.cashClosurePreview || null;
-    const history: CashClosure[] =
-        historyData?.cashClosures || historyData?.cash_closures || [];
+    const history: CashClosure[] = useMemo(() => {
+        const raw =
+            historyData?.cashClosures || historyData?.cash_closures || [];
+        if (!selectedRegister?.id) return [];
+        const registerId = String(selectedRegister.id);
+        return raw
+            .filter(
+                (closure) =>
+                    String(closure.cashRegister?.id ?? "") === registerId,
+            )
+            .sort(
+                (a, b) =>
+                    new Date(b.closedAt).getTime() -
+                    new Date(a.closedAt).getTime(),
+            );
+    }, [historyData, selectedRegister?.id]);
 
     const handleOpenRegister = async (
         openingAmount: number,
@@ -806,7 +886,16 @@ const Cashs: React.FC = () => {
                             Nuevo Movimiento
                         </button>
                         <button
-                            onClick={() => setShowHistory(!showHistory)}
+                            onClick={() => {
+                                if (!showHistory && !selectedRegister) {
+                                    showToast(
+                                        "Seleccione una caja para ver su historial de cierres",
+                                        "warning",
+                                    );
+                                    return;
+                                }
+                                setShowHistory(!showHistory);
+                            }}
                             className={`flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-[10px] font-black uppercase tracking-widest transition-all ${
                                 showHistory
                                     ? "border-indigo-100 bg-indigo-50 text-indigo-600 dark:border-indigo-800/30 dark:bg-indigo-900/20 dark:text-indigo-400"
@@ -839,7 +928,9 @@ const Cashs: React.FC = () => {
                         <button
                             onClick={() => {
                                 refetchRegisters();
-                                refetchHistory();
+                                if (selectedRegister && showHistory) {
+                                    refetchHistory();
+                                }
                             }}
                             className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-600 dark:bg-slate-900 dark:text-slate-500 dark:hover:bg-slate-800"
                         >
@@ -1107,7 +1198,13 @@ const Cashs: React.FC = () => {
                                 ) : (
                                     <div className="flex flex-col gap-8">
                                         
-                                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                                        <div
+                                            className={`grid grid-cols-1 gap-6 sm:grid-cols-2 ${
+                                                movementTotals.tipsIncome > 0.001
+                                                    ? "lg:grid-cols-5"
+                                                    : "lg:grid-cols-4"
+                                            }`}
+                                        >
                                             {/* Ingresos por ventas */}
                                             <div className="flex flex-col gap-3 rounded-3xl bg-emerald-50/50 p-6 dark:bg-emerald-900/10">
                                                 <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
@@ -1139,6 +1236,39 @@ const Cashs: React.FC = () => {
                                                     )}
                                                 </span>
                                             </div>
+
+                                            {movementTotals.tipsIncome > 0.001 && (
+                                                <div className="flex flex-col gap-3 rounded-3xl bg-amber-50/50 p-6 dark:bg-amber-900/10">
+                                                    <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                                                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-slate-800">
+                                                            <svg
+                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                className="h-4 w-4"
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth={
+                                                                        2.5
+                                                                    }
+                                                                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                                />
+                                                            </svg>
+                                                        </div>
+                                                        <span className="text-[10px] font-black uppercase tracking-widest">
+                                                            Total propinas
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-2xl font-black text-amber-800 dark:text-amber-300">
+                                                        {currencyFormatter.format(
+                                                            movementTotals.tipsIncome,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            )}
 
                                             {/* Ingresos por movimientos manuales */}
                                             <div className="flex flex-col gap-3 rounded-3xl bg-teal-50/50 p-6 dark:bg-teal-900/10">
@@ -1342,6 +1472,26 @@ const Cashs: React.FC = () => {
                                                             "border-slate-700/30",
                                                     };
 
+                                                    const breakdown =
+                                                        paymentMethodBreakdown.get(
+                                                            (
+                                                                p.methodCode ||
+                                                                "OTROS"
+                                                            ).toUpperCase(),
+                                                        );
+                                                    const methodSalesIncome =
+                                                        breakdown?.salesIncome ??
+                                                        0;
+                                                    const methodTips =
+                                                        breakdown?.tips ?? 0;
+                                                    const methodExpense =
+                                                        breakdown?.expense ??
+                                                        p.expense;
+                                                    const methodNet =
+                                                        methodSalesIncome +
+                                                        methodTips -
+                                                        methodExpense;
+
                                                     return (
                                                         <div
                                                             key={p.methodCode}
@@ -1359,7 +1509,7 @@ const Cashs: React.FC = () => {
                                                                     </span>
                                                                     <span className="text-emerald-600 dark:text-emerald-400">
                                                                         {currencyFormatter.format(
-                                                                            p.income,
+                                                                            methodSalesIncome,
                                                                         )}
                                                                     </span>
                                                                 </div>
@@ -1369,10 +1519,23 @@ const Cashs: React.FC = () => {
                                                                     </span>
                                                                     <span className="text-rose-600 dark:text-rose-400">
                                                                         {currencyFormatter.format(
-                                                                            p.expense,
+                                                                            methodExpense,
                                                                         )}
                                                                     </span>
                                                                 </div>
+                                                                {methodTips >
+                                                                    0.001 && (
+                                                                    <div className="flex justify-between text-slate-400">
+                                                                        <span>
+                                                                            Propina:
+                                                                        </span>
+                                                                        <span className="text-amber-600 dark:text-amber-400">
+                                                                            {currencyFormatter.format(
+                                                                                methodTips,
+                                                                            )}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
                                                                 <div
                                                                     className={`mt-1 flex justify-between border-t border-slate-100 pt-1 dark:border-slate-800`}
                                                                 >
@@ -1383,7 +1546,7 @@ const Cashs: React.FC = () => {
                                                                         className={`text-[13px] font-black ${style.color}`}
                                                                     >
                                                                         {currencyFormatter.format(
-                                                                            p.net,
+                                                                            methodNet,
                                                                         )}
                                                                     </span>
                                                                 </div>
@@ -1937,13 +2100,69 @@ const Cashs: React.FC = () => {
                     {showHistory && (
                         <div className="lg:col-span-4">
                             <div className="flex h-full flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
-                                <div className="border-b border-slate-50 p-6 dark:border-slate-800/50">
-                                    <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
-                                        Historial Reciente
-                                    </h2>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                        Últimos 10 cierres
-                                    </p>
+                                <div className="space-y-4 border-b border-slate-50 p-6 dark:border-slate-800/50">
+                                    <div>
+                                        <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                                            Historial de cierres
+                                        </h2>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                            {selectedRegister
+                                                ? selectedRegister.name
+                                                : "Seleccione una caja"}
+                                        </p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                Desde
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={historyStartDate}
+                                                onChange={(e) => {
+                                                    const value =
+                                                        e.target.value;
+                                                    setHistoryStartDate(value);
+                                                    if (
+                                                        historyEndDate &&
+                                                        value > historyEndDate
+                                                    ) {
+                                                        setHistoryEndDate(
+                                                            value,
+                                                        );
+                                                    }
+                                                }}
+                                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-bold text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                Hasta
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={historyEndDate}
+                                                min={historyStartDate}
+                                                onChange={(e) => {
+                                                    const value =
+                                                        e.target.value;
+                                                    if (
+                                                        historyStartDate &&
+                                                        value <
+                                                            historyStartDate
+                                                    ) {
+                                                        showToast(
+                                                            "La fecha final no puede ser anterior a la inicial",
+                                                            "warning",
+                                                        );
+                                                        return;
+                                                    }
+                                                    setHistoryEndDate(value);
+                                                }}
+                                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-bold text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="flex-1 overflow-y-auto p-4">
@@ -1975,7 +2194,7 @@ const Cashs: React.FC = () => {
                                                 />
                                             </svg>
                                             <p className="text-xs font-black uppercase tracking-widest">
-                                                Sin cierres previos
+                                                Sin cierres en este periodo
                                             </p>
                                         </div>
                                     ) : (

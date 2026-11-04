@@ -532,12 +532,12 @@ const PayDeliveryCheckout: React.FC<PayDeliveryCheckoutProps> = ({
                         </div>
                         {totalDiscount > 0 && (
                             <div className="mb-3 flex justify-between text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                                <span>Descuento</span>
+                                <span>Descuento manual</span>
                                 <span>- S/ {totalDiscount.toFixed(2)}</span>
                             </div>
                         )}
                         <div className="flex items-center justify-between border-t border-indigo-200/70 pt-3 dark:border-indigo-800/50">
-                            <span className="text-xs font-bold uppercase tracking-widest text-indigo-700 dark:text-indigo-300">Total a pagar</span>
+                            <span className="text-xs font-bold uppercase tracking-widest text-indigo-700 dark:text-indigo-300">Total</span>
                             <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">S/ {cartTotal.toFixed(2)}</span>
                         </div>
                     </div>

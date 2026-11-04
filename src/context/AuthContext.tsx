@@ -94,6 +94,10 @@ export interface CompanyData {
         allowCloseWithOccupiedTables?: boolean;
         allowCashOpenings?: boolean;
         allowCashClosureSheet?: boolean;
+        tipsEnabled?: boolean;
+        suggestedTipPercent?: number | null;
+        tipAllowSplit?: boolean;
+        tipDefaultRecipientMode?: string;
         isKitchenPrint?: boolean;
         isKitchenDisplay?: boolean;
         requireWaiterPassword?: boolean;
