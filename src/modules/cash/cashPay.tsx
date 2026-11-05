@@ -258,6 +258,7 @@ const CashPay: React.FC<CashPayProps> = ({
         { id: "tip-1", method: "CASH", amount: 0, referenceNumber: "" },
     ]);
     const [tipWaiterId, setTipWaiterId] = useState("");
+    const [tipSectionOpen, setTipSectionOpen] = useState(false);
 
     const [isProcessing, setIsProcessing] = useState(false);
     const [discountAmount, setDiscountAmount] = useState<number>(0);
@@ -958,6 +959,7 @@ const CashPay: React.FC<CashPayProps> = ({
     }, [operation?.id]);
 
     useEffect(() => {
+        setTipSectionOpen(false);
         setTipLines([
             { id: "tip-1", method: "CASH", amount: 0, referenceNumber: "" },
         ]);
@@ -3128,18 +3130,49 @@ const CashPay: React.FC<CashPayProps> = ({
                     >
                         Precuenta
                     </button>
-                    <button
-                        onClick={() => refetch()}
-                        className="rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-colors hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/45"
-                        style={{
-                            padding: "0.4rem 0.8rem",
-                            fontSize: "0.75rem",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                        }}
-                    >
-                        Refrescar
-                    </button>
+                    {branchTipsEnabled && (
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setTipSectionOpen((open) => !open)
+                            }
+                            title={
+                                tipSectionOpen
+                                    ? "Ocultar propina"
+                                    : "Agregar propina"
+                            }
+                            className={`rounded-lg border transition-colors ${
+                                tipSectionOpen
+                                    ? "border-amber-500 bg-amber-200 text-amber-950 hover:bg-amber-300 dark:border-amber-500 dark:bg-amber-700 dark:text-amber-50 dark:hover:bg-amber-600"
+                                    : "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/45"
+                            }`}
+                            style={{
+                                padding: isNarrow
+                                    ? "0.6rem 0.4rem"
+                                    : "0.4rem 0.8rem",
+                                fontSize: isNarrow ? "0.7rem" : "0.75rem",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                width: isNarrow ? "auto" : "150px",
+                                fontWeight: 700,
+                            }}
+                        >
+                            Propina
+                            {tipTotal > 0.001 && (
+                                <span
+                                    style={{
+                                        display: "block",
+                                        fontSize: "0.62rem",
+                                        fontWeight: 800,
+                                        marginTop: "0.1rem",
+                                        opacity: 0.95,
+                                    }}
+                                >
+                                    {currencyFormatter.format(tipTotal)}
+                                </span>
+                            )}
+                        </button>
+                    )}
                 </div>
             </header>
 
@@ -4000,133 +4033,164 @@ const CashPay: React.FC<CashPayProps> = ({
                             </div>
                         ))}
                     </div>
-                    {branchTipsEnabled && (
-                        <div
-                            className="rounded-lg border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-800 dark:bg-amber-950/30"
-                            style={{ marginBottom: "0.5rem" }}
-                        >
-                            <div
-                                style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    marginBottom: "0.35rem",
-                                }}
-                            >
-                                <span
-                                    className="text-amber-900 dark:text-amber-200"
-                                    style={{
-                                        fontSize: "0.75rem",
-                                        fontWeight: 800,
-                                    }}
-                                >
-                                    PROPINA (opcional)
-                                </span>
-                                {branchSuggestedTipPercent != null &&
-                                    branchSuggestedTipPercent > 0 && (
-                                        <button
-                                            type="button"
-                                            onClick={applySuggestedTipPercent}
-                                            className="rounded border border-amber-400 bg-white px-2 py-0.5 text-xs font-bold text-amber-800 dark:border-amber-600 dark:bg-slate-900 dark:text-amber-200"
-                                        >
-                                            {branchSuggestedTipPercent}%
-                                        </button>
-                                    )}
-                            </div>
-                            <select
-                                value={tipWaiterId}
-                                onChange={(e) =>
-                                    setTipWaiterId(e.target.value)
-                                }
-                                className="mb-2 w-full rounded-md border border-amber-300 bg-white px-2 py-2 text-sm dark:border-amber-700 dark:bg-slate-900 dark:text-slate-100"
-                            >
-                                <option value="">Mozo beneficiario…</option>
-                                {availableWaiters.map((u: any) => (
-                                    <option key={u.id} value={u.id}>
-                                        {[u.firstName, u.lastName]
-                                            .filter(Boolean)
-                                            .join(" ") || u.dni}
-                                    </option>
-                                ))}
-                            </select>
-                            {tipLines.map((line) => (
-                                <div key={line.id} className="mb-2">
-                                    <div className="flex gap-2">
-                                        <select
-                                            value={line.method}
-                                            onChange={(e) =>
-                                                updateTipLine(
-                                                    line.id,
-                                                    "method",
-                                                    e.target.value,
-                                                )
-                                            }
-                                            className="flex-1 rounded-md border border-amber-300 bg-white px-2 py-2 text-sm dark:border-amber-700 dark:bg-slate-900"
-                                        >
-                                            {PAYMENT_METHODS.filter(
-                                                (m) =>
-                                                    m.value !== "CREDITO",
-                                            ).map(({ value, label }) => (
-                                                <option
-                                                    key={value}
-                                                    value={value}
-                                                >
-                                                    {label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min={0}
-                                            placeholder="0.00"
-                                            value={
-                                                line.amount === 0
-                                                    ? ""
-                                                    : line.amount
-                                            }
-                                            onChange={(e) =>
-                                                updateTipLine(
-                                                    line.id,
-                                                    "amount",
-                                                    Number(e.target.value),
-                                                )
-                                            }
-                                            className="w-28 rounded-md border border-amber-300 bg-white px-2 py-2 text-right text-sm font-bold dark:border-amber-700 dark:bg-slate-900"
-                                        />
-                                    </div>
-                                    {paymentMethodSendsReference(
-                                        line.method,
-                                    ) && (
-                                        <input
-                                            type="text"
-                                            placeholder="Nº operación Yape/Plin"
-                                            value={line.referenceNumber}
-                                            onChange={(e) =>
-                                                updateTipLine(
-                                                    line.id,
-                                                    "referenceNumber",
-                                                    e.target.value,
-                                                )
-                                            }
-                                            className="mt-1 w-full rounded-md border border-amber-300 bg-white px-2 py-1 text-sm dark:border-amber-700 dark:bg-slate-900"
-                                        />
-                                    )}
-                                </div>
-                            ))}
-                            {tipTotal > 0 && (
+                    {branchTipsEnabled && tipSectionOpen && (
+                        <div style={{ marginBottom: "0.5rem" }}>
                                 <div
-                                    className="text-amber-900 dark:text-amber-200"
+                                    className="rounded-lg border border-amber-400/80 bg-amber-50/80 p-3 dark:border-amber-700 dark:bg-slate-950/80"
                                     style={{
-                                        fontSize: "0.7rem",
-                                        fontWeight: 700,
+                                        boxShadow:
+                                            "inset 0 0 0 1px rgba(251, 191, 36, 0.08)",
                                     }}
                                 >
-                                    Propina:{" "}
-                                    {currencyFormatter.format(tipTotal)} (no
-                                    incluida en el comprobante)
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
+                                            marginBottom: "0.35rem",
+                                        }}
+                                    >
+                                        <span
+                                            className="text-amber-900 dark:text-amber-300"
+                                            style={{
+                                                fontSize: "0.75rem",
+                                                fontWeight: 800,
+                                                letterSpacing: "0.02em",
+                                            }}
+                                        >
+                                            PROPINA (opcional)
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            {branchSuggestedTipPercent != null &&
+                                                branchSuggestedTipPercent >
+                                                    0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={
+                                                            applySuggestedTipPercent
+                                                        }
+                                                        className="rounded border border-amber-400 bg-white px-2 py-0.5 text-xs font-bold text-amber-800 dark:border-amber-600 dark:bg-slate-900 dark:text-amber-200"
+                                                    >
+                                                        {
+                                                            branchSuggestedTipPercent
+                                                        }
+                                                        %
+                                                    </button>
+                                                )}
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setTipSectionOpen(false)
+                                                }
+                                                className="rounded border border-amber-300 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800 dark:border-amber-700 dark:text-amber-300"
+                                                title="Ocultar propina"
+                                            >
+                                                Ocultar
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <select
+                                        value={tipWaiterId}
+                                        onChange={(e) =>
+                                            setTipWaiterId(e.target.value)
+                                        }
+                                        className="mb-2 w-full rounded-md border border-amber-400/70 bg-white px-2 py-2 text-sm dark:border-amber-700 dark:bg-slate-900 dark:text-slate-100"
+                                    >
+                                        <option value="">
+                                            Mozo beneficiario…
+                                        </option>
+                                        {availableWaiters.map((u: any) => (
+                                            <option key={u.id} value={u.id}>
+                                                {[u.firstName, u.lastName]
+                                                    .filter(Boolean)
+                                                    .join(" ") || u.dni}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {tipLines.map((line) => (
+                                        <div key={line.id} className="mb-2">
+                                            <div className="flex gap-2">
+                                                <select
+                                                    value={line.method}
+                                                    onChange={(e) =>
+                                                        updateTipLine(
+                                                            line.id,
+                                                            "method",
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    className="flex-1 rounded-md border border-amber-400/70 bg-white px-2 py-2 text-sm dark:border-amber-700 dark:bg-slate-900 dark:text-slate-100"
+                                                >
+                                                    {PAYMENT_METHODS.filter(
+                                                        (m) =>
+                                                            m.value !==
+                                                            "CREDITO",
+                                                    ).map(
+                                                        ({ value, label }) => (
+                                                            <option
+                                                                key={value}
+                                                                value={value}
+                                                            >
+                                                                {label}
+                                                            </option>
+                                                        ),
+                                                    )}
+                                                </select>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min={0}
+                                                    placeholder="0.00"
+                                                    value={
+                                                        line.amount === 0
+                                                            ? ""
+                                                            : line.amount
+                                                    }
+                                                    onChange={(e) =>
+                                                        updateTipLine(
+                                                            line.id,
+                                                            "amount",
+                                                            Number(
+                                                                e.target.value,
+                                                            ),
+                                                        )
+                                                    }
+                                                    className="w-28 rounded-md border border-amber-400/70 bg-white px-2 py-2 text-right text-sm font-bold text-slate-800 dark:border-amber-700 dark:bg-slate-900 dark:text-slate-100"
+                                                />
+                                            </div>
+                                            {paymentMethodSendsReference(
+                                                line.method,
+                                            ) && (
+                                                <input
+                                                    type="text"
+                                                    placeholder="Nº operación Yape/Plin"
+                                                    value={line.referenceNumber}
+                                                    onChange={(e) =>
+                                                        updateTipLine(
+                                                            line.id,
+                                                            "referenceNumber",
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    className="mt-1 w-full rounded-md border border-amber-400/70 bg-white px-2 py-1 text-sm dark:border-amber-700 dark:bg-slate-900 dark:text-slate-100"
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
+                                    {tipTotal > 0 && (
+                                        <div
+                                            className="text-amber-900 dark:text-amber-200"
+                                            style={{
+                                                fontSize: "0.7rem",
+                                                fontWeight: 700,
+                                            }}
+                                        >
+                                            Propina:{" "}
+                                            {currencyFormatter.format(tipTotal)}{" "}
+                                            (no incluida en el comprobante)
+                                        </div>
+                                    )}
                                 </div>
-                            )}
                         </div>
                     )}
                     <div
