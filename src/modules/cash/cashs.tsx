@@ -390,7 +390,7 @@ const Cashs: React.FC = () => {
         registersData?.cashRegistersByBranch || [];
     const preview: CashPreview | null = previewData?.cashClosurePreview || null;
     const history: CashClosure[] = useMemo(() => {
-        const raw =
+        const raw: CashClosure[] =
             historyData?.cashClosures || historyData?.cash_closures || [];
         if (!selectedRegister?.id) return [];
         const registerId = String(selectedRegister.id);
