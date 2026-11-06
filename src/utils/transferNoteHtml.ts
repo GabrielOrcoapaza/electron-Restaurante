@@ -15,6 +15,13 @@ export type TransferNoteItemRow = {
     quantity: number;
     /** Estado / observaciones de la fila (ej.: "Enviada"). */
     status: string;
+    /** Cantidad originalmente enviada. Junto con `quantityAccepted`, permite
+     *  desglosar en el PDF lo aceptado vs. lo rechazado cuando difieren
+     *  (recepción parcial). Se omiten para variantes sin ese concepto (INTERNAL). */
+    quantitySent?: number;
+    /** Cantidad realmente aceptada al recibir. Solo se pinta el desglose
+     *  cuando es distinta de `quantitySent`. */
+    quantityAccepted?: number | null;
 };
 
 export type TransferNoteBranchSide = {
@@ -176,16 +183,25 @@ export function buildTransferNoteHtml(d: TransferNoteData): string {
         d.items.length === 0
             ? `<tr><td colspan="5" class="empty">Sin productos en esta nota</td></tr>`
             : d.items
-                  .map(
-                      (item) => `
+                  .map((item) => {
+                      const hasBreakdown =
+                          typeof item.quantitySent === "number" &&
+                          typeof item.quantityAccepted === "number" &&
+                          item.quantityAccepted !== item.quantitySent;
+                      const quantityCell = hasBreakdown
+                          ? `<div class="qty-main">${esc(formatQuantity(item.quantitySent!))}</div>
+                             <div class="qty-breakdown qty-ok">Aceptado: ${esc(formatQuantity(item.quantityAccepted!))}</div>
+                             <div class="qty-breakdown qty-bad">Rechazado: ${esc(formatQuantity(item.quantitySent! - item.quantityAccepted!))}</div>`
+                          : esc(formatQuantity(item.quantity));
+                      return `
                 <tr>
                     <td>${esc(item.code) || "—"}</td>
                     <td>${esc(item.description)}</td>
                     <td class="center">${esc(item.unit) || "—"}</td>
-                    <td class="num">${esc(formatQuantity(item.quantity))}</td>
+                    <td class="num">${quantityCell}</td>
                     <td>${esc(item.status)}</td>
-                </tr>`,
-                  )
+                </tr>`;
+                  })
                   .join("");
 
     return `<!doctype html>
@@ -282,6 +298,10 @@ export function buildTransferNoteHtml(d: TransferNoteData): string {
     table.items .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
     table.items .center { text-align: center; }
     table.items .empty { text-align: center; color: #94a3b8; padding: 14px; }
+    table.items .qty-main { font-weight: 700; }
+    table.items .qty-breakdown { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
+    table.items .qty-breakdown.qty-ok { color: #059669; }
+    table.items .qty-breakdown.qty-bad { color: #dc2626; }
 
     .notes-box {
         border: 1px solid #cbd5e1;

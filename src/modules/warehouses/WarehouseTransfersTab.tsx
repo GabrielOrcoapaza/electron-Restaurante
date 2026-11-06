@@ -160,14 +160,25 @@ const formatQty = (value: unknown) => {
     });
 };
 
-/** Estado del ítem tal como se imprime en el PDF de la nota. */
+/** Estado del ítem tal como se imprime en el PDF de la nota. Si se recibió
+ *  una cantidad distinta a la enviada, lo marca como "parcial" (el desglose
+ *  numérico completo va en la celda de cantidad). */
 const itemStatusLabel = (
     status: Transfer["status"],
     notesCancelled?: string | null,
+    quantitySent?: number,
+    quantityReceived?: number | null,
 ) => {
+    const isPartial =
+        status === "RECEIVED" &&
+        typeof quantitySent === "number" &&
+        typeof quantityReceived === "number" &&
+        quantityReceived !== quantitySent;
     const base =
         status === "RECEIVED"
-            ? "Recibida"
+            ? isPartial
+                ? "Recibida parcial"
+                : "Recibida"
             : status === "CANCELLED"
               ? "Cancelada"
               : "Enviada";
@@ -363,7 +374,17 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
                 description: t.fromProduct?.name || "",
                 unit: t.fromProduct?.unitMeasure || "",
                 quantity: Number(t.quantitySent) || 0,
-                status: itemStatusLabel(t.status, t.notesCancelled),
+                status: itemStatusLabel(
+                    t.status,
+                    t.notesCancelled,
+                    Number(t.quantitySent) || 0,
+                    t.status === "RECEIVED" ? Number(t.quantityReceived ?? t.quantitySent) : undefined,
+                ),
+                quantitySent: Number(t.quantitySent) || 0,
+                quantityAccepted:
+                    t.status === "RECEIVED"
+                        ? Number(t.quantityReceived ?? t.quantitySent) || 0
+                        : undefined,
             })),
             notes: note.notes || "",
         };
@@ -416,7 +437,17 @@ const WarehouseTransfersTab: React.FC<{ branchId: string }> = ({
                     t.fromProduct?.unitMeasure ||
                     "",
                 quantity: Number(t.quantityReceived ?? t.quantitySent) || 0,
-                status: itemStatusLabel(t.status, t.notesCancelled),
+                status: itemStatusLabel(
+                    t.status,
+                    t.notesCancelled,
+                    Number(t.quantitySent) || 0,
+                    t.status === "RECEIVED" ? Number(t.quantityReceived ?? t.quantitySent) : undefined,
+                ),
+                quantitySent: Number(t.quantitySent) || 0,
+                quantityAccepted:
+                    t.status === "RECEIVED"
+                        ? Number(t.quantityReceived ?? t.quantitySent) || 0
+                        : undefined,
             })),
             notes: note.notes || "",
         };
