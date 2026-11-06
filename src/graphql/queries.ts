@@ -1854,6 +1854,11 @@ export const GET_CLIENT_SALES_REPORT = gql`
                 paymentMethods
                 totalAmount
                 billingStatus
+                isCreditSale
+                isOutsideSelectedPeriod
+                creditPaymentId
+                editablePaymentMethod
+                canEditPaymentMethod
             }
             summary {
                 totalDocuments

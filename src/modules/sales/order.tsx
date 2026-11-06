@@ -760,11 +760,15 @@ const Order: React.FC<OrderProps> = ({
         productsLoading = false;
     }
 
+    const isSearching = searchByCodeOnly
+        ? searchTerm.trim().length >= 1
+        : searchTerm.trim().length >= 3;
+
     // Misma regla que en búsqueda: catálogo vendible activo
     let productsList = (products || []).filter(isOrderSearchProduct);
-    // Filtrar por subcategoría solo cuando se navega por categorías (NO cuando se busca por código)
+    // Filtrar por subcategoría solo al navegar el grid (no en búsqueda por texto/código)
     if (
-        !(searchByCodeOnly && searchTerm.trim().length >= 1) &&
+        !isSearching &&
         selectedCategory &&
         selectedSubcategory &&
         productsList.length > 0
@@ -777,9 +781,6 @@ const Order: React.FC<OrderProps> = ({
     // Subcategorías ya vienen de GET_SUBCATEGORIES_BY_CATEGORY (subcategoriesOfCategory arriba)
 
     // Navegación como en delivery: mostrar categorías, subcategorías o productos en el grid
-    const isSearching = searchByCodeOnly
-        ? searchTerm.trim().length >= 1
-        : searchTerm.length >= 3;
     const showPlatosInGrid = showPlatosPanel && !isSearching;
     const showCategoriesInGrid =
         !isSearching && !selectedCategory && !showPlatosPanel;

@@ -168,6 +168,17 @@ const isSaleMovement = (movement: PaymentMovement): boolean => {
     return Boolean(movement.operation?.id || movement.issuedDocument?.id);
 };
 
+/** Venta fiada: crédito aún no cobrado en caja (no va a ingresos de ventas del día). */
+const isPendingCreditSale = (movement: PaymentMovement): boolean => {
+    if (isPaymentCancelled(movement.status)) return false;
+    if (movement.transactionType !== "INCOME") return false;
+    if (isTipMovement(movement)) return false;
+    if (!isSaleMovement(movement)) return false;
+    const method = (movement.paymentMethod || "").toUpperCase();
+    const st = (movement.status || "").toUpperCase();
+    return method === "CREDITO" && st === "PENDING";
+};
+
 const toPaymentAmount = (value: unknown): number => {
     const amount = Number(value);
     return Number.isFinite(amount) ? amount : 0;
@@ -322,6 +333,7 @@ const Cashs: React.FC = () => {
 
     const movementTotals = useMemo(() => {
         let salesIncome = 0;
+        let pendingCreditSalesIncome = 0;
         let tipsIncome = 0;
         let manualIncome = 0;
         let totalExpense = 0;
@@ -334,7 +346,11 @@ const Cashs: React.FC = () => {
                 if (isTipMovement(movement)) {
                     tipsIncome += amount;
                 } else if (isSaleMovement(movement)) {
-                    salesIncome += amount;
+                    if (isPendingCreditSale(movement)) {
+                        pendingCreditSalesIncome += amount;
+                    } else {
+                        salesIncome += amount;
+                    }
                 } else {
                     manualIncome += amount;
                 }
@@ -345,6 +361,7 @@ const Cashs: React.FC = () => {
 
         return {
             salesIncome,
+            pendingCreditSalesIncome,
             tipsIncome,
             manualIncome,
             totalExpense,
@@ -378,6 +395,8 @@ const Cashs: React.FC = () => {
             } else if (movement.transactionType === "INCOME") {
                 if (isTipMovement(movement)) {
                     bucket.tips += amount;
+                } else if (isPendingCreditSale(movement)) {
+                    /* Crédito pendiente: no suma a ingresos de caja por método */
                 } else {
                     bucket.salesIncome += amount;
                 }
@@ -1201,9 +1220,13 @@ const Cashs: React.FC = () => {
                                         {canViewCashSummary && (
                                         <div
                                             className={`grid grid-cols-1 gap-6 sm:grid-cols-2 ${
-                                                movementTotals.tipsIncome > 0.001
-                                                    ? "lg:grid-cols-5"
-                                                    : "lg:grid-cols-4"
+                                                movementTotals.tipsIncome > 0.001 &&
+                                                movementTotals.pendingCreditSalesIncome > 0.001
+                                                    ? "lg:grid-cols-6"
+                                                    : movementTotals.tipsIncome > 0.001 ||
+                                                        movementTotals.pendingCreditSalesIncome > 0.001
+                                                      ? "lg:grid-cols-5"
+                                                      : "lg:grid-cols-4"
                                             }`}
                                         >
                                             {/* Ingresos por ventas */}
@@ -1237,6 +1260,41 @@ const Cashs: React.FC = () => {
                                                     )}
                                                 </span>
                                             </div>
+
+                                            {movementTotals.pendingCreditSalesIncome >
+                                                0.001 && (
+                                                <div className="flex flex-col gap-3 rounded-3xl border border-yellow-200 bg-yellow-50/70 p-6 dark:border-yellow-800/50 dark:bg-yellow-950/25">
+                                                    <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-300">
+                                                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-slate-800">
+                                                            <svg
+                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                className="h-4 w-4"
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth={2.5}
+                                                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                                />
+                                                            </svg>
+                                                        </div>
+                                                        <span className="text-[10px] font-black uppercase tracking-widest">
+                                                            Crédito pendiente
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-2xl font-black text-yellow-900 dark:text-yellow-200">
+                                                        {currencyFormatter.format(
+                                                            movementTotals.pendingCreditSalesIncome,
+                                                        )}
+                                                    </span>
+                                                    <p className="text-[10px] font-semibold leading-snug text-yellow-800/90 dark:text-yellow-400/90">
+                                                        Fiado registrado; no entra al efectivo de esta caja hasta cobrarlo.
+                                                    </p>
+                                                </div>
+                                            )}
 
                                             {movementTotals.tipsIncome > 0.001 && (
                                                 <div className="flex flex-col gap-3 rounded-3xl bg-amber-50/50 p-6 dark:bg-amber-900/10">

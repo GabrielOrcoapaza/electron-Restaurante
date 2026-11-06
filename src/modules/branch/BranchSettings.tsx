@@ -482,6 +482,7 @@ const BranchSettings: React.FC = () => {
                         />
                         <ToggleField
                             label="Permitir reparto entre mozos"
+                            description="Permite dividir la propina entre varios mozos cuando varios atienden la mesa u operación."
                             checked={form.tipAllowSplit}
                             onChange={(v) => handleToggle("tipAllowSplit", v)}
                         />
@@ -542,11 +543,13 @@ const BranchSettings: React.FC = () => {
                     <div className="grid gap-3 sm:grid-cols-2">
                         <ToggleField
                             label="Delivery / para llevar"
+                            description="Habilita pedidos para llevar o delivery en esta sede (si tu flujo de ventas lo usa)."
                             checked={form.isDelivery}
                             onChange={(v) => handleToggle("isDelivery", v)}
                         />
                         <ToggleField
                             label="Impresión en cocina"
+                            description="Envía comandas a la impresora de cocina cuando se confirman pedidos."
                             checked={form.isKitchenPrint}
                             onChange={(v) =>
                                 handleToggle("isKitchenPrint", v)
@@ -554,6 +557,7 @@ const BranchSettings: React.FC = () => {
                         />
                         <ToggleField
                             label="Pantalla de cocina"
+                            description="Muestra las órdenes pendientes en la pantalla de cocina (KDS) para preparación."
                             checked={form.isKitchenDisplay}
                             onChange={(v) =>
                                 handleToggle("isKitchenDisplay", v)
@@ -561,6 +565,7 @@ const BranchSettings: React.FC = () => {
                         />
                         <ToggleField
                             label="Imprimir anulaciones"
+                            description="Genera un ticket en cocina u otro punto cuando se anula un ítem o pedido."
                             checked={form.printCancellations}
                             onChange={(v) =>
                                 handleToggle("printCancellations", v)
@@ -568,6 +573,7 @@ const BranchSettings: React.FC = () => {
                         />
                         <ToggleField
                             label="Modo comanda por ítem"
+                            description="Envía cada producto como línea de comanda independiente en lugar de agrupar cantidades."
                             checked={form.isCommandItemMode}
                             onChange={(v) =>
                                 handleToggle("isCommandItemMode", v)
@@ -575,6 +581,7 @@ const BranchSettings: React.FC = () => {
                         />
                         <ToggleField
                             label="Requiere contraseña de mozo"
+                            description="Pide la clave del mozo para acciones sensibles (según cómo esté configurado el sistema)."
                             checked={form.requireWaiterPassword}
                             onChange={(v) =>
                                 handleToggle("requireWaiterPassword", v)
@@ -582,6 +589,7 @@ const BranchSettings: React.FC = () => {
                         />
                         <ToggleField
                             label="Múltiples mozos por mesa"
+                            description="Permite que más de un mozo registre consumo en la misma mesa al mismo tiempo."
                             checked={form.isMultiWaiterEnabled}
                             onChange={(v) =>
                                 handleToggle("isMultiWaiterEnabled", v)
@@ -589,6 +597,7 @@ const BranchSettings: React.FC = () => {
                         />
                         <ToggleField
                             label="Desagrupar productos repetidos"
+                            description="Si se pide dos veces el mismo producto, muestra líneas separadas en lugar de sumar cantidad en una sola."
                             checked={form.separateRepeatedItems}
                             onChange={(v) =>
                                 handleToggle("separateRepeatedItems", v)
@@ -596,6 +605,7 @@ const BranchSettings: React.FC = () => {
                         />
                         <ToggleField
                             label="Permitir cerrar caja con mesas ocupadas"
+                            description="Autoriza el cierre de caja aunque sigan mesas abiertas u ocupadas."
                             checked={form.allowCloseWithOccupiedTables}
                             onChange={(v) =>
                                 handleToggle(
@@ -606,6 +616,7 @@ const BranchSettings: React.FC = () => {
                         />
                         <ToggleField
                             label="Permitir aperturas de caja"
+                            description="Permite registrar nuevas aperturas de caja (turnos) desde esta sede."
                             checked={form.allowCashOpenings}
                             onChange={(v) =>
                                 handleToggle("allowCashOpenings", v)
@@ -621,6 +632,7 @@ const BranchSettings: React.FC = () => {
                         />
                         <ToggleField
                             label="Sede activa"
+                            description="Si está desactivada, la sede no debería usarse para operar (solo administración o histórico)."
                             checked={form.isActive}
                             onChange={(v) => handleToggle("isActive", v)}
                         />

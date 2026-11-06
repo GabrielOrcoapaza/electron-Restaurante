@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { useQuery } from '@apollo/client';
+import { useMutation, useQuery } from '@apollo/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useUserPermissions } from '../../hooks/useUserPermissions';
 import { GET_CLIENT_SALES_REPORT } from '../../graphql/queries';
+import { UPDATE_PAYMENT_METHOD } from '../../graphql/mutations';
+import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethodLabels';
 import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
 import ReportExportExcelButton from '../../components/ReportExportExcelButton';
 import { useToast } from '../../context/ToastContext';
@@ -25,7 +28,25 @@ interface ClientSalesReportItem {
     paymentMethods?: string;
     totalAmount: number;
     billingStatus: string;
+    isCreditSale?: boolean;
+    isOutsideSelectedPeriod?: boolean;
+    creditPaymentId?: string | null;
+    editablePaymentMethod?: string | null;
+    canEditPaymentMethod?: boolean;
 }
+
+const REPORT_PAYMENT_METHOD_OPTIONS = [
+    'CASH',
+    'YAPE',
+    'PLIN',
+    'CARD',
+    'TRANSFER',
+    'RAPPI',
+    'PEDIDO_YA',
+    'LLAMA_FOOD',
+    'CREDITO',
+    'OTROS',
+] as const;
 
 interface ClientSalesReportSummary {
     totalDocuments: number;
@@ -50,11 +71,14 @@ function formatCorrelativo(serial: string, number: number): string {
 const ReportClientSales: React.FC = () => {
     const { companyData } = useAuth();
     const { showToast } = useToast();
+    const { hasPermission } = useUserPermissions();
     const branchId = companyData?.branch?.id;
+    const canChangePaymentMethod = hasPermission('cash.change_payment_method');
 
     const [startDate, setStartDate] = useState<string>(() => formatLocalDateYYYYMMDD());
     const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
     const [searchTerm, setSearchTerm] = useState<string>('');
+    const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
 
     const { data, loading, error, refetch } = useQuery(GET_CLIENT_SALES_REPORT, {
         variables: { branchId: branchId!, startDate, endDate },
@@ -65,14 +89,77 @@ const ReportClientSales: React.FC = () => {
     const documents: ClientSalesReportItem[] = data?.clientSalesReport?.documents ?? [];
     const summary: ClientSalesReportSummary | null = data?.clientSalesReport?.summary ?? null;
 
+    const [updatePaymentMethod] = useMutation(UPDATE_PAYMENT_METHOD);
+
+    const handleUpdatePaymentMethod = async (
+        paymentId: string,
+        newPaymentMethod: string,
+    ) => {
+        setUpdatingPaymentId(paymentId);
+        try {
+            const result = await updatePaymentMethod({
+                variables: { paymentId, newPaymentMethod },
+            });
+            if (result.data?.updatePaymentMethod?.success) {
+                showToast(
+                    result.data.updatePaymentMethod.message ??
+                        'Método de pago actualizado',
+                    'success',
+                );
+                await refetch();
+            } else {
+                showToast(
+                    result.data?.updatePaymentMethod?.message ??
+                        'No se pudo actualizar el método de pago',
+                    'error',
+                );
+            }
+        } catch (err: unknown) {
+            showToast(
+                err instanceof Error
+                    ? err.message
+                    : 'Error al actualizar el método de pago',
+                'error',
+            );
+        } finally {
+            setUpdatingPaymentId(null);
+        }
+    };
+
     const filteredDocuments = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
-        if (!term) return documents;
-        return documents.filter((doc) =>
-            doc.clientName.toLowerCase().includes(term) ||
-            (doc.clientDocumentNumber ?? '').toLowerCase().includes(term)
-        );
+        const list = term
+            ? documents.filter(
+                  (doc) =>
+                      doc.clientName.toLowerCase().includes(term) ||
+                      (doc.clientDocumentNumber ?? '')
+                          .toLowerCase()
+                          .includes(term),
+              )
+            : documents;
+        return [...list].sort((a, b) => {
+            if (Boolean(a.canEditPaymentMethod) !== Boolean(b.canEditPaymentMethod)) {
+                return a.canEditPaymentMethod ? -1 : 1;
+            }
+            if (Boolean(a.isCreditSale) !== Boolean(b.isCreditSale)) {
+                return a.isCreditSale ? -1 : 1;
+            }
+            if (Boolean(a.isOutsideSelectedPeriod) !== Boolean(b.isOutsideSelectedPeriod)) {
+                return a.isOutsideSelectedPeriod ? -1 : 1;
+            }
+            const dateA = `${a.emissionDate}T${a.emissionTime ?? '00:00'}`;
+            const dateB = `${b.emissionDate}T${b.emissionTime ?? '00:00'}`;
+            return dateB.localeCompare(dateA);
+        });
     }, [documents, searchTerm]);
+
+    const creditOutsidePeriodCount = useMemo(
+        () =>
+            documents.filter(
+                (doc) => doc.isCreditSale && doc.isOutsideSelectedPeriod,
+            ).length,
+        [documents],
+    );
 
     const handleExportExcel = async () => {
         if (!filteredDocuments.length) {
@@ -248,9 +335,23 @@ const ReportClientSales: React.FC = () => {
             {/* Results Table */}
             <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
                 <div className="flex flex-col gap-2 border-b border-slate-50 p-6 dark:border-slate-800/50 sm:flex-row sm:items-center sm:justify-between">
-                    <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">Detalle de Ventas por Cliente</h2>
+                    <div>
+                        <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                            Detalle de Ventas por Cliente
+                        </h2>
+                        <p className="mt-1 max-w-2xl text-[11px] font-bold leading-relaxed text-slate-500 dark:text-slate-400">
+                            Las ventas a crédito con cliente identificado se listan
+                            siempre en este detalle, aunque estén fuera del rango de
+                            fechas del filtro. Cuando el cliente pague, cambie el método
+                            de pago del movimiento (mismo permiso que en caja).
+                        </p>
+                    </div>
                     <span className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800">
-                        {filteredDocuments.length} {filteredDocuments.length === 1 ? 'documento' : 'documentos'}
+                        {filteredDocuments.length}{' '}
+                        {filteredDocuments.length === 1 ? 'documento' : 'documentos'}
+                        {creditOutsidePeriodCount > 0
+                            ? ` · ${creditOutsidePeriodCount} crédito fuera del periodo`
+                            : ''}
                     </span>
                 </div>
 
@@ -289,7 +390,14 @@ const ReportClientSales: React.FC = () => {
                                 </thead>
                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
                                     {filteredDocuments.map((doc) => (
-                                        <tr key={doc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
+                                        <tr
+                                            key={doc.id}
+                                            className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 ${
+                                                doc.isOutsideSelectedPeriod
+                                                    ? 'bg-amber-50/60 dark:bg-amber-950/20'
+                                                    : ''
+                                            }`}
+                                        >
                                             <td className="px-4 py-3 font-bold text-slate-500">
                                                 {doc.emissionDate} {doc.emissionTime?.slice(0, 5)}
                                             </td>
@@ -307,7 +415,71 @@ const ReportClientSales: React.FC = () => {
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 font-bold text-slate-600 dark:text-slate-300">
-                                                {doc.paymentMethods || '-'}
+                                                <div className="flex min-w-[140px] flex-col gap-1.5">
+                                                    {doc.canEditPaymentMethod &&
+                                                    doc.creditPaymentId &&
+                                                    canChangePaymentMethod ? (
+                                                        <select
+                                                            value={
+                                                                doc.editablePaymentMethod ??
+                                                                'CREDITO'
+                                                            }
+                                                            disabled={
+                                                                updatingPaymentId ===
+                                                                doc.creditPaymentId
+                                                            }
+                                                            onChange={(e) => {
+                                                                const next =
+                                                                    e.target.value;
+                                                                if (
+                                                                    next ===
+                                                                    doc.editablePaymentMethod
+                                                                ) {
+                                                                    return;
+                                                                }
+                                                                void handleUpdatePaymentMethod(
+                                                                    doc.creditPaymentId!,
+                                                                    next,
+                                                                );
+                                                            }}
+                                                            className="w-full max-w-[200px] rounded-lg border border-amber-300 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 disabled:opacity-60 dark:border-amber-700 dark:bg-slate-900 dark:text-slate-100"
+                                                        >
+                                                            {REPORT_PAYMENT_METHOD_OPTIONS.map(
+                                                                (code) => (
+                                                                    <option
+                                                                        key={code}
+                                                                        value={code}
+                                                                    >
+                                                                        {code ===
+                                                                        'CREDITO'
+                                                                            ? 'Crédito (pendiente)'
+                                                                            : PAYMENT_METHOD_LABELS[
+                                                                                  code
+                                                                              ] ??
+                                                                              code}
+                                                                    </option>
+                                                                ),
+                                                            )}
+                                                        </select>
+                                                    ) : (
+                                                        <span>
+                                                            {doc.paymentMethods || '-'}
+                                                        </span>
+                                                    )}
+                                                    {doc.isCreditSale &&
+                                                        !doc.canEditPaymentMethod && (
+                                                            <span className="text-[9px] font-bold text-slate-400">
+                                                                {canChangePaymentMethod
+                                                                    ? 'Crédito ya cerrado o no editable'
+                                                                    : 'Sin permiso para cambiar método'}
+                                                            </span>
+                                                        )}
+                                                    {doc.isOutsideSelectedPeriod && (
+                                                        <span className="text-[9px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                                                            Crédito · fuera del periodo
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-4 py-3 text-right font-black text-slate-800 dark:text-slate-100">
                                                 {currencyFormatter.format(doc.totalAmount)}

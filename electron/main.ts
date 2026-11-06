@@ -175,6 +175,7 @@ function setupMandatoryAutoUpdater(): void {
         notifyMandatoryUpdateStatus({
             phase: "notice",
             version: info.version,
+            currentVersion: app.getVersion(),
         });
     });
 
@@ -183,6 +184,7 @@ function setupMandatoryAutoUpdater(): void {
         notifyMandatoryUpdateStatus({
             phase: "downloading",
             version: mandatoryUpdateVersion,
+            currentVersion: app.getVersion(),
             percent: progress.percent,
             transferred: progress.transferred,
             total: progress.total,
@@ -194,6 +196,7 @@ function setupMandatoryAutoUpdater(): void {
         notifyMandatoryUpdateStatus({
             phase: "ready",
             version: info.version,
+            currentVersion: app.getVersion(),
         });
     });
 
@@ -214,18 +217,23 @@ function setupMandatoryAutoUpdater(): void {
             !mandatoryUpdateReady &&
             mandatoryUpdateDownloadStarted;
 
+        if (failedDuringMandatoryDownload) {
+            mandatoryUpdateDownloadStarted = false;
+            setMainWindowBlockedForUpdate(true);
+            notifyMandatoryUpdateStatus({
+                phase: "error",
+                message: errorMessage,
+                version: mandatoryUpdateVersion,
+                currentVersion: app.getVersion(),
+            });
+            return;
+        }
+
         mandatoryUpdateActive = false;
         mandatoryUpdateReady = false;
         mandatoryUpdateDownloadStarted = false;
         mandatoryUpdateVersion = null;
         setMainWindowBlockedForUpdate(false);
-
-        if (!failedDuringMandatoryDownload) return;
-
-        notifyMandatoryUpdateStatus({
-            phase: "error",
-            message: errorMessage,
-        });
     });
 
     ipcMain.removeHandler("mandatory-update-continue");
@@ -240,6 +248,7 @@ function setupMandatoryAutoUpdater(): void {
         notifyMandatoryUpdateStatus({
             phase: "downloading",
             version: mandatoryUpdateVersion,
+            currentVersion: app.getVersion(),
             percent: 0,
         });
         try {
@@ -248,9 +257,13 @@ function setupMandatoryAutoUpdater(): void {
         } catch (err: unknown) {
             mandatoryUpdateDownloadStarted = false;
             const errorMessage = String((err as Error)?.message || err);
+            mandatoryUpdateDownloadStarted = false;
+            setMainWindowBlockedForUpdate(true);
             notifyMandatoryUpdateStatus({
                 phase: "error",
                 message: errorMessage,
+                version: mandatoryUpdateVersion,
+                currentVersion: app.getVersion(),
             });
             return { ok: false, message: errorMessage };
         }
