@@ -1,6 +1,7 @@
 import React, {
     useState,
     useEffect,
+    useLayoutEffect,
     useRef,
     useMemo,
     useCallback,
@@ -281,6 +282,40 @@ function isOrderSearchProduct(p: {
     );
 }
 
+const CategoryScrollChevronLeft = () => (
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+    >
+        <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15 19l-7-7 7-7"
+        />
+    </svg>
+);
+
+const CategoryScrollChevronRight = () => (
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+    >
+        <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 5l7 7-7 7"
+        />
+    </svg>
+);
+
 const Order: React.FC<OrderProps> = ({
     table,
     onClose,
@@ -337,8 +372,6 @@ const Order: React.FC<OrderProps> = ({
     const keyboardCompact = viewportWidth < 1024 || isPosTouchScreen;
     const keyboardTight = viewportWidth < 480;
 
-    // Valores para grid y breadcrumb (como en delivery.tsx)
-    // Valores para grid y breadcrumb
     const gridMinCol = isXs
         ? "100px"
         : isSmall
@@ -360,35 +393,6 @@ const Order: React.FC<OrderProps> = ({
           : isMediumOrPos
             ? "0.8rem"
             : "1.25rem";
-    const breadcrumbFontSize = isXs
-        ? "0.7rem"
-        : isSmall
-          ? "0.75rem"
-          : isMediumOrPos
-            ? "0.875rem"
-            : "1rem";
-    /** Encabezado de navegación categorías: botones grandes para uso táctil en salón */
-    const breadcrumbBtnMinH = isXs ? 44 : isSmall ? 48 : 52;
-    const breadcrumbBtnFont = isXs
-        ? "0.8rem"
-        : isSmall
-          ? "0.85rem"
-          : "0.875rem";
-    const breadcrumbBtnPadX = isXs ? "0.75rem" : isSmall ? "1rem" : "1.25rem";
-    const breadcrumbBtnPadY = isXs
-        ? "0.5rem"
-        : isSmall
-          ? "0.625rem"
-          : "0.75rem";
-    const breadcrumbBtnRadius = isXs ? "8px" : isSmall ? "10px" : "12px";
-    /** Ancho máximo en migas de pan: más flexible para evitar recortes agresivos */
-    const breadcrumbLabelMaxWidth = isXs
-        ? "9rem"
-        : isSmall
-          ? "12rem"
-          : isMediumOrPos
-            ? "16rem"
-            : "22rem";
 
     const sessionLockViewerDisplay = useMemo(
         () =>
@@ -492,7 +496,6 @@ const Order: React.FC<OrderProps> = ({
     const [showComboModal, setShowComboModal] = useState(false);
     const [showSendWithoutPrintConfirm, setShowSendWithoutPrintConfirm] =
         useState(false);
-    const [showPlatosPanel, setShowPlatosPanel] = useState(false);
     const [pendingComboProduct, setPendingComboProduct] = useState<any>(null);
 
     const handleVirtualKeyPress = (key: string) => {
@@ -506,6 +509,14 @@ const Order: React.FC<OrderProps> = ({
     const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const lastTableIdRef = useRef<string | null>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const categoryScrollRef = useRef<HTMLDivElement>(null);
+
+    const scrollCategories = useCallback((direction: "left" | "right") => {
+        categoryScrollRef.current?.scrollBy({
+            left: direction === "left" ? -200 : 200,
+            behavior: "smooth",
+        });
+    }, []);
 
     // Mutación para crear la operación
     const [createOperationMutation] = useMutation(CREATE_OPERATION);
@@ -744,9 +755,6 @@ const Order: React.FC<OrderProps> = ({
         const raw = searchData?.searchProducts;
         products = Array.isArray(raw) ? raw.filter(isOrderSearchProduct) : raw;
         productsLoading = searchLoading;
-    } else if (showPlatosPanel) {
-        products = allBranchProducts;
-        productsLoading = productsByBranchLoading;
     } else if (selectedCategory) {
         if (subcategoriesLoading || awaitingSubcategoryPick) {
             products = [];
@@ -756,8 +764,8 @@ const Order: React.FC<OrderProps> = ({
             productsLoading = productsByCategoryLoading;
         }
     } else {
-        products = [];
-        productsLoading = false;
+        products = allBranchProducts;
+        productsLoading = productsByBranchLoading;
     }
 
     const isSearching = searchByCodeOnly
@@ -780,19 +788,9 @@ const Order: React.FC<OrderProps> = ({
 
     // Subcategorías ya vienen de GET_SUBCATEGORIES_BY_CATEGORY (subcategoriesOfCategory arriba)
 
-    // Navegación como en delivery: mostrar categorías, subcategorías o productos en el grid
-    const showPlatosInGrid = showPlatosPanel && !isSearching;
-    const showCategoriesInGrid =
-        !isSearching && !selectedCategory && !showPlatosPanel;
-    const showSubcategoriesInGrid =
-        !isSearching &&
-        !showPlatosPanel &&
-        selectedCategory &&
-        !selectedSubcategory &&
-        (subcategoriesLoading || subcategoriesOfCategory.length > 0);
     const showProductsInGrid =
-        showPlatosPanel ||
         isSearching ||
+        !selectedCategory ||
         (selectedCategory &&
             !subcategoriesLoading &&
             !awaitingSubcategoryPick &&
@@ -819,17 +817,18 @@ const Order: React.FC<OrderProps> = ({
             return { discount: 0, promotionName: null };
         }
     };
-    /** Una sola sub activa → pasar directo a productos filtrados por esa sub */
-    useEffect(() => {
+    /** Al elegir categoría con subs, seleccionar la primera automáticamente (como delivery) */
+    useLayoutEffect(() => {
         if (!selectedCategory || subcategoriesLoading) return;
         const subs = (subcategoriesData?.subcategoriesByCategory || []).filter(
             (s: any) => s.isActive !== false,
         );
-        if (subs.length === 1) {
+        if (subs.length > 0 && !selectedSubcategory) {
             setSelectedSubcategory(String(subs[0].id));
         }
     }, [
         selectedCategory,
+        selectedSubcategory,
         subcategoriesLoading,
         subcategoriesData?.subcategoriesByCategory,
     ]);
@@ -1479,18 +1478,6 @@ const Order: React.FC<OrderProps> = ({
         commitOrderItems([...orderItems, newItem]);
         setShowComboModal(false);
         setPendingComboProduct(null);
-    };
-
-    const togglePlatosPanel = () => {
-        setShowPlatosPanel((active) => {
-            const next = !active;
-            if (next) {
-                setSearchTerm("");
-                setSelectedCategory(null);
-                setSelectedSubcategory(null);
-            }
-            return next;
-        });
     };
 
     // Función para abrir el modal de observaciones (carga las observaciones si es necesario)
@@ -2563,31 +2550,6 @@ const Order: React.FC<OrderProps> = ({
                                     >
                                         Búsqueda solo código
                                     </button>
-                                    <button
-                                        type="button"
-                                        onClick={togglePlatosPanel}
-                                        className={`flex items-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-bold transition-all duration-200 ${
-                                            showPlatosPanel
-                                                ? "border-indigo-500 bg-indigo-500 text-white shadow-md shadow-indigo-500/20"
-                                                : "border-indigo-500 bg-white text-indigo-600 hover:bg-indigo-50 dark:border-indigo-500 dark:bg-slate-900 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
-                                        }`}
-                                    >
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            className="h-4 w-4"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                                            />
-                                        </svg>
-                                        Todo
-                                    </button>
                                     <div className="relative flex-1 min-w-0">
                                         <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg opacity-60">
                                             🔎
@@ -2622,7 +2584,7 @@ const Order: React.FC<OrderProps> = ({
                                 </div>
                             </div>
 
-                            {/* Contenedor con breadcrumb + grid (como delivery) */}
+                            {/* Catálogo: categorías / subcategorías en pills + grid de productos (como delivery) */}
                             <div
                                 className="border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
                                 style={{
@@ -2638,81 +2600,34 @@ const Order: React.FC<OrderProps> = ({
                                     overflow: "hidden",
                                 }}
                             >
-                                {/* Header: ruta como botones grandes (fácil de pulsar en salón) + Volver */}
-                                <div
-                                    className="border-b border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-900/70"
-                                    style={{
-                                        padding: isSmall ? "0.75rem" : "1rem",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "space-between",
-                                        gap: "0.75rem",
-                                        flexWrap: "nowrap",
-                                    }}
-                                >
-                                    <div
-                                        role="navigation"
-                                        aria-label="Ubicación en el menú"
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: isSmall ? "0.5rem" : "0.65rem",
-                                            flexWrap: "nowrap",
-                                            minWidth: 0,
-                                            flex: 1,
-                                            overflowX: "auto",
-                                            overflowY: "hidden",
-                                            whiteSpace: "nowrap",
-                                        }}
-                                    >
-                                        {isSearching ? (
-                                            <h3
-                                                className="text-slate-700 dark:text-slate-200"
+                                {isSearching ? (
+                                    <div className="shrink-0 border-b border-slate-100 px-3 py-2.5 dark:border-slate-800">
+                                        <h3 className="m-0 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                            Resultados de búsqueda
+                                        </h3>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="flex shrink-0 items-center gap-1 border-b border-slate-100 px-2 py-2.5 dark:border-slate-800">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    scrollCategories("left")
+                                                }
+                                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                            >
+                                                <CategoryScrollChevronLeft />
+                                            </button>
+                                            <div
+                                                ref={categoryScrollRef}
+                                                className="flex flex-1 gap-2 overflow-x-auto"
                                                 style={{
-                                                    fontSize:
-                                                        breadcrumbFontSize,
-                                                    fontWeight: "600",
-                                                    margin: 0,
+                                                    scrollbarWidth: "none",
                                                 }}
                                             >
-                                                Resultados de búsqueda
-                                            </h3>
-                                        ) : showPlatosPanel ? (
-                                            <h3
-                                                className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900/50 dark:bg-indigo-900/20 dark:text-indigo-300"
-                                                style={{
-                                                    fontSize:
-                                                        breadcrumbFontSize,
-                                                    fontWeight: 700,
-                                                    margin: 0,
-                                                    padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-                                                    borderWidth: "1.5px",
-                                                    borderRadius:
-                                                        breadcrumbBtnRadius,
-                                                }}
-                                            >
-                                                <svg
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    className="h-4 w-4"
-                                                    fill="none"
-                                                    viewBox="0 0 24 24"
-                                                    stroke="currentColor"
-                                                >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth={2}
-                                                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                                                    />
-                                                </svg>
-                                                Platos
-                                            </h3>
-                                        ) : (
-                                            <>
                                                 <button
                                                     type="button"
                                                     onClick={() => {
-                                                        setShowPlatosPanel(false);
                                                         setSelectedCategory(
                                                             null,
                                                         );
@@ -2720,227 +2635,82 @@ const Order: React.FC<OrderProps> = ({
                                                             null,
                                                         );
                                                     }}
-                                                    className={`inline-flex items-center gap-2 justify-center border text-center transition-all duration-150 ${
+                                                    className={`shrink-0 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-wide ${
                                                         !selectedCategory
-                                                            ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-200"
-                                                            : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
+                                                            ? "border-[#3b82f6] bg-[#3b82f6] text-white"
+                                                            : "border-slate-300 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
                                                     }`}
-                                                    style={{
-                                                        minHeight:
-                                                            breadcrumbBtnMinH,
-                                                        padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-                                                        borderWidth: "1.5px",
-                                                        borderRadius:
-                                                            breadcrumbBtnRadius,
-                                                        fontSize:
-                                                            breadcrumbBtnFont,
-                                                        fontWeight: 700,
-                                                        cursor: "pointer",
-                                                        whiteSpace: "nowrap",
-                                                        touchAction:
-                                                            "manipulation",
-                                                        lineHeight: 1.2,
-                                                    }}
                                                 >
-                                                    <CategoryIcon
-                                                        iconId="grid_view"
-                                                        type="category"
-                                                        size="1.1rem"
-                                                    />
-                                                    Categorías
+                                                    Todos
                                                 </button>
-                                                {selectedCategory && (
-                                                    <>
-                                                        <span
-                                                            className="text-slate-400 dark:text-slate-500"
-                                                            style={{
-                                                                fontSize:
-                                                                    breadcrumbBtnFont,
-                                                                fontWeight: 700,
-                                                                userSelect:
-                                                                    "none",
-                                                            }}
-                                                            aria-hidden
-                                                        >
-                                                            ›
-                                                        </span>
+                                                {categories.map((cat: any) => (
+                                                    <button
+                                                        key={cat.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedCategory(
+                                                                String(cat.id),
+                                                            );
+                                                            setSelectedSubcategory(
+                                                                null,
+                                                            );
+                                                        }}
+                                                        className={`shrink-0 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-wide ${
+                                                            String(
+                                                                selectedCategory,
+                                                            ) === String(cat.id)
+                                                                ? "border-[#3b82f6] bg-[#3b82f6] text-white"
+                                                                : "border-slate-300 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                                        }`}
+                                                    >
+                                                        {cat.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    scrollCategories("right")
+                                                }
+                                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                                            >
+                                                <CategoryScrollChevronRight />
+                                            </button>
+                                        </div>
+
+                                        {subcategoriesOfCategory.length > 1 && (
+                                            <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-100 px-3 py-2 dark:border-slate-800">
+                                                {subcategoriesOfCategory.map(
+                                                    (sub: any) => (
                                                         <button
+                                                            key={sub.id}
                                                             type="button"
-                                                            title={
-                                                                categories.find(
-                                                                    (c: any) =>
-                                                                        c.id ===
-                                                                        selectedCategory,
-                                                                )?.name ||
-                                                                undefined
-                                                            }
                                                             onClick={() =>
                                                                 setSelectedSubcategory(
-                                                                    null,
+                                                                    String(
+                                                                        sub.id,
+                                                                    ),
                                                                 )
                                                             }
-                                                            className={`inline-flex items-center gap-2 justify-center border text-center transition-all duration-150 ${
-                                                                !selectedSubcategory
-                                                                    ? "border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-200"
-                                                                    : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
-                                                            }`}
-                                                            style={{
-                                                                minHeight:
-                                                                    breadcrumbBtnMinH,
-                                                                padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-                                                                borderWidth:
-                                                                    "1.5px",
-                                                                borderRadius:
-                                                                    breadcrumbBtnRadius,
-                                                                fontSize:
-                                                                    breadcrumbBtnFont,
-                                                                fontWeight: 700,
-                                                                cursor: "pointer",
-                                                                whiteSpace:
-                                                                    "nowrap",
-                                                                maxWidth:
-                                                                    breadcrumbLabelMaxWidth,
-                                                                minWidth: 0,
-                                                                overflow:
-                                                                    "hidden",
-                                                                touchAction:
-                                                                    "manipulation",
-                                                                lineHeight: 1.2,
-                                                                textAlign:
-                                                                    "center",
-                                                                textOverflow:
-                                                                    "ellipsis",
-                                                            }}
-                                                        >
-                                                            <CategoryIcon
-                                                                iconId={
-                                                                    categories.find(
-                                                                        (
-                                                                            c: any,
-                                                                        ) =>
-                                                                            c.id ===
-                                                                            selectedCategory,
-                                                                    )?.icon
-                                                                }
-                                                                type="category"
-                                                                size="1.1rem"
-                                                            />
-                                                            {categories.find(
-                                                                (c: any) =>
-                                                                    c.id ===
-                                                                    selectedCategory,
-                                                            )?.name ||
-                                                                "Categoría"}
-                                                        </button>
-                                                    </>
-                                                )}
-                                                {selectedSubcategory && (
-                                                    <>
-                                                        <span
-                                                            className="text-slate-400 dark:text-slate-500"
-                                                            style={{
-                                                                fontSize:
-                                                                    breadcrumbBtnFont,
-                                                                fontWeight: 700,
-                                                                userSelect:
-                                                                    "none",
-                                                            }}
-                                                            aria-hidden
-                                                        >
-                                                            ›
-                                                        </span>
-                                                        <span
-                                                            title={
-                                                                subcategoriesOfCategory.find(
-                                                                    (s: any) =>
-                                                                        s.id ===
-                                                                        selectedSubcategory,
-                                                                )?.name ||
-                                                                undefined
-                                                            }
-                                                            className="inline-flex items-center gap-2 border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                                                            style={{
-                                                                minHeight:
-                                                                    breadcrumbBtnMinH,
-                                                                padding: `${breadcrumbBtnPadY} ${breadcrumbBtnPadX}`,
-                                                                borderWidth:
-                                                                    "1.5px",
-                                                                borderRadius:
-                                                                    breadcrumbBtnRadius,
-                                                                fontSize:
-                                                                    breadcrumbBtnFont,
-                                                                fontWeight: 700,
-                                                                whiteSpace:
-                                                                    "nowrap",
-                                                                maxWidth:
-                                                                    breadcrumbLabelMaxWidth,
-                                                                minWidth: 0,
-                                                                overflow:
-                                                                    "hidden",
-                                                                boxSizing:
-                                                                    "border-box",
-                                                                lineHeight: 1.2,
-                                                                textAlign:
-                                                                    "center",
-                                                                textOverflow:
-                                                                    "ellipsis",
-                                                            }}
-                                                        >
-                                                            <CategoryIcon
-                                                                iconId={
-                                                                    subcategoriesOfCategory.find(
-                                                                        (
-                                                                            s: any,
-                                                                        ) =>
-                                                                            s.id ===
-                                                                            selectedSubcategory,
-                                                                    )?.icon
-                                                                }
-                                                                type="subcategory"
-                                                                size="1.1rem"
-                                                            />
-                                                            {subcategoriesOfCategory.find(
-                                                                (s: any) =>
-                                                                    s.id ===
+                                                            className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase ${
+                                                                String(
                                                                     selectedSubcategory,
-                                                            )?.name ||
-                                                                "Subcategoría"}
-                                                        </span>
-                                                    </>
+                                                                ) ===
+                                                                String(sub.id)
+                                                                    ? "border-slate-600 bg-slate-700 text-white dark:border-slate-500 dark:bg-slate-600"
+                                                                    : "border-slate-200 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                                            }`}
+                                                        >
+                                                            {sub.name}
+                                                        </button>
+                                                    ),
                                                 )}
-                                            </>
+                                            </div>
                                         )}
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (showPlatosPanel) {
-                                                setShowPlatosPanel(false);
-                                                return;
-                                            }
-                                            if (selectedSubcategory) {
-                                                setSelectedSubcategory(null);
-                                                return;
-                                            }
-                                            if (selectedCategory) {
-                                                setSelectedCategory(null);
-                                                setSelectedSubcategory(null);
-                                            }
-                                        }}
-                                        disabled={
-                                            isSearching ||
-                                            (!showPlatosPanel &&
-                                                !selectedCategory &&
-                                                !selectedSubcategory)
-                                        }
-                                        className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition-all duration-150 hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-500 dark:hover:text-indigo-200"
-                                        style={{ flexShrink: 0 }}
-                                    >
-                                        Volver
-                                    </button>
-                                </div>
+                                    </>
+                                )}
 
-                                {/* Grid: categorías, subcategorías o productos */}
+                                {/* Grid de productos */}
                                 <div
                                     className="order-categories-grid-scroll"
                                     style={{
@@ -2951,18 +2721,19 @@ const Order: React.FC<OrderProps> = ({
                                         overflowX: "hidden",
                                     }}
                                 >
-                                    {productsLoading && showProductsInGrid ? (
+                                    {categoriesLoading ||
+                                    (productsLoading &&
+                                        showProductsInGrid) ? (
                                         <div
-                                            className="rounded-xl border border-slate-200 bg-white/80 px-4 py-8 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400"
-                                            style={{
-                                                fontSize: isSmall
-                                                    ? "0.8125rem"
-                                                    : "0.875rem",
-                                            }}
+                                            className="flex h-full min-h-[8rem] items-center justify-center px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400"
                                         >
-                                            {showPlatosInGrid
-                                                ? "Cargando platos..."
-                                                : "Cargando..."}
+                                            Cargando...
+                                        </div>
+                                    ) : awaitingSubcategoryPick ? (
+                                        <div
+                                            className="flex h-full min-h-[8rem] items-center justify-center px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-500"
+                                        >
+                                            Seleccione una subcategoría
                                         </div>
                                     ) : (
                                         <div
@@ -2972,100 +2743,6 @@ const Order: React.FC<OrderProps> = ({
                                                 gap: gridGap,
                                             }}
                                         >
-                                            {/* Categorías */}
-                                            {showCategoriesInGrid &&
-                                                (categoriesLoading ? (
-                                                    <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
-                                                        Cargando categorías...
-                                                    </div>
-                                                ) : (
-                                                    categories.map(
-                                                        (category: any) => (
-                                                            <div
-                                                                key={
-                                                                    category.id
-                                                                }
-                                                                onClick={() => {
-                                                                    setShowPlatosPanel(
-                                                                        false,
-                                                                    );
-                                                                    setSelectedCategory(
-                                                                        category.id,
-                                                                    );
-                                                                    setSelectedSubcategory(
-                                                                        null,
-                                                                    );
-                                                                }}
-                                                                className="group flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-slate-800"
-                                                            >
-                                                                <div className="mb-2 flex items-center justify-center">
-                                                                    <CategoryIcon
-                                                                        iconId={
-                                                                            category.icon
-                                                                        }
-                                                                        type="category"
-                                                                        size={
-                                                                            isXs
-                                                                                ? "1.25rem"
-                                                                                : isSmall
-                                                                                  ? "1.5rem"
-                                                                                  : "1.75rem"
-                                                                        }
-                                                                    />
-                                                                </div>
-                                                                <div className="text-xs font-bold leading-tight text-slate-800 dark:text-slate-100 md:text-sm">
-                                                                    {
-                                                                        category.name
-                                                                    }
-                                                                </div>
-                                                            </div>
-                                                        ),
-                                                    )
-                                                ))}
-
-                                            {/* Subcategorías */}
-                                            {showSubcategoriesInGrid &&
-                                                (subcategoriesLoading &&
-                                                subcategoriesOfCategory.length ===
-                                                    0 ? (
-                                                    <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
-                                                        Cargando
-                                                        subcategorías...
-                                                    </div>
-                                                ) : (
-                                                    subcategoriesOfCategory.map(
-                                                        (sub: any) => (
-                                                            <div
-                                                                key={sub.id}
-                                                                onClick={() =>
-                                                                    setSelectedSubcategory(
-                                                                        sub.id,
-                                                                    )
-                                                                }
-                                                                className="flex min-h-20 cursor-pointer flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-4 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/70 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10"
-                                                            >
-                                                                <div className="mb-1 flex items-center justify-center">
-                                                                    <CategoryIcon
-                                                                        iconId={
-                                                                            sub.icon
-                                                                        }
-                                                                        type="subcategory"
-                                                                        size={
-                                                                            isSmall
-                                                                                ? "1.1rem"
-                                                                                : "1.25rem"
-                                                                        }
-                                                                    />
-                                                                </div>
-                                                                <div className="text-xs font-semibold leading-tight text-slate-700 dark:text-slate-200">
-                                                                    {sub.name}
-                                                                </div>
-                                                            </div>
-                                                        ),
-                                                    )
-                                                ))}
-
-                                            {/* Productos */}
                                             {showProductsInGrid &&
                                                 (productsList.length === 0 ? (
                                                     <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">

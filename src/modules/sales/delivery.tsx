@@ -648,19 +648,9 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                 activePromotions.map((p) => p.id).join(","),
                 selectedCategory ?? "",
                 subcategoriesOfCategory.map((s: any) => s.id).join(","),
-                String(deliveryCost),
-                deliveryProductId ?? "",
             ].join("|"),
-        [
-            activePromotions,
-            selectedCategory,
-            subcategoriesOfCategory,
-            deliveryCost,
-            deliveryProductId,
-        ],
+        [activePromotions, selectedCategory, subcategoriesOfCategory],
     );
-
-    const lastPromotionRecalcKeyRef = useRef("");
 
     const commitCartItems = useCallback(
         (items: CartItem[]) => {
@@ -715,24 +705,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
     );
 
     useEffect(() => {
-        if (lastPromotionRecalcKeyRef.current === promotionRecalcKey) {
-            return;
-        }
-        lastPromotionRecalcKeyRef.current = promotionRecalcKey;
-
-        if (activePromotions.length === 0) {
-            setGiftMessage(null);
-            setCartItems((prev) => {
-                if (!prev.some((item) => item.id === GIFT_ITEM_ID)) {
-                    return prev;
-                }
-                return prev.filter((item) => item.id !== GIFT_ITEM_ID);
-            });
-            return;
-        }
-
         setCartItems((prev) => {
-            if (prev.length === 0) return prev;
             const withDelivery = mergeDeliveryServiceItem(
                 prev.filter(
                     (i) =>
@@ -741,6 +714,17 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                 deliveryCost,
                 deliveryProductId,
             );
+
+            if (activePromotions.length === 0) {
+                if (
+                    cartItemsPromoSnapshot(prev) ===
+                    cartItemsPromoSnapshot(withDelivery)
+                ) {
+                    return prev;
+                }
+                return withDelivery;
+            }
+
             const { items, giftMessage: nextGiftMessage } =
                 applyPromotionsToDeliveryCart(
                     withDelivery,
@@ -757,6 +741,9 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
             }
             return items;
         });
+        if (activePromotions.length === 0) {
+            setGiftMessage(null);
+        }
     }, [
         promotionRecalcKey,
         activePromotions,
@@ -2676,6 +2663,12 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                                     className="w-full border-none bg-transparent text-xs font-bold text-slate-800 outline-none dark:text-slate-100"
                                 />
                             </div>
+                            {deliveryCost > 0 && !deliveryProductId && (
+                                <p className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                    Preparando servicio de delivery… el costo
+                                    se agregará al carrito en un momento.
+                                </p>
+                            )}
                         </div>
                     </div>
                     {/* Observación de la venta (opcional) */}

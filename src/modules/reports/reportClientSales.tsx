@@ -103,7 +103,7 @@ const ReportClientSales: React.FC = () => {
             if (result.data?.updatePaymentMethod?.success) {
                 showToast(
                     result.data.updatePaymentMethod.message ??
-                        'Método de pago actualizado',
+                        'Cobro registrado correctamente',
                     'success',
                 );
                 await refetch();

@@ -824,7 +824,11 @@ const Cashs: React.FC = () => {
                 variables: { paymentId, newPaymentMethod: method },
             });
             if (result.data?.updatePaymentMethod?.success) {
-                showToast("Método de pago actualizado", "success");
+                showToast(
+                    result.data?.updatePaymentMethod?.message ||
+                        "Método de pago actualizado",
+                    "success",
+                );
                 refetchMovements();
                 refetchPreview();
             } else {

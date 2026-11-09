@@ -2126,7 +2126,7 @@ export const CANCEL_PAYMENT = gql`
     }
 `;
 
-/** Cambia solo el método de pago (CASH, YAPE, …) en un movimiento pendiente de cierre. Requiere cash.change_payment_method en backend. */
+/** Cambia método de pago o cobra crédito pendiente (crea movimiento nuevo en backend). Requiere cash.change_payment_method. */
 export const UPDATE_PAYMENT_METHOD = gql`
     mutation UpdatePaymentMethod($paymentId: ID!, $newPaymentMethod: String!) {
         updatePaymentMethod(
