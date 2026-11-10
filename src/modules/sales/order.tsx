@@ -48,7 +48,6 @@ import {
     GET_ACTIVE_PROMOTIONS,
 } from "../../graphql/queries";
 import ModalObservation from "./modalObservation";
-import CategoryIcon from "../../components/CategoryIcon";
 import { ComboSelectorModal } from "../../components/ComboSelectorModal";
 import ConfirmModal from "../../components/ConfirmModal";
 import VirtualKeyboard from "../../components/VirtualKeyboard";
