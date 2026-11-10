@@ -187,7 +187,10 @@ async function beginMandatoryDownload(): Promise<void> {
 
 function attachMandatoryUpdateCloseGuard(mainWindow: BrowserWindow): void {
     mainWindow.on("close", (event) => {
-        if (mandatoryUpdateActive) {
+        // Una vez lista ("ready") hay que permitir el cierre: quitAndInstall()
+        // cierra la ventana antes de relanzar el instalador, y bloquearlo aquí
+        // dejaba la app colgada para siempre en el overlay de actualización.
+        if (mandatoryUpdateActive && !mandatoryUpdateReady) {
             event.preventDefault();
         }
     });
