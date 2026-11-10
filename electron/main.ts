@@ -140,8 +140,45 @@ let mandatoryUpdateActive = false;
 let mandatoryUpdateReady = false;
 let mandatoryUpdateDownloadStarted = false;
 let mandatoryUpdateVersion: string | null = null;
+/** Permite cerrar el proceso para que NSIS/electron-updater complete la instalación. */
+let mandatoryUpdateInstalling = false;
+let mandatoryUpdateCheckScheduled = false;
 /** Último estado enviado al renderer (reintento si el IPC llegó antes de que React montara). */
 let mandatoryUpdateLastStatus: Record<string, unknown> | null = null;
+
+function parseVersionParts(version: string): number[] {
+    return version
+        .replace(/^v/i, "")
+        .split(/[.-]/)
+        .map((part) => {
+            const n = parseInt(part.replace(/\D/g, ""), 10);
+            return Number.isFinite(n) ? n : 0;
+        });
+}
+
+/** True si `remote` es estrictamente mayor que `current` (evita bucles si GitHub devuelve la misma versión). */
+function isRemoteVersionNewer(remote: string, current: string): boolean {
+    const r = parseVersionParts(remote);
+    const c = parseVersionParts(current);
+    const len = Math.max(r.length, c.length);
+    for (let i = 0; i < len; i++) {
+        const rv = r[i] ?? 0;
+        const cv = c[i] ?? 0;
+        if (rv > cv) return true;
+        if (rv < cv) return false;
+    }
+    return false;
+}
+
+function scheduleMandatoryUpdateCheck(): void {
+    if (isDev || mandatoryUpdateCheckScheduled) return;
+    mandatoryUpdateCheckScheduled = true;
+    setTimeout(() => {
+        void autoUpdater.checkForUpdates().catch((err) => {
+            log.warn("checkForUpdates falló:", err);
+        });
+    }, 2000);
+}
 
 function notifyMandatoryUpdateStatus(payload: Record<string, unknown>): void {
     if (payload.phase === "idle") {
@@ -187,10 +224,7 @@ async function beginMandatoryDownload(): Promise<void> {
 
 function attachMandatoryUpdateCloseGuard(mainWindow: BrowserWindow): void {
     mainWindow.on("close", (event) => {
-        // Una vez lista ("ready") hay que permitir el cierre: quitAndInstall()
-        // cierra la ventana antes de relanzar el instalador, y bloquearlo aquí
-        // dejaba la app colgada para siempre en el overlay de actualización.
-        if (mandatoryUpdateActive && !mandatoryUpdateReady) {
+        if (mandatoryUpdateActive && !mandatoryUpdateInstalling) {
             event.preventDefault();
         }
     });
@@ -202,14 +236,30 @@ function setupMandatoryAutoUpdater(): void {
     autoUpdater.autoRunAppAfterInstall = true;
 
     autoUpdater.on("update-available", (info) => {
+        const currentVersion = app.getVersion();
+        const remoteVersion = info.version ?? "";
+        if (!remoteVersion || !isRemoteVersionNewer(remoteVersion, currentVersion)) {
+            log.info(
+                "[autoUpdater] update-available ignorado (remota no es mayor):",
+                { remoteVersion, currentVersion },
+            );
+            mandatoryUpdateActive = false;
+            mandatoryUpdateReady = false;
+            mandatoryUpdateDownloadStarted = false;
+            mandatoryUpdateVersion = null;
+            notifyMandatoryUpdateStatus({ phase: "idle" });
+            return;
+        }
+
         mandatoryUpdateActive = true;
         mandatoryUpdateReady = false;
         mandatoryUpdateDownloadStarted = false;
-        mandatoryUpdateVersion = info.version ?? null;
+        mandatoryUpdateInstalling = false;
+        mandatoryUpdateVersion = remoteVersion;
         notifyMandatoryUpdateStatus({
             phase: "notice",
-            version: info.version,
-            currentVersion: app.getVersion(),
+            version: remoteVersion,
+            currentVersion,
         });
         void beginMandatoryDownload();
     });
@@ -288,7 +338,10 @@ function setupMandatoryAutoUpdater(): void {
         if (!mandatoryUpdateReady) {
             return { ok: false, message: "La actualización aún no está lista." };
         }
-        autoUpdater.quitAndInstall(false, true);
+        mandatoryUpdateInstalling = true;
+        setImmediate(() => {
+            autoUpdater.quitAndInstall(false, true);
+        });
         return { ok: true };
     });
 
@@ -478,9 +531,7 @@ function createWindow() {
 
     mainWindow.webContents.on("did-finish-load", () => {
         flushMandatoryUpdateStatusToRenderer();
-        if (!isDev) {
-            void autoUpdater.checkForUpdates();
-        }
+        scheduleMandatoryUpdateCheck();
     });
 
     mainWindow.on("closed", () => {
