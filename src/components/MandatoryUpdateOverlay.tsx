@@ -36,7 +36,11 @@ function getIpcRenderer():
           ) => void;
           invoke: (
               channel: string,
-          ) => Promise<{ ok?: boolean; message?: string }>;
+          ) => Promise<
+              | { ok?: boolean; message?: string }
+              | MandatoryUpdatePayload
+              | null
+          >;
       }
     | undefined {
     if (!isElectronRenderer()) return undefined;
@@ -60,49 +64,66 @@ const MandatoryUpdateOverlay = () => {
     const [busy, setBusy] = useState(false);
     const autoInstallStarted = useRef(false);
 
+    const applyStatusPayload = (payload: MandatoryUpdatePayload) => {
+        if (payload.phase === "idle") {
+            setVisible(false);
+            setErrorMessage(null);
+            setBusy(false);
+            autoInstallStarted.current = false;
+            return;
+        }
+        if (payload.phase === "error") {
+            setVisible(true);
+            setPhase("error");
+            setBusy(false);
+            setErrorMessage(
+                payload.message?.trim() ||
+                    "No se pudo descargar la actualización.",
+            );
+        } else if (
+            payload.phase === "notice" ||
+            payload.phase === "downloading" ||
+            payload.phase === "ready"
+        ) {
+            setVisible(true);
+            setPhase(payload.phase);
+            if (payload.phase === "downloading") {
+                setBusy(true);
+            } else {
+                setBusy(false);
+            }
+            if (payload.phase === "ready") {
+                setErrorMessage(null);
+            }
+        }
+        if (payload.version) setLatestVersion(payload.version);
+        if (payload.currentVersion) {
+            setCurrentVersion(payload.currentVersion);
+        }
+        if (typeof payload.percent === "number") {
+            setPercent(
+                Math.max(0, Math.min(100, Math.round(payload.percent))),
+            );
+        }
+    };
+
     useEffect(() => {
         const ipc = getIpcRenderer();
         if (!ipc) return;
 
+        void (async () => {
+            try {
+                const cached = await ipc.invoke("mandatory-update-sync");
+                if (cached && typeof cached === "object" && "phase" in cached) {
+                    applyStatusPayload(cached as MandatoryUpdatePayload);
+                }
+            } catch {
+                /* no empaquetado o IPC aún no registrado */
+            }
+        })();
+
         const onStatus = (_event: unknown, payload: MandatoryUpdatePayload) => {
-            if (payload.phase === "idle") {
-                setVisible(false);
-                setErrorMessage(null);
-                setBusy(false);
-                autoInstallStarted.current = false;
-                return;
-            }
-            if (payload.phase === "error") {
-                setVisible(true);
-                setPhase("error");
-                setBusy(false);
-                setErrorMessage(
-                    payload.message?.trim() ||
-                        "No se pudo descargar la actualización.",
-                );
-            } else if (
-                payload.phase === "notice" ||
-                payload.phase === "downloading" ||
-                payload.phase === "ready"
-            ) {
-                setVisible(true);
-                setPhase(payload.phase);
-                if (payload.phase !== "downloading") {
-                    setBusy(false);
-                }
-                if (payload.phase === "ready") {
-                    setErrorMessage(null);
-                }
-            }
-            if (payload.version) setLatestVersion(payload.version);
-            if (payload.currentVersion) {
-                setCurrentVersion(payload.currentVersion);
-            }
-            if (typeof payload.percent === "number") {
-                setPercent(
-                    Math.max(0, Math.min(100, Math.round(payload.percent))),
-                );
-            }
+            applyStatusPayload(payload);
         };
 
         ipc.on("mandatory-update-status", onStatus);
@@ -165,8 +186,7 @@ const MandatoryUpdateOverlay = () => {
         phase === "downloading" || phase === "ready" || percent > 0;
     const progressWidth =
         phase === "ready" ? 100 : phase === "downloading" ? percent || 4 : 0;
-    const showActualizarButton =
-        phase === "notice" || phase === "error" || phase === "ready";
+    const showActualizarButton = phase === "error" || phase === "ready";
     const buttonLabel =
         phase === "ready"
             ? busy
@@ -245,11 +265,13 @@ const MandatoryUpdateOverlay = () => {
                         ) : null}
                     </div>
 
-                    {phase === "downloading" ? (
+                    {phase === "notice" || phase === "downloading" ? (
                         <p className="mt-2 text-center text-[11px] text-[#444]">
-                            {percent > 0
-                                ? `${percent}% completado`
-                                : "Iniciando descarga…"}
+                            {phase === "notice"
+                                ? "Preparando actualización obligatoria…"
+                                : percent > 0
+                                  ? `${percent}% completado`
+                                  : "Iniciando descarga…"}
                         </p>
                     ) : null}
 

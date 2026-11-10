@@ -140,22 +140,54 @@ let mandatoryUpdateActive = false;
 let mandatoryUpdateReady = false;
 let mandatoryUpdateDownloadStarted = false;
 let mandatoryUpdateVersion: string | null = null;
+/** Último estado enviado al renderer (reintento si el IPC llegó antes de que React montara). */
+let mandatoryUpdateLastStatus: Record<string, unknown> | null = null;
 
 function notifyMandatoryUpdateStatus(payload: Record<string, unknown>): void {
+    if (payload.phase === "idle") {
+        mandatoryUpdateLastStatus = null;
+    } else {
+        mandatoryUpdateLastStatus = payload;
+    }
     const win = mainWindowRef;
     if (!win || win.isDestroyed()) return;
+    if (win.webContents.isDestroyed()) return;
     win.webContents.send("mandatory-update-status", payload);
 }
 
-function setMainWindowBlockedForUpdate(blocked: boolean): void {
+function flushMandatoryUpdateStatusToRenderer(): void {
+    if (!mandatoryUpdateLastStatus) return;
     const win = mainWindowRef;
-    if (!win || win.isDestroyed()) return;
-    win.setEnabled(!blocked);
+    if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
+    win.webContents.send("mandatory-update-status", mandatoryUpdateLastStatus);
+}
+
+async function beginMandatoryDownload(): Promise<void> {
+    if (!mandatoryUpdateActive || mandatoryUpdateDownloadStarted) return;
+    mandatoryUpdateDownloadStarted = true;
+    notifyMandatoryUpdateStatus({
+        phase: "downloading",
+        version: mandatoryUpdateVersion,
+        currentVersion: app.getVersion(),
+        percent: 0,
+    });
+    try {
+        await autoUpdater.downloadUpdate();
+    } catch (err: unknown) {
+        mandatoryUpdateDownloadStarted = false;
+        const errorMessage = String((err as Error)?.message || err);
+        notifyMandatoryUpdateStatus({
+            phase: "error",
+            message: errorMessage,
+            version: mandatoryUpdateVersion,
+            currentVersion: app.getVersion(),
+        });
+    }
 }
 
 function attachMandatoryUpdateCloseGuard(mainWindow: BrowserWindow): void {
     mainWindow.on("close", (event) => {
-        if (mandatoryUpdateActive && !mandatoryUpdateReady) {
+        if (mandatoryUpdateActive) {
             event.preventDefault();
         }
     });
@@ -171,12 +203,12 @@ function setupMandatoryAutoUpdater(): void {
         mandatoryUpdateReady = false;
         mandatoryUpdateDownloadStarted = false;
         mandatoryUpdateVersion = info.version ?? null;
-        setMainWindowBlockedForUpdate(true);
         notifyMandatoryUpdateStatus({
             phase: "notice",
             version: info.version,
             currentVersion: app.getVersion(),
         });
+        void beginMandatoryDownload();
     });
 
     autoUpdater.on("download-progress", (progress) => {
@@ -205,7 +237,6 @@ function setupMandatoryAutoUpdater(): void {
         mandatoryUpdateReady = false;
         mandatoryUpdateDownloadStarted = false;
         mandatoryUpdateVersion = null;
-        setMainWindowBlockedForUpdate(false);
         notifyMandatoryUpdateStatus({ phase: "idle" });
     });
 
@@ -219,7 +250,6 @@ function setupMandatoryAutoUpdater(): void {
 
         if (failedDuringMandatoryDownload) {
             mandatoryUpdateDownloadStarted = false;
-            setMainWindowBlockedForUpdate(true);
             notifyMandatoryUpdateStatus({
                 phase: "error",
                 message: errorMessage,
@@ -233,40 +263,21 @@ function setupMandatoryAutoUpdater(): void {
         mandatoryUpdateReady = false;
         mandatoryUpdateDownloadStarted = false;
         mandatoryUpdateVersion = null;
-        setMainWindowBlockedForUpdate(false);
     });
 
     ipcMain.removeHandler("mandatory-update-continue");
     ipcMain.handle("mandatory-update-continue", async () => {
-        if (!mandatoryUpdateActive || mandatoryUpdateDownloadStarted) {
+        if (!mandatoryUpdateActive) {
             return {
                 ok: false,
-                message: "No hay actualización pendiente o la descarga ya comenzó.",
+                message: "No hay actualización pendiente.",
             };
         }
-        mandatoryUpdateDownloadStarted = true;
-        notifyMandatoryUpdateStatus({
-            phase: "downloading",
-            version: mandatoryUpdateVersion,
-            currentVersion: app.getVersion(),
-            percent: 0,
-        });
-        try {
-            await autoUpdater.downloadUpdate();
+        if (mandatoryUpdateDownloadStarted) {
             return { ok: true };
-        } catch (err: unknown) {
-            mandatoryUpdateDownloadStarted = false;
-            const errorMessage = String((err as Error)?.message || err);
-            mandatoryUpdateDownloadStarted = false;
-            setMainWindowBlockedForUpdate(true);
-            notifyMandatoryUpdateStatus({
-                phase: "error",
-                message: errorMessage,
-                version: mandatoryUpdateVersion,
-                currentVersion: app.getVersion(),
-            });
-            return { ok: false, message: errorMessage };
         }
+        await beginMandatoryDownload();
+        return { ok: mandatoryUpdateDownloadStarted || mandatoryUpdateReady };
     });
 
     ipcMain.removeHandler("mandatory-update-install");
@@ -280,18 +291,21 @@ function setupMandatoryAutoUpdater(): void {
 
     ipcMain.removeHandler("mandatory-update-dismiss-error");
     ipcMain.handle("mandatory-update-dismiss-error", () => {
-        mandatoryUpdateActive = false;
+        if (mandatoryUpdateActive) {
+            return {
+                ok: false,
+                message: "La actualización es obligatoria. Debe actualizar para continuar.",
+            };
+        }
         mandatoryUpdateReady = false;
         mandatoryUpdateDownloadStarted = false;
         mandatoryUpdateVersion = null;
-        setMainWindowBlockedForUpdate(false);
         notifyMandatoryUpdateStatus({ phase: "idle" });
         return { ok: true };
     });
 
-    app.on("ready", () => {
-        void autoUpdater.checkForUpdates();
-    });
+    ipcMain.removeHandler("mandatory-update-sync");
+    ipcMain.handle("mandatory-update-sync", () => mandatoryUpdateLastStatus);
 }
 
 function getPrimaryWorkArea(): Rectangle {
@@ -458,6 +472,13 @@ function createWindow() {
     screen.on("display-metrics-changed", onDisplayMetricsChanged);
 
     attachMandatoryUpdateCloseGuard(mainWindow);
+
+    mainWindow.webContents.on("did-finish-load", () => {
+        flushMandatoryUpdateStatusToRenderer();
+        if (!isDev) {
+            void autoUpdater.checkForUpdates();
+        }
+    });
 
     mainWindow.on("closed", () => {
         mainWindowRef = null;
