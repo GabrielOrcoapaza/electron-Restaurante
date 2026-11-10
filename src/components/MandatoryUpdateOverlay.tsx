@@ -15,6 +15,28 @@ type MandatoryUpdatePayload = {
     message?: string;
 };
 
+type MandatoryUpdateActionResult = {
+    ok?: boolean;
+    message?: string;
+};
+
+function isMandatoryUpdatePayload(
+    value: unknown,
+): value is MandatoryUpdatePayload {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "phase" in value &&
+        typeof (value as MandatoryUpdatePayload).phase === "string"
+    );
+}
+
+function isMandatoryUpdateActionResult(
+    value: unknown,
+): value is MandatoryUpdateActionResult {
+    return typeof value === "object" && value !== null;
+}
+
 const MANDATORY_MESSAGE =
     "Hay una nueva versión de SumApp disponible que es obligatoria, luego no quiero quejas por que no funciona el sistema.";
 
@@ -34,13 +56,7 @@ function getIpcRenderer():
                   payload: MandatoryUpdatePayload,
               ) => void,
           ) => void;
-          invoke: (
-              channel: string,
-          ) => Promise<
-              | { ok?: boolean; message?: string }
-              | MandatoryUpdatePayload
-              | null
-          >;
+          invoke: (channel: string) => Promise<unknown>;
       }
     | undefined {
     if (!isElectronRenderer()) return undefined;
@@ -114,8 +130,8 @@ const MandatoryUpdateOverlay = () => {
         void (async () => {
             try {
                 const cached = await ipc.invoke("mandatory-update-sync");
-                if (cached && typeof cached === "object" && "phase" in cached) {
-                    applyStatusPayload(cached as MandatoryUpdatePayload);
+                if (isMandatoryUpdatePayload(cached)) {
+                    applyStatusPayload(cached);
                 }
             } catch {
                 /* no empaquetado o IPC aún no registrado */
@@ -164,7 +180,11 @@ const MandatoryUpdateOverlay = () => {
         setErrorMessage(null);
         try {
             const result = await ipc.invoke("mandatory-update-continue");
-            if (!result?.ok && result?.message) {
+            if (
+                isMandatoryUpdateActionResult(result) &&
+                !result.ok &&
+                result.message
+            ) {
                 setPhase("error");
                 setErrorMessage(result.message);
                 setBusy(false);
