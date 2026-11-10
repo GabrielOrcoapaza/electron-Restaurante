@@ -34,6 +34,26 @@ export function notifyAuthStorageChanged(): void {
     );
 }
 
+/** Quita sesión de empleado vencida; conserva companyData (pantalla de login por usuario). */
+export function clearStaleUserSessionPreservingCompany(): void {
+    const token = localStorage.getItem("token");
+    const refreshToken = localStorage.getItem("refreshToken");
+    if (!token && !refreshToken && !localStorage.getItem("userData")) {
+        return;
+    }
+
+    const accessUsable = Boolean(token && !isTokenExpired(token));
+    const refreshUsable = canUseRefreshToken(refreshToken);
+
+    if (!accessUsable && !refreshUsable) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("userData");
+        localStorage.removeItem("userPhoto");
+        notifyAuthStorageChanged();
+    }
+}
+
 export function clearAllAuthStorage(): void {
     console.log(
         "🧹 Limpiando almacenamiento de autenticación (sesión inválida o expirada)...",

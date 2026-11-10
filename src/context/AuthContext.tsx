@@ -6,7 +6,10 @@ import {
     normalizeTaxAffectationType,
     type BranchSessionPatch,
 } from "../utils/getBranchIgvPercentage";
-import { ensureValidAccessToken } from "../utils/tokenRefresh";
+import {
+    clearStaleUserSessionPreservingCompany,
+    ensureValidAccessToken,
+} from "../utils/tokenRefresh";
 
 // Tipos para los datos de autenticación
 
@@ -222,6 +225,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [deviceId, setDeviceId] = useState<string | null>(() =>
         localStorage.getItem("device_id"),
     );
+
+    useEffect(() => {
+        clearStaleUserSessionPreservingCompany();
+    }, []);
 
     // Sincronización adicional si fuera necesaria
     useEffect(() => {

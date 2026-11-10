@@ -159,9 +159,19 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
             isKitchenMode = true;
             console.log("🍳 WebSocket en modo COCINA");
         } else if (token && companyData?.branch.id && user?.id) {
-            // Modo normal: intentar renovar access token si está por vencer
+            if (isTokenExpired(token)) {
+                const renewed = await ensureValidAccessToken();
+                if (!renewed || isTokenExpired(renewed)) {
+                    console.warn(
+                        "🚫 WebSocket: Token expirado, no se intentará conectar.",
+                    );
+                    return;
+                }
+                tokenToUse = renewed;
+            } else {
+                tokenToUse = (await ensureValidAccessToken()) ?? token;
+            }
             effectiveBranchId = companyData.branch.id;
-            tokenToUse = (await ensureValidAccessToken()) ?? token;
             console.log("📱 WebSocket en modo NORMAL");
         } else {
             // No hay datos suficientes
