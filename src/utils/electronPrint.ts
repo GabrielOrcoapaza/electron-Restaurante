@@ -4,6 +4,7 @@
  */
 
 export const PRINT_JSON_DOCUMENT_CHANNEL = "print-json-document" as const;
+export const OPEN_CASH_DRAWER_CHANNEL = "open-cash-drawer" as const;
 export const PRINT_JSON_DOCUMENT_DIALOG_CHANNEL =
 	"print-json-document-dialog" as const;
 export const DOCUMENT_JSON_TO_PDF_CHANNEL = "document-json-to-pdf" as const;
@@ -112,6 +113,23 @@ export async function invokeElectronPrintJsonDocument(
 		documentJson,
 		deviceName: deviceName?.trim() || null,
 	});
+}
+
+export async function invokeElectronOpenCashDrawer(
+	deviceName?: string | null,
+): Promise<PrintJsonDocumentResult> {
+	const ipc = getElectronIpcRenderer();
+	if (!ipc) {
+		return { ok: false, message: "No es entorno Electron." };
+	}
+	try {
+		return (await ipc.invoke(OPEN_CASH_DRAWER_CHANNEL, {
+			deviceName: deviceName?.trim() || null,
+		})) as PrintJsonDocumentResult;
+	} catch (e: unknown) {
+		const msg = e instanceof Error ? e.message : String(e);
+		return { ok: false, message: msg || "IPC open-cash-drawer no disponible." };
+	}
 }
 
 function getElectronIpcRenderer():

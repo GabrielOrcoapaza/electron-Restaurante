@@ -16,6 +16,7 @@ import {
     CLOSE_CASH,
     REPRINT_CLOSURE,
     PRINT_PAYMENT,
+    OPEN_CASH_DRAWER,
     CANCEL_PAYMENT,
     UPDATE_PAYMENT_METHOD,
     CREATE_CASH_OPENING,
@@ -36,6 +37,10 @@ import { isElectronRenderer } from "../../utils/electronPrint";
 import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
 import { getLocalTicketPrinterStorage } from "../../utils/localPrinterPreference";
 import { formatLocalDateYYYYMMDD as getTodayDateInput } from "../../utils/localDateTime";
+import {
+    applyOpenCashDrawerResponse,
+    resolveDeviceIdForCashDrawer,
+} from "../../utils/openCashDrawer";
 
 const isElectron = isElectronRenderer();
 
@@ -185,7 +190,7 @@ const toPaymentAmount = (value: unknown): number => {
 };
 
 const Cashs: React.FC = () => {
-    const { companyData, user, getMacAddress } = useAuth();
+    const { companyData, user, getMacAddress, getDeviceId } = useAuth();
     const { hasPermission } = useUserPermissions();
     const canViewCashSummary = hasPermission("cash.view_summary");
     const { showToast } = useToast();
@@ -197,6 +202,7 @@ const Cashs: React.FC = () => {
     );
 
     const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+    const [openingDrawer, setOpeningDrawer] = useState(false);
     const [registerToOpen, setRegisterToOpen] =
         useState<CashRegister | null>(null);
     const [openingLoading, setOpeningLoading] = useState(false);
@@ -297,6 +303,7 @@ const Cashs: React.FC = () => {
     const [closeCashRegister] = useMutation(CLOSE_CASH);
     const [reprintClosureMutation] = useMutation(REPRINT_CLOSURE);
     const [printPaymentMutation] = useMutation(PRINT_PAYMENT);
+    const [openCashDrawerMutation] = useMutation(OPEN_CASH_DRAWER);
     const [cancelPaymentMutation] = useMutation(CANCEL_PAYMENT);
     const [updatePaymentMethodMutation] = useMutation(UPDATE_PAYMENT_METHOD);
     const [createCashOpeningMutation] = useMutation(CREATE_CASH_OPENING);
@@ -763,6 +770,40 @@ const Cashs: React.FC = () => {
         }
     };
 
+    const handleOpenCashDrawer = async () => {
+        if (!branchId) {
+            showToast("No hay sucursal seleccionada", "warning");
+            return;
+        }
+        if (openingDrawer) return;
+        setOpeningDrawer(true);
+        try {
+            const deviceId = await resolveDeviceIdForCashDrawer({
+                getMacAddress,
+                getDeviceId,
+            });
+            if (!deviceId?.trim()) {
+                showToast(
+                    "No se pudo identificar este equipo para abrir la gaveta.",
+                    "error",
+                );
+                return;
+            }
+            const { data } = await openCashDrawerMutation({
+                variables: { deviceId, branchId },
+            });
+            const outcome = await applyOpenCashDrawerResponse(
+                data?.openCashDrawer,
+                deviceId,
+            );
+            showToast(outcome.message, outcome.ok ? "success" : "error");
+        } catch (error: any) {
+            showToast(error.message || "Error al abrir la gaveta", "error");
+        } finally {
+            setOpeningDrawer(false);
+        }
+    };
+
     const handleCancelPayment = async (paymentId: string) => {
         const movementToCancel = movements.find((m) => m.id === paymentId);
         try {
@@ -887,7 +928,34 @@ const Cashs: React.FC = () => {
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-3 lg:self-end">
+                    <div className="flex flex-wrap items-center gap-3 lg:self-end">
+                        <button
+                            type="button"
+                            onClick={handleOpenCashDrawer}
+                            disabled={openingDrawer}
+                            className="flex items-center gap-2 rounded-2xl bg-amber-500 px-5 py-3 text-sm font-black text-white shadow-sm transition-all hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                            title="Emergencia: abre la gaveta sin venta ni ticket (USB o red)"
+                        >
+                            {openingDrawer ? (
+                                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                            ) : (
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-5 w-5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2.5}
+                                        d="M8 7V6a2 2 0 012-2h4a2 2 0 012 2v1m-9 4h10M5 10h14l-1 10H6L5 10z"
+                                    />
+                                </svg>
+                            )}
+                            {openingDrawer ? "Abriendo..." : "Abrir gaveta"}
+                        </button>
                         <button
                             onClick={() => setIsManualModalOpen(true)}
                             className="flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm transition-all hover:bg-slate-50 active:scale-95 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
@@ -2479,6 +2547,8 @@ const Cashs: React.FC = () => {
                 )}
                 userId={userId}
                 branchId={branchId}
+                onOpenDrawer={handleOpenCashDrawer}
+                openingDrawer={openingDrawer}
             />
 
             <CashDetailModal

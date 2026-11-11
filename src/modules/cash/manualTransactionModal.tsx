@@ -11,6 +11,8 @@ interface ManualTransactionModalProps {
     branchId: string;
     /** Si es false, el método de pago queda fijo en efectivo (permiso cash.change_payment_method). Por defecto true. */
     allowChangePaymentMethod?: boolean;
+    onOpenDrawer?: () => void | Promise<void>;
+    openingDrawer?: boolean;
 }
 
 const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
@@ -21,6 +23,8 @@ const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
     userId,
     branchId,
     allowChangePaymentMethod = true,
+    onOpenDrawer,
+    openingDrawer = false,
 }) => {
     const [cashRegisterId, setCashRegisterId] = useState("");
     const [transactionType, setTransactionType] = useState("INCOME");
@@ -329,32 +333,65 @@ const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
                         </div>
                     </div>
 
-                    <div className="mt-8 flex gap-3 border-t border-slate-100 pt-6 dark:border-slate-800/50">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex-1 rounded-2xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className={`flex-1 rounded-2xl py-3 text-sm font-black text-white shadow-lg transition-all active:scale-95 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 ${
-                                transactionType === "INCOME"
-                                    ? "bg-emerald-600 shadow-emerald-500/20 hover:bg-emerald-700"
-                                    : "bg-rose-600 shadow-rose-500/20 hover:bg-rose-700"
-                            }`}
-                        >
-                            {loading ? (
-                                <div className="flex items-center justify-center gap-2">
-                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                                    <span>Guardando...</span>
-                                </div>
-                            ) : (
-                                "Confirmar Movimiento"
-                            )}
-                        </button>
+                    <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6 dark:border-slate-800/50">
+                        {onOpenDrawer && (
+                            <button
+                                type="button"
+                                onClick={() => void onOpenDrawer()}
+                                disabled={openingDrawer}
+                                className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-amber-400 bg-amber-50 py-3 text-sm font-black text-amber-800 transition-all hover:bg-amber-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-600/40 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                                title="Emergencia: abre la gaveta sin venta ni ticket (USB o red)"
+                            >
+                                {openingDrawer ? (
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-500/30 border-t-amber-600" />
+                                ) : (
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-5 w-5"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2.5}
+                                            d="M8 7V6a2 2 0 012-2h4a2 2 0 012 2v1m-9 4h10M5 10h14l-1 10H6L5 10z"
+                                        />
+                                    </svg>
+                                )}
+                                {openingDrawer
+                                    ? "Abriendo gaveta..."
+                                    : "Abrir gaveta"}
+                            </button>
+                        )}
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="flex-1 rounded-2xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className={`flex-1 rounded-2xl py-3 text-sm font-black text-white shadow-lg transition-all active:scale-95 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 ${
+                                    transactionType === "INCOME"
+                                        ? "bg-emerald-600 shadow-emerald-500/20 hover:bg-emerald-700"
+                                        : "bg-rose-600 shadow-rose-500/20 hover:bg-rose-700"
+                                }`}
+                            >
+                                {loading ? (
+                                    <div className="flex items-center justify-center gap-2">
+                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                        <span>Guardando...</span>
+                                    </div>
+                                ) : (
+                                    "Confirmar Movimiento"
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>

@@ -21,7 +21,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import log from "electron-log";
-import { documentJsonToEscPos } from "./documentToEscPos";
+import { documentJsonToEscPos, openDrawerEscPos } from "./documentToEscPos";
 import { documentDataJsonToHtml } from "./documentToPrintHtml";
 import type { WebContentsPrintOptions } from "electron";
 
@@ -372,6 +372,21 @@ export function registerPrintHandler(): void {
                 return { ok: true };
             }
 
+            // Gaveta de emergencia: el fallback HTML no puede abrir la gaveta
+            try {
+                const parsed = JSON.parse(documentJson) as { type?: string };
+                if (String(parsed?.type ?? "").toUpperCase() === "OPEN_DRAWER") {
+                    log.warn("[print] OPEN_DRAWER: puerto raw falló; no hay fallback HTML");
+                    return {
+                        ok: false,
+                        message:
+                            "No se pudo enviar el pulso a la impresora USB. Elija la impresora de tickets o conecte el USB.",
+                    };
+                }
+            } catch {
+                /* JSON inválido: sigue el fallback HTML */
+            }
+
             // PASO 3: Fallback HTML si el puerto raw no respondió
             log.warn("[print] Puerto raw falló → usando fallback HTML");
             const htmlOk = await sendViaElectronPrint(documentJson, dn);
@@ -432,7 +447,30 @@ export function registerPrintHandler(): void {
         },
     );
 
+    ipcMain.removeHandler("open-cash-drawer");
+    ipcMain.handle(
+        "open-cash-drawer",
+        async (
+            _event,
+            payload?: { deviceName?: string | null },
+        ) => {
+            const dn = payload?.deviceName?.trim() || undefined;
+            log.info(`[gaveta] Pulso de emergencia → device="${dn ?? "USB/default"}"`);
+            const ok = await sendToRawPort(openDrawerEscPos(), dn);
+            if (ok) {
+                log.info("[gaveta] OK → pulso ESC/POS enviado (sin ticket)");
+                return { ok: true };
+            }
+            log.warn("[gaveta] No se pudo enviar el pulso a la impresora local");
+            return {
+                ok: false,
+                message:
+                    "No se pudo abrir la gaveta en USB. Verifique la impresora de tickets.",
+            };
+        },
+    );
+
     log.info(
-        "[main] Handlers: print-json-document, print-json-document-dialog",
+        "[main] Handlers: print-json-document, print-json-document-dialog, open-cash-drawer",
     );
 }

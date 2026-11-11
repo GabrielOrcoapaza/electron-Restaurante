@@ -61,6 +61,25 @@ function shouldOpenCashDrawer(doc: Record<string, unknown>): boolean {
     return doc.open_drawer === true || doc.openDrawer === true;
 }
 
+function isOpenDrawerOnlyPayload(doc: Record<string, unknown>): boolean {
+    return String(doc.type ?? "").trim().toUpperCase() === "OPEN_DRAWER";
+}
+
+function cashDrawerOnlyEscPos(): Buffer {
+    return Buffer.concat([
+        CMD.INIT,
+        cashDrawerKickEscPos(),
+        // Pin 5 (m=1) por si la gaveta está en el otro conector RJ11
+        Buffer.from([ESC, 0x70, 0x01, 0x19, 0x7d]),
+        Buffer.from([ESC, 0x70, 0x01, 0x32, 0xfa]),
+    ]);
+}
+
+/** Solo pulso de gaveta, sin ticket. Usado por el IPC open-cash-drawer. */
+export function openDrawerEscPos(): Buffer {
+    return cashDrawerOnlyEscPos();
+}
+
 /** Título del comprobante en ticket (misma regla que PrintServer websocket_client.py). */
 function resolveThermalDocumentTitle(
     doc: Record<string, unknown>,
@@ -409,6 +428,11 @@ export async function documentJsonToEscPos(jsonString: string, paperWidthMm = 80
         const e = new EscPos();
         e.cmd(CMD.INIT).text("ERROR: JSON invalido").cmd(CMD.FEED5).cmd(CMD.CUT_PARTIAL);
         return e.toBuffer();
+    }
+
+    if (isOpenDrawerOnlyPayload(doc)) {
+        console.log("[ESC/POS] Tipo OPEN_DRAWER → solo pulso de gaveta");
+        return cashDrawerOnlyEscPos();
     }
 
     if (isCashClosurePayload(doc)) {

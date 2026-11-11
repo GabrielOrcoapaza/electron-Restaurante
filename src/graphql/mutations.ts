@@ -2104,6 +2104,19 @@ export const PRINT_EXPENSES_REPORT = gql`
     }
 `;
 
+// Abre la gaveta de la impresora de caja (USB/integrada o red / Raspberry)
+export const OPEN_CASH_DRAWER = gql`
+    mutation OpenCashDrawer($deviceId: String!, $branchId: ID!) {
+        openCashDrawer(deviceId: $deviceId, branchId: $branchId) {
+            success
+            message
+            printLocally
+            printViaBluetooth
+            documentData
+        }
+    }
+`;
+
 // Mutación para imprimir movimiento de caja (ingreso/egreso)
 export const PRINT_PAYMENT = gql`
     mutation PrintPayment($paymentId: ID!, $deviceId: String!) {
