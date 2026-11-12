@@ -101,28 +101,68 @@ log.transports.console.level = "debug";
 
 const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
 
-function resolveAppIcon(): NativeImage | undefined {
-    const candidates = [
+/** Mismo id que "build.appId" en package.json. Windows agrupa la barra de tareas con este valor. */
+const APP_USER_MODEL_ID = "com.mirestaurante.restaurante";
+
+function appIconCandidates(): string[] {
+    return [
         path.join(__dirname, "SumApp.ico"),
         path.join(__dirname, "../public/SumApp.ico"),
         path.join(process.resourcesPath, "SumApp.ico"),
     ];
+}
 
-    for (const iconPath of candidates) {
-        if (!fs.existsSync(iconPath)) continue;
-        const image = nativeImage.createFromPath(iconPath);
-        if (!image.isEmpty()) {
-            log.info("[main] Icono de aplicación:", iconPath);
-            return image;
-        }
+/** Ruta absoluta del .ico. En Windows la barra de tareas solo acepta un archivo .ico, no la imagen de la ventana. */
+function resolveAppIconPath(): string | undefined {
+    for (const iconPath of appIconCandidates()) {
+        if (fs.existsSync(iconPath)) return iconPath;
     }
-
-    log.warn("[main] No se encontró SumApp.ico en:", candidates.join(", "));
     return undefined;
 }
 
+function resolveAppIcon(): NativeImage | undefined {
+    const iconPath = resolveAppIconPath();
+    if (!iconPath) {
+        log.warn("[main] No se encontró SumApp.ico en:", appIconCandidates().join(", "));
+        return undefined;
+    }
+
+    const image = nativeImage.createFromPath(iconPath);
+    if (image.isEmpty()) {
+        log.warn("[main] SumApp.ico está vacío o no se pudo leer:", iconPath);
+        return undefined;
+    }
+
+    log.info("[main] Icono de aplicación:", iconPath);
+    return image;
+}
+
+/**
+ * La opción `icon` de BrowserWindow solo pinta el icono de la barra de título.
+ * En Windows la barra de tareas usa el icono del .exe, salvo que se indique
+ * appIconPath con setAppDetails. Sin eso, al fijar AppUserModelId el botón queda en blanco.
+ */
+function applyWindowsTaskbarIcon(win: BrowserWindow): void {
+    if (process.platform !== "win32") return;
+
+    const iconPath = resolveAppIconPath();
+    if (!iconPath) return;
+
+    try {
+        win.setAppDetails({
+            appId: APP_USER_MODEL_ID,
+            appIconPath: iconPath,
+            appIconIndex: 0,
+            relaunchDisplayName: "SumApp",
+        });
+        log.info("[main] Icono de barra de tareas:", iconPath);
+    } catch (err) {
+        log.warn("[main] No se pudo asignar el icono de la barra de tareas:", err);
+    }
+}
+
 if (process.platform === "win32") {
-    app.setAppUserModelId("com.mirestaurante.restaurante");
+    app.setAppUserModelId(APP_USER_MODEL_ID);
 }
 
 /** Tras abrir: maximizar al inicio; el botón maximizar permanece habilitado. */
@@ -493,6 +533,7 @@ function createWindow() {
     });
 
     mainWindowRef = mainWindow;
+    applyWindowsTaskbarIcon(mainWindow);
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
         const target = String(url || "").trim();
