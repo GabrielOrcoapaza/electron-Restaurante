@@ -141,6 +141,90 @@ function renderCashClosureStyle(doc: Record<string, unknown>): string {
     return parts.join("");
 }
 
+function expenseMethodRowsHtml(doc: Record<string, unknown>): HtmlPaymentMethodRow[] {
+    const raw = doc.expenses_by_method ?? doc.expensesByMethod;
+    if (!Array.isArray(raw)) return [];
+    const rows: HtmlPaymentMethodRow[] = [];
+    for (const entry of raw) {
+        if (Array.isArray(entry) && entry.length >= 2) {
+            rows.push({
+                code: String(entry[0] ?? ""),
+                data: (entry[1] ?? {}) as Record<string, unknown>,
+            });
+        } else if (entry && typeof entry === "object") {
+            const o = entry as Record<string, unknown>;
+            rows.push({
+                code: String(o.code ?? o.method ?? ""),
+                data: o,
+            });
+        }
+    }
+    return rows;
+}
+
+function renderExpensesStyle(doc: Record<string, unknown>): string {
+    const parts: string[] = [];
+    const logoHtml = logoImgHtml(doc);
+    if (logoHtml) parts.push(logoHtml);
+
+    const branch = (doc.branch ?? {}) as Record<string, unknown>;
+    if (branch.company) parts.push(`<div class="t-center t-branch t-bold">${n(branch.company)}</div>`);
+    if (branch.name) parts.push(`<div class="t-center t-meta">${n(branch.name)}</div>`);
+    if (branch.ruc) parts.push(`<div class="t-center t-meta">RUC: ${n(branch.ruc)}</div>`);
+
+    parts.push(`<div class="t-sep">================================================</div>`);
+    parts.push(`<div class="t-title">EGRESOS</div>`);
+
+    const closure = (doc.closure ?? {}) as Record<string, unknown>;
+    const period = closure.closed_at ?? closure.closedAt;
+    if (period) parts.push(`<div class="t-center t-docline">${n(period)}</div>`);
+
+    const user = (doc.user ?? {}) as Record<string, unknown>;
+    const cashRegister = (doc.cash_register ?? {}) as Record<string, unknown>;
+    if (user.name) parts.push(`<div class="t-bodyline">Usuario: ${n(user.name)}</div>`);
+    if (cashRegister.name) parts.push(`<div class="t-bodyline">${n(cashRegister.name)}</div>`);
+    parts.push(`<div class="t-sep">================================================</div>`);
+
+    for (const { code, data } of expenseMethodRowsHtml(doc)) {
+        parts.push(`<div class="t-center t-title t-pad">${n(data.name ?? code)}</div>`);
+        const items = Array.isArray(data.items) ? data.items : [];
+        for (const item of items) {
+            if (!item || typeof item !== "object") continue;
+            const row = item as Record<string, unknown>;
+            const time = row.time ? `${n(row.time)} ` : "";
+            parts.push(`<div class="t-bodyline">${time}${n(row.description ?? "Egreso")}</div>`);
+            parts.push(`<div class="t-totrow"><span></span><span class="n">S/ ${num2(row.amount)}</span></div>`);
+        }
+        parts.push(`<div class="t-totrow t-bold"><span>Subtotal</span><span class="n">S/ ${num2(data.total)}</span></div>`);
+        parts.push(`<div class="t-sep2">------------------------------------------------</div>`);
+    }
+
+    parts.push(`<div class="t-grand"><span>TOTAL EGRESOS: S/ ${num2(doc.total_expense ?? doc.totalExpense)}</span></div>`);
+    return parts.join("");
+}
+
+function renderPaymentStyle(doc: Record<string, unknown>): string {
+    const parts: string[] = [];
+    const logoHtml = logoImgHtml(doc);
+    if (logoHtml) parts.push(logoHtml);
+
+    const branch = (doc.branch ?? {}) as Record<string, unknown>;
+    if (branch.company) parts.push(`<div class="t-center t-branch t-bold">${n(branch.company)}</div>`);
+    if (branch.name) parts.push(`<div class="t-center t-meta">${n(branch.name)}</div>`);
+
+    const payment = (doc.payment ?? {}) as Record<string, unknown>;
+    parts.push(`<div class="t-sep">================================================</div>`);
+    parts.push(`<div class="t-title">${n(payment.label ?? "MOVIMIENTO")}</div>`);
+    parts.push(`<div class="t-sep">================================================</div>`);
+    if (payment.payment_date) parts.push(`<div class="t-bodyline">${n(payment.payment_date)}</div>`);
+    if (payment.description) parts.push(`<div class="t-bodyline">${n(payment.description)}</div>`);
+    if (payment.payment_method) parts.push(`<div class="t-bodyline">Método: ${n(payment.payment_method)}</div>`);
+    if (payment.reference) parts.push(`<div class="t-bodyline">Ref: ${n(payment.reference)}</div>`);
+    if (payment.user) parts.push(`<div class="t-bodyline">Usuario: ${n(payment.user)}</div>`);
+    parts.push(`<div class="t-grand"><span>S/ ${num2(payment.amount)}</span></div>`);
+    return parts.join("");
+}
+
 /** Mismo criterio de datos que el cliente Raspberry (print_document): ticket en columna única. */
 function looksLikeThermalDocumentPayload(doc: Record<string, unknown>): boolean {
     if (looksLikeCashClosurePayload(doc)) return false;
@@ -533,6 +617,17 @@ export async function documentDataJsonToHtml(jsonString: string): Promise<string
         const body = renderCashClosureStyle(doc);
         const css = thermalDocumentCss;
         return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Cierre de caja</title><style>${css}</style></head><body class="ticket">${body}</body></html>`;
+    }
+
+    const payloadType = String(doc.type ?? "").toUpperCase();
+    if (payloadType === "EXPENSES" || payloadType === "PAYMENT") {
+        const body =
+            payloadType === "EXPENSES"
+                ? renderExpensesStyle(doc)
+                : renderPaymentStyle(doc);
+        const css = thermalDocumentCss;
+        const title = payloadType === "EXPENSES" ? "Egresos" : "Movimiento";
+        return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title><style>${css}</style></head><body class="ticket">${body}</body></html>`;
     }
 
     if (looksLikeThermalDocumentPayload(doc)) {

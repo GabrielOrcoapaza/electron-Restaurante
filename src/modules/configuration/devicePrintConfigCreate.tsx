@@ -3,7 +3,7 @@ import { useMutation } from "@apollo/client";
 import { CREATE_DEVICE_PRINT_CONFIG } from "../../graphql/mutations";
 
 /** Tipos incluidos en el formulario compacto (admin Django). */
-const COMPACT_PRINT_TYPES = [
+export const COMPACT_PRINT_TYPES = [
     {
         value: "PRECUENTA",
         label: "Precuenta",

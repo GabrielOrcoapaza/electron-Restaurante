@@ -9,10 +9,11 @@ import {
 import { DELETE_DEVICE_PRINT_CONFIGS } from "../../graphql/mutations";
 import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
 import DevicePrintConfigList, {
+    type DevicePrintConfigDeviceGroup,
     type DevicePrintConfigRow,
 } from "./devicePrintConfigList";
-import DevicePrintConfigUpdate from "./devicePrintConfigUpdate";
 import DevicePrintConfigCreate from "./devicePrintConfigCreate";
+import DevicePrintConfigUpdate from "./devicePrintConfigUpdate";
 
 const DevicePrintConfigs: React.FC = () => {
     const { companyData, getMacAddress, getDeviceId } = useAuth();
@@ -24,7 +25,8 @@ const DevicePrintConfigs: React.FC = () => {
     } | null>(null);
     const [filterActive, setFilterActive] = useState<boolean | null>(null);
     const [showCreate, setShowCreate] = useState(false);
-    const [editing, setEditing] = useState<DevicePrintConfigRow | null>(null);
+    const [editingGroup, setEditingGroup] =
+        useState<DevicePrintConfigDeviceGroup | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [thisDeviceId, setThisDeviceId] = useState<string | null>(null);
 
@@ -99,11 +101,16 @@ const DevicePrintConfigs: React.FC = () => {
         },
     );
 
-    const toggleSelect = (id: string) => {
+    const toggleSelectDevice = (group: DevicePrintConfigDeviceGroup) => {
+        const ids = group.configs.map((c) => c.id);
+        const allSelected = ids.every((id) => selectedIds.has(id));
         setSelectedIds((prev) => {
             const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
+            if (allSelected) {
+                ids.forEach((id) => next.delete(id));
+            } else {
+                ids.forEach((id) => next.add(id));
+            }
             return next;
         });
     };
@@ -197,16 +204,18 @@ const DevicePrintConfigs: React.FC = () => {
                 configs={configs}
                 loading={loading}
                 selectedIds={selectedIds}
-                onToggleSelect={toggleSelect}
-                onEdit={setEditing}
+                onToggleSelectDevice={toggleSelectDevice}
+                onEdit={setEditingGroup}
             />
 
             <DevicePrintConfigUpdate
-                open={!!editing}
-                config={editing}
+                open={!!editingGroup}
+                branchId={branchId}
+                branchName={companyData?.branch?.name}
+                group={editingGroup}
                 printers={printers}
                 categories={categories}
-                onClose={() => setEditing(null)}
+                onClose={() => setEditingGroup(null)}
                 onSuccess={(text) => {
                     setMessage({ type: "success", text });
                     refetch();

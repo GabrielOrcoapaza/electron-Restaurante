@@ -420,6 +420,140 @@ async function buildCashClosureEscPos(
     return e.toBuffer();
 }
 
+function expenseMethodRows(doc: Record<string, unknown>): PaymentMethodRow[] {
+    const raw = doc.expenses_by_method ?? doc.expensesByMethod;
+    if (!Array.isArray(raw)) return [];
+    const rows: PaymentMethodRow[] = [];
+    for (const entry of raw) {
+        if (Array.isArray(entry) && entry.length >= 2) {
+            rows.push({
+                code: String(entry[0] ?? ""),
+                data: (entry[1] ?? {}) as Record<string, unknown>,
+            });
+        } else if (entry && typeof entry === "object") {
+            const o = entry as Record<string, unknown>;
+            rows.push({
+                code: String(o.code ?? o.method ?? ""),
+                data: o,
+            });
+        }
+    }
+    return rows;
+}
+
+async function buildExpensesEscPos(
+    doc: Record<string, unknown>,
+    paperWidthMm: number,
+): Promise<Buffer> {
+    const e = new EscPos();
+    e.cmd(CMD.INIT).cmd(CMD.MODE_NORMAL);
+
+    const logoBase64 = await resolveLogoBase64(doc);
+    if (logoBase64) {
+        e.raw(await logoToEscPos(logoBase64, paperWidthMm));
+    }
+
+    const branch = (doc.branch ?? {}) as Record<string, unknown>;
+    const company = cleanText(String(branch.company ?? ""));
+    const branchName = cleanText(String(branch.name ?? ""));
+    if (company) e.cmd(CMD.MODE_BOLD).cmd(CMD.ALIGN_CENTER).text(company).cmd(CMD.MODE_NORMAL);
+    if (branchName && branchName !== company) {
+        e.cmd(CMD.ALIGN_CENTER).text(branchName);
+    }
+    if (branch.ruc) e.cmd(CMD.ALIGN_CENTER).text(`RUC: ${cleanText(String(branch.ruc))}`);
+    if (branch.address) e.cmd(CMD.ALIGN_CENTER).text(cleanText(String(branch.address)));
+
+    e.separator("=");
+    e.cmd(CMD.MODE_2H2W).cmd(CMD.ALIGN_CENTER).text("EGRESOS").cmd(CMD.MODE_NORMAL);
+
+    const closure = (doc.closure ?? {}) as Record<string, unknown>;
+    const period = cleanText(String(closure.closed_at ?? closure.closedAt ?? ""));
+    if (period) e.cmd(CMD.ALIGN_CENTER).text(period);
+
+    const user = (doc.user ?? {}) as Record<string, unknown>;
+    const cashRegister = (doc.cash_register ?? {}) as Record<string, unknown>;
+    if (user.name) e.cmd(CMD.ALIGN_LEFT).text(`Usuario: ${cleanText(String(user.name))}`);
+    if (cashRegister.name) e.cmd(CMD.ALIGN_LEFT).text(cleanText(String(cashRegister.name)));
+
+    e.separator("=");
+
+    for (const { code, data } of expenseMethodRows(doc)) {
+        const methodName = cleanText(String(data.name ?? code));
+        e.cmd(CMD.MODE_BOLD).cmd(CMD.ALIGN_CENTER).text(methodName).cmd(CMD.MODE_NORMAL);
+        e.separator2("-");
+        const items = Array.isArray(data.items) ? data.items : [];
+        for (const item of items) {
+            if (!item || typeof item !== "object") continue;
+            const row = item as Record<string, unknown>;
+            const time = cleanText(String(row.time ?? ""));
+            const description = cleanText(String(row.description ?? "Egreso"));
+            const amount = Number(row.amount ?? 0);
+            const head = time ? `${time} ${description}` : description;
+            e.cmd(CMD.ALIGN_LEFT).text(head.slice(0, 48));
+            e.cmd(CMD.ALIGN_RIGHT).text(`S/ ${amount.toFixed(2)}`).cmd(CMD.ALIGN_LEFT);
+        }
+        e.cmd(CMD.MODE_BOLD).cmd(CMD.ALIGN_RIGHT)
+            .text(`Subtotal: S/ ${Number(data.total ?? 0).toFixed(2)}`)
+            .cmd(CMD.MODE_NORMAL).cmd(CMD.ALIGN_LEFT);
+        e.separator2("-");
+    }
+
+    const total = Number(doc.total_expense ?? doc.totalExpense ?? 0);
+    e.separator("=");
+    e.cmd(CMD.MODE_B2H).cmd(CMD.ALIGN_CENTER).text(`TOTAL EGRESOS: S/ ${total.toFixed(2)}`).cmd(CMD.MODE_NORMAL);
+    e.separator("=");
+
+    const now = new Date();
+    e.cmd(CMD.ALIGN_CENTER).text(`Impreso: ${now.toLocaleString("es-PE")}`);
+    e.cmd(CMD.FEED5).cmd(CMD.CUT_PARTIAL);
+
+    return e.toBuffer();
+}
+
+async function buildPaymentEscPos(
+    doc: Record<string, unknown>,
+    paperWidthMm: number,
+): Promise<Buffer> {
+    const e = new EscPos();
+    e.cmd(CMD.INIT).cmd(CMD.MODE_NORMAL);
+
+    const logoBase64 = await resolveLogoBase64(doc);
+    if (logoBase64) {
+        e.raw(await logoToEscPos(logoBase64, paperWidthMm));
+    }
+
+    const branch = (doc.branch ?? {}) as Record<string, unknown>;
+    const company = cleanText(String(branch.company ?? ""));
+    const branchName = cleanText(String(branch.name ?? ""));
+    if (company) e.cmd(CMD.MODE_BOLD).cmd(CMD.ALIGN_CENTER).text(company).cmd(CMD.MODE_NORMAL);
+    if (branchName && branchName !== company) e.cmd(CMD.ALIGN_CENTER).text(branchName);
+    if (branch.ruc) e.cmd(CMD.ALIGN_CENTER).text(`RUC: ${cleanText(String(branch.ruc))}`);
+
+    const payment = (doc.payment ?? {}) as Record<string, unknown>;
+    const label = cleanText(String(payment.label ?? "MOVIMIENTO"));
+    e.separator("=");
+    e.cmd(CMD.MODE_2H2W).cmd(CMD.ALIGN_CENTER).text(label).cmd(CMD.MODE_NORMAL);
+    e.separator("=");
+
+    if (payment.payment_date) e.cmd(CMD.ALIGN_LEFT).text(cleanText(String(payment.payment_date)));
+    if (payment.description) e.cmd(CMD.ALIGN_LEFT).text(cleanText(String(payment.description)));
+    if (payment.payment_method) e.cmd(CMD.ALIGN_LEFT).text(`Metodo: ${cleanText(String(payment.payment_method))}`);
+    if (payment.reference) e.cmd(CMD.ALIGN_LEFT).text(`Ref: ${cleanText(String(payment.reference))}`);
+    if (payment.user) e.cmd(CMD.ALIGN_LEFT).text(`Usuario: ${cleanText(String(payment.user))}`);
+    if (payment.operation_order) e.cmd(CMD.ALIGN_LEFT).text(`Orden: ${cleanText(String(payment.operation_order))}`);
+
+    const amount = Number(payment.amount ?? 0);
+    e.separator("=");
+    e.cmd(CMD.MODE_B2H).cmd(CMD.ALIGN_CENTER).text(`S/ ${amount.toFixed(2)}`).cmd(CMD.MODE_NORMAL);
+    e.separator("=");
+
+    const now = new Date();
+    e.cmd(CMD.ALIGN_CENTER).text(`Impreso: ${now.toLocaleString("es-PE")}`);
+    e.cmd(CMD.FEED5).cmd(CMD.CUT_PARTIAL);
+
+    return e.toBuffer();
+}
+
 export async function documentJsonToEscPos(jsonString: string, paperWidthMm = 80): Promise<Buffer> {
     let doc: Record<string, unknown>;
     try {
@@ -438,6 +572,16 @@ export async function documentJsonToEscPos(jsonString: string, paperWidthMm = 80
     if (isCashClosurePayload(doc)) {
         console.log("[ESC/POS] Tipo CASH_CLOSURE → formato cierre de caja");
         return buildCashClosureEscPos(doc, paperWidthMm);
+    }
+
+    const payloadType = String(doc.type ?? "").toUpperCase();
+    if (payloadType === "EXPENSES") {
+        console.log("[ESC/POS] Tipo EXPENSES → reporte de egresos");
+        return buildExpensesEscPos(doc, paperWidthMm);
+    }
+    if (payloadType === "PAYMENT") {
+        console.log("[ESC/POS] Tipo PAYMENT → ticket de movimiento");
+        return buildPaymentEscPos(doc, paperWidthMm);
     }
 
     const e = new EscPos();

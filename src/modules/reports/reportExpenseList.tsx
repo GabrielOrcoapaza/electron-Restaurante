@@ -3,6 +3,8 @@ import { ApolloError, useMutation } from "@apollo/client";
 import { useAuth } from "../../hooks/useAuth";
 import { PRINT_PAYMENT } from "../../graphql/mutations";
 import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
+import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
+import { getLocalTicketPrinterStorage } from "../../utils/localPrinterPreference";
 import { getPaymentMethodLabel } from "../../utils/paymentMethodLabels";
 import type { ExpensePayment } from "./reportExpense";
 
@@ -80,9 +82,25 @@ const ReportExpenseList: React.FC<ReportExpenseListProps> = ({
             }
 
             if (result.printLocally) {
-                throw new Error(
-                    "Este equipo tiene impresora integrada/USB activa. Desactívela en Configuración → Impresoras por dispositivo para usar impresión en red.",
+                const localPrintOk = await invokeLocalIssuedDocumentPrint(
+                    {
+                        printLocally: true,
+                        documentData: result.documentData,
+                    },
+                    {
+                        label: "egreso",
+                        deviceId: resolvedDeviceId,
+                        localPrinterName:
+                            getLocalTicketPrinterStorage().trim() || null,
+                    },
                 );
+                if (!localPrintOk) {
+                    throw new Error(
+                        "No se pudo enviar el egreso a la impresora USB. Revise la impresora en Configuración → Impresoras locales.",
+                    );
+                }
+                setPrintMessage("Egreso enviado a la impresora USB.");
+                return;
             }
 
             setPrintMessage("Comprobante enviado a impresión en red.");

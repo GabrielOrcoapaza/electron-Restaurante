@@ -11,6 +11,8 @@ import {
 } from "../../utils/localDateTime";
 import { getPaymentMethodLabel } from "../../utils/paymentMethodLabels";
 import { resolveClientDeviceIdForPrint } from "../../utils/deviceIdForPrint";
+import { invokeLocalIssuedDocumentPrint } from "../../utils/localDocumentPrint";
+import { getLocalTicketPrinterStorage } from "../../utils/localPrinterPreference";
 import ReportExportExcelButton from "../../components/ReportExportExcelButton";
 import { useToast } from "../../context/ToastContext";
 import { downloadExpenseReport } from "./reportExcelExports";
@@ -254,9 +256,28 @@ const ReportExpense: React.FC = () => {
                 );
             }
             if (result.printLocally) {
-                throw new Error(
-                    "Este equipo tiene impresora integrada/USB activa. Desactívela en Configuración → Impresoras por dispositivo para usar impresión en red.",
+                const localPrintOk = await invokeLocalIssuedDocumentPrint(
+                    {
+                        printLocally: true,
+                        documentData: result.documentData,
+                    },
+                    {
+                        label: "reporte de egresos",
+                        deviceId: resolvedDeviceId,
+                        localPrinterName:
+                            getLocalTicketPrinterStorage().trim() || null,
+                    },
                 );
+                if (!localPrintOk) {
+                    throw new Error(
+                        "No se pudo enviar el reporte a la impresora USB. Revise la impresora en Configuración → Impresoras locales.",
+                    );
+                }
+                setPrintMessage({
+                    type: "success",
+                    text: "Reporte de egresos enviado a la impresora USB.",
+                });
+                return;
             }
 
             setPrintMessage({
