@@ -43,7 +43,6 @@ import {
     GET_OPERATION_BY_TABLE,
     GET_OPERATION_BY_ID,
     SEARCH_PRODUCTS,
-    GET_PRODUCT_BY_CODE,
     GET_MODIFIERS_BY_SUBCATEGORY,
     GET_ACTIVE_PROMOTIONS,
 } from "../../graphql/queries";
@@ -456,7 +455,6 @@ const Order: React.FC<OrderProps> = ({
         string | null
     >(null);
     const [searchTerm, setSearchTerm] = useState<string>("");
-    const [searchByCodeOnly, setSearchByCodeOnly] = useState<boolean>(false);
     const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
     const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
     // Observación general de la orden (opcional) — ej. nombre del cliente en la mesa.
@@ -647,9 +645,7 @@ const Order: React.FC<OrderProps> = ({
         subcategoriesOfCategory.length > 0 &&
         !selectedSubcategory;
 
-    // Búsqueda de productos (si hay término de búsqueda) - siempre del servidor
-    // Cuando searchByCodeOnly: usar product_by_code (backend). Si no: searchProducts con 3+ caracteres.
-    const searchMinLength = searchByCodeOnly ? 1 : 3;
+    const searchMinLength = 3;
     const { data: searchData, loading: searchLoading } = useQuery(
         SEARCH_PRODUCTS,
         {
@@ -660,25 +656,7 @@ const Order: React.FC<OrderProps> = ({
             },
             skip:
                 !companyData?.branch.id ||
-                searchByCodeOnly ||
                 searchTerm.trim().length < searchMinLength,
-            errorPolicy: "ignore",
-            fetchPolicy: "network-only",
-        },
-    );
-
-    // Búsqueda solo por código: usa product_by_code del backend (insensible a mayúsculas)
-    const { data: productByCodeData, loading: productByCodeLoading } = useQuery(
-        GET_PRODUCT_BY_CODE,
-        {
-            variables: {
-                branchId: companyData?.branch.id,
-                code: searchTerm.trim(),
-            },
-            skip:
-                !companyData?.branch.id ||
-                !searchByCodeOnly ||
-                !searchTerm.trim(),
             errorPolicy: "ignore",
             fetchPolicy: "network-only",
         },
@@ -690,7 +668,6 @@ const Order: React.FC<OrderProps> = ({
             variables: { categoryId: selectedCategory },
             skip:
                 !selectedCategory ||
-                searchByCodeOnly ||
                 searchTerm.length >= 3 ||
                 subcategoriesLoading ||
                 awaitingSubcategoryPick,
@@ -742,14 +719,7 @@ const Order: React.FC<OrderProps> = ({
     let products;
     let productsLoading;
 
-    if (searchByCodeOnly && searchTerm.trim().length >= 1) {
-        // Búsqueda solo por código: soporta productByCode (camelCase) y product_by_code (snake_case según backend)
-        const p =
-            productByCodeData?.productByCode ??
-            productByCodeData?.product_by_code;
-        products = p && isOrderSearchProduct(p) ? [p] : [];
-        productsLoading = productByCodeLoading;
-    } else if (searchTerm.length >= 3) {
+    if (searchTerm.length >= 3) {
         // Prioridad 1: Búsqueda avanzada (del servidor): catálogo vendible activo
         const raw = searchData?.searchProducts;
         products = Array.isArray(raw) ? raw.filter(isOrderSearchProduct) : raw;
@@ -767,9 +737,7 @@ const Order: React.FC<OrderProps> = ({
         productsLoading = productsByBranchLoading;
     }
 
-    const isSearching = searchByCodeOnly
-        ? searchTerm.trim().length >= 1
-        : searchTerm.trim().length >= 3;
+    const isSearching = searchTerm.trim().length >= searchMinLength;
 
     // Misma regla que en búsqueda: catálogo vendible activo
     let productsList = (products || []).filter(isOrderSearchProduct);
@@ -2544,11 +2512,7 @@ const Order: React.FC<OrderProps> = ({
                                         <input
                                             ref={searchInputRef}
                                             type="text"
-                                            placeholder={
-                                                searchByCodeOnly
-                                                    ? "Código del producto..."
-                                                    : "Buscar producto o escanear código"
-                                            }
+                                            placeholder="Buscar producto o escanear código"
                                             value={searchTerm}
                                             onChange={(e) =>
                                                 setSearchTerm(e.target.value)
