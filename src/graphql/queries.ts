@@ -1851,6 +1851,8 @@ export const GET_CLIENT_SALES_REPORT = gql`
                 clientName
                 clientDocumentNumber
                 clientDocumentType
+                documentCode
+                documentDescription
                 paymentMethods
                 totalAmount
                 billingStatus

@@ -2536,19 +2536,7 @@ const Order: React.FC<OrderProps> = ({
                             {/* Búsqueda */}
                             <div className="mb-4 flex-shrink-0 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
                                 <div className="flex flex-wrap items-center gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setSearchByCodeOnly((v) => !v)
-                                        }
-                                        className={`flex items-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-semibold transition-all duration-200 ${
-                                            searchByCodeOnly
-                                                ? "border-blue-500 bg-blue-600 text-white dark:border-blue-400 dark:bg-blue-500"
-                                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
-                                        }`}
-                                    >
-                                        Búsqueda solo código
-                                    </button>
+                                    
                                     <div className="relative flex-1 min-w-0">
                                         <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg opacity-60">
                                             🔎

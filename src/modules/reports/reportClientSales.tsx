@@ -9,6 +9,12 @@ import { formatLocalDateYYYYMMDD } from '../../utils/localDateTime';
 import ReportExportExcelButton from '../../components/ReportExportExcelButton';
 import { useToast } from '../../context/ToastContext';
 import { downloadClientSalesReport } from './reportExcelExports';
+import {
+    buildClientCreditVoucherGroups,
+    clientSalesClientKey,
+    issuedDocumentTypeLabel,
+    type ClientCreditVoucherGroup,
+} from '../../utils/clientSalesReportUtils';
 
 const currencyFormatter = new Intl.NumberFormat('es-PE', {
     style: 'currency',
@@ -25,6 +31,8 @@ interface ClientSalesReportItem {
     clientName: string;
     clientDocumentNumber?: string;
     clientDocumentType?: string;
+    documentCode?: string | null;
+    documentDescription?: string | null;
     paymentMethods?: string;
     totalAmount: number;
     billingStatus: string;
@@ -48,6 +56,10 @@ const REPORT_PAYMENT_METHOD_OPTIONS = [
     'OTROS',
 ] as const;
 
+function formatCorrelativo(serial: string, number: number): string {
+    return `${serial}-${String(number).padStart(8, '0')}`;
+}
+
 interface ClientSalesReportSummary {
     totalDocuments: number;
     totalClients: number;
@@ -64,10 +76,6 @@ interface ClientSalesReportSummary {
     totalOthers: number;
 }
 
-function formatCorrelativo(serial: string, number: number): string {
-    return `${serial}-${String(number).padStart(8, '0')}`;
-}
-
 const ReportClientSales: React.FC = () => {
     const { companyData } = useAuth();
     const { showToast } = useToast();
@@ -79,6 +87,8 @@ const ReportClientSales: React.FC = () => {
     const [endDate, setEndDate] = useState<string>(() => formatLocalDateYYYYMMDD());
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
+
+    const hasClientSearch = searchTerm.trim().length > 0;
 
     const { data, loading, error, refetch } = useQuery(GET_CLIENT_SALES_REPORT, {
         variables: { branchId: branchId!, startDate, endDate },
@@ -126,18 +136,31 @@ const ReportClientSales: React.FC = () => {
         }
     };
 
-    const filteredDocuments = useMemo(() => {
+    const documentsForSearch = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
-        const list = term
-            ? documents.filter(
-                  (doc) =>
-                      doc.clientName.toLowerCase().includes(term) ||
-                      (doc.clientDocumentNumber ?? '')
-                          .toLowerCase()
-                          .includes(term),
-              )
-            : documents;
-        return [...list].sort((a, b) => {
+        if (!term) return documents;
+        return documents.filter(
+            (doc) =>
+                doc.clientName.toLowerCase().includes(term) ||
+                (doc.clientDocumentNumber ?? '')
+                    .toLowerCase()
+                    .includes(term),
+        );
+    }, [documents, searchTerm]);
+
+    const creditVoucherGroups = useMemo(
+        () => buildClientCreditVoucherGroups(documents),
+        [documents],
+    );
+
+    const creditVoucherGroupsForClient = useMemo(
+        () => buildClientCreditVoucherGroups(documentsForSearch),
+        [documentsForSearch],
+    );
+
+    const detailDocuments = useMemo(() => {
+        if (!hasClientSearch) return [];
+        return [...documentsForSearch].sort((a, b) => {
             if (Boolean(a.canEditPaymentMethod) !== Boolean(b.canEditPaymentMethod)) {
                 return a.canEditPaymentMethod ? -1 : 1;
             }
@@ -151,7 +174,32 @@ const ReportClientSales: React.FC = () => {
             const dateB = `${b.emissionDate}T${b.emissionTime ?? '00:00'}`;
             return dateB.localeCompare(dateA);
         });
-    }, [documents, searchTerm]);
+    }, [documentsForSearch, hasClientSearch]);
+
+    const creditCountByGroupKey = useMemo(() => {
+        const map = new Map<string, number>();
+        for (const group of creditVoucherGroupsForClient) {
+            map.set(group.groupKey, group.documentCount);
+        }
+        return map;
+    }, [creditVoucherGroupsForClient]);
+
+    const detailCreditOutsidePeriodCount = useMemo(
+        () =>
+            detailDocuments.filter(
+                (doc) => doc.isCreditSale && doc.isOutsideSelectedPeriod,
+            ).length,
+        [detailDocuments],
+    );
+
+    const documentsForExport = useMemo(() => {
+        const base = hasClientSearch ? documentsForSearch : documents;
+        return [...base].sort((a, b) => {
+            const dateA = `${a.emissionDate}T${a.emissionTime ?? '00:00'}`;
+            const dateB = `${b.emissionDate}T${b.emissionTime ?? '00:00'}`;
+            return dateB.localeCompare(dateA);
+        });
+    }, [documents, documentsForSearch, hasClientSearch]);
 
     const creditOutsidePeriodCount = useMemo(
         () =>
@@ -161,17 +209,24 @@ const ReportClientSales: React.FC = () => {
         [documents],
     );
 
+    const handleFocusClient = (group: ClientCreditVoucherGroup) => {
+        setSearchTerm(group.clientName);
+    };
+
     const handleExportExcel = async () => {
-        if (!filteredDocuments.length) {
+        if (!documentsForExport.length && !creditVoucherGroups.length) {
             showToast('No hay ventas para exportar en este periodo.', 'warning');
             return;
         }
 
         try {
             const result = await downloadClientSalesReport(
-                filteredDocuments,
+                documentsForExport,
                 summary,
                 { startDate, endDate },
+                hasClientSearch
+                    ? creditVoucherGroupsForClient
+                    : creditVoucherGroups,
             );
             showToast(result.message || 'Reporte descargado en Excel.', 'success');
         } catch (error) {
@@ -215,7 +270,11 @@ const ReportClientSales: React.FC = () => {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <ReportExportExcelButton
                         onClick={handleExportExcel}
-                        disabled={loading || filteredDocuments.length === 0}
+                        disabled={
+                            loading ||
+                            (documentsForExport.length === 0 &&
+                                creditVoucherGroups.length === 0)
+                        }
                     />
                     <button
                         onClick={() => refetch()}
@@ -332,157 +391,108 @@ const ReportClientSales: React.FC = () => {
                 </div>
             )}
 
-            {/* Results Table */}
-            <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
-                <div className="flex flex-col gap-2 border-b border-slate-50 p-6 dark:border-slate-800/50 sm:flex-row sm:items-center sm:justify-between">
+            {/* Resumen crédito (solo sin búsqueda activa) */}
+            {!hasClientSearch && (
+            <div className="flex flex-col overflow-hidden rounded-[32px] border border-amber-100 bg-white shadow-sm dark:border-amber-900/30 dark:bg-slate-900">
+                <div className="flex flex-col gap-2 border-b border-amber-50 p-6 dark:border-amber-950/40 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
-                            Detalle de Ventas por Cliente
+                            Crédito pendiente por cliente y comprobante
                         </h2>
                         <p className="mt-1 max-w-2xl text-[11px] font-bold leading-relaxed text-slate-500 dark:text-slate-400">
-                            Las ventas a crédito con cliente identificado se listan
-                            siempre en este detalle, aunque estén fuera del rango de
-                            fechas del filtro. Cuando el cliente pague, cambie el método
-                            de pago del movimiento (mismo permiso que en caja).
+                            Una fila por cliente y tipo (boleta, factura, nota de venta).
+                            La cantidad indica cuántos documentos al crédito tiene ese
+                            cliente en ese tipo. Busque por nombre o documento para ver
+                            cada comprobante y cambiar el método de pago del crédito
+                            (o pulse el nombre del cliente en la tabla).
                         </p>
                     </div>
-                    <span className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800">
-                        {filteredDocuments.length}{' '}
-                        {filteredDocuments.length === 1 ? 'documento' : 'documentos'}
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                        {creditVoucherGroups.length}{' '}
+                        {creditVoucherGroups.length === 1 ? 'grupo' : 'grupos'}
                         {creditOutsidePeriodCount > 0
-                            ? ` · ${creditOutsidePeriodCount} crédito fuera del periodo`
+                            ? ` · ${creditOutsidePeriodCount} fuera del periodo`
                             : ''}
                     </span>
                 </div>
-
                 <div className="p-4 sm:p-6">
                     {loading ? (
-                        <div className="flex min-h-[200px] flex-col gap-3">
-                            {Array(5).fill(0).map((_, i) => (
-                                <div key={i} className="h-14 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50" />
+                        <div className="flex min-h-[120px] flex-col gap-3">
+                            {Array(3).fill(0).map((_, i) => (
+                                <div
+                                    key={i}
+                                    className="h-12 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50"
+                                />
                             ))}
                         </div>
                     ) : error ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-center">
-                            <h3 className="text-lg font-black text-slate-800 dark:text-slate-200">Error en la consulta</h3>
-                            <p className="max-w-xs text-sm font-bold text-slate-400">{error.message}</p>
-                        </div>
-                    ) : filteredDocuments.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-center">
-                            <h3 className="text-lg font-black text-slate-800 dark:text-slate-200">Sin resultados</h3>
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <h3 className="text-lg font-black text-slate-800 dark:text-slate-200">
+                                Error en la consulta
+                            </h3>
                             <p className="max-w-xs text-sm font-bold text-slate-400">
-                                {searchTerm
-                                    ? `No se encontró a "${searchTerm}" en el periodo seleccionado.`
-                                    : "No hay ventas con cliente identificado para el periodo seleccionado."}
+                                {error.message}
                             </p>
                         </div>
+                    ) : creditVoucherGroups.length === 0 ? (
+                        <p className="py-8 text-center text-xs font-bold text-slate-400">
+                            {searchTerm
+                                ? 'No hay documentos al crédito para ese cliente en el filtro.'
+                                : 'No hay ventas al crédito pendientes en este reporte.'}
+                        </p>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-xs">
                                 <thead>
-                                    <tr className="bg-slate-50/50 text-[9px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800/30">
-                                        <th className="px-4 py-3">Fecha</th>
-                                        <th className="px-4 py-3">Comprobante</th>
+                                    <tr className="bg-amber-50/80 text-[9px] font-black uppercase tracking-widest text-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200/80">
+                                        <th className="px-4 py-3">Última fecha</th>
                                         <th className="px-4 py-3">Cliente</th>
-                                        <th className="px-4 py-3">Método de Pago</th>
-                                        <th className="px-4 py-3 text-right">Total</th>
+                                        <th className="px-4 py-3">Tipo comprobante</th>
+                                        <th className="px-4 py-3 text-center">Cantidad</th>
+                                        <th className="px-4 py-3">Comprobantes</th>
+                                        <th className="px-4 py-3 text-right">Total crédito</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                                    {filteredDocuments.map((doc) => (
+                                <tbody className="divide-y divide-amber-50 dark:divide-amber-950/30">
+                                    {creditVoucherGroups.map((group) => (
                                         <tr
-                                            key={doc.id}
-                                            className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 ${
-                                                doc.isOutsideSelectedPeriod
-                                                    ? 'bg-amber-50/60 dark:bg-amber-950/20'
-                                                    : ''
-                                            }`}
+                                            key={group.groupKey}
+                                            className="hover:bg-amber-50/40 dark:hover:bg-amber-950/20"
                                         >
-                                            <td className="px-4 py-3 font-bold text-slate-500">
-                                                {doc.emissionDate} {doc.emissionTime?.slice(0, 5)}
-                                            </td>
-                                            <td className="px-4 py-3 font-black text-slate-700 dark:text-slate-200">
-                                                {formatCorrelativo(doc.serial, doc.number)}
+                                            <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-500">
+                                                {group.lastEmissionDate}{' '}
+                                                {group.lastEmissionTime?.slice(0, 5)}
                                             </td>
                                             <td className="px-4 py-3">
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-slate-700 dark:text-slate-200">
-                                                        {doc.clientName}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleFocusClient(group)}
+                                                    className="flex flex-col text-left transition-colors hover:text-teal-600 dark:hover:text-teal-400"
+                                                    title="Filtrar por este cliente"
+                                                >
+                                                    <span className="font-bold text-slate-800 underline decoration-dotted underline-offset-2 dark:text-slate-100">
+                                                        {group.clientName}
                                                     </span>
-                                                    {doc.clientDocumentNumber && (
-                                                        <span className="text-[10px] text-slate-400">{doc.clientDocumentNumber}</span>
+                                                    {group.clientDocumentNumber && (
+                                                        <span className="text-[10px] text-slate-400">
+                                                            {group.clientDocumentNumber}
+                                                        </span>
                                                     )}
-                                                </div>
+                                                </button>
                                             </td>
-                                            <td className="px-4 py-3 font-bold text-slate-600 dark:text-slate-300">
-                                                <div className="flex min-w-[140px] flex-col gap-1.5">
-                                                    {doc.canEditPaymentMethod &&
-                                                    doc.creditPaymentId &&
-                                                    canChangePaymentMethod ? (
-                                                        <select
-                                                            value={
-                                                                doc.editablePaymentMethod ??
-                                                                'CREDITO'
-                                                            }
-                                                            disabled={
-                                                                updatingPaymentId ===
-                                                                doc.creditPaymentId
-                                                            }
-                                                            onChange={(e) => {
-                                                                const next =
-                                                                    e.target.value;
-                                                                if (
-                                                                    next ===
-                                                                    doc.editablePaymentMethod
-                                                                ) {
-                                                                    return;
-                                                                }
-                                                                void handleUpdatePaymentMethod(
-                                                                    doc.creditPaymentId!,
-                                                                    next,
-                                                                );
-                                                            }}
-                                                            className="w-full max-w-[200px] rounded-lg border border-amber-300 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 disabled:opacity-60 dark:border-amber-700 dark:bg-slate-900 dark:text-slate-100"
-                                                        >
-                                                            {REPORT_PAYMENT_METHOD_OPTIONS.map(
-                                                                (code) => (
-                                                                    <option
-                                                                        key={code}
-                                                                        value={code}
-                                                                    >
-                                                                        {code ===
-                                                                        'CREDITO'
-                                                                            ? 'Crédito (pendiente)'
-                                                                            : PAYMENT_METHOD_LABELS[
-                                                                                  code
-                                                                              ] ??
-                                                                              code}
-                                                                    </option>
-                                                                ),
-                                                            )}
-                                                        </select>
-                                                    ) : (
-                                                        <span>
-                                                            {doc.paymentMethods || '-'}
-                                                        </span>
-                                                    )}
-                                                    {doc.isCreditSale &&
-                                                        !doc.canEditPaymentMethod && (
-                                                            <span className="text-[9px] font-bold text-slate-400">
-                                                                {canChangePaymentMethod
-                                                                    ? 'Crédito ya cerrado o no editable'
-                                                                    : 'Sin permiso para cambiar método'}
-                                                            </span>
-                                                        )}
-                                                    {doc.isOutsideSelectedPeriod && (
-                                                        <span className="text-[9px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                                                            Crédito · fuera del periodo
-                                                        </span>
-                                                    )}
-                                                </div>
+                                            <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200">
+                                                {group.voucherTypeLabel}
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-amber-100 px-2 py-0.5 text-sm font-black text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
+                                                    {group.documentCount}
+                                                </span>
+                                            </td>
+                                            <td className="max-w-[220px] px-4 py-3 text-[10px] font-bold text-slate-500">
+                                                {group.comprobantes.join(', ')}
                                             </td>
                                             <td className="px-4 py-3 text-right font-black text-slate-800 dark:text-slate-100">
-                                                {currencyFormatter.format(doc.totalAmount)}
+                                                {currencyFormatter.format(group.totalAmount)}
                                             </td>
                                         </tr>
                                     ))}
@@ -492,6 +502,199 @@ const ReportClientSales: React.FC = () => {
                     )}
                 </div>
             </div>
+            )}
+
+            {hasClientSearch && (
+                <div className="flex flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+                    <div className="flex flex-col gap-2 border-b border-slate-50 p-6 dark:border-slate-800/50 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                                Detalle de Ventas por Cliente
+                            </h2>
+                            <p className="mt-1 max-w-2xl text-[11px] font-bold leading-relaxed text-slate-500 dark:text-slate-400">
+                                Comprobantes de «{searchTerm.trim()}». Cambie el método
+                                de pago del crédito pendiente cuando tenga permiso de
+                                caja.
+                            </p>
+                        </div>
+                        <span className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800">
+                            {detailDocuments.length}{' '}
+                            {detailDocuments.length === 1 ? 'documento' : 'documentos'}
+                            {detailCreditOutsidePeriodCount > 0
+                                ? ` · ${detailCreditOutsidePeriodCount} crédito fuera del periodo`
+                                : ''}
+                        </span>
+                    </div>
+
+                    <div className="p-4 sm:p-6">
+                        {loading ? (
+                            <div className="flex min-h-[120px] flex-col gap-3">
+                                {Array(3).fill(0).map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className="h-12 animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/50"
+                                    />
+                                ))}
+                            </div>
+                        ) : detailDocuments.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <h3 className="text-lg font-black text-slate-800 dark:text-slate-200">
+                                    Sin resultados
+                                </h3>
+                                <p className="max-w-xs text-sm font-bold text-slate-400">
+                                    No se encontró a «{searchTerm.trim()}» en este
+                                    reporte.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead>
+                                        <tr className="bg-slate-50/50 text-[9px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800/30">
+                                            <th className="px-4 py-3">Fecha</th>
+                                            <th className="px-4 py-3">Cliente</th>
+                                            <th className="px-4 py-3">Tipo</th>
+                                            <th className="px-4 py-3">Comprobante</th>
+                                            <th className="px-4 py-3 text-center">Cant.</th>
+                                            <th className="px-4 py-3">Método de Pago</th>
+                                            <th className="px-4 py-3 text-right">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                        {detailDocuments.map((doc) => {
+                                            const voucherType =
+                                                issuedDocumentTypeLabel(
+                                                    doc.documentCode,
+                                                    doc.documentDescription,
+                                                );
+                                            const creditGroupKey = doc.isCreditSale
+                                                ? `${clientSalesClientKey(doc)}::${voucherType}`
+                                                : '';
+                                            const creditQty = doc.isCreditSale
+                                                ? creditCountByGroupKey.get(
+                                                      creditGroupKey,
+                                                  ) ?? 1
+                                                : null;
+
+                                            return (
+                                                <tr
+                                                    key={doc.id}
+                                                    className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 ${
+                                                        doc.isOutsideSelectedPeriod
+                                                            ? 'bg-amber-50/60 dark:bg-amber-950/20'
+                                                            : ''
+                                                    }`}
+                                                >
+                                                    <td className="px-4 py-3 font-bold text-slate-500">
+                                                        {doc.emissionDate}{' '}
+                                                        {doc.emissionTime?.slice(0, 5)}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex flex-col">
+                                                            <span className="font-bold text-slate-700 dark:text-slate-200">
+                                                                {doc.clientName}
+                                                            </span>
+                                                            {doc.clientDocumentNumber && (
+                                                                <span className="text-[10px] text-slate-400">
+                                                                    {doc.clientDocumentNumber}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 font-bold text-slate-600 dark:text-slate-300">
+                                                        {voucherType}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-black text-slate-700 dark:text-slate-200">
+                                                        {formatCorrelativo(
+                                                            doc.serial,
+                                                            doc.number,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center font-black text-slate-600 dark:text-slate-300">
+                                                        {creditQty ?? '—'}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-bold text-slate-600 dark:text-slate-300">
+                                                        <div className="flex min-w-[140px] flex-col gap-1.5">
+                                                            {doc.canEditPaymentMethod &&
+                                                            doc.creditPaymentId &&
+                                                            canChangePaymentMethod ? (
+                                                                <select
+                                                                    value={
+                                                                        doc.editablePaymentMethod ??
+                                                                        'CREDITO'
+                                                                    }
+                                                                    disabled={
+                                                                        updatingPaymentId ===
+                                                                        doc.creditPaymentId
+                                                                    }
+                                                                    onChange={(e) => {
+                                                                        const next =
+                                                                            e.target.value;
+                                                                        if (
+                                                                            next ===
+                                                                            doc.editablePaymentMethod
+                                                                        ) {
+                                                                            return;
+                                                                        }
+                                                                        void handleUpdatePaymentMethod(
+                                                                            doc.creditPaymentId!,
+                                                                            next,
+                                                                        );
+                                                                    }}
+                                                                    className="w-full max-w-[200px] rounded-lg border border-amber-300 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 disabled:opacity-60 dark:border-amber-700 dark:bg-slate-900 dark:text-slate-100"
+                                                                >
+                                                                    {REPORT_PAYMENT_METHOD_OPTIONS.map(
+                                                                        (code) => (
+                                                                            <option
+                                                                                key={code}
+                                                                                value={code}
+                                                                            >
+                                                                                {code ===
+                                                                                'CREDITO'
+                                                                                    ? 'Crédito (pendiente)'
+                                                                                    : PAYMENT_METHOD_LABELS[
+                                                                                          code
+                                                                                      ] ??
+                                                                                      code}
+                                                                            </option>
+                                                                        ),
+                                                                    )}
+                                                                </select>
+                                                            ) : (
+                                                                <span>
+                                                                    {doc.paymentMethods || '-'}
+                                                                </span>
+                                                            )}
+                                                            {doc.isCreditSale &&
+                                                                !doc.canEditPaymentMethod && (
+                                                                    <span className="text-[9px] font-bold text-slate-400">
+                                                                        {canChangePaymentMethod
+                                                                            ? 'Crédito ya cerrado o no editable'
+                                                                            : 'Sin permiso para cambiar método'}
+                                                                    </span>
+                                                                )}
+                                                            {doc.isOutsideSelectedPeriod && (
+                                                                <span className="text-[9px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                                                                    Crédito · fuera del periodo
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-black text-slate-800 dark:text-slate-100">
+                                                        {currencyFormatter.format(
+                                                            doc.totalAmount,
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

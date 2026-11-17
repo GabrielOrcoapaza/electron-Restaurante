@@ -169,6 +169,25 @@ function cartItemsPromoSnapshot(items: CartItem[]): string {
         .join("|");
 }
 
+const stripAuxiliaryCartItems = (items: CartItem[]) =>
+    items.filter(
+        (i) => i.id !== DELIVERY_ITEM_ID && i.id !== GIFT_ITEM_ID,
+    );
+
+/** Líneas vendibles (sin delivery/regalo) para detectar cambios reales al agregar ítems. */
+function cartSellableFingerprint(items: CartItem[]): string {
+    return stripAuxiliaryCartItems(items)
+        .map(
+            (i) =>
+                `${i.id}:${i.productId}:${i.quantity}:${i.price}:${i.isCombo ? 1 : 0}`,
+        )
+        .join("|");
+}
+
+type CartItemsCommitInput =
+    | CartItem[]
+    | ((sellableItems: CartItem[]) => CartItem[]);
+
 /** Recalcula descuentos NxM, regalo y badges de promoción en el carrito de delivery. */
 function applyPromotionsToDeliveryCart(
     items: CartItem[],
@@ -383,6 +402,17 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
     const [searchByCodeOnly, setSearchByCodeOnly] = useState<boolean>(false);
     const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
+    const cartItemsRef = useRef<CartItem[]>([]);
+
+    const applyCartState = useCallback((next: CartItem[]) => {
+        cartItemsRef.current = next;
+        setCartItems(next);
+    }, []);
+
+    useEffect(() => {
+        cartItemsRef.current = cartItems;
+    }, [cartItems]);
+
     const [isSaving, setIsSaving] = useState(false);
 
     // Estados para el pago
@@ -652,29 +682,17 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
         [activePromotions, selectedCategory, subcategoriesOfCategory],
     );
 
-    const commitCartItems = useCallback(
-        (items: CartItem[]) => {
+    const finalizeCartFromSellable = useCallback(
+        (sellableItems: CartItem[]): CartItem[] => {
             const withDelivery = mergeDeliveryServiceItem(
-                items.filter(
-                    (i) =>
-                        i.id !== DELIVERY_ITEM_ID && i.id !== GIFT_ITEM_ID,
-                ),
+                stripAuxiliaryCartItems(sellableItems),
                 deliveryCost,
                 deliveryProductId,
             );
 
             if (activePromotions.length === 0) {
                 setGiftMessage(null);
-                setCartItems((prev) => {
-                    if (
-                        cartItemsPromoSnapshot(prev) ===
-                        cartItemsPromoSnapshot(withDelivery)
-                    ) {
-                        return prev;
-                    }
-                    return withDelivery;
-                });
-                return;
+                return withDelivery;
             }
 
             const { items: nextItems, giftMessage: nextGiftMessage } =
@@ -685,15 +703,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                     selectedCategory,
                 );
             setGiftMessage(nextGiftMessage);
-            setCartItems((prev) => {
-                if (
-                    cartItemsPromoSnapshot(prev) ===
-                    cartItemsPromoSnapshot(nextItems)
-                ) {
-                    return prev;
-                }
-                return nextItems;
-            });
+            return nextItems;
         },
         [
             activePromotions,
@@ -702,6 +712,28 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
             deliveryCost,
             deliveryProductId,
         ],
+    );
+
+    const commitCartItems = useCallback(
+        (itemsOrUpdater: CartItemsCommitInput) => {
+            const prev = cartItemsRef.current;
+            const prevSellable = stripAuxiliaryCartItems(prev);
+            const nextSellable =
+                typeof itemsOrUpdater === "function"
+                    ? itemsOrUpdater(prevSellable)
+                    : stripAuxiliaryCartItems(itemsOrUpdater);
+
+            if (
+                typeof itemsOrUpdater === "function" &&
+                cartSellableFingerprint(prevSellable) ===
+                    cartSellableFingerprint(nextSellable)
+            ) {
+                return;
+            }
+
+            applyCartState(finalizeCartFromSellable(nextSellable));
+        },
+        [finalizeCartFromSellable, applyCartState],
     );
 
     useEffect(() => {
@@ -885,26 +917,42 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
 
         const qty = qtyToAdd ?? 1;
 
-        const stockRunning = buildCartStockUsage(cartItems);
+        const stockRunning = buildCartStockUsage(cartItemsRef.current);
         const stockCheck = canAddProductQuantity(product, qty, stockRunning);
         if (!stockCheck.ok) {
             showToast(stockCheck.message ?? "Sin stock disponible", "error");
             return;
         }
 
-        const existingItemIndex = separateRepeatedItems
-            ? -1
-            : cartItems.findIndex((item) => item.productId === product.id);
+        commitCartItems((sellable) => {
+            const running = buildCartStockUsage(sellable);
+            const recheck = canAddProductQuantity(product, qty, running);
+            if (!recheck.ok) {
+                return sellable;
+            }
 
-        if (existingItemIndex >= 0) {
-            const updatedItems = [...cartItems];
-            const existingItem = updatedItems[existingItemIndex];
-            const validQuantity = Number(existingItem.quantity) + qty;
-            const validPrice = Number(existingItem.price) || productPrice;
-            updatedItems[existingItemIndex].quantity = validQuantity;
-            updatedItems[existingItemIndex].total = validPrice * validQuantity;
-            commitCartItems(updatedItems);
-        } else {
+            const existingItemIndex = separateRepeatedItems
+                ? -1
+                : sellable.findIndex(
+                      (item) =>
+                          String(item.productId) === String(product.id) &&
+                          !item.isCombo &&
+                          !item.notes?.trim(),
+                  );
+
+            if (existingItemIndex >= 0) {
+                const updatedItems = [...sellable];
+                const existingItem = updatedItems[existingItemIndex];
+                const validQuantity = Number(existingItem.quantity) + qty;
+                const validPrice = Number(existingItem.price) || productPrice;
+                updatedItems[existingItemIndex] = {
+                    ...existingItem,
+                    quantity: validQuantity,
+                    total: validPrice * validQuantity,
+                };
+                return updatedItems;
+            }
+
             const newItem: CartItem = {
                 id: `${product.id}-${Date.now()}`,
                 productId: product.id,
@@ -920,8 +968,8 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                 promotionName: null,
                 manualPriceEdited: false,
             };
-            commitCartItems([...cartItems, newItem]);
-        }
+            return [...sellable, newItem];
+        });
 
         setSearchTerm("");
         if (!productIdToAdd) {
@@ -930,25 +978,26 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
     };
 
     const handleRemoveProduct = (productId: string) => {
-        const idx = cartItems.findIndex(
-            (item) =>
-                String(item.productId) === String(productId) &&
-                !item.isCombo &&
-                !item.notes,
-        );
-        if (idx < 0) return;
-        const item = cartItems[idx];
-        if (item.quantity <= 1) {
-            commitCartItems(cartItems.filter((_, i) => i !== idx));
-        } else {
-            const updated = [...cartItems];
+        commitCartItems((sellable) => {
+            const idx = sellable.findIndex(
+                (item) =>
+                    String(item.productId) === String(productId) &&
+                    !item.isCombo &&
+                    !item.notes?.trim(),
+            );
+            if (idx < 0) return sellable;
+            const item = sellable[idx];
+            if (item.quantity <= 1) {
+                return sellable.filter((_, i) => i !== idx);
+            }
+            const updated = [...sellable];
             updated[idx] = {
                 ...item,
                 quantity: item.quantity - 1,
                 total: item.price * (item.quantity - 1),
             };
-            commitCartItems(updated);
-        }
+            return updated;
+        });
     };
 
     // Handler para cuando el usuario confirma el combo desde el modal
@@ -1610,7 +1659,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                 setShowCheckout(false);
 
                 // Limpiar formulario
-                setCartItems([]);
+                applyCartState([]);
                 setSelectedPerson(null);
                 setPersonSearchTerm("");
                 setSelectedDocument("");
@@ -2104,7 +2153,7 @@ const Delivery: React.FC<{ onGoToCashRegister?: () => void }> = ({
                                     !canAddMoreProduct(product, cartItems, 1);
                                 return (
                                     <PosProductCard
-                                        key={product.id}
+                                        key={`${product.id}-q${qty}`}
                                         name={product.name}
                                         price={
                                             parseFloat(product.salePrice) || 0

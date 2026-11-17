@@ -1,6 +1,10 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useQuery } from "@apollo/client";
 import { GET_PAYMENTS_BY_CLOSURE } from "../../graphql/queries";
+import {
+    getPaymentMethodLabel,
+    normalizePaymentMethodCode,
+} from "../../utils/paymentMethodLabels";
 
 export interface CashClosureForDetail {
     id: string;
@@ -20,10 +24,14 @@ interface PaymentMovement {
     payment_date?: string;
     paidAmount?: number;
     paid_amount?: number;
+    totalAmount?: number;
+    total_amount?: number;
     transactionType?: string;
     transaction_type?: string;
     paymentMethod?: string;
     payment_method?: string;
+    paymentType?: string;
+    payment_type?: string;
     status?: string;
     notes?: string;
     user?: { fullName?: string; full_name?: string };
@@ -46,16 +54,77 @@ const currencyFormatter = new Intl.NumberFormat("es-PE", {
     minimumFractionDigits: 2,
 });
 
-const getPaymentMethodLabel = (method: string) => {
-    const labels: Record<string, string> = {
-        CASH: "Efectivo",
-        YAPE: "Yape",
-        PLIN: "Plin",
-        CARD: "Tarjeta",
-        TRANSFER: "Transferencia",
-        OTROS: "Otros",
-    };
-    return labels[method] || method;
+/** Orden estable de los métodos conocidos; el resto se agrega al final. */
+const PAYMENT_METHOD_ORDER = [
+    "CASH",
+    "CARD",
+    "YAPE",
+    "PLIN",
+    "TRANSFER",
+    "RAPPI",
+    "PEDIDO_YA",
+    "LLAMA_FOOD",
+    "CREDITO",
+    "OTROS",
+];
+
+const methodSortIndex = (code: string) => {
+    const index = PAYMENT_METHOD_ORDER.indexOf(code);
+    return index === -1 ? PAYMENT_METHOD_ORDER.length : index;
+};
+
+const resolveMovementPaymentMethod = (mov: PaymentMovement): string =>
+    normalizePaymentMethodCode(
+        mov.paymentMethod ??
+            mov.payment_method ??
+            mov.paymentType ??
+            mov.payment_type,
+    );
+
+const resolveMovementAmount = (mov: PaymentMovement): number => {
+    const raw =
+        mov.paidAmount ??
+        mov.paid_amount ??
+        mov.totalAmount ??
+        mov.total_amount ??
+        0;
+    const amount = Number(raw);
+    return Number.isFinite(amount) ? amount : 0;
+};
+
+const isIncomeMovement = (mov: PaymentMovement): boolean => {
+    const type = (
+        mov.transactionType ??
+        mov.transaction_type ??
+        ""
+    ).toUpperCase();
+    return type === "INCOME";
+};
+
+/** Ingresos acumulados por método (misma lógica que el historial). */
+const buildUsedPaymentMethodTotals = (payments: PaymentMovement[]) => {
+    const totals = new Map<string, number>();
+
+    for (const mov of payments) {
+        if (!isIncomeMovement(mov)) continue;
+
+        const method = resolveMovementPaymentMethod(mov);
+        const amount = resolveMovementAmount(mov);
+        if (amount <= 0) continue;
+
+        totals.set(method, (totals.get(method) ?? 0) + amount);
+    }
+
+    return [...totals.entries()]
+        .filter(([, total]) => total >= 0.005)
+        .sort(([a], [b]) => {
+            const order = methodSortIndex(a) - methodSortIndex(b);
+            if (order !== 0) return order;
+            return getPaymentMethodLabel(a).localeCompare(
+                getPaymentMethodLabel(b),
+                "es",
+            );
+        });
 };
 
 const getTransactionTypeLabel = (type: string) => {
@@ -77,6 +146,10 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
 
     const payments: PaymentMovement[] =
         data?.paymentsByClosure ?? data?.payments_by_closure ?? [];
+    const methodTotals = useMemo(
+        () => buildUsedPaymentMethodTotals(payments),
+        [payments],
+    );
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -228,28 +301,18 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
                             </div>
 
                             {/* Resumen por método de pago */}
-                            {!loading && payments.length > 0 && (
+                            {!loading && methodTotals.length > 0 && (
                                 <div className="flex flex-col gap-4">
                                     <h4 className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Distribución por Método</h4>
-                                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
-                                        {(["CASH", "CARD", "YAPE", "PLIN", "TRANSFER", "OTROS"] as const).map((method) => {
-                                            const total = payments.reduce((acc, mov) => {
-                                                const movMethod = mov.paymentMethod ?? mov.payment_method ?? "";
-                                                if (movMethod !== method) return acc;
-                                                const amount = Number(mov.paidAmount ?? mov.paid_amount ?? 0);
-                                                const type = mov.transactionType ?? mov.transaction_type ?? "";
-                                                return type === "INCOME" ? acc + amount : acc - amount;
-                                            }, 0);
-                                            if (total === 0) return null;
-                                            return (
-                                                <div key={method} className="flex flex-col gap-1 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 text-center dark:border-slate-800 dark:bg-slate-800/20">
-                                                    <span className="text-[10px] font-bold text-slate-400">{getPaymentMethodLabel(method)}</span>
-                                                    <span className={`text-sm font-black ${total >= 0 ? 'text-slate-700 dark:text-slate-200' : 'text-rose-600'}`}>
-                                                        {currencyFormatter.format(total)}
-                                                    </span>
-                                                </div>
-                                            );
-                                        })}
+                                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))]">
+                                        {methodTotals.map(([method, total]) => (
+                                            <div key={method} className="flex flex-col gap-1 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 text-center dark:border-slate-800 dark:bg-slate-800/20">
+                                                <span className="text-[10px] font-bold text-slate-400">{getPaymentMethodLabel(method)}</span>
+                                                <span className={`text-sm font-black ${total >= 0 ? 'text-slate-700 dark:text-slate-200' : 'text-rose-600'}`}>
+                                                    {currencyFormatter.format(total)}
+                                                </span>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             )}
@@ -290,22 +353,22 @@ const CashDetailModal: React.FC<CashDetailModalProps> = ({
                                                             </td>
                                                             <td className="px-6 py-4 text-center">
                                                                 <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
-                                                                    (mov.transactionType || mov.transaction_type) === "INCOME"
+                                                                    isIncomeMovement(mov)
                                                                         ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
                                                                         : "bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400"
                                                                 }`}>
-                                                                    <div className={`h-1 w-1 rounded-full ${(mov.transactionType || mov.transaction_type) === "INCOME" ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                                                    <div className={`h-1 w-1 rounded-full ${isIncomeMovement(mov) ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                                                                     {getTransactionTypeLabel(mov.transactionType || mov.transaction_type || "")}
                                                                 </span>
                                                             </td>
                                                             <td className="px-6 py-4 text-center">
                                                                 <span className="font-bold text-slate-700 dark:text-slate-200">
-                                                                    {getPaymentMethodLabel(mov.paymentMethod || mov.payment_method || "")}
+                                                                    {getPaymentMethodLabel(resolveMovementPaymentMethod(mov))}
                                                                 </span>
                                                             </td>
                                                             <td className="px-6 py-4 text-right">
-                                                                <span className={`text-sm font-black ${(mov.transactionType || mov.transaction_type) === "INCOME" ? 'text-slate-800 dark:text-slate-100' : 'text-rose-600'}`}>
-                                                                    {currencyFormatter.format(Number(mov.paidAmount || mov.paid_amount || 0))}
+                                                                <span className={`text-sm font-black ${isIncomeMovement(mov) ? 'text-slate-800 dark:text-slate-100' : 'text-rose-600'}`}>
+                                                                    {currencyFormatter.format(resolveMovementAmount(mov))}
                                                                 </span>
                                                             </td>
                                                             <td className="px-6 py-4">

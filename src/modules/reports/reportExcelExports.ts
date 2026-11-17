@@ -506,10 +506,22 @@ function formatClientSalesCorrelativo(serial: string, number: number): string {
     return `${serial}-${String(number).padStart(8, "0")}`;
 }
 
+type ClientCreditGroupForExport = {
+    lastEmissionDate: string;
+    lastEmissionTime?: string;
+    clientName: string;
+    clientDocumentNumber?: string;
+    voucherTypeLabel: string;
+    documentCount: number;
+    comprobantes: string[];
+    totalAmount: number;
+};
+
 export async function downloadClientSalesReport(
     documents: ClientSalesDocumentForExport[],
     summary: ClientSalesSummaryForExport | null,
     range: DateRange,
+    creditGroups: ClientCreditGroupForExport[] = [],
 ): Promise<ExportToExcelResult> {
     const documentRows: ExcelRow[] = documents.map((doc) => ({
         Fecha: `${doc.emissionDate} ${doc.emissionTime?.slice(0, 5) ?? ""}`.trim(),
@@ -520,6 +532,16 @@ export async function downloadClientSalesReport(
         "Método de pago": doc.paymentMethods ?? "",
         Total: roundMoney(doc.totalAmount),
         "Estado SUNAT": doc.billingStatus ?? "",
+    }));
+
+    const creditGroupRows: ExcelRow[] = creditGroups.map((g) => ({
+        "Última fecha": `${g.lastEmissionDate} ${g.lastEmissionTime?.slice(0, 5) ?? ""}`.trim(),
+        Cliente: g.clientName,
+        "Doc. cliente": g.clientDocumentNumber ?? "",
+        "Tipo comprobante": g.voucherTypeLabel,
+        Cantidad: g.documentCount,
+        Comprobantes: g.comprobantes.join(", "),
+        "Total crédito": roundMoney(g.totalAmount),
     }));
 
     const summaryRows: ExcelRow[] = summary
@@ -538,11 +560,16 @@ export async function downloadClientSalesReport(
           ]
         : [];
 
+    const sheets = [
+        { name: "Ventas", rows: documentRows },
+        ...(creditGroupRows.length > 0
+            ? [{ name: "Crédito por cliente", rows: creditGroupRows }]
+            : []),
+        { name: "Resumen", rows: summaryRows },
+    ];
+
     return exportToExcel({
         filename: `ventas-clientes_${range.startDate}_${range.endDate}`,
-        sheets: [
-            { name: "Ventas", rows: documentRows },
-            { name: "Resumen", rows: summaryRows },
-        ],
+        sheets,
     });
 }
